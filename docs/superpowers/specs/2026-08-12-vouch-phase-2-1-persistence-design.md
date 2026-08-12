@@ -110,6 +110,46 @@ enforcement mechanism.
 
 Vouch owns every operation on this list, so vouch enforces the list.
 
+### "Enroll" versus "change" — an explicit definition
+
+The permitted and denied lists turn on this distinction, so a driver must not be left to
+infer it.
+
+- **Enroll** — create a credential of a type the user does not currently have. Permitted
+  during grace; it is the entire purpose of the grace session.
+- **Change** (equivalently reset, replace, rotate) — modify, overwrite, or re-key a
+  credential of a type the user already has. Denied during grace.
+
+The consequence is deliberate and should not be treated as an inconsistency: **a
+passwordless user may add a password during grace, while a user who already has a
+password may not reset it.** The first is enrollment, the second is takeover-shaped —
+recovery-code proof must never become a password-reset substitute. A driver that treats
+a reset as an enrollment because no `password` row exists after it deletes the old one
+has broken the rule; deletion is itself denied, which closes that route.
+
+### Grace completes only when the resulting credential set satisfies the login policy
+
+Enrolling *a* factor is not sufficient to end grace. On successful enrollment and
+verification, vouch re-evaluates **all** the user's credentials — existing plus newly
+enrolled — against the resolved `login` policy using the Phase 1
+`SatisfiabilityEvaluator`. Grace ends only if that policy is satisfied.
+
+Without this, a user under a policy requiring possession-strength could enroll a
+password, complete grace, and remain unable to log in — locked out by a flow whose
+entire purpose was to unlock them. If the policy is not yet satisfied, the session stays
+in grace within its unextended TTL and prompts for the remaining factor.
+
+This also keeps the decision in the kernel rather than re-implementing policy logic in
+the enrollment path.
+
+> **Gap noticed while specifying this, not previously tracked.** Parent spec §7.3
+> requires notifying every registered identifier for *admin-assisted* recovery, but says
+> nothing about notifying on ordinary **recovery-code use**. A recovery code is the
+> attacker's cheapest path into an account, and a silent one is strictly worse than a
+> noisy one. Consuming a recovery code should notify all registered identifiers. This is
+> a 2.3 concern — notification needs the flow layer — so it is recorded here and carried
+> forward rather than pulled into 2.1.
+
 ---
 
 ## 3. Schema
@@ -134,6 +174,58 @@ parent spec by amendment.
 host's session driver; §7.5 requires invalidating *all other sessions* on credential
 change, which needs an enumerable record; and §6.5's token gate must read the issuing
 session's assurance at mint time.
+
+### 3.1 `auth_sessions` is the authoritative session record
+
+A row in a vouch table cannot, by itself, invalidate a host's cookie-backed Laravel
+session. If Laravel's cookie still asserts that user 5 is signed in, marking a vouch row
+revoked achieves nothing unless something checks it. Without the contract below, §7.5's
+"invalidate all other sessions on credential change" is aspirational for every
+cookie-session host — which is most of them.
+
+**The contract.** On **every** vouch-protected request, vouch middleware resolves the
+current authenticated session through its own server-side record, and **rejects a
+revoked or expired row even when Laravel's session still says the user is
+authenticated.** The vouch record is authoritative; the host's session cookie is only a
+lookup key. A rejected request terminates the host session as well, so the two do not
+drift.
+
+**Binding key.** `auth_sessions.session_binding` stores an **HMAC-SHA256 of the host
+session ID keyed to `APP_KEY`** — never the raw ID. The host session ID is a bearer
+credential: anyone holding it can impersonate the session. Storing raw IDs would turn
+any table read — SQL injection, a backup, a read replica, a support export — into a
+pile of usable session credentials. This is the same reasoning that hashes OTPs and
+recovery codes (§7.6), applied to the one other bearer value the schema touches.
+
+Keying to `APP_KEY` means rotating `APP_KEY` invalidates every session. That is
+acceptable and already true of Laravel: encrypted session cookies do not survive
+`APP_KEY` rotation either. It must be documented, not discovered.
+
+**Uniqueness.** `UNIQUE(session_binding)`, enforced by the database.
+
+A partial "unique among live rows only" index is not portable — `NULL != NULL` in a
+unique index on all three engines, so `UNIQUE(session_binding, revoked_at)` would
+*permit* multiple live rows for one binding, which is precisely backwards. Plain
+`UNIQUE(session_binding)` is portable and correct given the rotation model below.
+
+**Rotation updates the row in place.** When the session ID rotates — on any assurance
+increase (§7.5), and on recovery-grace completion (rule 4) — the existing row's
+`session_binding` is updated to the HMAC of the new ID, the `amr` is replaced, and
+assurance facts are recomputed. One row per logical session lifetime. The rotation event
+itself is recorded through the `AuditSink`, which is where an audit trail belongs; the
+session table is operational state, not a log.
+
+**Revocation.** `revoked_at` (nullable) plus `revoked_reason`. A revoked row is retained
+so the next request presenting it can be told *why* it was signed out — "your password
+was changed" is materially better than a bare redirect — and so revocations are
+enumerable. The scheduled sweep hard-deletes rows past a configurable retention window.
+
+> **Deviation from the review, flagged deliberately.** The review asked for
+> `revoked_at`/`destroyed_at`. I have specified one nullable timestamp plus a reason
+> rather than two timestamps, because I could not identify a state that the second
+> column expresses and the reason string does not: logout, grace expiry, credential
+> change, and admin action are all revocations differing only in cause. If there is a
+> distinction intended that this collapses, say so and I will restore the second column.
 
 **`auth_credentials.type` is an open string, not an enum.** Drivers register their own
 type keys in 2.2. Defining the values here would couple persistence to a driver set that
@@ -186,10 +278,44 @@ transition(attempt, to, mutate):
 Expiry is enforced **on read**, independent of any store-level TTL, so a stale row can
 never be transitioned.
 
-Challenge consumption and attempt advancement occur in **one transaction**, with the
-challenge update itself guarded by `WHERE consumed_at IS NULL`. Two concurrent
-submissions of the same one-time code therefore produce exactly one success at the
-database level, not at the application's discretion.
+### Consume-and-advance is all-or-nothing
+
+Challenge consumption and attempt advancement occur in **one transaction**, and it is
+not enough to say they share one — the failure of either guarded update must abort the
+other. Otherwise an already-consumed challenge could still advance an attempt to
+`factor_satisfied` or `authenticated`, which is a replay.
+
+Legality, expiry, and bound-context checks run **before** the transaction opens.
+
+```
+BEGIN
+  n1 = UPDATE auth_challenges
+         SET consumed_at = now()
+         WHERE id = ? AND consumed_at IS NULL
+  if n1 !== 1  →  ROLLBACK, return ChallengeAlreadyConsumed
+
+  n2 = UPDATE auth_attempts
+         SET state = ?, version = version + 1, ...
+         WHERE id = ? AND version = ?
+  if n2 !== 1  →  ROLLBACK, return ConcurrentModification
+COMMIT
+```
+
+Both updates are guarded, both must affect **exactly one** row, and anything else rolls
+the transaction back. **No attempt may reach `factor_satisfied` or `authenticated` if
+its challenge was already consumed.** The CAS version predicate is deliberately the
+*last* check, so it is the final arbiter of concurrency.
+
+Two concurrent submissions of the same one-time code therefore produce exactly one
+success at the database level, not at the application's discretion.
+
+**One engine difference the matrix must catch.** MySQL's default affected-rows semantics
+report rows *changed*, not rows *matched*, so an update that writes a value already
+present reports zero. Both statements above always change a value — `consumed_at` is
+guarded on being NULL, and `version + 1` always differs — so matched and changed
+coincide here. That is a property worth asserting rather than assuming, because a future
+edit that adds an idempotent column write to either statement would silently break the
+guard on MySQL alone.
 
 ---
 
@@ -256,3 +382,10 @@ Stated so they are not half-built:
 | Attempt store backing | Database only; Redis additive later | One implementation whose concurrency is genuinely proven beats two that are plausibly proven. |
 | Data access | Contracts at three real seams; Eloquent directly elsewhere | Fakes cannot enforce constraints or lose races — the failure shape this project has hit five times. |
 | Test databases | SQLite for the normal suite; SQLite + MySQL + Postgres for the adversarial matrix | SQLite is a supported target and must be verified, but cannot prove the other engines' locking and transaction behaviour. |
+| Session authority | Vouch record is authoritative; host session cookie is only a lookup key, checked on every vouch-protected request | A vouch row cannot invalidate a cookie-backed Laravel session on its own; without this, §7.5 multi-session invalidation is aspirational. |
+| Session binding storage | HMAC-SHA256 of the host session ID keyed to `APP_KEY` | The session ID is a bearer credential; storing it raw turns any table read into usable session credentials. |
+| Session uniqueness | Plain `UNIQUE(session_binding)`, rotation updates the row in place | `NULL != NULL` makes a "unique among live rows" index non-portable and backwards — it would permit multiple live rows per binding. |
+| Revocation columns | One `revoked_at` plus `revoked_reason`, not two timestamps | No state was identifiable that a second timestamp expresses and the reason string does not. Flagged in §3.1 for correction. |
+| Consume-and-advance | Both guarded updates must affect exactly one row or the transaction rolls back; CAS is the last check | Sharing a transaction is not enough — a consumed challenge must never advance an attempt, which is a replay. |
+| Enroll vs change | Enroll creates a credential type the user lacks; change modifies one they have. Only enroll is permitted in grace | Recovery-code proof must not become a password-reset substitute. |
+| Grace completion | Ends only when all credentials together satisfy the resolved `login` policy | Otherwise a user can complete grace and still be locked out by the policy the flow existed to unlock. |
