@@ -1780,25 +1780,28 @@ it('caps at aal2 for a phishing-resistant strong passkey', function (): void {
     expect((new NistAssuranceVocabulary())->name($facts))->toBe('aal2');
 });
 
-it('never emits aal3 for any input the kernel can represent', function (): void {
+it('never emits aal3 across its whole decision-relevant facts space', function (): void {
     $vocabulary = new NistAssuranceVocabulary();
 
-    $everyShape = [
-        AssuranceFacts::fromFactors([]),
-        AssuranceFacts::fromFactors([
-            satisfied('cred-1', FactorStrength::Knowledge, false, '2026-08-11T10:00:00+00:00'),
-        ]),
-        AssuranceFacts::fromFactors([
-            satisfied('cred-1', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00', multiFactor: true),
-        ]),
-        AssuranceFacts::fromFactors([
-            satisfied('cred-1', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00', multiFactor: true),
-            satisfied('cred-2', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00', multiFactor: true),
-        ]),
-    ];
+    // Exhaustive, not a sample: the vocabulary branches only on credential count
+    // 0 / 1 / >=2, so counts 0..2 crossed with every strength and both booleans
+    // covers every decision it can make. Sixty combinations.
+    foreach ([0, 1, 2] as $credentialCount) {
+        foreach (FactorStrength::cases() as $strongest) {
+            foreach ([true, false] as $phishingResistant) {
+                foreach ([true, false] as $multiFactor) {
+                    $facts = new AssuranceFacts(
+                        distinctCredentialCount: $credentialCount,
+                        strongest: $strongest,
+                        allPhishingResistant: $phishingResistant,
+                        hasMultiFactorCredential: $multiFactor,
+                        weakestSatisfiedAt: at('2026-08-11T10:00:00+00:00'),
+                    );
 
-    foreach ($everyShape as $facts) {
-        expect($vocabulary->name($facts))->not->toBe('aal3');
+                    expect($vocabulary->name($facts))->not->toBe('aal3');
+                }
+            }
+        }
     }
 });
 
