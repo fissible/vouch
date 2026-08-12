@@ -244,3 +244,16 @@ it('leaves phishing_resistant null when absent or explicitly null', function ():
     expect($absentLeaf->phishingResistant)->toBeNull()
         ->and($explicitNullLeaf->phishingResistant)->toBeNull();
 });
+
+it('reindexes children so requirements are always a list', function (): void {
+    // Config arrays arrive from YAML/PHP config where a branch may carry string
+    // keys. AllOf and AnyOf declare `non-empty-list<Requirement>`; preserving
+    // the caller's keys would silently break that contract.
+    $parsed = (new PolicyParser())->parse([
+        'all_of' => ['first' => 'password', 'second' => 'totp'],
+    ]);
+
+    assert($parsed instanceof AllOf);
+
+    expect(array_keys($parsed->requirements))->toBe([0, 1]);
+});

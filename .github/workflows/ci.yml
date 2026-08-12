@@ -59,7 +59,7 @@ jobs:
       - name: Install
         run: composer install --prefer-dist --no-progress
 
-      - name: Infection
+      - name: Mutation testing
         run: composer mutate
 
   # Single stable required status check for branch protection. Requiring the

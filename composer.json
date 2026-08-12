@@ -33,7 +33,17 @@
     "scripts": {
         "test": "pest",
         "stan": "phpstan analyse --no-progress",
-        "mutate": "infection --threads=max --only-covered"
+        "mutate": [
+            "@mutate:msi",
+            "@mutate:covered"
+        ],
+        "mutate:msi": "pest --mutate --class=\"Fissible\\Vouch\\Kernel\" --min=85",
+        "mutate:covered": "pest --mutate --class=\"Fissible\\Vouch\\Kernel\" --covered-only --min=95"
+    },
+    "scripts-descriptions": {
+        "mutate": "Mutation testing over Fissible\\Vouch\\Kernel. Two runs: overall MSI >= 85, covered-code MSI >= 95.",
+        "mutate:msi": "Mutation score over every mutation, including ones on uncovered lines (Infection's minMsi).",
+        "mutate:covered": "Mutation score over covered mutations only (Infection's minCoveredMsi)."
     },
     "minimum-stability": "stable",
     "prefer-stable": true
