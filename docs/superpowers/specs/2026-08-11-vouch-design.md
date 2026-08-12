@@ -848,8 +848,10 @@ reality rather than theory:
   satisfiability predicate, and assurance derivation. Because the kernel boots no
   framework (§8.1), this pass runs fast enough to stay in CI rather than being nominally
   configured and quietly skipped.
-- **Architecture test** asserting nothing under `Vouch\Kernel` imports `Illuminate\*` or
-  a driver namespace. A build failure, not a convention.
+- **Architecture test** enforcing the full §8.1 kernel boundary — no `Illuminate\*`,
+  facades, global helpers, Eloquent types, driver namespaces, or global time functions.
+  A build failure, not a convention. Restated in one place only (§8.1) so the two
+  cannot drift.
 
 Stack: Pest + Orchestra Testbench, Laravel 13 / PHP 8.4. Kernel tests run under plain
 Pest with no Testbench boot.
