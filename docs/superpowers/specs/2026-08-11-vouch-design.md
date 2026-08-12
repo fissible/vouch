@@ -711,19 +711,58 @@ The kernel is roughly 20–30% of the code and close to 80% of the risk — ever
 silently inverted condition is catastrophic rather than merely wrong. `psr/clock` is its
 only dependency so recency logic is testable without freezing global time.
 
-**Enforcement:** a CI architecture test asserts that nothing under `Vouch\Kernel`
-imports `Illuminate\*` or any driver namespace. This is a build failure, not a
-convention.
+`ScreenSpec` qualifies for the kernel **only while it remains immutable, framework-free
+data**. The moment it acquires a rendering concern, a Blade or Filament type, or
+mutability, it belongs outside. Rendering adapters stay in `vouch-ui` (§8.2)
+unconditionally.
 
-**Extraction trigger, committed:** `Vouch\Kernel` is extracted to
-`fissible/vouch-kernel` at **v1.0**, when the API stabilises — or earlier if a second
-consumer appears. It then mirrors `fissible/attest` (pure PHP) and
-`fissible/attest-laravel` (adapter) exactly, which is the established portfolio shape.
+**Enforcement.** A CI architecture test asserts that nothing under `Vouch\Kernel`
+imports or calls:
 
-Holding it as a namespace boundary through v0.x buys the fast mutation testing and the
-small auditable surface immediately, without paying a cross-package version bump on
-every kernel change while the API is still moving. The arch test means extraction stays
-mechanical rather than becoming an untangling exercise.
+- `Illuminate\*`, any Laravel facade, or a global helper (`app()`, `config()`,
+  `now()`, `event()`, …)
+- any Eloquent type, or any driver namespace
+- **global time** — `time()`, `microtime()`, `date()`, or a bare
+  `new DateTimeImmutable()`
+
+Time enters only through an injected `Psr\Clock\ClockInterface`. This is a build
+failure, not a convention.
+
+**Extraction trigger — evidence-based, not scheduled.**
+
+> `Vouch\Kernel` is an architecture-enforced pure-PHP namespace in v0.x. It is extracted
+> to `fissible/vouch-kernel` when it has a second consumer, or when its public API has
+> demonstrated stability through a full release cycle. Extraction remains a
+> precondition for any non-Laravel support claim.
+
+An earlier draft committed extraction to v1.0. That is the worst available moment: v1.0
+is where public API stability is *declared* under semver, so performing the most
+disruptive packaging change available at exactly that point maximises downstream churn
+— and it treats the declaration of stability as though it were evidence of it.
+
+**Measuring the stability trigger.** "Demonstrated stability" is otherwise a judgment
+call that resolves to "not yet" indefinitely. It is made checkable: the kernel's public
+API surface is captured as a committed snapshot, and the trigger is met when a full
+minor release cycle closes with no breaking change to that snapshot. Reviewed at each
+minor release, not left to notice itself.
+
+Note that the two triggers partly collapse. Station and Sluice are both Laravel and
+would consume `fissible/vouch`, not the kernel — so a second *kernel* consumer means
+non-Laravel adoption, which is the same condition as the support claim. The
+load-bearing trigger in practice is API stability.
+
+**Naming discipline.** `fissible/vouch` is a Laravel package. `Vouch\Kernel` is an
+internal pure-domain boundary and is **not** evidence that the package is
+framework-neutral; no documentation, README, or Packagist description may imply
+otherwise before extraction. Calling the Laravel package "core" in contrast to the UI
+package is a layering statement, not a portability claim.
+
+Holding the kernel as a namespace boundary through v0.x buys the fast mutation testing
+and the small auditable surface immediately, without paying a cross-package version bump
+on every kernel change while the API is still moving. The arch test keeps eventual
+extraction mechanical rather than an untangling exercise. It ends at the
+`fissible/attest` (pure) and `fissible/attest-laravel` (adapter) shape — arrived at on
+evidence rather than on a date.
 
 ### 8.2 The presenter layer
 
@@ -838,8 +877,10 @@ These are settled in principle but need decisions during planning, not before:
 7. **Central authentication origin** remains the only path to cross-origin assurance
    portability and single-enrollment passkeys. Rejected for v1 (§11); revisit if
    custom-domain tenants with multi-tenant users become a real support burden.
-8. **Kernel extraction at v1.0** (§8.1). The trigger is committed; the mechanics —
-   repo wiring, version constraint between kernel and adapter — are planning work.
+8. **Kernel extraction** (§8.1) is triggered by evidence, not schedule. Two planning
+   tasks follow from that: capturing the kernel's public API surface as a committed
+   snapshot from the first release, and adding a standing "is the trigger met?" check
+   to the minor-release procedure so it cannot quietly never happen.
 
 ---
 
@@ -864,7 +905,9 @@ These are settled in principle but need decisions during planning, not before:
 | Attempt persistence | Single authoritative store, CAS transitions | Dual-store "cache with DB fallback" permits split-brain, replay, and double-consumption. |
 | OIDC protocol owner | Pin `facile-it/php-openid-client`, gated on evaluation | Socialite does no discovery, JWKS, or ID-token validation. The "we don't implement protocols" boundary needs a named component behind it. |
 | Pre-vouch tokens | Reissue, never adopt | Backfilling an assurance record asserts a fact nobody observed. No adopt command ships, so the shortcut cannot be taken under deadline pressure. |
-| Kernel boundary | `Vouch\Kernel` namespace in v0.x, arch-test enforced; extracted to `fissible/vouch-kernel` at v1.0 | The kernel is ~20–30% of the code and ~80% of the risk, and needs to be fast to mutation-test. Deferring the package split avoids daily cross-package version bumps while the API churns; the arch test keeps extraction mechanical. Ends at the `attest` / `attest-laravel` shape. |
+| Kernel boundary | `Vouch\Kernel` namespace in v0.x, arch-test enforced | The kernel is ~20–30% of the code and ~80% of the risk, and needs to be fast to mutation-test. Deferring the package split avoids daily cross-package version bumps while the API churns; the arch test keeps extraction mechanical. |
+| Kernel extraction trigger | Second consumer, or API stable across a full minor cycle measured against a committed surface snapshot — **not** a scheduled v1.0 split | v1.0 is where API stability is declared, not demonstrated; splitting there maximises downstream churn at the worst moment. Extraction is a precondition for any non-Laravel support claim. |
+| Kernel time access | Injected `Psr\Clock\ClockInterface` only; global time functions banned by the arch test | Recency logic (§5.3) is security-relevant and must be deterministic under test without freezing global time. |
 | MFA preset semantics | Explicit `any_of` branches | A user-verified passkey is an alternative to, not a second assertion within, password-plus-TOTP MFA. This removes predicate precedence as a security decision. |
 | Strict SSO enumeration | Identical identifier endpoint; documented federation-stage leakage | A real IdP redirect is necessarily visible. Hiding it requires becoming a separate identity provider, which v1 does not do. |
 | Apple social login | `socialiteproviders/apple` ^5.10 | Maintained adapter over Socialite's manager covers Apple's provider-specific signed client secret and callback behavior without expanding vouch's protocol surface. |
