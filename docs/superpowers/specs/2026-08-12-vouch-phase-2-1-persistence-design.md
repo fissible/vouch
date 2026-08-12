@@ -127,28 +127,69 @@ recovery-code proof must never become a password-reset substitute. A driver that
 a reset as an enrollment because no `password` row exists after it deletes the old one
 has broken the rule; deletion is itself denied, which closes that route.
 
-### Grace completes only when the resulting credential set satisfies the login policy
+### Grace completes only on fresh, non-recovery satisfied-factor evidence
 
-Enrolling *a* factor is not sufficient to end grace. On successful enrollment and
-verification, vouch re-evaluates **all** the user's credentials — existing plus newly
-enrolled — against the resolved `login` policy using the Phase 1
-`SatisfiabilityEvaluator`. Grace ends only if that policy is satisfied.
+**Credential presence is not proof of current control.** This is the rule most likely to
+be got wrong, because the wrong version looks helpful.
 
-Without this, a user under a policy requiring possession-strength could enroll a
-password, complete grace, and remain unable to log in — locked out by a flow whose
-entire purpose was to unlock them. If the policy is not yet satisfied, the session stays
-in grace within its unextended TTL and prompts for the remaining factor.
+Grace ends only when **the session holds fresh, non-recovery satisfied-factor evidence
+that meets the resolved `login` policy.** Specifically:
 
-This also keeps the decision in the kernel rather than re-implementing policy logic in
-the enrollment path.
+- Evidence means factors **proven in this session** — entries in the session's satisfied
+  factor set — never rows in `auth_credentials`.
+- Verifying a newly enrolled factor contributes evidence **for that factor**.
+- **Any other factor the policy requires must be challenged and verified during the
+  recovery-completion flow.** A stored credential the user has not exercised in this
+  session contributes nothing.
+- If the policy is not met, grace stays restricted until its unextended TTL expires.
 
-> **Gap noticed while specifying this, not previously tracked.** Parent spec §7.3
-> requires notifying every registered identifier for *admin-assisted* recovery, but says
-> nothing about notifying on ordinary **recovery-code use**. A recovery code is the
-> attacker's cheapest path into an account, and a silent one is strictly worse than a
-> noisy one. Consuming a recovery code should notify all registered identifiers. This is
-> a 2.3 concern — notification needs the flow layer — so it is recorded here and carried
-> forward rather than pulled into 2.1.
+> **An earlier draft of this section said to evaluate "all the user's credentials,
+> existing plus newly enrolled" against the policy. That was an authentication bypass.**
+> Consider a user with a password and a TOTP who loses the TOTP: they recover, enroll and
+> verify a replacement TOTP, and the stored password row would have counted as a
+> satisfied knowledge factor — completing an MFA policy without the password ever being
+> proven. An attacker holding only a recovery code would obtain a full MFA-satisfying
+> session. The corrected rule requires the password to be challenged and verified in the
+> completion flow before grace can end.
+
+The kernel already supplies the "non-recovery" half for free: `SatisfiabilityEvaluator`
+filters `FactorStrength::Recovery` before solving, so the recovery entry in the evidence
+set cannot contribute to satisfaction no matter how the flow assembles the list.
+
+**Interaction with rule 4's replace-not-append.** During grace the session *accumulates*
+proven evidence, beginning with the recovery entry. At the moment of completion the
+`amr` is **replaced** with the non-recovery evidence set. Accumulate during, replace at
+completion — the two rules describe different moments and do not conflict.
+
+This still solves the lock-out problem the earlier draft was reaching for: a user under a
+possession-strength policy who enrolls only a password does not complete grace, because
+the evidence does not meet the policy — but now they are prompted for what is actually
+missing rather than being handed a session that cannot log in again.
+
+Policy evaluation stays in the kernel; the flow layer's job is to assemble honest
+evidence and hand it over.
+
+### Carried into 2.3 — notify on ordinary recovery-code use
+
+Parent spec §7.3 requires notifying every registered identifier for *admin-assisted*
+recovery but is silent on ordinary **recovery-code use**. A recovery code is the
+attacker's cheapest path into an account, and a silent one is strictly worse than a noisy
+one. This is a 2.3 concern because notification needs the flow layer; it is specified
+here so it is not rediscovered.
+
+Requirements:
+
+- Sent to **registered, verified identifiers only.** Unverified addresses may be
+  attacker-supplied, so notifying them would hand an attacker confirmation.
+- **Post-consumption**, and **best-effort**. Notification is an alert, not a gate.
+- **Auditable** — the notification attempt and its outcome are recorded through the
+  `AuditSink`.
+- **Delivery failure must not restore a consumed code.** The code stays spent whether or
+  not the mail went out; the alternative hands an attacker a retry by arranging for
+  delivery to fail.
+- **Delivery failure must not reveal anything to the requester.** No "we couldn't reach
+  your backup address" — that discloses which identifiers exist and their state, which
+  is the §7.1 enumeration surface arriving through a side door.
 
 ---
 
@@ -220,12 +261,25 @@ so the next request presenting it can be told *why* it was signed out — "your 
 was changed" is materially better than a bare redirect — and so revocations are
 enumerable. The scheduled sweep hard-deletes rows past a configurable retention window.
 
-> **Deviation from the review, flagged deliberately.** The review asked for
-> `revoked_at`/`destroyed_at`. I have specified one nullable timestamp plus a reason
-> rather than two timestamps, because I could not identify a state that the second
-> column expresses and the reason string does not: logout, grace expiry, credential
-> change, and admin action are all revocations differing only in cause. If there is a
-> distinction intended that this collapses, say so and I will restore the second column.
+There is no `destroyed_at`: no state was identifiable that a second timestamp expresses
+and the reason does not. Logout, grace expiry, credential change, and admin action are
+all revocations differing only in cause.
+
+**`revoked_reason` is a constrained set, not free text** — a backed enum persisted as a
+string, validated on write:
+
+| Reason | Set when |
+|---|---|
+| `logout` | The user signed out deliberately. |
+| `grace_expired` | A recovery-grace session hit its absolute TTL. |
+| `credential_changed` | §7.5 invalidation after a credential was added, removed, or changed. |
+| `password_changed` | §7.5 invalidation specifically on password change, which is always all-sessions. |
+| `admin_revoked` | A tenant admin or operator terminated the session. |
+| `superseded` | Replaced during rotation in an edge case where the row could not be updated in place. |
+
+Free text would end up in user-facing sign-out messaging, which makes it an injection
+and information-disclosure surface on a security-relevant path. A closed set also keeps
+revocation reasons aggregatable in audit, which is the point of recording them.
 
 **`auth_credentials.type` is an open string, not an enum.** Drivers register their own
 type keys in 2.2. Defining the values here would couple persistence to a driver set that
@@ -285,26 +339,43 @@ not enough to say they share one — the failure of either guarded update must a
 other. Otherwise an already-consumed challenge could still advance an attempt to
 `factor_satisfied` or `authenticated`, which is a replay.
 
-Legality, expiry, and bound-context checks run **before** the transaction opens.
+Legality and bound-context checks run **before** the transaction opens. Expiry is
+checked before *and* inside, for the reason below.
 
 ```
 BEGIN
   n1 = UPDATE auth_challenges
-         SET consumed_at = now()
+         SET consumed_at = <db-now>
          WHERE id = ? AND consumed_at IS NULL
-  if n1 !== 1  →  ROLLBACK, return ChallengeAlreadyConsumed
+           AND expires_at > <db-now>
+  if n1 !== 1  →  ROLLBACK, return ChallengeAlreadyConsumedOrExpired
 
   n2 = UPDATE auth_attempts
          SET state = ?, version = version + 1, ...
          WHERE id = ? AND version = ?
-  if n2 !== 1  →  ROLLBACK, return ConcurrentModification
+           AND expires_at > <db-now>
+  if n2 !== 1  →  ROLLBACK, return ConcurrentModificationOrExpired
 COMMIT
 ```
 
 Both updates are guarded, both must affect **exactly one** row, and anything else rolls
 the transaction back. **No attempt may reach `factor_satisfied` or `authenticated` if
-its challenge was already consumed.** The CAS version predicate is deliberately the
-*last* check, so it is the final arbiter of concurrency.
+its challenge was already consumed or either row has expired.** The CAS version
+predicate is deliberately the *last* check, so it is the final arbiter of concurrency.
+
+**Expiry lives in the predicate, not only in a pre-flight check.** Checking expiry before
+`BEGIN` alone leaves a time-of-check/time-of-use window: the row passes the check at T0,
+expires at T0.5, and the update still lands at T1. Putting `expires_at > <db-now>` in
+both `WHERE` clauses closes it, because the comparison is evaluated at statement
+execution.
+
+`<db-now>` must be the **database's current time evaluated at statement execution**, not
+an application timestamp bound as a parameter. Binding the pre-flight instant would not
+close the window at all — the predicate would compare against T0 and still pass. It
+follows that `expires_at` values are also written using the database clock, so both
+sides of every comparison come from one clock and no app-to-database skew can widen or
+narrow a lifetime. The Phase 1 kernel's injected `ClockInterface` is unaffected; it never
+touches persistence.
 
 Two concurrent submissions of the same one-time code therefore produce exactly one
 success at the database level, not at the application's discretion.
@@ -388,4 +459,7 @@ Stated so they are not half-built:
 | Revocation columns | One `revoked_at` plus `revoked_reason`, not two timestamps | No state was identifiable that a second timestamp expresses and the reason string does not. Flagged in §3.1 for correction. |
 | Consume-and-advance | Both guarded updates must affect exactly one row or the transaction rolls back; CAS is the last check | Sharing a transaction is not enough — a consumed challenge must never advance an attempt, which is a replay. |
 | Enroll vs change | Enroll creates a credential type the user lacks; change modifies one they have. Only enroll is permitted in grace | Recovery-code proof must not become a password-reset substitute. |
-| Grace completion | Ends only when all credentials together satisfy the resolved `login` policy | Otherwise a user can complete grace and still be locked out by the policy the flow existed to unlock. |
+| Grace completion | Ends only on **fresh, non-recovery satisfied-factor evidence** meeting the resolved `login` policy; stored credentials count for nothing until challenged and verified in the completion flow | Credential presence is not proof of current control. An earlier draft evaluated stored credentials and was an authentication bypass: password + lost TOTP, recover, enroll a replacement TOTP, and the stored password row completes an MFA policy the attacker never proved. |
+| Expiry and TOCTOU | `expires_at > <db-now>` inside both guarded `WHERE` clauses, evaluated at statement execution, not only pre-flight | A pre-flight check alone leaves a time-of-check/time-of-use window; a bound application timestamp would not close it, since the predicate would compare against the pre-flight instant and still pass. |
+| Clock source for expiry | Database clock on both write and comparison | One clock on both sides of every comparison, so app-to-database skew cannot widen or narrow a lifetime. |
+| `revoked_reason` | Constrained backed enum, six values, not free text | It reaches user-facing sign-out messaging, so free text is an injection and disclosure surface; a closed set also keeps reasons aggregatable in audit. |
