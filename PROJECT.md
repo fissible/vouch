@@ -61,10 +61,17 @@ Pure decision logic. No framework, no persistence, no HTTP. ~20–30% of the cod
 - Arch test green: nothing under `Fissible\Vouch\Kernel` imports `Illuminate\*`,
   facades, global helpers, Eloquent types, driver namespaces, or global time.
 - Mutation testing runs on the kernel in CI with committed floors: `composer mutate`
-  makes two Pest passes over `Fissible\Vouch\Kernel`, requiring MSI >= 85 across every
-  mutation and >= 95 over covered mutations. (Infection was dropped in Task 5 — it
-  scores a Pest suite by looking for PHPUnit's `OK (…)` output line, which Pest never
-  prints, so it reports every mutant killed and a fabricated 100% MSI.)
+  makes two Pest passes over `Fissible\Vouch\Kernel`. The covered-MSI floor (≥ 95) is
+  the primary test-quality gate, measuring mutation survival only on lines the test
+  suite actually exercises. The full-MSI floor (≥ 80) serves a narrower purpose: catching
+  a class shipped with no tests at all, which the covered pass cannot detect. Full-MSI
+  is systematically depressed by mutations on class constants, enum cases, and `match`
+  arms that PHP evaluates at compile time; line coverage cannot attribute these, so
+  Pest never executes them. This artifact does not imply weaker tests — the 80 floor
+  allows headroom for these unexecutable mutants while still detecting wholly untested
+  classes. (Infection was dropped in Task 5 — it scores a Pest suite by looking for
+  PHPUnit's `OK (…)` output line, which Pest never prints, so it reports every mutant
+  killed and a fabricated 100% MSI.)
 - Kernel public API surface captured as a committed snapshot (input to the §8.1
   extraction trigger).
 

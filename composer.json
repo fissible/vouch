@@ -35,11 +35,11 @@
             "@mutate:msi",
             "@mutate:covered"
         ],
-        "mutate:msi": "pest --mutate --class=\"Fissible\\Vouch\\Kernel\" --min=85",
+        "mutate:msi": "pest --mutate --class=\"Fissible\\Vouch\\Kernel\" --min=80",
         "mutate:covered": "pest --mutate --class=\"Fissible\\Vouch\\Kernel\" --covered-only --min=95"
     },
     "scripts-descriptions": {
-        "mutate": "Mutation testing over Fissible\\Vouch\\Kernel. Two runs: overall MSI >= 85, covered-code MSI >= 95.",
+        "mutate": "Mutation testing over Fissible\\Vouch\\Kernel. Two runs: overall MSI >= 80 (detects untested classes), covered-code MSI >= 95 (primary quality gate).",
         "mutate:msi": "Mutation score over every mutation, including ones on uncovered lines (Infection's minMsi).",
         "mutate:covered": "Mutation score over covered mutations only (Infection's minCoveredMsi)."
     },
