@@ -72,3 +72,30 @@ it('rejects a layer set that is entirely null', function (): void {
     expect(fn () => (new PolicyResolver())->resolve([null, null]))
         ->toThrow(InvalidArgumentException::class, 'at least one policy layer');
 });
+
+it('finds the most specific layer even when a null precedes it', function (): void {
+    $resolved = (new PolicyResolver())->resolve([
+        null,
+        document('totp'),
+        document('passkey'),
+    ]);
+
+    expect(resolvedFactorId($resolved))->toBe('passkey');
+});
+
+it('reports strictness for every combination of postures', function (): void {
+    expect(EnumerationPosture::Strict->isAtLeastAsStrictAs(EnumerationPosture::Strict))->toBeTrue()
+        ->and(EnumerationPosture::Strict->isAtLeastAsStrictAs(EnumerationPosture::Friendly))->toBeTrue()
+        ->and(EnumerationPosture::Friendly->isAtLeastAsStrictAs(EnumerationPosture::Strict))->toBeFalse()
+        ->and(EnumerationPosture::Friendly->isAtLeastAsStrictAs(EnumerationPosture::Friendly))->toBeTrue();
+});
+
+it('takes the strictest posture when a strict layer is surrounded by friendly layers', function (): void {
+    $resolved = (new PolicyResolver())->resolve([
+        document('password', EnumerationPosture::Friendly),
+        document('totp', EnumerationPosture::Strict),
+        document('passkey', EnumerationPosture::Friendly),
+    ]);
+
+    expect($resolved->posture)->toBe(EnumerationPosture::Strict);
+});
