@@ -70,8 +70,15 @@ In `require`, after `"psr/clock"`:
 In `require-dev`, add:
 
 ```json
+        "larastan/larastan": "^3.10",
         "orchestra/testbench": "^11.0"
 ```
+
+**Larastan is not optional here.** PHPStan level 9 over Eloquent code without a Laravel
+extension produces a flood of errors on `Model::create()` return types, dynamic model
+properties, and query-builder magic. Every model task's `composer stan` step would fail,
+and the tempting response is to lower the level — which this project has refused
+throughout. `larastan/larastan ^3.10` supports PHPStan `^2.2` and `illuminate ^13`.
 
 Add a top-level `extra` block for auto-discovery:
 
@@ -85,7 +92,16 @@ Add a top-level `extra` block for auto-discovery:
     },
 ```
 
-Run `composer update illuminate/console illuminate/database illuminate/support orchestra/testbench --with-all-dependencies`.
+Run:
+```bash
+composer update illuminate/console illuminate/database illuminate/support \
+                larastan/larastan orchestra/testbench --with-all-dependencies
+```
+
+Afterwards run `composer diagnose` and confirm the `composer.lock` schema warnings
+reported before this task (`stability-flags` and `platform-dev` serialised as arrays by
+Composer 2.5.4) have cleared. Rewriting the lock under Composer 2.10 fixes them; if they
+persist, stop and report rather than proceeding.
 
 - [ ] **Step 2: Prove the kernel boundary test now guards something real**
 
@@ -113,6 +129,22 @@ Run: `vendor/bin/pest tests/Arch/KernelBoundaryTest.php`
 Expected: FAIL, naming `_Probe.php` and the `Illuminate` namespace.
 
 Delete `src/Kernel/_Probe.php`. Re-run; expected PASS. Record both outputs in your report — this is the first moment that ban has been falsifiable.
+
+- [ ] **Step 2b: Register the Larastan extension**
+
+Add to the top of `phpstan.neon`, above `parameters`:
+
+```neon
+includes:
+    - vendor/larastan/larastan/extension.neon
+```
+
+Leave `level: 9`, both `paths`, and the existing `PestTestCallMixinExtension` service
+registration exactly as they are.
+
+Run: `composer stan`
+Expected: no errors. The kernel is framework-free so Larastan changes nothing there; this
+registration is what keeps level 9 honest once Eloquent models arrive in Task 3.
 
 - [ ] **Step 3: Write `config/vouch.php`**
 
@@ -1943,7 +1975,7 @@ git commit -m "feat: add attempt and challenge tables and models"
 This is the security-critical component of 2.1. The concurrency *proof* is Task 9; this task builds the thing to be proven.
 
 **Files:**
-- Create: `src/Contracts/AttemptStore.php`, `src/Attempts/TransitionOutcome.php`, `src/Attempts/DatabaseAttemptStore.php`
+- Create: `src/Contracts/AttemptStore.php`, `src/Attempts/TransitionOutcome.php`, `src/Attempts/TransitionRefused.php`, `src/Attempts/DatabaseAttemptStore.php`
 - Modify: `src/VouchServiceProvider.php`
 - Test: `tests/Database/AttemptStoreTest.php`
 
@@ -2173,6 +2205,36 @@ interface AttemptStore
 }
 ```
 
+- [ ] **Step 4b: Write the refusal exception**
+
+Create `src/Attempts/TransitionRefused.php`:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace Fissible\Vouch\Attempts;
+
+use RuntimeException;
+
+/**
+ * Internal control-flow signal for a refused transition.
+ *
+ * Thrown inside the store's transaction closure so Laravel rolls the
+ * transaction back through its own mechanism, then caught immediately by the
+ * store and converted to a TransitionOutcome. It never escapes the store, and
+ * callers never see it.
+ */
+final class TransitionRefused extends RuntimeException
+{
+    public function __construct(public readonly TransitionOutcome $outcome)
+    {
+        parent::__construct('Transition refused: ' . $outcome->value);
+    }
+}
+```
+
 - [ ] **Step 5: Write the database store**
 
 Create `src/Attempts/DatabaseAttemptStore.php`:
@@ -2220,44 +2282,47 @@ final class DatabaseAttemptStore implements AttemptStore
             return TransitionOutcome::ContextMismatch;
         }
 
-        $outcome = TransitionOutcome::Succeeded;
+        /*
+         * Refusals are signalled by throwing, not by calling rollBack() inside
+         * the closure. Laravel's transaction() owns the transaction lifecycle:
+         * rolling back inside and then returning normally leaves it trying to
+         * commit a transaction that no longer exists. Throwing is the mechanism
+         * it actually supports, and it gives the same all-or-nothing guarantee.
+         */
+        try {
+            $this->connection->transaction(function () use ($attempt, $to, $consumeChallengeId): void {
+                if ($consumeChallengeId !== null) {
+                    $consumed = $this->connection->table('auth_challenges')
+                        ->where('id', $consumeChallengeId)
+                        ->where('attempt_id', $attempt->getKey())
+                        ->whereNull('consumed_at')
+                        ->where('expires_at', '>', $this->now())
+                        ->update(['consumed_at' => $this->now()]);
 
-        $this->connection->transaction(function () use (
-            $attempt, $to, $consumeChallengeId, &$outcome
-        ): void {
-            if ($consumeChallengeId !== null) {
-                $consumed = $this->connection->table('auth_challenges')
-                    ->where('id', $consumeChallengeId)
-                    ->where('attempt_id', $attempt->getKey())
-                    ->whereNull('consumed_at')
-                    ->where('expires_at', '>', $this->now())
-                    ->update(['consumed_at' => $this->now()]);
-
-                if ($consumed !== 1) {
-                    $outcome = TransitionOutcome::ChallengeAlreadyConsumed;
-                    $this->connection->rollBack();
-
-                    return;
+                    if ($consumed !== 1) {
+                        throw new TransitionRefused(TransitionOutcome::ChallengeAlreadyConsumed);
+                    }
                 }
-            }
 
-            $advanced = $this->connection->table('auth_attempts')
-                ->where('id', $attempt->getKey())
-                ->where('version', $attempt->version)
-                ->where('expires_at', '>', $this->now())
-                ->update([
-                    'state' => $to->value,
-                    'version' => new Expression('version + 1'),
-                    'updated_at' => $this->now(),
-                ]);
+                $advanced = $this->connection->table('auth_attempts')
+                    ->where('id', $attempt->getKey())
+                    ->where('version', $attempt->version)
+                    ->where('expires_at', '>', $this->now())
+                    ->update([
+                        'state' => $to->value,
+                        'version' => new Expression('version + 1'),
+                        'updated_at' => $this->now(),
+                    ]);
 
-            if ($advanced !== 1) {
-                $outcome = $this->expiredOrLostRace($attempt);
-                $this->connection->rollBack();
-            }
-        });
+                if ($advanced !== 1) {
+                    throw new TransitionRefused($this->expiredOrLostRace($attempt));
+                }
+            });
+        } catch (TransitionRefused $refused) {
+            return $refused->outcome;
+        }
 
-        return $outcome;
+        return TransitionOutcome::Succeeded;
     }
 
     /**
@@ -2313,7 +2378,7 @@ In `src/VouchServiceProvider.php`, add to `register()`:
 Run: `composer test && composer stan`
 Expected: PASS (8 new tests), no PHPStan errors.
 
-If `rollBack()` inside a `transaction()` closure misbehaves on any driver, replace the closure form with explicit `beginTransaction()` / `commit()` / `rollBack()` calls. Do not swallow the outcome or return `Succeeded` on a rolled-back path.
+Confirm that every refusal path leaves the stored attempt byte-identical: the two rollback tests assert `state` and `version` are unchanged, which is the property that matters. Never return `Succeeded` on a path that threw.
 
 - [ ] **Step 8: Commit**
 
