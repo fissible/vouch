@@ -8,6 +8,21 @@
          failOnRisky="true"
          beStrictAboutOutputDuringTests="true"
 >
+    <php>
+        <!--
+            Pinned, not inherited. SatisfiabilityEvaluatorTest's wide-policy test
+            exists to catch a regression from the lazy depth-first search back to
+            eager materialisation of every assignment. That regression is only
+            *observable* as a failure when a memory limit is set: with
+            memory_limit=-1 it does not fail, it hangs. The guard was calibrated
+            against 128M — the eager version cost 11.4 MB at five requirements
+            over ten factors and exhausted 128M at six over twelve — so leaving it
+            to the ambient value meant the guard silently stopped guarding on any
+            runner configured higher, while still reporting green.
+        -->
+        <ini name="memory_limit" value="128M"/>
+    </php>
+
     <testsuites>
         <testsuite name="Vouch">
             <directory>tests</directory>
