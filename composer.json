@@ -1,0 +1,40 @@
+{
+    "name": "fissible/vouch",
+    "description": "Unified Laravel authentication: password, OTP, MFA, and SSO behind one policy engine.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.4",
+        "psr/clock": "^1.0"
+    },
+    "require-dev": {
+        "infection/infection": "^0.29",
+        "pestphp/pest": "^3.0",
+        "pestphp/pest-plugin-arch": "^3.0",
+        "phpstan/phpstan": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Fissible\\Vouch\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Fissible\\Vouch\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "infection/extension-installer": true,
+            "pestphp/pest-plugin": true
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "stan": "phpstan analyse --no-progress",
+        "mutate": "infection --threads=max --only-covered"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
