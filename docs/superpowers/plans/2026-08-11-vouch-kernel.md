@@ -75,6 +75,14 @@ The arch test is the deliverable here, not the scaffolding. It is written first 
 
 - [ ] **Step 1: Write `composer.json`**
 
+> **AMENDED DURING EXECUTION —** The `infection/infection` require-dev entry,
+> the `infection/extension-installer` allow-plugin, and the
+> `"mutate": "infection --threads=max --only-covered"` script below do not match
+> what shipped. Infection was removed in Task 5 (see the amendment on Step 3's
+> `infection.json5` block for why). The shipped `composer.json` has no Infection
+> dependency at all; `mutate` runs Pest's own `--mutate` flag via the
+> `mutate:msi` / `mutate:covered` scripts instead.
+
 ```json
 {
     "name": "fissible/vouch",
@@ -132,6 +140,17 @@ parameters:
 
 - [ ] **Step 3: Write `infection.json5`**
 
+> **AMENDED DURING EXECUTION —** Infection was **removed entirely** in Task 5.
+> Its `PhpUnitAdapter::testsPass()` only marks a mutant as survived when it sees
+> PHPUnit's `OK (…)` output line, which Pest never prints — so every mutant
+> against this Pest suite scored as killed regardless of whether it actually was.
+> It reported 122/122 killed and 100% MSI *with the recovery-code test deleted*,
+> which is a false signal, not a passing one. What shipped: Pest's built-in
+> mutation testing (`pest --mutate`), run as two passes over
+> `Fissible\Vouch\Kernel` via the `mutate:msi` / `mutate:covered` composer
+> scripts, with thresholds enforced by `--min` flags rather than by this file.
+> `infection.json5` does not exist in the shipped tree — do not create it.
+
 ```json5
 {
     "$schema": "vendor/infection/infection/resources/schema.json",
@@ -168,6 +187,18 @@ declare(strict_types=1);
 Pest requires the file to exist even when empty of configuration.
 
 - [ ] **Step 6: Write the arch test**
+
+> **AMENDED DURING EXECUTION —** The `toUse()` assertions below are **structurally
+> vacuous** for the framework-namespace ban: `toUse(['Illuminate', 'Laravel', …])`
+> never matches, because real packages register full PSR-4 roots, never a bare
+> top-level segment — demonstrated during execution against an installed
+> `symfony/console` class. It is also blind to 6 of the 11 banned global helpers
+> (`app`, `config`, `now`, `event`, `dd`, `dump`), because `toUse()` only counts
+> functions for which `function_exists()` is true. What shipped: regex source-scan
+> tests over `src/Kernel/**.php` do the real enforcement, sharing
+> `tests/Support/KernelFileWalker::phpFiles()`. The `toUse()` assertions below were
+> kept in the shipped suite but are **not load-bearing** — do not rely on them as
+> the boundary enforcement mechanism.
 
 Create `tests/Arch/KernelBoundaryTest.php`:
 
@@ -777,6 +808,26 @@ final readonly class AnyOf implements Requirement
 ```
 
 - [ ] **Step 4: Write the parser**
+
+> **AMENDED DURING EXECUTION — security-relevant.** The `(bool)` casts in the
+> code below silently weaken policy. `(bool) ($config['require_distinct_credentials']
+> ?? true)` and `isset($child['user_verified']) ? (bool) $child['user_verified'] :
+> null` guard only unset/null values — an empty string, routine from env-var
+> plumbing, coerces to `false` and disables the secure-by-default distinctness
+> rule with no error. `(bool) "false"` is `true`, inverting explicit intent. For
+> the *leaf* booleans (`user_verified`, `phishing_resistant`) it is worse: a leaf
+> boolean is a match constraint, not a threshold, so `phishing_resistant: "0"`
+> produces a rule matching only NON-phishing-resistant factors, silently
+> degrading a policy inside an `any_of`.
+>
+> What shipped: strict boolean parsing throughout. Key absent or explicitly
+> `null` → the documented default (or `null`, meaning "no constraint", for the
+> leaf flags); a real `bool` → honoured; anything else →
+> `InvalidArgumentException` naming the key and the received type via
+> `get_debug_type()`. No string-to-bool mapping — `"1"` and `"true"` are
+> rejected too. See `src/Kernel/Policy/PolicyParser.php`'s `parseFlag()`,
+> `parseNullableFlag()`, and `assertBool()` helpers, which replace the inline
+> `(bool)`/`isset()` casts below.
 
 Create `src/Kernel/Policy/PolicyParser.php`:
 
@@ -1397,6 +1448,15 @@ Run: `composer test`
 Expected: PASS (12 evaluator tests)
 
 - [ ] **Step 15: Run mutation testing on the evaluator**
+
+> **AMENDED DURING EXECUTION —** Infection was removed in this task. Its
+> `PhpUnitAdapter::testsPass()` detects survival only via PHPUnit's `OK (…)`
+> output line, which Pest never prints, so it scored every mutant killed and
+> reported a fabricated 100% MSI — even with the recovery-code test deleted.
+> What shipped: Pest's built-in mutation testing (`pest --mutate`), run as two
+> passes over `Fissible\Vouch\Kernel` (`mutate:msi` at `--min=80`,
+> `mutate:covered` at `--covered-only --min=95`). There is no `build/infection.log`
+> — escaped mutants are read from Pest's own mutation report output instead.
 
 Run: `composer mutate`
 Expected: MSI ≥ 85. If escaped mutants are reported, read `build/infection.log` and add a test for each escapee before continuing. Escaped mutants here are the exact class of defect this component exists to prevent.
@@ -2651,6 +2711,12 @@ Expected: MSI ≥ 85, covered MSI ≥ 95. Address any escaped mutants with tests
 
 - [ ] **Step 7: Raise the MSI floor**
 
+> **AMENDED DURING EXECUTION —** `infection.json5` does not exist in the shipped
+> tree; Infection was removed in Task 5 (see the amendment on Task 5 Step 15).
+> What shipped instead: the `--min` flags on the `mutate:msi` / `mutate:covered`
+> scripts in `composer.json`'s `scripts` block are the floor, ratcheted by
+> editing those flag values directly rather than a `minMsi` key in a config file.
+
 Edit `infection.json5` and set `minMsi` to the achieved value rounded down to the nearest whole number, so the floor ratchets rather than drifting.
 
 - [ ] **Step 8: Commit**
@@ -2674,6 +2740,23 @@ Phase 1's exit criterion and the input to the spec §8.1 extraction trigger: ext
 - Produces: a committed snapshot and a test that fails when it drifts
 
 - [ ] **Step 1: Write the surface test**
+
+> **AMENDED DURING EXECUTION —** Two problems with the code below, found during
+> execution. First, capturing public *method names only* is too coarse: a class
+> with zero methods (nothing to snapshot) is invisible to this test, so adding
+> or removing a whole zero-method type would not register as an API change.
+> Second, the `str_replace($root . '/', '', $file->getPathname())` prefix-strip
+> does not match once paths are `realpath()`-normalised — the leading segment
+> mismatches and the strip silently fails, which would have produced an empty
+> snapshot that passes forever (nothing to diff against nothing).
+>
+> What shipped: symbol-presence granularity — 152 entries covering type
+> declarations (including zero-method ones), method names, public property
+> names, and enum cases, deliberately *not* parameter or return types — plus
+> `realpath()` normalisation of both the scan root and each file path before
+> stripping, and reuse of `Fissible\Vouch\Tests\Support\KernelFileWalker::phpFiles()`
+> for the traversal (see the amendment on Step 2 below) instead of the inline
+> `RecursiveDirectoryIterator` walk shown here.
 
 Create `tests/Arch/ApiSurfaceTest.php`:
 
@@ -2731,6 +2814,18 @@ it('matches the committed public API surface', function (): void {
 ```
 
 - [ ] **Step 2: Generate the snapshot deterministically**
+
+> **AMENDED DURING EXECUTION —** The inline `RecursiveDirectoryIterator` /
+> `RecursiveIteratorIterator` walk below duplicates the one in
+> `tests/Arch/KernelBoundaryTest.php` (Task 1) and the one in
+> `tests/Arch/ApiSurfaceTest.php` (Step 1 above) — a third untyped copy of the
+> same traversal. Task 1 had already extracted this into
+> `Fissible\Vouch\Tests\Support\KernelFileWalker::phpFiles()` by the time this
+> task ran, specifically because duplicated untyped copies of this walk had
+> generated PHPStan level-9 errors across three tests. What shipped: both this
+> script and `ApiSurfaceTest.php` call `KernelFileWalker::phpFiles()` rather
+> than repeating the walk below. The CLI script pulls the walker in via
+> `autoload-dev`, which `vendor/autoload.php` registers.
 
 Create `bin/kernel-api-surface.php`:
 

@@ -40,8 +40,8 @@
     },
     "scripts-descriptions": {
         "mutate": "Mutation testing over Fissible\\Vouch\\Kernel. Two runs: overall MSI >= 80 (detects untested classes), covered-code MSI >= 95 (primary quality gate).",
-        "mutate:msi": "Mutation score over every mutation, including ones on uncovered lines (Infection's minMsi).",
-        "mutate:covered": "Mutation score over covered mutations only (Infection's minCoveredMsi)."
+        "mutate:msi": "Mutation score over every mutation, including ones on uncovered lines.",
+        "mutate:covered": "Mutation score over covered mutations only, ignoring lines the test suite never executes."
     },
     "minimum-stability": "stable",
     "prefer-stable": true
