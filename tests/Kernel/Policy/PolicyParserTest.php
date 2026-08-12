@@ -81,3 +81,82 @@ it('rejects an unknown strength name', function (): void {
         'all_of' => [['factor' => 'password', 'minimum_strength' => 'extremely']],
     ]))->toThrow(InvalidArgumentException::class, 'unknown minimum_strength');
 });
+
+it('rejects a node declaring both all_of and any_of', function (): void {
+    expect(fn () => (new PolicyParser())->parse([
+        'all_of' => ['password'],
+        'any_of' => ['totp'],
+    ]))->toThrow(InvalidArgumentException::class, 'must declare exactly one of');
+});
+
+it('rejects a child that is neither a string nor an array', function (): void {
+    expect(fn () => (new PolicyParser())->parse(['all_of' => [42]]))
+        ->toThrow(InvalidArgumentException::class, 'must be a factor name or an array');
+});
+
+it('rejects a leaf array missing the factor key', function (): void {
+    expect(fn () => (new PolicyParser())->parse(['all_of' => [['user_verified' => true]]]))
+        ->toThrow(InvalidArgumentException::class, 'must declare a string factor');
+});
+
+it('rejects a leaf whose factor is not a string', function (): void {
+    expect(fn () => (new PolicyParser())->parse(['all_of' => [['factor' => 42]]]))
+        ->toThrow(InvalidArgumentException::class, 'must declare a string factor');
+});
+
+it('rejects a non-string minimum_strength', function (): void {
+    expect(fn () => (new PolicyParser())->parse([
+        'all_of' => [['factor' => 'password', 'minimum_strength' => 5]],
+    ]))->toThrow(InvalidArgumentException::class, 'unknown minimum_strength');
+});
+
+it('rejects a non-boolean require_distinct_credentials', function (string|int $value): void {
+    expect(fn () => (new PolicyParser())->parse([
+        'all_of' => ['password'],
+        'require_distinct_credentials' => $value,
+    ]))->toThrow(InvalidArgumentException::class, 'require_distinct_credentials must be a boolean');
+})->with([
+    'empty string' => [''],
+    'string zero' => ['0'],
+    'string false' => ['false'],
+    'int zero' => [0],
+]);
+
+it('honours an explicit boolean require_distinct_credentials', function (): void {
+    $parsed = (new PolicyParser())->parse([
+        'all_of' => ['password'],
+        'require_distinct_credentials' => false,
+    ]);
+
+    assert($parsed instanceof AllOf);
+
+    expect($parsed->requireDistinctCredentials)->toBeFalse();
+});
+
+it('defaults require_distinct_credentials to true when absent or explicitly null', function (): void {
+    $absent = (new PolicyParser())->parse(['all_of' => ['password']]);
+    assert($absent instanceof AllOf);
+
+    $explicitNull = (new PolicyParser())->parse([
+        'all_of' => ['password'],
+        'require_distinct_credentials' => null,
+    ]);
+    assert($explicitNull instanceof AllOf);
+
+    expect($absent->requireDistinctCredentials)->toBeTrue()
+        ->and($explicitNull->requireDistinctCredentials)->toBeTrue();
+});
+
+it('rejects a non-boolean require_independent_authenticators', function (): void {
+    expect(fn () => (new PolicyParser())->parse([
+        'all_of' => ['password'],
+        'require_independent_authenticators' => '',
+    ]))->toThrow(InvalidArgumentException::class, 'require_independent_authenticators must be a boolean');
+});
+
+it('defaults require_independent_authenticators to false when absent', function (): void {
+    $parsed = (new PolicyParser())->parse(['all_of' => ['password']]);
+    assert($parsed instanceof AllOf);
+
+    expect($parsed->requireIndependentAuthenticators)->toBeFalse();
+});

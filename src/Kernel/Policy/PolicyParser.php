@@ -40,9 +40,29 @@ final class PolicyParser
 
         return new AllOf(
             requirements: $parsed,
-            requireDistinctCredentials: (bool) ($config['require_distinct_credentials'] ?? true),
-            requireIndependentAuthenticators: (bool) ($config['require_independent_authenticators'] ?? false),
+            requireDistinctCredentials: $this->parseFlag($config, 'require_distinct_credentials', true),
+            requireIndependentAuthenticators: $this->parseFlag($config, 'require_independent_authenticators', false),
         );
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function parseFlag(array $config, string $key, bool $default): bool
+    {
+        $value = $config[$key] ?? null;
+
+        if ($value === null) {
+            return $default;
+        }
+
+        if (! is_bool($value)) {
+            throw new InvalidArgumentException(
+                sprintf('%s must be a boolean, got %s.', $key, get_debug_type($value)),
+            );
+        }
+
+        return $value;
     }
 
     private function parseChild(mixed $child): Requirement
