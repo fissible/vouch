@@ -212,6 +212,83 @@ it('names zero credentials aal0 under the NIST vocabulary', function (): void {
     expect((new NistAssuranceVocabulary())->name(AssuranceFacts::fromFactors([])))->toBe('aal0');
 });
 
+it('derives no assurance at all from a recovery-code-only satisfaction set', function (): void {
+    // Spec §7.3: a recovery code never satisfies a policy alone; it grants a
+    // restricted recovery-grace session. fromFactors() is a public entry point that
+    // accepts a raw satisfaction list, so it must exclude recovery itself rather
+    // than trusting the caller to have passed a verdict's usedFactors. Without the
+    // filter this set derives one credential and the NIST vocabulary names it aal1.
+    $facts = AssuranceFacts::fromFactors([
+        satisfied('cred-recovery', FactorStrength::Recovery, false, '2026-08-11T10:00:00+00:00'),
+    ]);
+
+    expect($facts->distinctCredentialCount)->toBe(0)
+        ->and($facts->strongest)->toBe(FactorStrength::Recovery)
+        ->and($facts->allPhishingResistant)->toBeFalse()
+        ->and($facts->hasMultiFactorCredential)->toBeFalse()
+        ->and($facts->weakestSatisfiedAt)->toBeNull()
+        ->and((new NistAssuranceVocabulary())->name($facts))->toBe('aal0');
+});
+
+it('fails recency for a recovery-code-only satisfaction set', function (): void {
+    // The recovery code was redeemed one second ago, and it still must not count as
+    // fresh evidence — there is no eligible evidence at all.
+    $level = new AssuranceLevel('aal0', AssuranceFacts::fromFactors([
+        satisfied('cred-recovery', FactorStrength::Recovery, false, '2026-08-11T10:59:59+00:00'),
+    ]));
+
+    expect($level->satisfiesRecency(
+        new DateInterval('PT1H'),
+        frozenClock('2026-08-11T11:00:00+00:00'),
+    ))->toBeFalse();
+});
+
+it('lets the real factor alone determine facts when a recovery code is mixed in', function (): void {
+    // The recovery code is older, phishing-non-resistant, and a distinct credential.
+    // If it leaked through, it would drag recency back to 08:00 and push the count
+    // to 2 (which the NIST vocabulary would name aal2). Only the passkey counts.
+    $mixed = AssuranceFacts::fromFactors([
+        satisfied('cred-recovery', FactorStrength::Recovery, false, '2026-08-11T08:00:00+00:00'),
+        satisfied('cred-passkey', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
+    ]);
+
+    $passkeyOnly = AssuranceFacts::fromFactors([
+        satisfied('cred-passkey', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
+    ]);
+
+    expect($mixed)->toEqual($passkeyOnly)
+        ->and($mixed->distinctCredentialCount)->toBe(1)
+        ->and($mixed->strongest)->toBe(FactorStrength::PossessionStrong)
+        ->and($mixed->allPhishingResistant)->toBeTrue()
+        ->and($mixed->weakestSatisfiedAt?->format('H:i'))->toBe('10:00')
+        ->and((new NistAssuranceVocabulary())->name($mixed))->toBe('aal1');
+});
+
+it('fails recency when there is no factor evidence at all', function (): void {
+    // A session with no evidence has no freshness to measure, so it can never be
+    // fresh enough — it must always be forced to step up (spec §5.3). This branch
+    // is security-relevant and was previously unexecuted: inverting it to
+    // `return true` left the whole suite green.
+    $level = new AssuranceLevel('aal0', AssuranceFacts::fromFactors([]));
+
+    expect($level->satisfiesRecency(
+        new DateInterval('PT1H'),
+        frozenClock('2026-08-11T11:00:00+00:00'),
+    ))->toBeFalse();
+});
+
+it('fails recency for any max age when there is no factor evidence', function (): void {
+    // Any interval, including a century: the absence of evidence is not freshness.
+    $level = new AssuranceLevel('aal0', AssuranceFacts::fromFactors([]));
+
+    foreach (['PT0S', 'PT1H', 'P1D', 'P100Y'] as $spec) {
+        expect($level->satisfiesRecency(
+            new DateInterval($spec),
+            frozenClock('2026-08-11T11:00:00+00:00'),
+        ))->toBeFalse();
+    }
+});
+
 it('passes recency exactly at the max-age boundary', function (): void {
     // The oldest evidence is exactly maxAge old, not older. satisfiesRecency uses
     // >=, so the boundary itself still passes; it only fails once evidence is
