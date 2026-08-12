@@ -13,16 +13,44 @@ foreach (KernelFileWalker::phpFiles() as $file) {
     $relative = str_replace($root . '/', '', $file->getPathname());
     $class = 'Fissible\\Vouch\\Kernel\\' . str_replace(['/', '.php'], ['\\', ''], $relative);
 
-    if (! class_exists($class) && ! interface_exists($class) && ! enum_exists($class)) {
+    $kind = match (true) {
+        enum_exists($class) => 'enum',
+        interface_exists($class) => 'interface',
+        class_exists($class) => 'class',
+        default => null,
+    };
+
+    if ($kind === null) {
         continue;
     }
 
-    foreach ((new ReflectionClass($class))->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+    // The type declaration itself is a symbol: deleting `Requirement` (a
+    // zero-method marker interface) must move the snapshot, even though it
+    // contributes no method/property/case entries below.
+    $entries[] = sprintf('%s (%s)', $class, $kind);
+
+    $reflection = new ReflectionClass($class);
+
+    foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
         if ($method->getDeclaringClass()->getName() !== $class) {
             continue;
         }
 
-        $entries[] = sprintf('%s::%s', $class, $method->getName());
+        $entries[] = sprintf('%s::%s()', $class, $method->getName());
+    }
+
+    foreach ($reflection->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+        if ($property->getDeclaringClass()->getName() !== $class) {
+            continue;
+        }
+
+        $entries[] = sprintf('%s::$%s', $class, $property->getName());
+    }
+
+    if ($kind === 'enum') {
+        foreach ((new ReflectionEnum($class))->getCases() as $case) {
+            $entries[] = sprintf('%s::%s (case)', $class, $case->getName());
+        }
     }
 }
 
