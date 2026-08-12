@@ -160,3 +160,87 @@ it('defaults require_independent_authenticators to false when absent', function 
 
     expect($parsed->requireIndependentAuthenticators)->toBeFalse();
 });
+
+it('rejects a non-boolean user_verified', function (string|int $value): void {
+    expect(fn () => (new PolicyParser())->parse([
+        'all_of' => [['factor' => 'password', 'user_verified' => $value]],
+    ]))->toThrow(InvalidArgumentException::class, 'user_verified must be a boolean');
+})->with([
+    'empty string' => [''],
+    'string zero' => ['0'],
+    'string false' => ['false'],
+    'int zero' => [0],
+    'int one' => [1],
+]);
+
+it('honours an explicit boolean user_verified', function (): void {
+    $true = (new PolicyParser())->parse(['all_of' => [['factor' => 'password', 'user_verified' => true]]]);
+    assert($true instanceof AllOf);
+    $trueLeaf = $true->requirements[0];
+    assert($trueLeaf instanceof FactorRequirement);
+
+    $false = (new PolicyParser())->parse(['all_of' => [['factor' => 'password', 'user_verified' => false]]]);
+    assert($false instanceof AllOf);
+    $falseLeaf = $false->requirements[0];
+    assert($falseLeaf instanceof FactorRequirement);
+
+    expect($trueLeaf->userVerified)->toBeTrue()
+        ->and($falseLeaf->userVerified)->toBeFalse();
+});
+
+it('leaves user_verified null when absent or explicitly null', function (): void {
+    $absent = (new PolicyParser())->parse(['all_of' => [['factor' => 'password']]]);
+    assert($absent instanceof AllOf);
+    $absentLeaf = $absent->requirements[0];
+    assert($absentLeaf instanceof FactorRequirement);
+
+    $explicitNull = (new PolicyParser())->parse(['all_of' => [['factor' => 'password', 'user_verified' => null]]]);
+    assert($explicitNull instanceof AllOf);
+    $explicitNullLeaf = $explicitNull->requirements[0];
+    assert($explicitNullLeaf instanceof FactorRequirement);
+
+    expect($absentLeaf->userVerified)->toBeNull()
+        ->and($explicitNullLeaf->userVerified)->toBeNull();
+});
+
+it('rejects a non-boolean phishing_resistant', function (string|int $value): void {
+    expect(fn () => (new PolicyParser())->parse([
+        'all_of' => [['factor' => 'passkey', 'phishing_resistant' => $value]],
+    ]))->toThrow(InvalidArgumentException::class, 'phishing_resistant must be a boolean');
+})->with([
+    'empty string' => [''],
+    'string zero' => ['0'],
+    'string false' => ['false'],
+    'int zero' => [0],
+    'int one' => [1],
+]);
+
+it('honours an explicit boolean phishing_resistant', function (): void {
+    $true = (new PolicyParser())->parse(['all_of' => [['factor' => 'passkey', 'phishing_resistant' => true]]]);
+    assert($true instanceof AllOf);
+    $trueLeaf = $true->requirements[0];
+    assert($trueLeaf instanceof FactorRequirement);
+
+    $false = (new PolicyParser())->parse(['all_of' => [['factor' => 'passkey', 'phishing_resistant' => false]]]);
+    assert($false instanceof AllOf);
+    $falseLeaf = $false->requirements[0];
+    assert($falseLeaf instanceof FactorRequirement);
+
+    expect($trueLeaf->phishingResistant)->toBeTrue()
+        ->and($falseLeaf->phishingResistant)->toBeFalse();
+});
+
+it('leaves phishing_resistant null when absent or explicitly null', function (): void {
+    $absent = (new PolicyParser())->parse(['all_of' => [['factor' => 'passkey']]]);
+    assert($absent instanceof AllOf);
+    $absentLeaf = $absent->requirements[0];
+    assert($absentLeaf instanceof FactorRequirement);
+
+    $explicitNull = (new PolicyParser())->parse(['all_of' => [['factor' => 'passkey', 'phishing_resistant' => null]]]);
+    assert($explicitNull instanceof AllOf);
+    $explicitNullLeaf = $explicitNull->requirements[0];
+    assert($explicitNullLeaf instanceof FactorRequirement);
+
+    expect($absentLeaf->phishingResistant)->toBeNull()
+        ->and($explicitNullLeaf->phishingResistant)->toBeNull();
+});

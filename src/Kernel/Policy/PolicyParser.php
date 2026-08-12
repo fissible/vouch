@@ -56,6 +56,28 @@ final class PolicyParser
             return $default;
         }
 
+        return $this->assertBool($value, $key);
+    }
+
+    /**
+     * A leaf boolean is a match constraint, not a threshold with a default: absent or
+     * explicit null must stay "unconstrained", never coerce to true or false.
+     *
+     * @param array<string, mixed> $child
+     */
+    private function parseNullableFlag(array $child, string $key): ?bool
+    {
+        $value = $child[$key] ?? null;
+
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->assertBool($value, $key);
+    }
+
+    private function assertBool(mixed $value, string $key): bool
+    {
         if (! is_bool($value)) {
             throw new InvalidArgumentException(
                 sprintf('%s must be a boolean, got %s.', $key, get_debug_type($value)),
@@ -89,9 +111,9 @@ final class PolicyParser
 
         return new FactorRequirement(
             factorId: $child['factor'],
-            userVerified: isset($child['user_verified']) ? (bool) $child['user_verified'] : null,
+            userVerified: $this->parseNullableFlag($child, 'user_verified'),
             minimumStrength: $this->parseStrength($child['minimum_strength'] ?? null),
-            phishingResistant: isset($child['phishing_resistant']) ? (bool) $child['phishing_resistant'] : null,
+            phishingResistant: $this->parseNullableFlag($child, 'phishing_resistant'),
         );
     }
 
@@ -112,7 +134,7 @@ final class PolicyParser
 
         if ($strength === null) {
             throw new InvalidArgumentException(
-                sprintf('unknown minimum_strength: %s', var_export($name, true)),
+                sprintf('unknown minimum_strength: %s', get_debug_type($name)),
             );
         }
 
