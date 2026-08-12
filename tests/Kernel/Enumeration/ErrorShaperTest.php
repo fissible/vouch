@@ -28,9 +28,7 @@ it('produces identical output for known and unknown identifiers under strict pos
     $known = $shaper->shape(identifyScreen(), Outcome::IdentifierKnown, EnumerationPosture::Strict);
     $unknown = $shaper->shape(identifyScreen(), Outcome::IdentifierUnknown, EnumerationPosture::Strict);
 
-    expect($unknown->errors)->toBe($known->errors)
-        ->and($unknown->step)->toBe($known->step)
-        ->and($unknown->fields)->toEqual($known->fields);
+    expect($unknown)->toEqual($known);
 });
 
 it('withholds retry state under strict posture', function (): void {

@@ -27,6 +27,10 @@ final class ErrorShaper
             return $this->withErrors($spec, [self::UNIFORM], null);
         }
 
+        // Deliberately non-exhaustive: Outcome::Locked is omitted because the
+        // early return above already handles it. If that guard is ever
+        // removed, this match must fail loudly (UnhandledMatchError) rather
+        // than silently falling through — do not add a default arm.
         $errors = match ($outcome) {
             Outcome::IdentifierUnknown => ['No account matches that identifier.'],
             Outcome::CredentialRejected => ['That credential was not accepted.'],
