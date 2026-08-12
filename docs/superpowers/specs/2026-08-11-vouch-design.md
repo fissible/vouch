@@ -143,11 +143,14 @@ The client never learns *why* a step was demanded beyond what the enumeration po
 'presets' => [
     'password'     => ['step1' => ['password'], 'step2' => false],
     'otp'          => ['step1' => ['email_otp'], 'step2' => false],
-    'mfa'          => ['step1' => ['password','passkey'],
-                       'step2' => ['totp','passkey'],
-                       'minimum_strength' => 'possession',
-                       'require_distinct_credentials' => true,
-                       'accept_single_multi_factor_credential' => true],
+    'mfa'          => ['any_of' => [
+                           // A user-verified passkey is a multi-factor authenticator.
+                           ['all_of' => [['factor' => 'passkey', 'user_verified' => true]]],
+                           // Otherwise require independent knowledge and possession.
+                           ['all_of' => ['password', 'totp'],
+                            'require_distinct_credentials' => true,
+                            'require_independent_authenticators' => true],
+                       ]],
     'sso'          => ['step1' => ['oidc'], 'step2' => 'defer_to_idp'],
     'passwordless' => ['step1' => ['passkey','email_otp'], 'step2' => false],
 ],
@@ -167,9 +170,11 @@ possession of the authenticator plus a biometric or PIN. NIST treats it as AAL2.
 policy that mechanically demands "two steps" would force a pointless second factor on
 the strongest credential available.
 
-**Over-counts:** the `mfa` preset offers `passkey` in both step 1 and step 2. Two
-assertions from the *same* passkey are one authenticator, not two factors. Nothing in a
-strength comparison prevents that credential from satisfying both steps.
+**Over-counts:** a flat "offer passkey at step 1 and step 2" policy — the shape an
+earlier draft of the `mfa` preset used — lets two assertions from the *same* passkey
+count as two factors. They are one authenticator. Nothing in a strength comparison
+prevents it, which is why §3.5's preset now expresses the requirement as `any_of` /
+`all_of` over explicit predicates rather than as an ordered pair of steps.
 
 Satisfiability is therefore evaluated over a structured record of what actually
 happened. Each satisfied factor contributes:
@@ -187,14 +192,23 @@ happened. Each satisfied factor contributes:
 Policy predicates are then explicit:
 
 - `require_distinct_credentials` — no credential ID may satisfy more than one step.
-- `accept_single_multi_factor_credential` — a UV passkey alone satisfies a
-  two-factor requirement. **Default true**, because refusing it pushes users toward
-  weaker combinations.
+- `user_verified` — used in an explicit alternative branch when a UV passkey alone is
+  permitted to satisfy a multi-factor requirement. It is never a global override of a
+  branch that requires distinct credentials.
 - `require_phishing_resistant` — for high-assurance tenants; excludes every OTP form.
 - `require_independent_authenticators` — stricter than distinct credentials; two
   passkeys on the same device do not count as two.
 
 `recovery`-strength satisfactions never contribute to a policy (§7.3).
+
+**A policy chooses a satisfying branch; it does not combine contradictory flags.** The
+`mfa` preset above has two alternatives: one user-verified passkey, *or* password plus
+an independent TOTP credential. Selecting and completing either branch authenticates
+the attempt. A passkey is never silently counted twice, and an app that wants to forbid
+the single-passkey branch removes that branch rather than relying on predicate
+precedence. The UI is derived from the candidate branches: after a verified passkey it
+completes; after a password it offers TOTP. This makes the security decision and the
+screen sequence the same decision.
 
 ---
 
@@ -440,9 +454,13 @@ validation. Attributing the §7.2.8 guarantees to "Socialite + generic OIDC disc
 would have hidden exactly the protocol work this package promises not to write itself.
 
 v1 pins **`facile-it/php-openid-client`** (1.0.0, 2026-06-12, PHP ^8.2) as the owner of
-discovery, JWKS refresh, and ID-token signature and claim validation. Socialite's role
-narrows to the three social providers (Google, GitHub, Apple), where it is a
-well-trodden path.
+discovery, JWKS refresh, and ID-token signature and claim validation. Socialite's
+official role is limited to Google and GitHub. **Sign in with Apple** uses the named,
+maintained community adapter **`socialiteproviders/apple` ^5.10** via
+`socialiteproviders/manager` ^4.4; it is an optional `vouch-ui` dependency enabled only
+when Apple is configured. This is preferable to writing an adapter: Apple needs a
+rotating signed client-secret JWT and has provider-specific callback behavior, neither
+of which belongs in vouch's protocol surface.
 
 **Gate:** the pin reached 1.0.0 only two months before this spec. Before it becomes
 load-bearing, the implementation plan must include an evaluation task — maintenance
@@ -478,10 +496,13 @@ The contract:
    `RequireAssurance`, not treated as unknown-but-acceptable. Any `createToken()` path
    that bypasses vouch produces an unusable token, so the failure is loud at
    development time rather than silent in production.
-4. **Migration of pre-existing tokens** is an explicit, audited decision, not a
-   default. `php artisan vouch:tokens:adopt --assurance=…` backfills records for tokens
-   minted before adoption, with a documented default of *refusing* to adopt. Sluice's
-   existing tokens go through this deliberately.
+4. **Pre-existing tokens are reissued, never adopted.** Tokens minted before vouch was
+   installed have no observed assurance, and backfilling one would be asserting a fact
+   nobody witnessed — precisely the kind of unverifiable claim this package exists to
+   eliminate. There is no adopt command. On adoption, existing tokens are revoked and
+   holders reissue through `Vouch::issueToken()`. Sluice's current tokens go through
+   this, and the migration guide states the operational cost plainly rather than
+   offering a shortcut around it.
 5. **Machine tokens** (`is_service`) are issued with an explicit `machine` assurance
    marker rather than a human factor list, satisfy only routes that permit machine
    actors, and are recorded as machine actors in audit (§6.2).
@@ -492,7 +513,8 @@ The contract:
    `Vouch::issueToken()` as part of adoption; the package ships a `vouch:audit-tokens`
    command that greps for direct `createToken()` use and fails CI.
 
-Social OAuth (Google, GitHub, Apple) ships via Socialite in v1.
+Social OAuth ships in v1: Google and GitHub via official Socialite drivers, and Apple
+via `socialiteproviders/apple`.
 
 ---
 
@@ -533,18 +555,29 @@ but may infer from non-delivery. Reducing on-screen leakage while adding a deliv
 amplifier would be a net loss.
 
 **SSO / domain→connection lookup.** Whether an email domain maps to a configured
-connection reveals tenant existence and enterprise-customer identity. In strict mode
-the identifier step never branches visibly on that lookup: unknown domains route to the
-same next screen as known ones, and the redirect to an IdP happens only after a step
-that is observably identical in both cases. Redirect targets, status codes, and
-`Location` header presence must be equivalent — a bare 302-versus-200 difference
-defeats every other measure here.
+connection reveals tenant existence and enterprise-customer identity. It is impossible
+to conceal that fact end-to-end once a known connection redirects the browser to its
+real IdP: an unknown connection has no equivalent safe destination. Strict mode
+therefore guarantees only that the **identifier endpoint** is observably identical for
+known and unknown domains. It creates an opaque attempt and routes both responses to
+the same local continuation URL; it does not disclose connection metadata or an IdP
+target at that point.
+
+Starting federation is a separate, user-initiated continuation. At that step, the
+configured IdP redirect is intentionally observable and is documented as residual
+enterprise-connection enumeration risk. The continuation must be bound to the opaque
+attempt, allow only the connection's registered redirect URI, and fail generically for
+an unknown domain; it must never become an open redirect. A central broker cannot
+remove this browser-visible distinction without acting as a separate identity provider,
+which is out of scope for v1.
 
 **Registration and reset** always answer "check your email," per the main rule above.
 
-**Testable definition.** "Observably identical" means byte-identical response bodies,
-identical status codes and header sets, and timing variance within a configured bound —
-asserted statistically in the test suite (§9), not judged by eye.
+**Testable definition.** For the identifier endpoint, "observably identical" means
+byte-identical response bodies, identical status codes and header sets, and timing
+variance within a configured bound — asserted statistically in the test suite (§9), not
+judged by eye. Federation-continuation tests instead prove opaque-attempt binding,
+generic unknown-domain failure, and rejection of arbitrary redirect targets.
 
 ### 7.2 SSO account linking — highest-risk surface in the package
 
@@ -633,7 +666,7 @@ Documented residual risks, each traceable to a decision in §11:
 | Risk | Section |
 |---|---|
 | Token issuance as an MFA bypass vector, and the default-deny mitigation | §6.5 |
-| Enumeration via message non-delivery in strict mode | §7.1.1 |
+| Enumeration via message non-delivery, or an IdP redirect after federation begins, in strict mode | §7.1.1 |
 | No assurance portability across custom-domain tenants; users authenticate per origin | §5.3.1 |
 | Passkeys require per-origin enrollment for multi-tenant users on custom domains | §4.1 |
 | Generic OIDC security inherited from a pinned third-party client | §6.4 |
@@ -660,7 +693,39 @@ Adapters live in **one** package rather than `vouch-filament`, `vouch-inertia`, 
 the presenter contract cannot drift between them and there is one version to release.
 The cost is a heavier `suggest` block, which is acceptable.
 
-### 8.1 The presenter layer
+### 8.1 The `Vouch\Kernel` boundary
+
+vouch is a Laravel package, and unapologetically so — its value *is* the orchestration
+of Laravel primitives. There is no framework-agnostic `PasskeyFactor`, because the thing
+it exists to wrap is `laravel/passkeys`. Every driver, the Sanctum issuance gate, the
+middleware, the migrations, and the cache CAS in §4.3 are all correctly Laravel-bound.
+
+But the decision logic is not, and it is where the risk concentrates:
+
+| Layer | Contents | Dependencies |
+|---|---|---|
+| `Vouch\Kernel` | `FactorStrength`, `FactorKind`, the §3.6 satisfiability predicate, the §3.3 resolution chain, `AuthAttempt` *transition rules* (not persistence), `AssuranceLevel` derivation and recency, `ScreenSpec` construction, policy document parsing and validation, enumeration response shaping | `php`, `psr/clock`. **Nothing else.** |
+| `Vouch\*` (rest) | Drivers, persistence, HTTP, container wiring, Artisan, Sanctum integration | `illuminate/*`, Fortify, `laravel/passkeys`, Socialite, Spatie OTP, `facile-it/php-openid-client` |
+
+The kernel is roughly 20–30% of the code and close to 80% of the risk — every place a
+silently inverted condition is catastrophic rather than merely wrong. `psr/clock` is its
+only dependency so recency logic is testable without freezing global time.
+
+**Enforcement:** a CI architecture test asserts that nothing under `Vouch\Kernel`
+imports `Illuminate\*` or any driver namespace. This is a build failure, not a
+convention.
+
+**Extraction trigger, committed:** `Vouch\Kernel` is extracted to
+`fissible/vouch-kernel` at **v1.0**, when the API stabilises — or earlier if a second
+consumer appears. It then mirrors `fissible/attest` (pure PHP) and
+`fissible/attest-laravel` (adapter) exactly, which is the established portfolio shape.
+
+Holding it as a namespace boundary through v0.x buys the fast mutation testing and the
+small auditable surface immediately, without paying a cross-package version bump on
+every kernel change while the API is still moving. The arch test means extraction stays
+mechanical rather than becoming an untangling exercise.
+
+### 8.2 The presenter layer
 
 `vouch-ui` must not contain N parallel implementations of auth logic. Core exposes a
 framework-agnostic `ScreenSpec`:
@@ -684,7 +749,7 @@ multiple UI stacks tractable rather than a scope bomb.
 This is the same principle as §6.3's two response modes: decide once in core, render
 per surface.
 
-### 8.2 v1 adapters
+### 8.3 v1 adapters
 
 **Filament v5** and **Blade/Livewire**.
 
@@ -696,7 +761,7 @@ reveals what the first one baked in wrongly.
 Inertia React and Inertia Vue follow in v1.1. Cheap to add once the contract has proven
 itself; expensive to redesign.
 
-### 8.3 Filament strategy: replace the flow, do not plug into it
+### 8.4 Filament strategy: replace the flow, do not plug into it
 
 Filament v5 has its own MFA (`->multiFactorAuthentication([AppAuthentication::make(),
 EmailAuthentication::make()], isRequired: true)`) and an extensible provider contract.
@@ -725,7 +790,8 @@ reality rather than theory:
   (strong→weak, weak→strong), plus recency expiry.
 - **Enumeration tests with teeth** — strict mode must yield byte-identical responses and
   bounded timing variance between known and unknown identifiers, asserted statistically
-  rather than smoke-tested.
+  rather than smoke-tested. The SSO continuation is tested separately for opaque-attempt
+  binding, generic unknown-domain failure, and rejection of arbitrary redirects.
 - **Security regression suite** — every vulnerability class gets a permanent test:
   replay, `state`/`nonce` tampering, `alg:none`, cross-tenant OIDC subject reuse,
   pre-account-hijack, last-factor deletion, recovery-grace escalation, token-issuance
@@ -739,11 +805,15 @@ reality rather than theory:
 - **Real dependencies, not mocks** — Mailpit for mail, containerized Keycloak for OIDC,
   a virtual authenticator in Dusk for actual WebAuthn ceremonies.
 - **Dusk** for Filament and Blade adapter flows.
-- **Mutation testing (Infection)** scoped to the policy resolver and factor verification
-  paths — the two places where a silently inverted condition is catastrophic rather than
-  merely wrong.
+- **Mutation testing (Infection)** scoped to `Vouch\Kernel` — the policy resolver,
+  satisfiability predicate, and assurance derivation. Because the kernel boots no
+  framework (§8.1), this pass runs fast enough to stay in CI rather than being nominally
+  configured and quietly skipped.
+- **Architecture test** asserting nothing under `Vouch\Kernel` imports `Illuminate\*` or
+  a driver namespace. A build failure, not a convention.
 
-Stack: Pest + Orchestra Testbench, Laravel 13 / PHP 8.4.
+Stack: Pest + Orchestra Testbench, Laravel 13 / PHP 8.4. Kernel tests run under plain
+Pest with no Testbench boot.
 
 ---
 
@@ -765,12 +835,11 @@ These are settled in principle but need decisions during planning, not before:
 5. **Station Laravel 13 upgrade** must land before Station can adopt.
 6. **`facile-it/php-openid-client` evaluation** (§6.4) is a gating task, not a
    formality. If it fails, generic OIDC leaves v1.
-7. **Sluice token migration decision** (§6.5 item 4) — whether Sluice's existing tokens
-   are adopted at a stated assurance or forced through reissue. Reissue is the safe
-   default and the recommendation; adoption needs your explicit sign-off.
-8. **Central authentication origin** remains the only path to cross-origin assurance
+7. **Central authentication origin** remains the only path to cross-origin assurance
    portability and single-enrollment passkeys. Rejected for v1 (§11); revisit if
    custom-domain tenants with multi-tenant users become a real support burden.
+8. **Kernel extraction at v1.0** (§8.1). The trigger is committed; the mechanics —
+   repo wiring, version constraint between kernel and adapter — are planning work.
 
 ---
 
@@ -794,3 +863,8 @@ These are settled in principle but need decisions during planning, not before:
 | Federated identity storage | Dedicated table, unique `(connection_id, issuer, subject)` | The §7.2 tenancy invariant must be a database constraint; a polymorphic credential row leaves it to driver convention. |
 | Attempt persistence | Single authoritative store, CAS transitions | Dual-store "cache with DB fallback" permits split-brain, replay, and double-consumption. |
 | OIDC protocol owner | Pin `facile-it/php-openid-client`, gated on evaluation | Socialite does no discovery, JWKS, or ID-token validation. The "we don't implement protocols" boundary needs a named component behind it. |
+| Pre-vouch tokens | Reissue, never adopt | Backfilling an assurance record asserts a fact nobody observed. No adopt command ships, so the shortcut cannot be taken under deadline pressure. |
+| Kernel boundary | `Vouch\Kernel` namespace in v0.x, arch-test enforced; extracted to `fissible/vouch-kernel` at v1.0 | The kernel is ~20–30% of the code and ~80% of the risk, and needs to be fast to mutation-test. Deferring the package split avoids daily cross-package version bumps while the API churns; the arch test keeps extraction mechanical. Ends at the `attest` / `attest-laravel` shape. |
+| MFA preset semantics | Explicit `any_of` branches | A user-verified passkey is an alternative to, not a second assertion within, password-plus-TOTP MFA. This removes predicate precedence as a security decision. |
+| Strict SSO enumeration | Identical identifier endpoint; documented federation-stage leakage | A real IdP redirect is necessarily visible. Hiding it requires becoming a separate identity provider, which v1 does not do. |
+| Apple social login | `socialiteproviders/apple` ^5.10 | Maintained adapter over Socialite's manager covers Apple's provider-specific signed client secret and callback behavior without expanding vouch's protocol surface. |
