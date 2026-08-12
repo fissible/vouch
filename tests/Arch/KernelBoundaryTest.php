@@ -2,8 +2,7 @@
 
 declare(strict_types=1);
 
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
+use Fissible\Vouch\Tests\Support\KernelFileWalker;
 
 arch('kernel does not depend on any framework')
     ->expect('Fissible\Vouch\Kernel')
@@ -39,15 +38,7 @@ arch('kernel classes are final')
 it('never instantiates a clock directly', function (): void {
     $offenders = [];
 
-    $files = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator(__DIR__ . '/../../src/Kernel'),
-    );
-
-    foreach ($files as $file) {
-        if (! $file->isFile() || $file->getExtension() !== 'php') {
-            continue;
-        }
-
+    foreach (KernelFileWalker::phpFiles() as $file) {
         $source = (string) file_get_contents($file->getPathname());
 
         if (preg_match('/\bnew\s+\\\\?DateTime(Immutable)?\s*\(/', $source) === 1) {
@@ -85,15 +76,7 @@ it('never uses a banned framework namespace', function (): void {
     $bannedNamespaces = ['Illuminate', 'Laravel', 'Filament', 'Livewire', 'Symfony'];
     $offenders = [];
 
-    $files = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator(__DIR__ . '/../../src/Kernel'),
-    );
-
-    foreach ($files as $file) {
-        if (! $file->isFile() || $file->getExtension() !== 'php') {
-            continue;
-        }
-
+    foreach (KernelFileWalker::phpFiles() as $file) {
         $source = (string) file_get_contents($file->getPathname());
 
         foreach ($bannedNamespaces as $namespace) {
@@ -113,15 +96,7 @@ it('never calls a banned global helper or global time function', function (): vo
     ];
     $offenders = [];
 
-    $files = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator(__DIR__ . '/../../src/Kernel'),
-    );
-
-    foreach ($files as $file) {
-        if (! $file->isFile() || $file->getExtension() !== 'php') {
-            continue;
-        }
-
+    foreach (KernelFileWalker::phpFiles() as $file) {
         $source = (string) file_get_contents($file->getPathname());
 
         foreach ($bannedHelpers as $helper) {

@@ -3,3 +3,9 @@ parameters:
     paths:
         - src
         - tests
+
+services:
+    -
+        class: Fissible\Vouch\Tests\PHPStan\PestTestCallMixinExtension
+        tags:
+            - phpstan.broker.methodsClassReflectionExtension
