@@ -223,6 +223,7 @@ Nothing is added to `users`. Adoption touches zero existing columns.
 | `auth_federated_identities` | **tenant, via connection** | Dedicated table for OIDC/social identities. Non-null `connection_id` FK, `issuer`, `subject`, claim snapshot. **Unique constraint on `(connection_id, issuer, subject)`.** |
 | `auth_challenges` | attempt | Hashed OTPs. `expires_at`, attempt counter, IP/UA binding, `consumed_at`. |
 | `auth_attempts` | request | The state machine. Single authoritative store, versioned transitions — see §4.3. |
+| `auth_sessions` | session | **Added 2026-08-12 by the Phase 2.1 design.** Server-side record of how a session was established: `amr`, `acr`, assurance facts, per-factor timestamps for §5.3 recency, and `recovery_grace_expires_at` for §7.3. Kept by vouch rather than in Laravel's session payload, because the `cookie` session driver stores that payload client-side and §7.3's `amr` must be server-side. Also required by §7.5's "invalidate all other sessions", which needs an enumerable record, and by §6.5's token gate, which must read the issuing session's assurance at mint time. |
 | `auth_token_assurances` | token | Assurance record bound to an issued Sanctum token. See §6.5. |
 | `auth_policies` | **tenant** | Policy-as-data. Deliberately shaped like Sluice's gate engine so the two read alike. |
 | `auth_connections` | **tenant** | Tenant ↔ IdP: email domain, OIDC discovery URL, client credentials, claim mappings, JIT provisioning rules. |
@@ -608,8 +609,23 @@ The attacker's easiest path into a passwordless account is the recovery flow.
 - Recovery codes are hashed, single-use, generated at first strong-factor enrollment;
   regeneration invalidates all prior codes.
 - **`RecoveryCodeFactor` never satisfies a policy alone.** It grants a *recovery-grace
-  session* at a restricted assurance level that can reach only security settings, and
-  forces enrollment of a real factor before becoming a normal session.
+  session* that can reach only security settings, and forces enrollment of a real factor
+  before becoming a normal session.
+
+  > **RESOLVED 2026-08-12 — see the Phase 2.1 design for the full rules.** An earlier
+  > draft called this "a restricted assurance level", which the Phase 1 kernel does not
+  > and should not express: recovery evidence is filtered out of both satisfiability and
+  > assurance facts, so recovery-only evidence yields `aal0`, and that is the honest
+  > answer. Recovery-grace is a **session mode**, not a point on the AAL ladder. It is
+  > carried by the server-side `amr` in `auth_sessions`, which distinguishes it from an
+  > anonymous session without claiming assurance it does not have. Binding rules: the
+  > `amr` is never client-provided; grace is mutually exclusive with normal
+  > authentication and mints no API tokens; vouch enforces its own enrollment and
+  > recovery-completion routes while authorization elsewhere stays with the host (§2);
+  > successful enrollment rotates the session and **replaces** rather than appends the
+  > `amr`; and a grace session may never create a persistent artifact — no remember-me,
+  > no device trust. Expiry is absolute at 15 minutes by default, never extended by
+  > activity, checked per-request, and does not restore the consumed code.
 - **Last-factor protection:** a user cannot delete or disable their only remaining
   credential.
 - **Admin-assisted recovery** is an explicit, audited tenant-admin action: mandatory
