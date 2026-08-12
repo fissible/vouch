@@ -62,13 +62,71 @@ jobs:
       - name: Mutation testing
         run: composer mutate
 
+  # The adversarial attempt-store matrix. SQLite is a supported target and must
+  # be verified, but cannot prove MySQL or Postgres locking, transaction, and
+  # concurrent-CAS behaviour — the differences between the engines are exactly
+  # what this job exists to surface.
+  database-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [sqlite, mysql, pgsql]
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: vouch_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -ppassword"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: vouch_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd=pg_isready
+          --health-interval=10s --health-timeout=5s --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: json, mbstring, pdo_sqlite, pdo_mysql, pdo_pgsql
+          coverage: none
+
+      - name: Install
+        run: composer install --prefer-dist --no-progress
+
+      # VOUCH_SQLITE_PATH is a FILE, never :memory:. Each connection to an
+      # in-memory SQLite database gets its own private database, so the
+      # contention tests would pass without anything having raced.
+      - name: Database suite
+        env:
+          VOUCH_TEST_DB: ${{ matrix.db }}
+          DB_HOST: 127.0.0.1
+          DB_DATABASE: vouch_test
+          DB_PASSWORD: password
+          DB_USERNAME: ${{ matrix.db == 'mysql' && 'root' || 'postgres' }}
+          DB_PORT: ${{ matrix.db == 'mysql' && '3306' || '5432' }}
+          VOUCH_SQLITE_PATH: ${{ runner.temp }}/vouch-matrix.sqlite
+        run: vendor/bin/pest tests/Database tests/Concurrency
+
   # Single stable required status check for branch protection. Requiring the
   # matrix jobs directly means their names embed the matrix values, so editing
   # the matrix silently drops required checks without failing anything.
   validate:
     name: validate
     runs-on: ubuntu-latest
-    needs: [test, mutation]
+    needs: [test, mutation, database-matrix]
     if: always()
     steps:
       - name: Require every upstream job to have succeeded

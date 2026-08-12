@@ -5,9 +5,14 @@
     "license": "MIT",
     "require": {
         "php": "^8.4",
+        "illuminate/console": "^13.0",
+        "illuminate/database": "^13.0",
+        "illuminate/support": "^13.0",
         "psr/clock": "^1.0"
     },
     "require-dev": {
+        "larastan/larastan": "^3.10",
+        "orchestra/testbench": "^11.0",
         "pestphp/pest": "^3.0",
         "pestphp/pest-plugin-arch": "^3.0",
         "phpstan/phpstan": "^2.0"
@@ -30,7 +35,7 @@
     },
     "scripts": {
         "test": "pest",
-        "stan": "phpstan analyse --no-progress",
+        "stan": "phpstan analyse --no-progress --memory-limit=1G",
         "mutate": [
             "@mutate:msi",
             "@mutate:covered"
@@ -42,6 +47,13 @@
         "mutate": "Mutation testing over Fissible\\Vouch\\Kernel. Two runs: overall MSI >= 80 (detects untested classes), covered-code MSI >= 95 (primary quality gate).",
         "mutate:msi": "Mutation score over every mutation, including ones on uncovered lines.",
         "mutate:covered": "Mutation score over covered mutations only, ignoring lines the test suite never executes."
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Fissible\\Vouch\\VouchServiceProvider"
+            ]
+        }
     },
     "minimum-stability": "stable",
     "prefer-stable": true
