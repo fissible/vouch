@@ -60,7 +60,11 @@ Pure decision logic. No framework, no persistence, no HTTP. ~20–30% of the cod
 **Phase 1 exit criteria:**
 - Arch test green: nothing under `Fissible\Vouch\Kernel` imports `Illuminate\*`,
   facades, global helpers, Eloquent types, driver namespaces, or global time.
-- Infection runs on the kernel in CI with a committed MSI floor.
+- Mutation testing runs on the kernel in CI with committed floors: `composer mutate`
+  makes two Pest passes over `Fissible\Vouch\Kernel`, requiring MSI >= 85 across every
+  mutation and >= 95 over covered mutations. (Infection was dropped in Task 5 — it
+  scores a Pest suite by looking for PHPUnit's `OK (…)` output line, which Pest never
+  prints, so it reports every mutant killed and a fabricated 100% MSI.)
 - Kernel public API surface captured as a committed snapshot (input to the §8.1
   extraction trigger).
 
