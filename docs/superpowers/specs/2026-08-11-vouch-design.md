@@ -870,7 +870,18 @@ These are settled in principle but need decisions during planning, not before:
    packages and need a PHP/Pest CI workflow, which the org does not yet have a reusable
    template for.
 3. **Assurance level vocabulary.** Whether to use NIST AAL1/2/3 names, OIDC `acr` URIs,
-   or a vouch-specific scale. Affects the `acr_values` string in §6.3.
+   or a vouch-specific scale. Affects the `acr_values` string in §6.3. Deferred rather
+   than blocking: the kernel derives structured facts and hands naming to an injectable
+   `AssuranceVocabulary`, so this is configuration at Phase 2 wiring time.
+
+   **The shipped default caps at AAL2 and must not be "improved" to emit AAL3.** AAL3
+   requires a hardware-based authenticator with a non-exportable private key; syncable
+   passkeys are explicitly ineligible despite being phishing-resistant. vouch records no
+   hardware-binding evidence, so emitting AAL3 would assert something unobserved — the
+   same defect as adopting a pre-vouch token (§6.5). Raising the ceiling requires the
+   kernel to capture hardware binding (WebAuthn backup-eligibility and backup-state
+   flags, or attestation) *and* the verifier-side requirements to be met.
+   See <https://pages.nist.gov/800-63-4/sp800-63b/aal/>.
 4. **Sluice `is_service` integration detail.** Exact seam between vouch's
    `ServiceIdentity` contract and Sluice's existing flag.
 5. **Station Laravel 13 upgrade** must land before Station can adopt.

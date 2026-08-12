@@ -1653,6 +1653,7 @@ declare(strict_types=1);
 
 use Fissible\Vouch\Kernel\Assurance\AssuranceFacts;
 use Fissible\Vouch\Kernel\Assurance\AssuranceLevel;
+use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary;
 use Fissible\Vouch\Kernel\Assurance\NistAssuranceVocabulary;
 use Fissible\Vouch\Kernel\Factor\FactorKind;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
@@ -1768,12 +1769,60 @@ it('names two distinct credentials aal2 under the NIST vocabulary', function ():
     expect((new NistAssuranceVocabulary())->name($facts))->toBe('aal2');
 });
 
-it('names a single phishing-resistant strong factor aal3', function (): void {
+it('caps at aal2 for a phishing-resistant strong passkey', function (): void {
+    // AAL3 additionally requires a non-exportable key in hardware. A syncable
+    // passkey is phishing-resistant but not AAL3-eligible, and the kernel records
+    // no hardware-binding evidence either way — so the default must never emit it.
     $facts = AssuranceFacts::fromFactors([
+        satisfied('cred-1', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00', multiFactor: true),
+    ]);
+
+    expect((new NistAssuranceVocabulary())->name($facts))->toBe('aal2');
+});
+
+it('never emits aal3 for any input the kernel can represent', function (): void {
+    $vocabulary = new NistAssuranceVocabulary();
+
+    $everyShape = [
+        AssuranceFacts::fromFactors([]),
+        AssuranceFacts::fromFactors([
+            satisfied('cred-1', FactorStrength::Knowledge, false, '2026-08-11T10:00:00+00:00'),
+        ]),
+        AssuranceFacts::fromFactors([
+            satisfied('cred-1', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00', multiFactor: true),
+        ]),
+        AssuranceFacts::fromFactors([
+            satisfied('cred-1', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00', multiFactor: true),
+            satisfied('cred-2', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00', multiFactor: true),
+        ]),
+    ];
+
+    foreach ($everyShape as $facts) {
+        expect($vocabulary->name($facts))->not->toBe('aal3');
+    }
+});
+
+it('lets an application supply a vocabulary that reads phishing resistance', function (): void {
+    // Demonstrates the extension point, and is the reason AssuranceFacts exposes
+    // allPhishingResistant even though the conservative default does not read it.
+    $strict = new class implements AssuranceVocabulary {
+        public function name(AssuranceFacts $facts): string
+        {
+            return $facts->allPhishingResistant ? 'acme:strong' : 'acme:standard';
+        }
+    };
+
+    $resistant = AssuranceFacts::fromFactors([
         satisfied('cred-1', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
     ]);
 
-    expect((new NistAssuranceVocabulary())->name($facts))->toBe('aal3');
+    $mixed = AssuranceFacts::fromFactors([
+        satisfied('cred-1', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
+        satisfied('cred-2', FactorStrength::Knowledge, false, '2026-08-11T10:00:00+00:00'),
+    ]);
+
+    expect($strict->name($resistant))->toBe('acme:strong')
+        ->and($strict->name($mixed))->toBe('acme:standard');
 });
 
 it('names one multi-factor credential aal2 rather than aal1', function (): void {
@@ -1908,19 +1957,27 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Kernel\Assurance;
 
-use Fissible\Vouch\Kernel\Factor\FactorStrength;
-
+/**
+ * Conservative NIST-flavoured naming. Caps at aal2 by design.
+ *
+ * AAL3 additionally requires a hardware-based authenticator whose private key is
+ * non-exportable — syncable passkeys are explicitly ineligible even though they
+ * are phishing-resistant. AssuranceFacts carries no hardware-binding evidence, so
+ * emitting aal3 here would assert something the kernel never observed. Phishing
+ * resistance alone is an AAL2 property, not an AAL3 one.
+ *
+ * An application that does capture hardware binding (WebAuthn backup-eligibility
+ * and backup-state flags, or attestation) can ship its own AssuranceVocabulary —
+ * that extension point is why this class is not the interface.
+ *
+ * @see https://pages.nist.gov/800-63-4/sp800-63b/aal/
+ */
 final class NistAssuranceVocabulary implements AssuranceVocabulary
 {
     public function name(AssuranceFacts $facts): string
     {
         if ($facts->distinctCredentialCount === 0) {
             return 'aal0';
-        }
-
-        if ($facts->allPhishingResistant
-            && $facts->strongest === FactorStrength::PossessionStrong) {
-            return 'aal3';
         }
 
         // One user-verified passkey is possession plus a biometric or PIN — two
@@ -1971,7 +2028,7 @@ final readonly class AssuranceLevel
 - [ ] **Step 6: Run to verify tests pass**
 
 Run: `composer test && composer stan`
-Expected: PASS (8 new tests), no PHPStan errors
+Expected: PASS (12 new tests), no PHPStan errors
 
 - [ ] **Step 7: Verify the arch test still holds**
 
