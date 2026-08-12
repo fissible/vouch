@@ -23,12 +23,26 @@ it('carries everything an adapter needs to render', function (): void {
     );
 
     expect($spec->step)->toBe(AuthStep::Challenge)
-        ->and($spec->offeredFactors)->toHaveCount(2)
-        ->and($spec->offeredFactors[0]->isDefault)->toBeTrue()
+        ->and($spec->offeredFactors)->toHaveCount(2);
+
+    expect($spec->offeredFactors[0]->factorId)->toBe('passkey')
+        ->and($spec->offeredFactors[0]->label)->toBe('Use a passkey')
+        ->and($spec->offeredFactors[0]->strength)->toBe(FactorStrength::PossessionStrong)
+        ->and($spec->offeredFactors[0]->isDefault)->toBeTrue();
+
+    expect($spec->offeredFactors[1]->factorId)->toBe('totp')
+        ->and($spec->offeredFactors[1]->label)->toBe('Use an authenticator app')
+        ->and($spec->offeredFactors[1]->strength)->toBe(FactorStrength::Possession)
+        ->and($spec->offeredFactors[1]->isDefault)->toBeFalse();
+
+    expect($spec->fields[0]->name)->toBe('code')
+        ->and($spec->fields[0]->type)->toBe('text')
         ->and($spec->fields[0]->autocomplete)->toBe('one-time-code')
-        ->and($spec->fields[0]->maxLength)->toBe(6)
-        ->and($spec->challengePayload)->toBe(['delivery' => 'email'])
-        ->and($spec->retry?->attemptsRemaining)->toBe(4);
+        ->and($spec->fields[0]->maxLength)->toBe(6);
+
+    expect($spec->challengePayload)->toBe(['delivery' => 'email'])
+        ->and($spec->retry?->attemptsRemaining)->toBe(4)
+        ->and($spec->retry?->lockedUntil)->toBeNull();
 });
 
 it('supports a screen with no challenge and no retry disclosure', function (): void {
@@ -41,7 +55,23 @@ it('supports a screen with no challenge and no retry disclosure', function (): v
         retry: null,
     );
 
+    expect($spec->step)->toBe(AuthStep::Identify)
+        ->and($spec->offeredFactors)->toHaveCount(0);
+
+    expect($spec->fields[0]->name)->toBe('identifier')
+        ->and($spec->fields[0]->type)->toBe('email')
+        ->and($spec->fields[0]->autocomplete)->toBe('username')
+        ->and($spec->fields[0]->maxLength)->toBeNull();
+
     expect($spec->challengePayload)->toBeNull()
         ->and($spec->retry)->toBeNull()
         ->and($spec->errors)->toBe(['Check your email.']);
+});
+
+it('discloses retry limits with lock expiry', function (): void {
+    $lockedUntil = new DateTimeImmutable('2026-08-12T15:30:45Z');
+    $retry = new RetryPolicy(attemptsRemaining: 2, lockedUntil: $lockedUntil);
+
+    expect($retry->attemptsRemaining)->toBe(2)
+        ->and($retry->lockedUntil)->toBe($lockedUntil);
 });
