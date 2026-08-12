@@ -80,6 +80,23 @@ it('always discloses a lockout, because withholding it is useless and hostile', 
     expect($shaped->errors)->toBe(['Too many attempts. Try again later.']);
 });
 
+it('preserves retry state on a lockout even under strict posture', function (): void {
+    // The other half of the Locked carve-out, previously unpinned: the retry
+    // policy survives Strict here, unlike every other outcome. This is the exact
+    // disclosure that becomes an account-existence oracle if Phase 2 throttles
+    // per existing-account record instead of per submitted identifier — see the
+    // precondition documented on ErrorShaper::shape() and the §7.7 residual-risk
+    // table. Pinned so the disclosure cannot widen or narrow unnoticed.
+    $shaped = (new ErrorShaper())->shape(
+        identifyScreen(),
+        Outcome::Locked,
+        EnumerationPosture::Strict,
+    );
+
+    expect($shaped->retry)->not->toBeNull()
+        ->and($shaped->retry?->attemptsRemaining)->toBe(3);
+});
+
 it('discloses the uniform message under strict posture', function (): void {
     $shaped = (new ErrorShaper())->shape(
         identifyScreen(),

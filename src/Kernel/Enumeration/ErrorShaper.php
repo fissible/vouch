@@ -17,6 +17,29 @@ final class ErrorShaper
         EnumerationPosture $posture,
     ): ScreenSpec {
         if ($outcome === Outcome::Locked) {
+            // Locked is disclosed in full under every posture, including Strict:
+            // the distinct message and the retry state both survive. Withholding
+            // them is useless (the lockout is observable from the failure to
+            // proceed) and hostile (a real user cannot tell why they are stuck).
+            //
+            // PRECONDITION — this carve-out is safe ONLY under spec §7.1: rate
+            // limits must be applied identically to known and unknown
+            // identifiers, including the length of the lockout window. Under that
+            // condition an unknown identifier reaches Locked on the same schedule
+            // and the two responses stay indistinguishable.
+            //
+            // The kernel is handed the Outcome; it cannot verify this. If Phase 2
+            // throttles per existing-account record — the obvious implementation,
+            // since the record is where a counter naturally lives — unknown
+            // identifiers never lock. The attacker then submits N+1 attempts per
+            // candidate: a known identifier returns "Too many attempts. Try again
+            // later." with a populated RetryPolicy, an unknown one returns the
+            // uniform message with retry: null. That is a complete, cheap
+            // account-existence oracle obtained *under Strict posture*, with every
+            // kernel test green. Differing lockout windows (15 min real vs 1 min
+            // decoy) are the same oracle at finer grain.
+            //
+            // Recorded as a Phase 2 constraint in the §7.7 residual-risk table.
             return $this->withErrors($spec, ['Too many attempts. Try again later.'], $spec->retry);
         }
 

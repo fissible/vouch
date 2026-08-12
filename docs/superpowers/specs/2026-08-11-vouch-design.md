@@ -671,6 +671,7 @@ Documented residual risks, each traceable to a decision in §11:
 | Passkeys require per-origin enrollment for multi-tenant users on custom domains | §4.1 |
 | Generic OIDC security inherited from a pinned third-party client | §6.4 |
 | Adopted pre-vouch tokens carry asserted, not observed, assurance | §6.5 item 4 |
+| `Outcome::Locked` is disclosed in full under every posture, including strict — distinct message plus retry state. Safe **only** while §7.1's "rate limits are identical for known and unknown identifiers" holds, including the lockout window. **Phase 2 constraint:** throttling per existing-account record turns this carve-out into a complete account-existence oracle under strict posture, with every kernel test green. Lockout must be counted against the submitted identifier, not against a found account, and must be tested for it. | §7.1 |
 
 Compliance buyers ask for this document by name, and writing it early forces gaps into
 the open.
