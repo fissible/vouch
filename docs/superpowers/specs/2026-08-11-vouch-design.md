@@ -50,7 +50,10 @@ something WorkOS charges for and Fortify does not attempt.
 
 Stated explicitly so they do not get half-built:
 
-- **vouch does not issue or manage API tokens.** Sanctum keeps that responsibility.
+- **vouch does not implement API token storage, scoping, or transport.** Sanctum keeps
+  that. vouch **does** own the issuance gate and the assurance record bound to each
+  token (§6.5). The boundary is narrower than "Sanctum owns tokens" — an earlier draft
+  of this spec stated the wider boundary and was unimplementable as a result.
 - **vouch does not attempt MFA for machine actors.** Service-identity security is token
   scoping, rotation, TTL, and IP allow-listing.
 - **vouch does not own authorization.** Roles, permissions, and tenant membership stay
@@ -91,7 +94,7 @@ interface Factor {
 | `SmsOtpFactor` | Spatie OTP + host SMS channel | `possession_weak` |
 | `TotpFactor` | Fortify 2FA | `possession` |
 | `PasskeyFactor` | `laravel/passkeys` | `possession_strong` |
-| `OidcFactor` | Socialite + generic OIDC discovery | inherited from IdP |
+| `OidcFactor` | `facile-it/php-openid-client` for protocol; Socialite for social providers | inherited from IdP |
 | `RecoveryCodeFactor` | Fortify recovery codes | `recovery` |
 
 `FactorStrength` is an **ordered** enum. Policy expresses `minimum: possession` and
@@ -142,7 +145,9 @@ The client never learns *why* a step was demanded beyond what the enumeration po
     'otp'          => ['step1' => ['email_otp'], 'step2' => false],
     'mfa'          => ['step1' => ['password','passkey'],
                        'step2' => ['totp','passkey'],
-                       'minimum_strength' => 'possession'],
+                       'minimum_strength' => 'possession',
+                       'require_distinct_credentials' => true,
+                       'accept_single_multi_factor_credential' => true],
     'sso'          => ['step1' => ['oidc'], 'step2' => 'defer_to_idp'],
     'passwordless' => ['step1' => ['passkey','email_otp'], 'step2' => false],
 ],
@@ -151,6 +156,45 @@ The client never learns *why* a step was demanded beyond what the enumeration po
 An app sets `'mode' => 'mfa'` and is done. An app with real requirements writes a
 policy document instead. **A preset *is* a policy document** — same engine, no second
 code path.
+
+### 3.6 Satisfiability is a structured predicate, not a strength comparison
+
+An ordered strength enum alone is insufficient, and gets the count wrong in both
+directions.
+
+**Under-counts:** a user-verified passkey is *itself* a multi-factor authenticator —
+possession of the authenticator plus a biometric or PIN. NIST treats it as AAL2. A
+policy that mechanically demands "two steps" would force a pointless second factor on
+the strongest credential available.
+
+**Over-counts:** the `mfa` preset offers `passkey` in both step 1 and step 2. Two
+assertions from the *same* passkey are one authenticator, not two factors. Nothing in a
+strength comparison prevents that credential from satisfying both steps.
+
+Satisfiability is therefore evaluated over a structured record of what actually
+happened. Each satisfied factor contributes:
+
+| Attribute | Purpose |
+|---|---|
+| `credential_id` | Distinctness. Two satisfactions sharing a credential ID are one factor. |
+| `factor_kind` | `knowledge` / `possession` / `inherence`. |
+| `is_multi_factor` | True for user-verified passkeys — the credential alone spans two kinds. |
+| `user_verified` | Whether UV was actually asserted, not merely requested. |
+| `phishing_resistant` | True for WebAuthn; false for OTP, TOTP, password. |
+| `authenticator_id` | Independence — distinct credentials on the same authenticator are not independent. |
+| `satisfied_at` | Recency, per §5.3. |
+
+Policy predicates are then explicit:
+
+- `require_distinct_credentials` — no credential ID may satisfy more than one step.
+- `accept_single_multi_factor_credential` — a UV passkey alone satisfies a
+  two-factor requirement. **Default true**, because refusing it pushes users toward
+  weaker combinations.
+- `require_phishing_resistant` — for high-assurance tenants; excludes every OTP form.
+- `require_independent_authenticators` — stricter than distinct credentials; two
+  passkeys on the same device do not count as two.
+
+`recovery`-strength satisfactions never contribute to a policy (§7.3).
 
 ---
 
@@ -161,21 +205,39 @@ Nothing is added to `users`. Adoption touches zero existing columns.
 | Table | Scope | Purpose |
 |---|---|---|
 | `auth_identifiers` | user | email / phone / username → user. `verified_at`, `is_primary`. Enables multiple emails per user, which SSO linking requires. |
-| `auth_credentials` | **user, global** | Polymorphic: password hash, TOTP secret, WebAuthn credential, OIDC subject. `last_used_at`, `disabled_at`, strength snapshot. |
+| `auth_credentials` | **user, + `relying_party_id` where applicable** | Password hash, TOTP secret, WebAuthn credential. `last_used_at`, `disabled_at`, strength snapshot, plus the §3.6 attributes (`is_multi_factor`, `user_verified`, `phishing_resistant`, `authenticator_id`). **Not** federated identities — see below. |
+| `auth_federated_identities` | **tenant, via connection** | Dedicated table for OIDC/social identities. Non-null `connection_id` FK, `issuer`, `subject`, claim snapshot. **Unique constraint on `(connection_id, issuer, subject)`.** |
 | `auth_challenges` | attempt | Hashed OTPs. `expires_at`, attempt counter, IP/UA binding, `consumed_at`. |
-| `auth_attempts` | request | The state machine. Short TTL, cache-backed with DB fallback for audit. |
+| `auth_attempts` | request | The state machine. Single authoritative store, versioned transitions — see §4.3. |
+| `auth_token_assurances` | token | Assurance record bound to an issued Sanctum token. See §6.5. |
 | `auth_policies` | **tenant** | Policy-as-data. Deliberately shaped like Sluice's gate engine so the two read alike. |
 | `auth_connections` | **tenant** | Tenant ↔ IdP: email domain, OIDC discovery URL, client credentials, claim mappings, JIT provisioning rules. |
 | `auth_link_requests` | user | Pending SSO ↔ existing-account links awaiting proof of control. |
 
+Federated identities get their own table rather than a polymorphic row in
+`auth_credentials` because the two have incompatible scoping and integrity rules: a
+credential is the user's, a federated identity belongs to a tenant's connection, and
+the `(connection_id, issuer, subject)` uniqueness must be a database constraint rather
+than a driver convention. §7.2 rule 1 is unenforceable otherwise.
+
 ### 4.1 Scope split rationale
 
-- **Credentials are global to the user.** A passkey belongs to the person, not the
-  tenant. Enrolling once satisfies every tenant whose policy it meets. Tenants cannot
-  enumerate or manage each other's credentials.
-- **Connections are tenant-scoped.** An OIDC subject from Acme's Okta must satisfy
-  *only* Acme's tenant. Federated identity is not portable across tenants. **Getting
-  this wrong is a cross-tenant account takeover.**
+- **Origin-bound credentials carry a relying-party ID.** WebAuthn credentials are bound
+  by the browser to the RP ID they were registered against; a passkey enrolled at
+  `acme.com` is cryptographically unusable at `beta.station.app`. Station resolves
+  tenants by custom apex domain first (`ResolveTenant` matches `Tenant::where('domain',
+  $host)` before falling back to subdomain), so tenants genuinely live on separate
+  origins. `auth_credentials.relying_party_id` is therefore part of credential lookup
+  for WebAuthn. A user in two custom-domain tenants enrolls a passkey per origin.
+- **Origin-free credentials remain global to the user.** Passwords and TOTP secrets are
+  not origin-bound and are shared across every tenant the user belongs to.
+- **Federated identities are tenant-scoped, enforced by constraint.** An OIDC subject
+  from Acme's Okta must satisfy *only* Acme's tenant. **Getting this wrong is a
+  cross-tenant account takeover**, so it is a unique index, not a convention (§4).
+
+An earlier draft asserted that all credentials were global. That is false for WebAuthn
+under custom domains and would have produced a passkey flow that silently fails on
+every tenant except the enrolling one.
 
 ### 4.2 Migration compatibility
 
@@ -183,6 +245,33 @@ Existing `users.password` hashes are read through a compatibility shim and migra
 lazily on next successful login. Station's `users.app_authentication_secret` migrates
 to an `auth_credentials` row of type `totp`. `php artisan vouch:backfill` performs a
 one-shot migration. **No existing column is dropped in v1.**
+
+### 4.3 `auth_attempts` persistence contract
+
+The attempt state machine is security-sensitive, so "cache-backed with a DB fallback"
+is not an acceptable description — two stores for one attempt permits split-brain
+transitions, replay across a cache eviction, and double-consumption of a challenge
+under concurrent requests.
+
+The contract is:
+
+- **One authoritative store per attempt**, chosen by config and never mixed within an
+  attempt's lifetime. Audit is an append-only *side effect*, never a fallback state
+  store.
+- **Compare-and-swap transitions** against a monotonic `version` column. A transition
+  computed from version *n* may only be written if the stored version is still *n*.
+  Losing writers re-read and retry or fail closed; they never overwrite.
+- **Atomic consume-on-success.** Marking a challenge consumed and advancing the attempt
+  are a single atomic operation, so a concurrent duplicate submission cannot both
+  succeed.
+- **Bound context.** Each attempt records the session/browser context it was created
+  under and refuses transitions presented from a different one.
+- **Hard expiry** independent of cache TTL, enforced on read.
+
+Cache-backed and database-backed drivers both implement this; the cache driver requires
+atomic CAS primitives (Redis `WATCH`/Lua), which excludes the array and file cache
+stores from production use. That exclusion is enforced at boot, not documented and
+hoped for.
 
 ---
 
@@ -227,11 +316,33 @@ session AAL <  requirement  → step-up challenge, then proceed
 ```
 
 This is not new machinery — it is the step-up flow needed anyway for sensitive actions.
-Tenancy becomes another consumer of it. Cross-tenant navigation works without re-login
-when the posture already qualifies, and cannot work when it does not.
+Tenancy becomes another consumer of it.
 
 **Recency is part of the level.** Policy can require `possession_strong within 12h`, so
 a stale strong factor still triggers step-up.
+
+#### 5.3.1 Assurance is per-origin, not portable across custom domains
+
+Assurance travels with the session, and a session cookie set on `acme.com` is never
+sent to `beta.station.app`. Station's custom-domain tenants therefore occupy separate
+browser origins with **separate sessions and separate assurance state**. The same
+boundary that scopes passkeys by relying-party ID (§4.1) scopes assurance.
+
+Concretely:
+
+- Tenants sharing a parent domain (`*.station.app`) can share a session cookie, and
+  assurance carries between them. Entering a stricter tenant triggers step-up rather
+  than re-login.
+- Tenants on custom apex domains cannot. Each is an independent authentication context;
+  the user authenticates per origin.
+
+An earlier draft claimed cross-tenant navigation without re-login as a general
+capability. It is not achievable across origins without a central authentication origin
+and a signed-assertion handshake — effectively making Station its own IdP. That was
+evaluated and **deliberately rejected for v1** as disproportionate scope; see §11.
+
+The downgrade risk that motivated assurance levels (§5.2) is unaffected — it was always
+a *within-session* problem, and within a session assurance is still enforced per tenant.
 
 ### 5.4 Membership is authorization, not authentication
 
@@ -291,7 +402,8 @@ Filament's own documentation confirms the fragmentation risk:
 
 A token records the assurance level and factor list (`amr`) of the session that minted
 it, and **can never exceed it**. `RequireAssurance` then works on API routes as an
-authorization check rather than a challenge.
+authorization check rather than a challenge. §6.5 specifies how that record is created
+and enforced — without a mandatory issuance integration this guarantee is unbacked.
 
 When an API request presents an insufficient token, vouch returns the
 [RFC 9470](https://www.rfc-editor.org/info/rfc9470/) step-up challenge (IETF Standards
@@ -322,10 +434,63 @@ Same policy object, same assurance model, two renderings.
 Auth0, and Keycloak, plus adapters for WorkOS and Auth0 so anyone needing SAML
 delegates it to a broker. Domain→connection mapping and JIT provisioning are included.
 
+**The validating component is named, not implied.** Socialite is an OAuth2 client for
+named providers; it performs no discovery, no JWKS handling, and no ID-token
+validation. Attributing the §7.2.8 guarantees to "Socialite + generic OIDC discovery"
+would have hidden exactly the protocol work this package promises not to write itself.
+
+v1 pins **`facile-it/php-openid-client`** (1.0.0, 2026-06-12, PHP ^8.2) as the owner of
+discovery, JWKS refresh, and ID-token signature and claim validation. Socialite's role
+narrows to the three social providers (Google, GitHub, Apple), where it is a
+well-trodden path.
+
+**Gate:** the pin reached 1.0.0 only two months before this spec. Before it becomes
+load-bearing, the implementation plan must include an evaluation task — maintenance
+cadence, issue responsiveness, audit history, and a review of its signature-validation
+path against the §7.2.8 checklist. If it fails that evaluation, the fallback is audited
+per-provider adapters plus WorkOS/Auth0 brokers, and the generic-OIDC claim is dropped
+from v1.
+
 **SAML is deliberately deferred.** XML signature verification is a notorious
 vulnerability class (XML signature wrapping), metadata and certificate rotation are
 operationally painful, and native SAML would roughly double v1. It is added only on
 demonstrated demand.
+
+### 6.5 Token issuance is a mandatory integration, not an advisory one
+
+`RequireAssurance` cannot reconstruct assurance at request time — the authenticating
+session is long gone, and its factors were never recorded against the token. Assurance
+must be captured **at mint time** or it does not exist.
+
+Sluice demonstrates the problem: `app/Filament/Pages/ApiTokens.php:64` and
+`app/Console/Commands/SluiceToken.php:48` both call `createToken()` directly on the
+model, with no interception point available to a middleware.
+
+The contract:
+
+1. **`auth_token_assurances`** records, per issued token: assurance level, factor list
+   (`amr`), credential IDs, issuing session ID, and `issued_at`. Keyed to the Sanctum
+   `personal_access_token` ID with a cascading delete.
+2. **`Vouch::issueToken()`** is the supported issuance path. It performs the policy
+   check for the `token_issue` intent, mints via Sanctum, and writes the assurance
+   record in the same transaction.
+3. **Default deny.** A presented token with no assurance record is rejected by
+   `RequireAssurance`, not treated as unknown-but-acceptable. Any `createToken()` path
+   that bypasses vouch produces an unusable token, so the failure is loud at
+   development time rather than silent in production.
+4. **Migration of pre-existing tokens** is an explicit, audited decision, not a
+   default. `php artisan vouch:tokens:adopt --assurance=…` backfills records for tokens
+   minted before adoption, with a documented default of *refusing* to adopt. Sluice's
+   existing tokens go through this deliberately.
+5. **Machine tokens** (`is_service`) are issued with an explicit `machine` assurance
+   marker rather than a human factor list, satisfy only routes that permit machine
+   actors, and are recorded as machine actors in audit (§6.2).
+6. **Revocation on credential change.** Removing or disabling a credential revokes
+   every token whose assurance record cites that credential ID. Password change revokes
+   all human tokens by default. Both are configurable but default to the safe side.
+7. **Call-site enforcement.** Sluice's two `createToken()` sites are rewritten to
+   `Vouch::issueToken()` as part of adoption; the package ships a `vouch:audit-tokens`
+   command that greps for direct `createToken()` use and fails CI.
 
 Social OAuth (Google, GitHub, Apple) ships via Socialite in v1.
 
@@ -350,8 +515,36 @@ offers registration. Still fully rate-limited.
 Email delivery, timing under load, and response-size side channels remain. The docs
 state residual risk rather than claiming non-enumerability.
 
-OTP-only and SSO-only modes are naturally enumeration-resistant, since the response is
-identical either way.
+#### 7.1.1 Strict mode is specified per flow
+
+An earlier draft called OTP-only and SSO-only flows "naturally enumeration-resistant."
+That is wrong: conditional message delivery and domain→connection lookup both leak, and
+a naive decoy leaks worse. Strict mode defines behavior per factor.
+
+**Email / SMS OTP.** The screen, status code, and response body are identical for known
+and unknown identifiers, and the response is held to a fixed time budget.
+
+**A decoy challenge never sends a message to an attacker-supplied recipient.** For an
+unknown identifier, nothing is dispatched; a challenge record is created that cannot
+validate. Sending "something" to unknown addresses would turn the login form into a
+spam and toll-fraud amplifier — the §7.4 attack, self-inflicted. The consequence is an
+accepted, documented residual channel: the attacker learns nothing from the response
+but may infer from non-delivery. Reducing on-screen leakage while adding a delivery
+amplifier would be a net loss.
+
+**SSO / domain→connection lookup.** Whether an email domain maps to a configured
+connection reveals tenant existence and enterprise-customer identity. In strict mode
+the identifier step never branches visibly on that lookup: unknown domains route to the
+same next screen as known ones, and the redirect to an IdP happens only after a step
+that is observably identical in both cases. Redirect targets, status codes, and
+`Location` header presence must be equivalent — a bare 302-versus-200 difference
+defeats every other measure here.
+
+**Registration and reset** always answer "check your email," per the main rule above.
+
+**Testable definition.** "Observably identical" means byte-identical response bodies,
+identical status codes and header sets, and timing variance within a configured bound —
+asserted statistically in the test suite (§9), not judged by eye.
 
 ### 7.2 SSO account linking — highest-risk surface in the package
 
@@ -430,9 +623,21 @@ permanent.
 ### 7.7 `SECURITY-MODEL.md`
 
 Ships with the package. Enumerates what vouch defends against and, explicitly, what it
-does not: compromised host, malicious tenant admin, mailbox takeover under email
-recovery. Includes token issuance as an MFA bypass vector (§6.2) and the residual
-enumeration risk (§7.1).
+does not.
+
+Out of scope: compromised host, malicious tenant admin, mailbox takeover under email
+recovery.
+
+Documented residual risks, each traceable to a decision in §11:
+
+| Risk | Section |
+|---|---|
+| Token issuance as an MFA bypass vector, and the default-deny mitigation | §6.5 |
+| Enumeration via message non-delivery in strict mode | §7.1.1 |
+| No assurance portability across custom-domain tenants; users authenticate per origin | §5.3.1 |
+| Passkeys require per-origin enrollment for multi-tenant users on custom domains | §4.1 |
+| Generic OIDC security inherited from a pinned third-party client | §6.4 |
+| Adopted pre-vouch tokens carry asserted, not observed, assurance | §6.5 item 4 |
 
 Compliance buyers ask for this document by name, and writing it early forces gaps into
 the open.
@@ -524,7 +729,13 @@ reality rather than theory:
 - **Security regression suite** — every vulnerability class gets a permanent test:
   replay, `state`/`nonce` tampering, `alg:none`, cross-tenant OIDC subject reuse,
   pre-account-hijack, last-factor deletion, recovery-grace escalation, token-issuance
-  MFA bypass.
+  MFA bypass, token surviving revocation of its cited credential, and one credential
+  satisfying both steps of a two-factor policy.
+- **Concurrency suite for `auth_attempts`** (§4.3) — parallel submissions of the same
+  challenge must produce exactly one success; CAS transitions under contention must
+  never interleave; expiry must be enforced on read regardless of cache state.
+- **Relying-party scoping** — a passkey enrolled under one RP ID must not be offered or
+  accepted under another, asserted against both a custom-domain and a subdomain tenant.
 - **Real dependencies, not mocks** — Mailpit for mail, containerized Keycloak for OIDC,
   a virtual authenticator in Dusk for actual WebAuthn ceremonies.
 - **Dusk** for Filament and Blade adapter flows.
@@ -552,6 +763,14 @@ These are settled in principle but need decisions during planning, not before:
 4. **Sluice `is_service` integration detail.** Exact seam between vouch's
    `ServiceIdentity` contract and Sluice's existing flag.
 5. **Station Laravel 13 upgrade** must land before Station can adopt.
+6. **`facile-it/php-openid-client` evaluation** (§6.4) is a gating task, not a
+   formality. If it fails, generic OIDC leaves v1.
+7. **Sluice token migration decision** (§6.5 item 4) — whether Sluice's existing tokens
+   are adopted at a stated assurance or forced through reissue. Reissue is the safe
+   default and the recommendation; adoption needs your explicit sign-off.
+8. **Central authentication origin** remains the only path to cross-origin assurance
+   portability and single-enrollment passkeys. Rejected for v1 (§11); revisit if
+   custom-domain tenants with multi-tenant users become a real support burden.
 
 ---
 
@@ -568,3 +787,10 @@ These are settled in principle but need decisions during planning, not before:
 | Filament integration | Replace auth pages (B), not plug into MFA (A) | Plugging in reintroduces the policy fragmentation vouch exists to remove. |
 | Platform | Laravel 13 / PHP 8.4 only | Station upgrade in progress; removes the CI matrix entirely. |
 | API auth | Different flow, same policy; RFC 9470 for refusal | Machine clients cannot be challenged. Unify policy, not flow. |
+| Token issuance | Mandatory vouch-owned gate + default-deny assurance record | Assurance cannot be reconstructed at request time. Sluice mints tokens at two uninterceptable call sites, so an advisory boundary would have left the MFA bypass open. |
+| WebAuthn scoping | Credentials carry a relying-party ID | Station resolves tenants by custom apex domain, and WebAuthn binds credentials to an RP ID. Global passkeys would silently fail on every tenant but the enrolling one. |
+| Cross-origin assurance | **Dropped from v1** | Session cookies do not cross apex domains. Achievable only via a central authentication origin, which would make Station its own IdP — disproportionate scope for v1. Tenants under a shared parent domain retain it. |
+| Two-factor satisfiability | Structured predicate, not strength ordering | Ordering both under-counts UV passkeys (genuinely AAL2 alone) and over-counts one credential used twice. |
+| Federated identity storage | Dedicated table, unique `(connection_id, issuer, subject)` | The §7.2 tenancy invariant must be a database constraint; a polymorphic credential row leaves it to driver convention. |
+| Attempt persistence | Single authoritative store, CAS transitions | Dual-store "cache with DB fallback" permits split-brain, replay, and double-consumption. |
+| OIDC protocol owner | Pin `facile-it/php-openid-client`, gated on evaluation | Socialite does no discovery, JWKS, or ID-token validation. The "we don't implement protocols" boundary needs a named component behind it. |
