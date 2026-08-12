@@ -85,6 +85,20 @@ it('takes recency from the oldest factor, not the newest', function (): void {
     expect($facts->weakestSatisfiedAt?->format('H:i'))->toBe('08:00');
 });
 
+it('keeps the first of two equal-instant factors as the oldest', function (): void {
+    // Two factors satisfied at the same instant but in different timezones compare
+    // equal (==) yet are not interchangeable: same instant, different rendering.
+    // fromFactors() must retain the first of a tie, not the second, so
+    // weakestSatisfiedAt's timezone is deterministic rather than an accident of
+    // iteration order.
+    $facts = AssuranceFacts::fromFactors([
+        satisfied('cred-1', FactorStrength::Possession, false, '2026-08-11T10:00:00+00:00'),
+        satisfied('cred-2', FactorStrength::Possession, false, '2026-08-11T12:00:00+02:00'),
+    ]);
+
+    expect($facts->weakestSatisfiedAt?->format('c'))->toBe('2026-08-11T10:00:00+00:00');
+});
+
 it('fails recency when the oldest factor is beyond max age', function (): void {
     $level = new AssuranceLevel('aal2', AssuranceFacts::fromFactors([
         satisfied('cred-1', FactorStrength::Possession, false, '2026-08-11T08:00:00+00:00'),
