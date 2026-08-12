@@ -86,9 +86,9 @@ it('allows one credential to serve twice when distinctness is waived', function 
 });
 
 it('backtracks rather than greedily consuming the only match for another requirement', function (): void {
-    // 'shared' matches both requirements; 'totp-only' matches only the second.
-    // A greedy first-match pass assigns 'shared' to requirement one and then
-    // has nothing left for requirement two.
+    // 'cred-strong' matches both requirements; 'cred-weak' matches only the first.
+    // A greedy first-match pass hands 'cred-strong' to requirement one and then has
+    // nothing strong enough left for requirement two.
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         new AllOf([
             new FactorRequirement('totp', minimumStrength: FactorStrength::Possession),
@@ -279,4 +279,166 @@ it('ignores authenticator independence for factors with no authenticator', funct
     );
 
     expect($verdict->satisfied)->toBeTrue();
+});
+
+it('refuses a nested waiver that would double-count a credential for the outer policy', function (): void {
+    // The inner node waives distinctness for its own checking. That must not buy the
+    // outer node a second factor out of one credential: cred-1 would otherwise be
+    // counted twice and the outer policy would pass on cred-1, cred-1, cred-2.
+    $verdict = (new SatisfiabilityEvaluator())->evaluate(
+        new AllOf([
+            new AllOf(
+                [new FactorRequirement('passkey'), new FactorRequirement('passkey')],
+                requireDistinctCredentials: false,
+            ),
+            new FactorRequirement('totp'),
+        ]),
+        [factor('passkey', 'cred-1'), factor('totp', 'cred-2')],
+    );
+
+    expect($verdict->satisfied)->toBeFalse();
+});
+
+it('refuses two credentials from one authenticator arriving through a nested node', function (): void {
+    // Nothing here is waived explicitly: the inner all_of simply carries the default
+    // independence setting. The outer node requires independence, so its requirement
+    // has to reach inside the child's own pairs — otherwise dev-1, dev-1, dev-9 passes.
+    $verdict = (new SatisfiabilityEvaluator())->evaluate(
+        new AllOf(
+            [
+                new AllOf([new FactorRequirement('passkey'), new FactorRequirement('passkey')]),
+                new FactorRequirement('totp'),
+            ],
+            requireIndependentAuthenticators: true,
+        ),
+        [
+            factor('passkey', 'cred-1', authenticatorId: 'dev-1'),
+            factor('passkey', 'cred-2', authenticatorId: 'dev-1'),
+            factor('totp', 'cred-3', authenticatorId: 'dev-9'),
+        ],
+    );
+
+    expect($verdict->satisfied)->toBeFalse();
+});
+
+it('accepts the nested shape once the authenticators really are independent', function (): void {
+    $verdict = (new SatisfiabilityEvaluator())->evaluate(
+        new AllOf(
+            [
+                new AllOf([new FactorRequirement('passkey'), new FactorRequirement('passkey')]),
+                new FactorRequirement('totp'),
+            ],
+            requireIndependentAuthenticators: true,
+        ),
+        [
+            factor('passkey', 'cred-1', authenticatorId: 'dev-1'),
+            factor('passkey', 'cred-2', authenticatorId: 'dev-2'),
+            factor('totp', 'cred-3', authenticatorId: 'dev-9'),
+        ],
+    );
+
+    expect($verdict->satisfied)->toBeTrue()
+        ->and($verdict->usedFactors)->toHaveCount(3);
+});
+
+it('applies an inner independence requirement even when the outer waives it', function (): void {
+    // The inverse direction: constraints are conjunctive, so an outer waiver relaxes
+    // nothing for the inner node either.
+    $verdict = (new SatisfiabilityEvaluator())->evaluate(
+        new AllOf(
+            [
+                new AllOf(
+                    [new FactorRequirement('passkey'), new FactorRequirement('passkey')],
+                    requireIndependentAuthenticators: true,
+                ),
+            ],
+            requireIndependentAuthenticators: false,
+        ),
+        [
+            factor('passkey', 'cred-1', authenticatorId: 'dev-1'),
+            factor('passkey', 'cred-2', authenticatorId: 'dev-1'),
+        ],
+    );
+
+    expect($verdict->satisfied)->toBeFalse();
+});
+
+it('confines a nested requirement to the factors chosen inside it', function (): void {
+    // The outer node waives distinctness, so the leaf's credential may be reused by
+    // the nested node. The nested node's own distinctness requirement covers only the
+    // two factors it chooses, not the one its parent already picked.
+    $verdict = (new SatisfiabilityEvaluator())->evaluate(
+        new AllOf(
+            [
+                new FactorRequirement('passkey'),
+                new AllOf([new FactorRequirement('passkey'), new FactorRequirement('passkey')]),
+            ],
+            requireDistinctCredentials: false,
+        ),
+        [factor('passkey', 'cred-1'), factor('passkey', 'cred-2')],
+    );
+
+    expect($verdict->satisfied)->toBeTrue()
+        ->and($verdict->usedFactors)->toHaveCount(3);
+});
+
+it('backtracks out of an any_of branch that strands a later requirement', function (): void {
+    // The first branch consumes the only strong totp, which the second requirement
+    // then cannot have. A depth-first search that commits to its first branch reports
+    // this unsatisfiable; one that unwinds finds sms plus the strong totp.
+    $verdict = (new SatisfiabilityEvaluator())->evaluate(
+        new AllOf([
+            new AnyOf([
+                new AllOf([new FactorRequirement('totp')]),
+                new AllOf([new FactorRequirement('sms')]),
+            ]),
+            new FactorRequirement('totp', minimumStrength: FactorStrength::PossessionStrong),
+        ]),
+        [
+            factor('totp', 'cred-strong', FactorStrength::PossessionStrong),
+            factor('sms', 'cred-sms', FactorStrength::PossessionWeak),
+        ],
+    );
+
+    expect($verdict->satisfied)->toBeTrue()
+        ->and($verdict->usedFactors)->toHaveCount(2);
+});
+
+it('answers a wide policy without enumerating every assignment', function (): void {
+    // Six requirements over twelve credentials. Building the full cartesian product
+    // first cost 11.4 MB at five over ten and died of memory exhaustion at six over
+    // twelve; the depth-first search stops at the first complete assignment.
+    $pool = [];
+
+    for ($i = 1; $i <= 12; $i++) {
+        $pool[] = factor('passkey', 'cred-' . $i);
+    }
+
+    $verdict = (new SatisfiabilityEvaluator())->evaluate(
+        new AllOf(array_fill(0, 6, new FactorRequirement('passkey'))),
+        $pool,
+    );
+
+    expect($verdict->satisfied)->toBeTrue()
+        ->and($verdict->usedFactors)->toHaveCount(6);
+});
+
+it('consumes requirements left to right and records the factors in that order', function (): void {
+    // Requirement order is not cosmetic. Taking the requirements in reverse would
+    // pick 'cred-strong' for the loose requirement and leave the strict one to fall
+    // back, producing a different used-factor set for the same policy and pool.
+    $verdict = (new SatisfiabilityEvaluator())->evaluate(
+        new AllOf([
+            new FactorRequirement('totp', minimumStrength: FactorStrength::Possession),
+            new FactorRequirement('totp', minimumStrength: FactorStrength::PossessionStrong),
+        ]),
+        [
+            factor('totp', 'cred-strong', FactorStrength::PossessionStrong),
+            factor('totp', 'cred-weak', FactorStrength::Possession),
+        ],
+    );
+
+    $used = array_map(static fn (SatisfiedFactor $f): string => $f->credentialId, $verdict->usedFactors);
+
+    expect($used)->toBe(['cred-weak', 'cred-strong']);
 });

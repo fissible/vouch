@@ -26,44 +26,50 @@ final class SatisfiabilityEvaluator
             static fn (SatisfiedFactor $factor): bool => $factor->strength !== FactorStrength::Recovery,
         ));
 
-        $solutions = $this->solve($requirement, $eligible);
+        // The search is depth-first and lazy: the first complete assignment wins and
+        // nothing beyond it is ever built. Materialising every assignment first cost
+        // 11.4 MB for 5 requirements over 10 factors and died outright at 6 over 12,
+        // on the login path, as an uncatchable fatal.
+        foreach ($this->solve($requirement, $eligible, [], []) as $solution) {
+            return Verdict::satisfiedBy($solution);
+        }
 
-        return $solutions === []
-            ? Verdict::unsatisfied()
-            : Verdict::satisfiedBy($solutions[0]);
+        return Verdict::unsatisfied();
     }
 
     /**
-     * Every distinct factor set that satisfies $requirement.
+     * Every assignment that satisfies $requirement, lazily. Each one is the whole
+     * running set of chosen factors — $chosen plus whatever this subtree consumed —
+     * so a caller can hand it straight to the next requirement.
      *
      * @param list<SatisfiedFactor> $pool
-     * @return list<list<SatisfiedFactor>>
+     * @param list<SatisfiedFactor> $chosen
+     * @param list<array{requirement: AllOf, from: int}> $scopes
+     * @return iterable<list<SatisfiedFactor>>
      */
-    private function solve(Requirement $requirement, array $pool): array
+    private function solve(Requirement $requirement, array $pool, array $chosen, array $scopes): iterable
     {
         return match (true) {
-            $requirement instanceof FactorRequirement => $this->solveLeaf($requirement, $pool),
-            $requirement instanceof AnyOf => $this->solveAnyOf($requirement, $pool),
-            $requirement instanceof AllOf => $this->solveAllOf($requirement, $pool),
+            $requirement instanceof FactorRequirement => $this->solveLeaf($requirement, $pool, $chosen, $scopes),
+            $requirement instanceof AnyOf => $this->solveAnyOf($requirement, $pool, $chosen, $scopes),
+            $requirement instanceof AllOf => $this->solveAllOf($requirement, $pool, $chosen, $scopes),
             default => [],
         };
     }
 
     /**
      * @param list<SatisfiedFactor> $pool
-     * @return list<list<SatisfiedFactor>>
+     * @param list<SatisfiedFactor> $chosen
+     * @param list<array{requirement: AllOf, from: int}> $scopes
+     * @return iterable<list<SatisfiedFactor>>
      */
-    private function solveLeaf(FactorRequirement $requirement, array $pool): array
+    private function solveLeaf(FactorRequirement $requirement, array $pool, array $chosen, array $scopes): iterable
     {
-        $solutions = [];
-
         foreach ($pool as $candidate) {
-            if ($this->leafMatches($requirement, $candidate)) {
-                $solutions[] = [$candidate];
+            if ($this->leafMatches($requirement, $candidate) && $this->admissible($candidate, $chosen, $scopes)) {
+                yield [...$chosen, $candidate];
             }
         }
-
-        return $solutions;
     }
 
     private function leafMatches(FactorRequirement $requirement, SatisfiedFactor $factor): bool
@@ -89,70 +95,94 @@ final class SatisfiabilityEvaluator
 
     /**
      * @param list<SatisfiedFactor> $pool
-     * @return list<list<SatisfiedFactor>>
+     * @param list<SatisfiedFactor> $chosen
+     * @param list<array{requirement: AllOf, from: int}> $scopes
+     * @return iterable<list<SatisfiedFactor>>
      */
-    private function solveAnyOf(AnyOf $requirement, array $pool): array
+    private function solveAnyOf(AnyOf $requirement, array $pool, array $chosen, array $scopes): iterable
     {
-        $solutions = [];
-
         foreach ($requirement->requirements as $child) {
-            foreach ($this->solve($child, $pool) as $solution) {
-                $solutions[] = $solution;
-            }
+            yield from $this->solve($child, $pool, $chosen, $scopes);
         }
-
-        return $solutions;
     }
 
     /**
      * @param list<SatisfiedFactor> $pool
-     * @return list<list<SatisfiedFactor>>
+     * @param list<SatisfiedFactor> $chosen
+     * @param list<array{requirement: AllOf, from: int}> $scopes
+     * @return iterable<list<SatisfiedFactor>>
      */
-    private function solveAllOf(AllOf $requirement, array $pool): array
+    private function solveAllOf(AllOf $requirement, array $pool, array $chosen, array $scopes): iterable
     {
-        /** @var list<list<SatisfiedFactor>> $accumulated */
-        $accumulated = [[]];
+        // This node's constraints bind every factor consumed anywhere beneath it,
+        // including two that arrive from the same nested child. A child that waives
+        // distinctness waives it for its own checking only; it can never license a
+        // violation of an ancestor's requirement.
+        $scopes[] = ['requirement' => $requirement, 'from' => count($chosen)];
 
-        foreach ($requirement->requirements as $child) {
-            $next = [];
-
-            foreach ($accumulated as $partial) {
-                foreach ($this->solve($child, $pool) as $addition) {
-                    if ($this->compatible($requirement, $partial, $addition)) {
-                        $next[] = [...$partial, ...$addition];
-                    }
-                }
-            }
-
-            if ($next === []) {
-                return [];
-            }
-
-            $accumulated = $next;
-        }
-
-        return $accumulated;
+        yield from $this->solveSequence($requirement->requirements, $pool, $chosen, $scopes);
     }
 
     /**
-     * @param list<SatisfiedFactor> $partial
-     * @param list<SatisfiedFactor> $addition
+     * Satisfy $remaining left to right, backtracking into earlier requirements when a
+     * later one cannot be met — the first match for one requirement is regularly the
+     * only possible match for another.
+     *
+     * @param list<Requirement> $remaining
+     * @param list<SatisfiedFactor> $pool
+     * @param list<SatisfiedFactor> $chosen
+     * @param list<array{requirement: AllOf, from: int}> $scopes
+     * @return iterable<list<SatisfiedFactor>>
      */
-    private function compatible(AllOf $requirement, array $partial, array $addition): bool
+    private function solveSequence(array $remaining, array $pool, array $chosen, array $scopes): iterable
     {
-        foreach ($addition as $incoming) {
-            foreach ($partial as $existing) {
-                if ($requirement->requireDistinctCredentials
-                    && $existing->credentialId === $incoming->credentialId) {
-                    return false;
-                }
+        if ($remaining === []) {
+            yield $chosen;
 
-                if ($requirement->requireIndependentAuthenticators
-                    && $existing->authenticatorId !== null
-                    && $existing->authenticatorId === $incoming->authenticatorId) {
+            return;
+        }
+
+        $head = array_shift($remaining);
+
+        foreach ($this->solve($head, $pool, $chosen, $scopes) as $extended) {
+            yield from $this->solveSequence($remaining, $pool, $extended, $scopes);
+        }
+    }
+
+    /**
+     * Can $incoming join the factors already chosen? Checked against every enclosing
+     * scope, so each unordered pair within a scope is validated exactly once, at the
+     * step that completes it.
+     *
+     * @param list<SatisfiedFactor> $chosen
+     * @param list<array{requirement: AllOf, from: int}> $scopes
+     */
+    private function admissible(SatisfiedFactor $incoming, array $chosen, array $scopes): bool
+    {
+        foreach ($scopes as $scope) {
+            // A scope constrains only what was chosen inside it. Factors picked before
+            // it opened belong to an ancestor and are checked under that ancestor.
+            foreach (array_slice($chosen, $scope['from']) as $existing) {
+                if (! $this->compatible($scope['requirement'], $existing, $incoming)) {
                     return false;
                 }
             }
+        }
+
+        return true;
+    }
+
+    private function compatible(AllOf $requirement, SatisfiedFactor $existing, SatisfiedFactor $incoming): bool
+    {
+        if ($requirement->requireDistinctCredentials
+            && $existing->credentialId === $incoming->credentialId) {
+            return false;
+        }
+
+        if ($requirement->requireIndependentAuthenticators
+            && $existing->authenticatorId !== null
+            && $existing->authenticatorId === $incoming->authenticatorId) {
+            return false;
         }
 
         return true;
