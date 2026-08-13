@@ -33,19 +33,46 @@ Copied from the spec and from the still-binding rules of Phases 1, 2.1 and 2.2.
 
 ---
 
-## Preflight decision — resolve before Task 1
+## Preflight decision — RESOLVED 2026-08-13
 
-**This is a decision, not an implementation step, and it must be settled before any task runs.**
+**Resolution (a): recovery-grace deadlines are written with each database engine's clock.**
 
-The spec states one unresolved asymmetry: `auth_sessions.recovery_grace_expires_at` is *written* from the application clock at grace creation, while every read evaluates it against `CURRENT_TIMESTAMP`. Skew therefore shifts the effective grace window rather than the nominal fifteen minutes.
+A grace window is a security boundary. It should be nominally fifteen minutes, not fifteen
+minutes plus or minus whatever clock drift happens to exist between the application and the
+database. Writing the deadline from the application clock while evaluating it against
+`CURRENT_TIMESTAMP` would leave the effective window a function of infrastructure, and the
+same seam silently invalidated Phase 2.2's TOTP tests — green only while real time happened
+to sit before a frozen expiry, caught by merge verification rather than by any test.
 
-Two acceptable resolutions. Pick one, record it in `PROJECT.md` with its reasoning, and implement only that one:
+The per-engine expression is implemented **once**, behind a small database-time abstraction:
 
-**(a) Write the deadline with each engine's database clock.** Interval arithmetic is not portable — MySQL uses `DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)`, Postgres `CURRENT_TIMESTAMP + (? * INTERVAL '1 second')`, SQLite `datetime('now', ? || ' seconds')` — so this needs a per-driver expression, built once and covered by the three-engine matrix. Closes the seam completely: one clock writes and reads.
+`src/Support/DatabaseTime.php`
 
-**(b) Document a bounded, tested skew policy.** Keep the application-clock write, state the maximum tolerated skew explicitly, and add a test that proves the effective window stays within that bound when the application clock is moved. Cheaper, and honest only if the bound is actually asserted rather than asserted-in-prose.
+```php
+public function now(): Expression;                    // CURRENT_TIMESTAMP
+public function deadline(int $seconds): Expression;   // per-driver interval arithmetic
+```
 
-**Do not begin Task 1 with this open.** The same seam silently invalidated Phase 2.2's TOTP tests — they were green only while real time happened to sit before a frozen expiry — and it was caught by merge verification rather than by any test. Leaving it unresolved here means discovering it in production instead.
+Interval arithmetic is not portable:
+
+| Engine | Expression |
+|---|---|
+| MySQL | `DATE_ADD(CURRENT_TIMESTAMP, INTERVAL {$seconds} SECOND)` |
+| PostgreSQL | `CURRENT_TIMESTAMP + ({$seconds} * INTERVAL '1 second')` |
+| SQLite | `datetime('now', '+{$seconds} seconds')` |
+
+`$seconds` is an `int` from config, interpolated into an `Expression` — never a bound
+parameter, because these are expressions rather than values. An unrecognised driver
+**throws**, so a new engine fails loudly instead of silently falling back to an application
+timestamp.
+
+**Task 14 must prove all four grace operations use that authority on all three engines** —
+creation, active resolution, expiry, and completion. A test that skews the application clock
+far past the deadline and confirms the row is still live is what distinguishes this from a
+comment.
+
+`DatabaseAttemptStore` keeps its own private `now()`; consolidating it is optional and out
+of scope, since churning 2.1 and 2.2 code for tidiness is not what this phase is for.
 
 ---
 
@@ -87,6 +114,7 @@ Established by reading the code before this plan was written. Do not re-derive; 
 | `src/Http/AuthController.php` | One action. |
 | `src/Http/Middleware/ValidatesVouchSession.php` | Per-request authoritative read. |
 | `src/Http/Middleware/RequireAssurance.php` | Interactive mode; comparison shared with 2.4's renderer. |
+| `src/Support/DatabaseTime.php` | Per-engine `CURRENT_TIMESTAMP` and deadline arithmetic, in one place. |
 | `src/Recovery/GraceGuard.php` | Resolves active grace by binding, entirely in database time. |
 | `src/Recovery/GraceController.php` | Enrollment and completion routes. |
 | `routes/vouch.php` | Route definitions. |
@@ -3041,7 +3069,12 @@ Same completion gate as 2.2. Every leg is the **full** suite.
 
 Environment variables go on as a **prefix**, never `env $VAR` — zsh does not word-split unquoted variables, and that mistake has cost a full matrix run twice in this project.
 
-- [ ] **Step 3: Verify the grace-expiry decision from the preflight** behaves identically on all three engines, whichever resolution was chosen.
+- [ ] **Step 3: Prove all four grace operations use the database clock on all three engines.**
+
+Creation, active resolution, expiry and completion. The decisive test skews the application
+clock hours past a deadline and confirms the row is still live, on each engine — without it,
+`DatabaseTime::deadline()` could be replaced by an application timestamp and every other
+grace test would stay green.
 
 - [ ] **Step 4: Add `tests/Flow`, `tests/Sessions` and `tests/Http` to the `database-matrix` job's path list.**
 
