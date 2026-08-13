@@ -96,5 +96,43 @@ it('a misconfigured totp issuer makes the whole registry unresolvable', function
      */
     config()->set('vouch.totp.issuer', '');
 
-    expect(fn () => app(FactorRegistry::class))->toThrow(InvalidArgumentException::class);
+    // The message is the whole justification for the blast radius: asserting the
+    // class alone would let the config key drop out of the message unnoticed.
+    expect(fn () => app(FactorRegistry::class))
+        ->toThrow(InvalidArgumentException::class, 'vouch.totp.issuer');
+});
+
+it('refuses a zero otp length rather than delivering empty codes', function (): void {
+    /*
+     * `VOUCH_OTP_LENGTH=` — set but blank, which deploy tooling emits routinely —
+     * is `(int) ''` and therefore 0. Unguarded, that generates '' as the code,
+     * stores Hash::make('') on the challenge, and password_verify('', ...)
+     * returns TRUE, so any submission of nothing satisfies a PossessionWeak
+     * factor. Loud at boot is the only acceptable outcome.
+     */
+    config()->set('vouch.otp.length', 0);
+
+    expect(fn () => app(FactorRegistry::class))
+        ->toThrow(InvalidArgumentException::class, 'vouch.otp.length');
+});
+
+it('refuses a zero otp ttl rather than expiring every code on delivery', function (): void {
+    config()->set('vouch.otp.ttl_seconds', 0);
+
+    expect(fn () => app(FactorRegistry::class))
+        ->toThrow(InvalidArgumentException::class, 'vouch.otp.ttl_seconds');
+});
+
+it('refuses a zero recovery code length rather than generating empty codes', function (): void {
+    config()->set('vouch.recovery.length', 0);
+
+    expect(fn () => app(FactorRegistry::class))
+        ->toThrow(InvalidArgumentException::class, 'vouch.recovery.length');
+});
+
+it('refuses a zero recovery code count rather than enrolling an empty set', function (): void {
+    config()->set('vouch.recovery.count', 0);
+
+    expect(fn () => app(FactorRegistry::class))
+        ->toThrow(InvalidArgumentException::class, 'vouch.recovery.count');
 });

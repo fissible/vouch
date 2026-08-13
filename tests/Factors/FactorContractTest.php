@@ -45,15 +45,12 @@ it('carries a truthful reason and no mutations on failure', function (): void {
         ->and($result->mutations)->toBe([]);
 });
 
-it('distinguishes a wrong code from a wrong request context', function (): void {
-    /*
-     * Deliberate extension to the spec's five-case list. A code submitted from
-     * the wrong IP is a different fact from a wrong code, and drivers report
-     * truthfully — deciding those are the same is a disclosure judgement, which
-     * belongs to ErrorShaper and nowhere else.
-     */
-    expect(FactorFailure::BindingMismatch)->not->toBe(FactorFailure::Mismatch);
-});
+/*
+ * BindingMismatch vs Mismatch — the deliberate extension to the spec's five-case
+ * list — is asserted in OtpFactorTest, which drives a real wrong-IP submission
+ * and a real wrong-code submission through a driver. The enum-inequality
+ * assertion that used to sit here was proven by PHP itself and could not fail.
+ */
 
 it('resolves a driver by its registry key', function (): void {
     $registry = new FactorRegistry();

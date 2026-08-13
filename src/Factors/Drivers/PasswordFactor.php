@@ -115,7 +115,15 @@ final readonly class PasswordFactor implements Factor
     {
         $submitted = $request->string('password');
 
-        if ($submitted === null) {
+        /*
+         * Empty is malformed, not a mismatch. enroll() refuses an empty password,
+         * so no credential here should hash one — but password_verify('', ...)
+         * against a hash of '' returns TRUE, so if one ever did, an empty
+         * submission would satisfy the factor. Refusing before the comparison
+         * makes that unreachable instead of merely unlikely, and matches TOTP,
+         * recovery-code and OTP, which all report '' as Malformed.
+         */
+        if ($submitted === null || $submitted === '') {
             return FactorResult::failed(FactorFailure::Malformed);
         }
 

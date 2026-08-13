@@ -59,19 +59,40 @@ final readonly class TotpFactor implements Factor
         private int $window = 1,
     ) {
         if ($this->issuer === '') {
-            throw new InvalidArgumentException('TotpFactor requires a non-empty issuer.');
+            throw new InvalidArgumentException(
+                'TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env '
+                . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= '
+                . 'reads as "" rather than falling back to the default, so unset it or give '
+                . 'it a value.',
+            );
         }
 
         if ($this->period < 1) {
-            throw new InvalidArgumentException('TotpFactor requires a period of at least 1 second.');
+            throw new InvalidArgumentException(sprintf(
+                'TotpFactor requires a period of at least 1 second: config "vouch.totp.period" '
+                . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, '
+                . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.',
+                $this->period,
+            ));
         }
 
         if ($this->digits < 1) {
-            throw new InvalidArgumentException('TotpFactor requires at least 1 digit.');
+            throw new InvalidArgumentException(sprintf(
+                'TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env '
+                . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a '
+                . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.',
+                $this->digits,
+            ));
         }
 
         if ($this->window < 0) {
-            throw new InvalidArgumentException('TotpFactor requires a non-negative window.');
+            throw new InvalidArgumentException(sprintf(
+                'TotpFactor requires a non-negative window: config "vouch.totp.window" (env '
+                . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a '
+                . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift '
+                . 'tolerance) — only a negative value reaches here.',
+                $this->window,
+            ));
         }
     }
 

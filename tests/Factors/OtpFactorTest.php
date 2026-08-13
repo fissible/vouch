@@ -335,6 +335,110 @@ it('resolves the only otp credential when none was named', function (): void {
     expect(emailOtp()->challenge(new ChallengeRequest(otpAttempt())))->toBeInstanceOf(AuthChallenge::class);
 });
 
+it('reports missing input as malformed rather than a mismatch', function (): void {
+    $credential = emailOtp()->enroll(7, ['identifier_id' => verifiedEmail()->id])->credentials[0];
+    $attempt = otpAttempt();
+    $challenge = emailOtp()->challenge(new ChallengeRequest($attempt, $credential));
+
+    expect(emailOtp()->verify(new VerificationRequest(
+        attempt: $attempt,
+        input: ['code' => ['array', 'not', 'string']],
+        challenge: $challenge,
+    ))->failure)->toBe(FactorFailure::Malformed);
+});
+
+it('reports an empty code as malformed, as every driver does', function (): void {
+    /*
+     * Hash::check('', $hashOfEmptyString) is TRUE. With VOUCH_OTP_LENGTH= set but
+     * blank the config's `(int) env(...)` yields 0, generateCode() returns '', and
+     * an empty submission would satisfy the challenge — and unlike recovery code,
+     * OTP is PossessionWeak and DOES count towards satisfiability, so that is a
+     * live policy bypass. The constructor now refuses length 0; this is the
+     * second lock, on the submission side.
+     */
+    $credential = emailOtp()->enroll(7, ['identifier_id' => verifiedEmail()->id])->credentials[0];
+    $attempt = otpAttempt();
+    $challenge = emailOtp()->challenge(new ChallengeRequest($attempt, $credential));
+
+    expect(emailOtp()->verify(new VerificationRequest(
+        attempt: $attempt,
+        input: ['code' => ''],
+        challenge: $challenge,
+    ))->failure)->toBe(FactorFailure::Malformed);
+});
+
+it('refuses a live code once the credential it was delivered against is revoked', function (): void {
+    /*
+     * GuardsChallengeTarget hooks `creating` only, so its disabled_at check fires
+     * at delivery and never again. Without a verify-time check, revoking a
+     * credential would not take effect until the challenge's TTL ran out, and the
+     * driver would return a SatisfiedFactor naming a revoked credential — a
+     * security action silently not taking effect. Password, TOTP and recovery
+     * code all filter disabled_at at verify time; this is OTP doing the same.
+     */
+    $credential = emailOtp()->enroll(7, ['identifier_id' => verifiedEmail()->id])->credentials[0];
+    $attempt = otpAttempt();
+    $challenge = emailOtp()->challenge(new ChallengeRequest($attempt, $credential));
+    $code = otpDelivery()->lastCode();
+
+    emailOtp()->revoke($credential);
+
+    $result = emailOtp()->verify(new VerificationRequest(
+        attempt: $attempt,
+        input: ['code' => $code],
+        challenge: $challenge,
+    ));
+
+    expect($result->isSatisfied())->toBeFalse()
+        ->and($result->failure)->toBe(FactorFailure::NoCredential)
+        ->and($result->mutations)->toBe([]);
+});
+
+it('refuses to challenge a credential belonging to a different factor type', function (): void {
+    /*
+     * resolveSoleCredential() filters on type; a caller-supplied credential has
+     * not been through that filter, and GuardsChallengeTarget checks existence,
+     * active, same-user and identifier linkage but never type-vs-factor_type.
+     * Without this guard the email driver would deliver to the phone identifier,
+     * write factor_type='email_otp', and verify() would satisfy email_otp — so a
+     * policy that specifically requires email becomes satisfiable by SMS.
+     */
+    $phone = AuthIdentifier::create([
+        'user_id' => 7, 'type' => 'phone', 'value' => '+15550100', 'verified_at' => now(),
+    ]);
+    $smsCredential = app(SmsOtpFactor::class)->enroll(7, ['identifier_id' => $phone->id])->credentials[0];
+
+    emailOtp()->challenge(new ChallengeRequest(otpAttempt(), $smsCredential));
+})->throws(InvalidArgumentException::class);
+
+it('refuses a revoked credential in the driver, not only in the model guard', function (): void {
+    /*
+     * GuardsChallengeTarget also rejects a disabled credential, and
+     * ChallengeTargetViolation EXTENDS InvalidArgumentException — so a plain
+     * ->throws(InvalidArgumentException::class) here would pass with the driver's
+     * own guard deleted, and prove nothing. Distinguishing the two exception
+     * classes is what makes this test discriminate: the driver must refuse before
+     * a code is generated and before any row is offered to the model layer.
+     */
+    $credential = emailOtp()->enroll(7, ['identifier_id' => verifiedEmail()->id])->credentials[0];
+    emailOtp()->revoke($credential);
+
+    try {
+        emailOtp()->challenge(new ChallengeRequest(otpAttempt(), $credential));
+    } catch (\Fissible\Vouch\Persistence\ChallengeTargetViolation $violation) {
+        throw new RuntimeException(
+            'The model guard refused this, not the driver: ' . $violation->getMessage(),
+        );
+    } catch (InvalidArgumentException $refused) {
+        expect($refused->getMessage())->toContain('disabled')
+            ->and(AuthChallenge::count())->toBe(0);
+
+        return;
+    }
+
+    throw new RuntimeException('Expected the driver to refuse a revoked credential.');
+});
+
 it('keeps the sms driver on its own type key and identifier type', function (): void {
     $sms = app(SmsOtpFactor::class);
     $phone = AuthIdentifier::create([

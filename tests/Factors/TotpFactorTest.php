@@ -291,6 +291,17 @@ it('reports malformed input rather than a mismatch', function (): void {
     ))->failure)->toBe(FactorFailure::Malformed);
 });
 
+it('reports an empty code as malformed, as every driver does', function (): void {
+    // Cross-driver invariant: '' is never a code attempt. Pinned in all five
+    // driver tests so the answer cannot drift apart again.
+    enrollTotp();
+
+    expect(totpFactor()->verify(new VerificationRequest(
+        attempt: totpAttempt(),
+        input: ['code' => ''],
+    ))->failure)->toBe(FactorFailure::Malformed);
+});
+
 it('honours a non-default period, digits, window and issuer', function (): void {
     /*
      * Every other test in this file resolves TotpFactor through the

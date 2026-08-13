@@ -19,6 +19,12 @@ use Illuminate\Support\Facades\Schema;
  * No id, no timestamps: this is a mutex anchor, not a record. Rows are claimed
  * with insertOrIgnore, never deleted, and carry no state beyond their existence.
  *
+ * user_id deliberately carries NO foreign key, unlike every other table here.
+ * A mutex anchor must not cascade-delete with the user, and constraining it
+ * would couple the acquire path — the hottest, most contended statement in
+ * enrollment — to a lookup on the host's users table for a row that references
+ * nothing and outlives nothing.
+ *
  * A unique index rather than a composite primary key, because insertOrIgnore's
  * conflict behaviour was verified against this exact shape on SQLite, MySQL 8
  * and Postgres 16.

@@ -157,6 +157,22 @@ final class EnrollmentGuard
      * Bound the lock wait, because the engine defaults are wildly inconsistent:
      * MySQL waits 50 seconds, Postgres waits forever, SQLite fails immediately.
      * An unbounded wait hangs a request thread on a contended enrollment.
+     *
+     * KNOWN SIDE EFFECT — the scope is not uniform across the three engines, and
+     * on two of them it OUTLIVES the enrollment. Only Postgres's SET LOCAL is
+     * transaction-scoped and reverts on commit. MySQL's SET SESSION and SQLite's
+     * PRAGMA busy_timeout persist for the life of the CONNECTION, so under a
+     * long-lived worker — Octane, a pooled connection, queue workers, anything
+     * that does not tear the connection down per request — one enrollment leaves
+     * the host application's lock timeout at vouch.enrollment.lock_wait_seconds
+     * for every later query on that connection, including queries that have
+     * nothing to do with vouch. Since the value is a bound (default 5s) rather
+     * than an extension, the practical effect is a LOWERED tolerance: a host that
+     * relied on MySQL's 50-second default will start seeing lock-wait timeouts on
+     * its own contended writes after any enrollment runs on that connection.
+     * Restoring the prior value would mean reading it back and resetting it on
+     * every path out — including the throwing ones — which is its own correctness
+     * problem; it is documented rather than done.
      */
     private function boundTheWait(): void
     {

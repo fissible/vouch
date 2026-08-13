@@ -187,9 +187,20 @@ final class DatabaseAttemptStore implements AttemptStore
      * pre-flight check alone leaves a time-of-check/time-of-use window: the row
      * passes at T0, expires at T0.5, and the update still lands at T1. Binding
      * T0 would not close it — the predicate would compare against T0 and pass.
-     * Evaluating at statement execution does. It follows that expires_at values
-     * are written with the same clock, so no app-to-database skew can widen or
-     * narrow a lifetime.
+     * Evaluating at statement execution does.
+     *
+     * NOT skew-free, and it is worth being exact about where the seam is. Every
+     * comparison this store makes reads the DATABASE clock, but OtpFactor —
+     * currently the only code in the package that writes an expires_at at all —
+     * writes challenge lifetimes from the injected PSR clock, i.e. the APP clock.
+     * So an OTP's lifetime is (app T0 + ttl) measured against the database's now,
+     * and app-to-database skew widens or narrows it by exactly that offset. The
+     * consequence is not only a wrong lifetime but a wrong OUTCOME NAME: if the
+     * app clock lags the database clock by more than the TTL, the driver's own
+     * expiry check (also app-clock) still says live, the store's guarded consume
+     * matches nothing, and the caller is told ChallengeAlreadyConsumed for a
+     * challenge that had merely expired. Moving the column write onto the
+     * database clock is a deliberate later-phase decision, not an oversight here.
      *
      * @return Expression<'CURRENT_TIMESTAMP'>
      */

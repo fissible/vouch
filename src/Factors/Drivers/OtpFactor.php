@@ -38,13 +38,44 @@ use Psr\Clock\ClockInterface;
  */
 abstract readonly class OtpFactor implements Factor
 {
+    /**
+     * Validated once here rather than trusted from config, in the same spirit as
+     * TotpFactor's guards. A length of 0 is not a weak code, it is NO code:
+     * generateCode() returns '', Hash::make('') is stored on the challenge, and
+     * password_verify('', ...) returns true — so every delivered challenge would
+     * be satisfiable by submitting nothing. Unlike recovery codes, OTP carries
+     * PossessionWeak and IS counted towards satisfiability, so that would be a
+     * live policy bypass rather than a contained one.
+     */
     public function __construct(
         protected EnrollmentGuard $guard,
         protected ClockInterface $clock,
         protected OtpDelivery $delivery,
         protected int $length = 6,
         protected int $ttlSeconds = 120,
-    ) {}
+    ) {
+        if ($this->length < 1) {
+            throw new InvalidArgumentException(sprintf(
+                '%s requires a code length of at least 1: config "vouch.otp.length" (env '
+                . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a '
+                . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which '
+                . 'would deliver empty codes that any empty submission matches.',
+                static::class,
+                $this->length,
+            ));
+        }
+
+        if ($this->ttlSeconds < 1) {
+            throw new InvalidArgumentException(sprintf(
+                '%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env '
+                . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a '
+                . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which '
+                . 'would expire every code at the instant it is delivered.',
+                static::class,
+                $this->ttlSeconds,
+            ));
+        }
+    }
 
     /** The auth_identifiers.type this driver delivers to. */
     abstract protected function identifierType(): string;
@@ -152,6 +183,37 @@ abstract readonly class OtpFactor implements Factor
     public function challenge(ChallengeRequest $request): ?AuthChallenge
     {
         $credential = $request->credential ?? $this->resolveSoleCredential($request);
+
+        /*
+         * resolveSoleCredential() filters on type and disabled_at; a CALLER-
+         * supplied credential has been through neither, and GuardsChallengeTarget
+         * checks existence, active, same-user and identifier linkage but never
+         * that the credential's type matches the challenge's factor_type. Without
+         * this, EmailOtpFactor could be handed an sms_otp credential, deliver to
+         * its phone identifier, and write factor_type='email_otp' — after which
+         * verify() satisfies email_otp and a policy that specifically requires
+         * email is satisfied by SMS.
+         */
+        if ($credential->type !== $this->id()) {
+            throw new InvalidArgumentException(sprintf(
+                'Credential %d is a "%s", but %s issues "%s" challenges. Delivering against '
+                . 'another factor\'s credential would let the challenge claim a factor type it '
+                . 'never exercised.',
+                $credential->id,
+                $credential->type,
+                static::class,
+                $this->id(),
+            ));
+        }
+
+        if ($credential->disabled_at !== null) {
+            throw new InvalidArgumentException(sprintf(
+                'Credential %d is disabled and cannot be sent an %s code.',
+                $credential->id,
+                $this->id(),
+            ));
+        }
+
         $identifier = AuthIdentifier::query()->findOrFail($credential->identifier_id);
 
         $code = $this->generateCode();
@@ -185,7 +247,14 @@ abstract readonly class OtpFactor implements Factor
     {
         $submitted = $request->string('code');
 
-        if ($submitted === null) {
+        /*
+         * Empty is malformed, not a mismatch: password_verify('', ...) against a
+         * hash of '' returns TRUE, so an empty submission must never reach the
+         * comparison. The constructor now refuses a zero length, which is the
+         * only way an empty code could have been hashed onto a challenge; this is
+         * the second of the two locks, and matches TOTP and recovery code.
+         */
+        if ($submitted === null || $submitted === '') {
             return FactorResult::failed(FactorFailure::Malformed);
         }
 
@@ -217,16 +286,36 @@ abstract readonly class OtpFactor implements Factor
             return FactorResult::failed(FactorFailure::BindingMismatch);
         }
 
-        if (! Hash::check($submitted, $challenge->code_hash)) {
-            return FactorResult::failed(FactorFailure::Mismatch);
-        }
-
         $credentialId = $challenge->credential_id;
 
         if ($credentialId === null) {
             // GuardsChallengeTarget makes this unreachable for OTP; failing
             // closed rather than inventing a credential id keeps it that way.
             return FactorResult::failed(FactorFailure::NoCredential);
+        }
+
+        /*
+         * Re-read the credential AT VERIFY TIME. GuardsChallengeTarget hooks
+         * `creating` only, so its disabled_at check fires once, at delivery, and
+         * never again — revoking a credential mid-TTL would otherwise leave its
+         * outstanding code verifying happily for the rest of the TTL, and return
+         * a SatisfiedFactor naming a revoked credential. Password, TOTP and
+         * recovery code all filter whereNull('disabled_at') at verify time; this
+         * is OTP paying the same rent, before the comparison so a revoked
+         * credential costs no bcrypt.
+         */
+        $credential = AuthCredential::query()
+            ->whereKey($credentialId)
+            ->where('type', $this->id())
+            ->whereNull('disabled_at')
+            ->first();
+
+        if (! $credential instanceof AuthCredential) {
+            return FactorResult::failed(FactorFailure::NoCredential);
+        }
+
+        if (! Hash::check($submitted, $challenge->code_hash)) {
+            return FactorResult::failed(FactorFailure::Mismatch);
         }
 
         return FactorResult::satisfied(

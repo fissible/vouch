@@ -128,11 +128,27 @@ it('replaces a password in one operation', function (): void {
         ))->isSatisfied())->toBeTrue();
 });
 
-it('cannot verify against an attempt with no identified user', function (): void {
+it('reports malformed rather than comparing an empty password', function (): void {
+    /*
+     * password_verify('', password_hash('', PASSWORD_BCRYPT)) returns TRUE. Any
+     * path that lets '' reach Hash::check() is one stored empty hash away from a
+     * universal bypass, so the driver refuses '' before the comparison and calls
+     * it what it is: not a wrong password, no password at all.
+     */
     passwordFactor()->enroll(7, ['password' => 'correct horse battery staple']);
 
     expect(passwordFactor()->verify(new VerificationRequest(
-        attempt: driverAttempt(userId: null),
-        input: ['password' => 'correct horse battery staple'],
-    ))->failure)->toBe(FactorFailure::NoCredential);
+        attempt: driverAttempt(),
+        input: ['password' => ''],
+    ))->failure)->toBe(FactorFailure::Malformed);
 });
+
+/*
+ * "cannot verify against an attempt with no identified user" was deleted here.
+ * It could not fail: Laravel compiles where('user_id', null) to
+ * whereNull('user_id'), the credential lookup misses whether or not the
+ * $userId === null guard exists, and the fallback returns NoCredential either
+ * way — the same outcome the never-enrolled test above already pins. Making it
+ * discriminate would need a credential row with a NULL user_id, which the schema
+ * forbids.
+ */

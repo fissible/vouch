@@ -186,6 +186,32 @@ it('reports malformed input rather than a mismatch', function (): void {
     ))->failure)->toBe(FactorFailure::Malformed);
 });
 
+it('reports an empty code as malformed, as every driver does', function (): void {
+    /*
+     * Hash::check('', $hashOfEmptyString) is TRUE — password_verify treats '' as
+     * a real password — so an empty code must never reach the comparison loop.
+     * Rejecting it also denies an attacker ten bcrypt comparisons per submission.
+     */
+    enrollRecoveryCodes();
+
+    expect(recoveryFactor()->verify(new VerificationRequest(
+        attempt: recoveryAttempt(),
+        input: ['code' => ''],
+    ))->failure)->toBe(FactorFailure::Malformed);
+});
+
+it('reports a code of only separators as malformed, after normalisation', function (): void {
+    // Codes are presented hyphenated, so the driver strips spaces and hyphens
+    // before comparing. '  - - ' normalises to '' and must be caught THERE, not
+    // by the raw-input check that precedes normalisation.
+    enrollRecoveryCodes();
+
+    expect(recoveryFactor()->verify(new VerificationRequest(
+        attempt: recoveryAttempt(),
+        input: ['code' => '  - - '],
+    ))->failure)->toBe(FactorFailure::Malformed);
+});
+
 it('reports no credential when the user has never enrolled', function (): void {
     expect(recoveryFactor()->verify(new VerificationRequest(
         attempt: recoveryAttempt(),

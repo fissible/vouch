@@ -19,6 +19,7 @@ use Fissible\Vouch\Models\AuthChallenge;
 use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Secrets\OneTimeSecret;
 use Illuminate\Support\Facades\Hash;
+use InvalidArgumentException;
 use Psr\Clock\ClockInterface;
 
 /**
@@ -39,12 +40,41 @@ final readonly class RecoveryCodeFactor implements Factor
     /** Crockford-style alphabet: no I, L, O, U, so a transcribed code is unambiguous. */
     private const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
+    /**
+     * Validated once here rather than trusted from config, in the same spirit as
+     * TotpFactor's guards. A length of 0 is not a weak code, it is NO code:
+     * generateCode() returns '', Hash::make('') is stored, and password_verify()
+     * returns true for an empty submission — every user with a generated set
+     * would be satisfiable by submitting nothing. A count of 0 is quieter but
+     * just as wrong: enroll() would return an empty set and report success.
+     */
     public function __construct(
         private EnrollmentGuard $guard,
         private ClockInterface $clock,
         private int $count = 10,
         private int $length = 10,
-    ) {}
+    ) {
+        if ($this->count < 1) {
+            throw new InvalidArgumentException(sprintf(
+                'RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" '
+                . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads '
+                . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 '
+                . 'rather than the default.',
+                $this->count,
+            ));
+        }
+
+        if ($this->length < 1) {
+            throw new InvalidArgumentException(sprintf(
+                'RecoveryCodeFactor requires a length of at least 1: config '
+                . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That '
+                . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= '
+                . 'arrives as 0 rather than the default — which would generate empty codes that '
+                . 'any empty submission matches.',
+                $this->length,
+            ));
+        }
+    }
 
     public function id(): string
     {
@@ -132,6 +162,19 @@ final readonly class RecoveryCodeFactor implements Factor
             return FactorResult::failed(FactorFailure::Malformed);
         }
 
+        $normalised = strtoupper(str_replace([' ', '-'], '', $submitted));
+
+        /*
+         * Checked AFTER normalisation, and before any query: '  - - ' normalises
+         * to '' just as '' does, and password_verify('', ...) against a hash of
+         * '' returns true — so an empty code is malformed input, never a code
+         * attempt. Rejecting here also denies an attacker ten free bcrypt
+         * comparisons per empty submission.
+         */
+        if ($normalised === '') {
+            return FactorResult::failed(FactorFailure::Malformed);
+        }
+
         $userId = $request->attempt->user_id;
 
         if ($userId === null) {
@@ -147,8 +190,6 @@ final readonly class RecoveryCodeFactor implements Factor
         if ($candidates->isEmpty()) {
             return FactorResult::failed(FactorFailure::NoCredential);
         }
-
-        $normalised = strtoupper(str_replace([' ', '-'], '', $submitted));
 
         foreach ($candidates as $credential) {
             if (! is_string($credential->secret) || ! Hash::check($normalised, $credential->secret)) {

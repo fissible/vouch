@@ -17,7 +17,6 @@ use Fissible\Vouch\Factors\Drivers\SmsOtpFactor;
 use Fissible\Vouch\Factors\Drivers\TotpFactor;
 use Fissible\Vouch\Factors\FactorRegistry;
 use Fissible\Vouch\Kernel\Attempt\TransitionRules;
-use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
 use Fissible\Vouch\Support\SystemClock;
 use Fissible\Vouch\Tenancy\NullTenantResolver;

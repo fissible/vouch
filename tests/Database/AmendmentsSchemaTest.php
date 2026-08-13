@@ -41,6 +41,53 @@ it('constrains one otp credential per user, type and identifier', function (): v
     AuthCredential::create($row);
 })->throws(\Illuminate\Database\QueryException::class);
 
+/*
+ * Each of the three tests below varies exactly ONE column of the composite key
+ * and asserts the pair coexists. Together they pin every column's participation:
+ * inserting two identical rows only proves SOME unique index rejects them, so a
+ * narrowed index -- unique(['user_id']), say, which would allow a user one
+ * credential in total -- would keep the test above green while breaking the
+ * package.
+ */
+
+it('permits the same user and type against a different identifier', function (): void {
+    $shared = ['user_id' => 7, 'type' => 'email_otp', 'strength' => 'possession_weak'];
+
+    AuthCredential::create([...$shared, 'identifier_id' => verifiedIdentifier(7, 'ada@acme.example')->id]);
+    AuthCredential::create([...$shared, 'identifier_id' => verifiedIdentifier(7, 'ada+alt@acme.example')->id]);
+
+    expect(AuthCredential::where('user_id', 7)->count())->toBe(2);
+});
+
+it('permits the same user and identifier under a different type', function (): void {
+    $identifier = verifiedIdentifier();
+    $shared = ['user_id' => 7, 'identifier_id' => $identifier->id, 'strength' => 'possession_weak'];
+
+    AuthCredential::create([...$shared, 'type' => 'email_otp']);
+    AuthCredential::create([...$shared, 'type' => 'sms_otp']);
+
+    expect(AuthCredential::where('user_id', 7)->count())->toBe(2);
+});
+
+it('permits the same type and identifier value under a different user', function (): void {
+    // Distinct identifier ROWS, because a credential may only reference its own
+    // user's identifier -- GuardsIdentifierLinkage enforces that.
+    AuthCredential::create([
+        'user_id' => 7,
+        'type' => 'email_otp',
+        'identifier_id' => verifiedIdentifier(7, 'shared@acme.example')->id,
+        'strength' => 'possession_weak',
+    ]);
+    AuthCredential::create([
+        'user_id' => 8,
+        'type' => 'email_otp',
+        'identifier_id' => verifiedIdentifier(8, 'shared@other.example')->id,
+        'strength' => 'possession_weak',
+    ]);
+
+    expect(AuthCredential::whereIn('user_id', [7, 8])->count())->toBe(2);
+});
+
 it('leaves null-identifier credentials unconstrained, which is deliberate here', function (): void {
     /*
      * The inverse of the 2.1 session-binding case, where NULL != NULL broke a
@@ -85,6 +132,27 @@ it('permits exactly one enrollment lock row per user and type', function (): voi
     DB::table('auth_enrollment_locks')->insert(['user_id' => 7, 'type' => 'password']);
     DB::table('auth_enrollment_locks')->insert(['user_id' => 7, 'type' => 'password']);
 })->throws(\Illuminate\Database\QueryException::class);
+
+it('locks one user\'s enrollment types independently of each other', function (): void {
+    /*
+     * Varies only `type`, which is what makes the test above load-bearing: a
+     * narrowed unique(['user_id']) would still reject the identical pair there
+     * while serializing a user's password enrollment behind their TOTP
+     * enrollment here. Likewise the per-user test below.
+     */
+    DB::table('auth_enrollment_locks')->insert(['user_id' => 7, 'type' => 'password']);
+    DB::table('auth_enrollment_locks')->insert(['user_id' => 7, 'type' => 'totp']);
+
+    expect(DB::table('auth_enrollment_locks')->where('user_id', 7)->count())->toBe(2);
+});
+
+it('locks each user independently for the same enrollment type', function (): void {
+    // A unique(['type']) would serialize every password enrollment in the system.
+    DB::table('auth_enrollment_locks')->insert(['user_id' => 7, 'type' => 'password']);
+    DB::table('auth_enrollment_locks')->insert(['user_id' => 8, 'type' => 'password']);
+
+    expect(DB::table('auth_enrollment_locks')->where('type', 'password')->count())->toBe(2);
+});
 
 it('treats a repeated lock claim as a no-op rather than an error', function (): void {
     // insertOrIgnore is how EnrollmentGuard claims the row. Verified idempotent
