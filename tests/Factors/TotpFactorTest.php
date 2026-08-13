@@ -65,8 +65,18 @@ function enrollTotp(int $userId = 7): string
 
 function codeAt(string $secret, int $timestamp): string
 {
+    return codeAtWith($secret, $timestamp, TOTP_PERIOD, 6);
+}
+
+/**
+ * Like codeAt(), but for a non-default period/digits — used to generate codes
+ * against a TotpFactor constructed directly with non-default configuration,
+ * since the container-bound totpFactor() only ever exercises config defaults.
+ */
+function codeAtWith(string $secret, int $timestamp, int $period, int $digits): string
+{
     if ($secret === '') {
-        throw new RuntimeException('codeAt() requires a non-empty secret.');
+        throw new RuntimeException('codeAtWith() requires a non-empty secret.');
     }
 
     // TOTP::at() takes 0|positive-int; every timestamp this suite passes is
@@ -74,7 +84,11 @@ function codeAt(string $secret, int $timestamp): string
     // change.
     $timestamp = max(0, $timestamp);
 
-    return TOTP::createFromSecret($secret, new \Fissible\Vouch\Support\SystemClock())->at($timestamp);
+    $totp = TOTP::createFromSecret($secret, new \Fissible\Vouch\Support\SystemClock());
+    $totp->setPeriod($period);
+    $totp->setDigits($digits);
+
+    return $totp->at($timestamp);
 }
 
 beforeEach(function (): void {
@@ -175,6 +189,27 @@ it('rejects a code outside the drift window', function (): void {
     ))->failure)->toBe(FactorFailure::Mismatch);
 });
 
+it('rejects a code two steps past the drift window boundary', function (): void {
+    /*
+     * The window is configured as 1 (three candidate steps: T-1, T, T+1). A
+     * code five steps away, above, only proves the driver isn't unbounded —
+     * it does not pin the boundary itself. An off-by-one that widens the loop
+     * to T-2..T+2 would still pass every other test in this file; this one
+     * exists to catch exactly that regression, on both sides.
+     */
+    $secret = enrollTotp();
+    $now = now()->getTimestamp();
+
+    expect(totpFactor()->verify(new VerificationRequest(
+        attempt: totpAttempt(),
+        input: ['code' => codeAt($secret, $now - (2 * TOTP_PERIOD))],
+    ))->failure)->toBe(FactorFailure::Mismatch)
+        ->and(totpFactor()->verify(new VerificationRequest(
+            attempt: totpAttempt(),
+            input: ['code' => codeAt($secret, $now + (2 * TOTP_PERIOD))],
+        ))->failure)->toBe(FactorFailure::Mismatch);
+});
+
 it('refuses a replay of the same code once the store has recorded it', function (): void {
     // RFC 6238 §5.2: an accepted OTP must not be accepted a second time.
     $secret = enrollTotp();
@@ -254,6 +289,56 @@ it('reports malformed input rather than a mismatch', function (): void {
         attempt: totpAttempt(),
         input: ['code' => 12345],
     ))->failure)->toBe(FactorFailure::Malformed);
+});
+
+it('honours a non-default period, digits, window and issuer', function (): void {
+    /*
+     * Every other test in this file resolves TotpFactor through the
+     * container-bound singleton, which always reflects config's defaults —
+     * and those defaults happen to coincide with otphp's own (period 30,
+     * digits 6). Deleting setPeriod()/setDigits() from the driver would
+     * leave the whole rest of the suite green. Construct the driver
+     * directly with non-default values to close that hole, and check the
+     * issuer the same way rather than the earlier test's mere
+     * ->toContain('issuer='), which a hardcoded issuer would also satisfy.
+     */
+    $driver = new TotpFactor(
+        app(\Fissible\Vouch\Enrollment\EnrollmentGuard::class),
+        app(\Psr\Clock\ClockInterface::class),
+        'Acme',
+        60,
+        8,
+        0,
+    );
+
+    $enrollment = $driver->enroll(7, ['label' => 'ada@acme.example']);
+
+    expect($enrollment->secrets[0]->reveal())->toContain('issuer=Acme');
+
+    $secret = (string) AuthCredential::where('user_id', 7)->where('type', 'totp')->firstOrFail()->secret;
+    $now = now()->getTimestamp();
+    $code = codeAtWith($secret, $now, 60, 8);
+
+    expect(strlen($code))->toBe(8);
+
+    $result = $driver->verify(new VerificationRequest(
+        attempt: totpAttempt(),
+        input: ['code' => $code],
+    ));
+
+    expect($result->isSatisfied())->toBeTrue();
+    expect(timestepOf($result))->toBe(intdiv($now, 60));
+
+    // Zero-tolerance window: the default (1) would accept a code one step
+    // either side; this configuration must not.
+    expect($driver->verify(new VerificationRequest(
+        attempt: totpAttempt(),
+        input: ['code' => codeAtWith($secret, $now - 60, 60, 8)],
+    ))->failure)->toBe(FactorFailure::Mismatch)
+        ->and($driver->verify(new VerificationRequest(
+            attempt: totpAttempt(),
+            input: ['code' => codeAtWith($secret, $now + 60, 60, 8)],
+        ))->failure)->toBe(FactorFailure::Mismatch);
 });
 
 it('never reports aal3-eligible attributes', function (): void {

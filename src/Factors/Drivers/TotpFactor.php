@@ -121,7 +121,6 @@ final readonly class TotpFactor implements Factor
 
         $secret = $totp->getSecret();
 
-        /** @var AuthCredential $credential */
         $credential = $this->guard->serialize(
             $userId,
             $this->id(),
