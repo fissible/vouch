@@ -58,6 +58,14 @@ final class VouchServiceProvider extends ServiceProvider
             ),
         );
 
+        $this->app->singleton(
+            \Fissible\Vouch\Flow\ScreenBuilder::class,
+            fn ($app): \Fissible\Vouch\Flow\ScreenBuilder => new \Fissible\Vouch\Flow\ScreenBuilder(
+                new \Fissible\Vouch\Kernel\Enumeration\ErrorShaper(),
+                $app->make(\Fissible\Vouch\Factors\FactorRegistry::class),
+            ),
+        );
+
         $this->registerFactorDrivers();
 
         /*
