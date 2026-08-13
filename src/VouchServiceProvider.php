@@ -92,6 +92,22 @@ final class VouchServiceProvider extends ServiceProvider
             ),
         );
 
+        $this->app->singleton(
+            \Fissible\Vouch\Support\DatabaseTime::class,
+            fn ($app): \Fissible\Vouch\Support\DatabaseTime => new \Fissible\Vouch\Support\DatabaseTime(
+                $app['db']->connection(),
+            ),
+        );
+
+        $this->app->singleton(
+            \Fissible\Vouch\Recovery\GraceGuard::class,
+            fn ($app): \Fissible\Vouch\Recovery\GraceGuard => new \Fissible\Vouch\Recovery\GraceGuard(
+                $app['db']->connection(),
+                $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
+                config()->integer('vouch.recovery_grace.ttl_seconds'),
+            ),
+        );
+
         $this->registerFactorDrivers();
 
         /*
