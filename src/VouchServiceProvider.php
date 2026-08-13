@@ -58,6 +58,18 @@ final class VouchServiceProvider extends ServiceProvider
                 config()->integer('vouch.recovery.length'),
             ),
         );
+
+        $this->app->singleton(
+            \Fissible\Vouch\Factors\Drivers\TotpFactor::class,
+            fn ($app): \Fissible\Vouch\Factors\Drivers\TotpFactor => new \Fissible\Vouch\Factors\Drivers\TotpFactor(
+                $app->make(\Fissible\Vouch\Enrollment\EnrollmentGuard::class),
+                $app->make(\Psr\Clock\ClockInterface::class),
+                config()->string('vouch.totp.issuer'),
+                config()->integer('vouch.totp.period'),
+                config()->integer('vouch.totp.digits'),
+                config()->integer('vouch.totp.window'),
+            ),
+        );
     }
 
     public function boot(): void

@@ -62,4 +62,23 @@ return [
          */
         'length' => (int) env('VOUCH_RECOVERY_CODE_LENGTH', 10),
     ],
+
+    'totp' => [
+        // Shown in the authenticator app next to the account label.
+        'issuer' => env('VOUCH_TOTP_ISSUER', 'Vouch'),
+
+        // RFC 6238 defaults. Changing period or digits invalidates enrolled secrets.
+        'period' => (int) env('VOUCH_TOTP_PERIOD', 30),
+        'digits' => (int) env('VOUCH_TOTP_DIGITS', 6),
+
+        /*
+         * Accepted timesteps either side of the current one, for clock drift.
+         * 1 means three candidate steps in total. Expressed in STEPS rather than
+         * seconds because the replay guard records a step: a seconds-based
+         * leeway cannot tell you which step was accepted, and a guard that
+         * cannot name the step it consumed permits the replay it appears to
+         * prevent (RFC 6238 §5.2).
+         */
+        'window' => (int) env('VOUCH_TOTP_WINDOW', 1),
+    ],
 ];
