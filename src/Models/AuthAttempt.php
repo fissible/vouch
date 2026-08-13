@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Models;
 
 use Fissible\Vouch\Kernel\Attempt\AttemptState;
+use Fissible\Vouch\Models\Concerns\EnforcesValueBounds;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
@@ -25,6 +26,8 @@ use Illuminate\Support\Carbon;
  */
 final class AuthAttempt extends Model
 {
+    use EnforcesValueBounds;
+
     protected $table = 'auth_attempts';
 
     protected $guarded = [];
@@ -48,5 +51,18 @@ final class AuthAttempt extends Model
     public function challenges(): HasMany
     {
         return $this->hasMany(AuthChallenge::class, 'attempt_id');
+    }
+
+    /**
+     * @return array<string, array{max: int, ascii?: bool}>
+     */
+    protected function valueBounds(): array
+    {
+        return [
+            // Host-supplied via TenantResolver::currentTenantId(), which has no
+            // length contract of its own. Bounded here because the write path
+            // is the only place every writer must pass through.
+            'tenant_id' => ['max' => 255],
+        ];
     }
 }

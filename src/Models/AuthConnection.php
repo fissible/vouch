@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Models;
 
+use Fissible\Vouch\Models\Concerns\EnforcesValueBounds;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
@@ -23,6 +24,8 @@ use Illuminate\Support\Carbon;
  */
 final class AuthConnection extends Model
 {
+    use EnforcesValueBounds;
+
     protected $table = 'auth_connections';
 
     protected $guarded = [];
@@ -41,6 +44,19 @@ final class AuthConnection extends Model
             'jit_rules' => 'array',
             'trust_email_verified' => 'boolean',
             'auto_link' => 'boolean',
+        ];
+    }
+
+    /**
+     * @return array<string, array{max: int, ascii?: bool}>
+     */
+    protected function valueBounds(): array
+    {
+        return [
+            // Host-supplied via TenantResolver::currentTenantId(), which has no
+            // length contract of its own. Bounded here because the write path
+            // is the only place every writer must pass through.
+            'tenant_id' => ['max' => 255],
         ];
     }
 }

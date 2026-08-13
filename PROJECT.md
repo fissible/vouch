@@ -365,6 +365,32 @@ The CAS predicate was also proven load-bearing on each engine independently, not
 SQLite: stripping it fails the racing-transition and losing-writer-rollback tests on all
 three, with identical guard attribution.
 
+**Value bounds are enforced in PHP, not by the schema.** SQLite does not enforce
+VARCHAR length at all, MySQL rejects under a strict `sql_mode` but **silently truncates
+without one**, and Postgres rejects. Relying on column widths alone would make every
+length assertion vacuous on the suite's default engine while leaving a non-strict MySQL
+host able to truncate two distinct issuers into a collision under the unique
+`(connection_id, issuer, subject)` index — defeating the §7.2 cross-tenant identity
+guard from the inside.
+
+`EnforcesValueBounds` therefore hooks the model `saving` event, so every create and
+update passes through it whatever calls them. A `TenantResolver` docblock alone would
+not have sufficed: `AuthConnection`, `AuthPolicy`, and `AuthAttempt` can all be written
+directly by code that never read it.
+
+The v1 contract:
+
+| Value | Bound | Reason |
+|---|---|---|
+| `subject` | ≤255, ASCII | OIDC Core §2 caps `sub` at 255 ASCII characters. Enforced rather than assumed: an IdP is an input boundary, not a trusted peer. |
+| `issuer` | ≤255, ASCII | `iss` has **no** protocol length cap. This is a deliberate v1 support limit — refused, never truncated or normalised. |
+| `tenant_id` | ≤255 | Host-supplied via `TenantResolver::currentTenantId()`, which has no length contract of its own. |
+| `identifiers.value` | ≤255 | Registration input and half of a unique index; same input-boundary class. |
+
+**If arbitrarily long but protocol-valid issuer URIs ever need supporting, redesign the
+unique key around a fixed SHA-256 issuer digest plus the stored exact issuer.** Do not
+silently widen the indexed column and rediscover the InnoDB 3072-byte limit.
+
 **Carried forward.** The ordinary recovery-code notification is specified in the 2.1
 design but belongs to 2.3: verified identifiers only, post-consumption, best-effort,
 auditable, and delivery failure must neither restore the consumed code nor disclose
