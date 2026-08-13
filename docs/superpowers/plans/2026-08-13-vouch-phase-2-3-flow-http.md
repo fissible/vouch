@@ -281,7 +281,7 @@ tested against."
 - Produces:
   - `FlowRequest(?string $handle, ?string $action, array $input, string $boundContext, ?string $clientIp, ?string $clientUserAgent)` with `string(string $key): ?string`
   - `AuthSuccess(int $userId, list<SatisfiedFactor> $factors, AssuranceFacts $facts, string $acr, string $boundContext)` with `amr(): list<string>`
-  - `FlowResult` interface; `Continuing(ScreenSpec $screen)`; `Authenticated(AuthSuccess $success, ScreenSpec $screen)`; `RecoveryGraceStarted(int $userId, string $boundContext, ScreenSpec $screen)`
+  - `FlowResult` interface; `Continuing(ScreenSpec $screen, ?string $handle = null)`; `Authenticated(AuthSuccess $success, ScreenSpec $screen)`; `RecoveryGraceStarted(int $userId, string $boundContext, ScreenSpec $screen)`
   - `UnknownFlowResult extends LogicException` with `::for(FlowResult $result): self`
 
 Every variant carries a `ScreenSpec` so the controller can always serialize something without inspecting state; the discriminator is the type, not the screen.
@@ -521,11 +521,19 @@ namespace Fissible\Vouch\Flow;
 
 use Fissible\Vouch\Kernel\Screen\ScreenSpec;
 
-/** The attempt advanced and wants another interaction. */
+/**
+ * The attempt advanced and wants another interaction.
+ *
+ * Carries the handle because a client has nothing to advance with otherwise —
+ * beginning an attempt is precisely the case where the client does not yet have
+ * one. Null on a refusal for an unknown or mismatched handle: echoing one back
+ * would let a caller learn which handles exist.
+ */
 final readonly class Continuing implements FlowResult
 {
     public function __construct(
         public ScreenSpec $screen,
+        public ?string $handle = null,
     ) {}
 }
 ```
@@ -938,7 +946,7 @@ screen with a null RetryPolicy would fabricate a lockout nobody measured."
 
 **Interfaces:**
 - Consumes: `FlowRequest`, `FlowResult` variants, `AuthSuccess` (Task 2); `ScreenBuilder` (Task 3); `FactorRegistry`, `VerificationRequest`, `FactorResult` (2.2); `AttemptStore`, `TransitionOutcome` (2.1/2.2); kernel `TransitionRules`, `PolicyResolver`, `SatisfiabilityEvaluator`, `AssuranceFacts`, `AssuranceVocabulary`
-- Produces: `AuthFlow::advance(FlowRequest $request): FlowResult`
+- Produces: `AuthFlow::advance(FlowRequest $request): FlowResult` — a handle-less request **creates** an `Initiated` attempt (32 CSPRNG bytes, hex-encoded; bound context required; expiry from config) and returns its handle on `Continuing`
 
 **The rules this class exists to keep.** It never re-derives transition legality — it calls the store, which asks the kernel. It never writes single-use state — it passes driver mutations to `transition()`. It never touches a session, a request or a response. And it never constructs an error message; `ScreenBuilder` does.
 
@@ -1006,6 +1014,34 @@ it('begins an attempt bound to the supplied context', function (): void {
 
     expect($attempt->bound_context)->toBe(flowBinding())
         ->and($attempt->bound_context)->not->toContain(FLOW_BINDING_SOURCE);
+});
+
+it('creates a persisted attempt and returns its handle', function (): void {
+    $result = flow()->advance(beginRequest());
+
+    $attempt = AuthAttempt::query()->latest('id')->firstOrFail();
+
+    expect($result)->toBeInstanceOf(Continuing::class)
+        ->and($result->handle)->toBe($attempt->handle)
+        ->and($attempt->state)->toBe(\Fissible\Vouch\Kernel\Attempt\AttemptState::Initiated)
+        ->and($attempt->handle)->toHaveLength(64)
+        ->and($attempt->expires_at)->not->toBeNull();
+});
+
+it('issues a distinct handle per attempt', function (): void {
+    // A guessable or reused handle plus a matching bound context is an attempt
+    // takeover, so this pins that the handle comes from a CSPRNG per call.
+    flow()->advance(beginRequest());
+    flow()->advance(beginRequest());
+
+    expect(AuthAttempt::query()->distinct()->count('handle'))->toBe(2);
+});
+
+it('echoes no handle when refusing an unknown one', function (): void {
+    $result = flow()->advance(advanceRequest('not-a-real-handle', []));
+
+    expect($result)->toBeInstanceOf(Continuing::class)
+        ->and($result->handle)->toBeNull();
 });
 
 it('refuses to advance an attempt from a different bound context', function (): void {
@@ -1173,7 +1209,7 @@ final readonly class AuthFlow
     public function advance(FlowRequest $request): FlowResult
     {
         if ($request->handle === null) {
-            return new Continuing($this->screens->identify($this->posture(null)));
+            return $this->begin($request);
         }
 
         $attempt = AuthAttempt::query()->where('handle', $request->handle)->first();
@@ -1184,11 +1220,11 @@ final readonly class AuthFlow
          * real, which is an oracle over attempt handles.
          */
         if (! $attempt instanceof AuthAttempt || $attempt->bound_context !== $request->boundContext) {
-            return new Continuing($this->screens->refused(
-                AuthStep::Identify,
-                Outcome::CredentialRejected,
-                $this->posture(null),
-            ));
+            // No handle echoed back: a caller must not learn which handles exist.
+            return new Continuing(
+                $this->screens->refused(AuthStep::Identify, Outcome::CredentialRejected, $this->posture(null)),
+                null,
+            );
         }
 
         return match ($attempt->state) {
@@ -1197,13 +1233,36 @@ final readonly class AuthFlow
         };
     }
 
+    /**
+     * Create the attempt. This is the only place an attempt is born.
+     *
+     * The handle is 32 bytes of CSPRNG output, hex-encoded to 64 characters to
+     * match auth_attempts.handle. random_bytes(), never mt_rand() — a guessable
+     * handle plus a matching bound context would be an attempt takeover.
+     *
+     * bound_context is REQUIRED here. An attempt cannot exist unbound: the
+     * handle identifies it and must not also authorize it.
+     */
+    private function begin(FlowRequest $request): FlowResult
+    {
+        $attempt = AuthAttempt::create([
+            'handle' => bin2hex(random_bytes(32)),
+            'state' => AttemptState::Initiated,
+            'version' => 1,
+            'bound_context' => $request->boundContext,
+            'expires_at' => $this->clock->now()->modify(sprintf('+%d seconds', $this->attemptTtlSeconds)),
+        ]);
+
+        return new Continuing($this->screens->identify($this->posture(null)), $attempt->handle);
+    }
+
     private function identify(AuthAttempt $attempt, FlowRequest $request): FlowResult
     {
         $posture = $this->posture($attempt->tenant_id);
         $value = $request->string('identifier');
 
         if ($value === null || $value === '') {
-            return new Continuing($this->screens->refused(AuthStep::Identify, Outcome::CredentialRejected, $posture));
+            return new Continuing($this->screens->refused(AuthStep::Identify, Outcome::CredentialRejected, $posture), $attempt->handle);
         }
 
         $identifier = AuthIdentifier::query()->where('value', $value)->whereNotNull('verified_at')->first();
@@ -1220,10 +1279,10 @@ final readonly class AuthFlow
         $attempt->update(['identifier' => $value, 'user_id' => $userId]);
 
         if ($this->store->transition($attempt, AttemptState::Identified) !== TransitionOutcome::Succeeded) {
-            return new Continuing($this->screens->refused(AuthStep::Identify, Outcome::CredentialRejected, $posture));
+            return new Continuing($this->screens->refused(AuthStep::Identify, Outcome::CredentialRejected, $posture), $attempt->handle);
         }
 
-        return new Continuing($this->screens->challenge($this->defaultFactorFor($userId), $posture));
+        return new Continuing($this->screens->challenge($this->defaultFactorFor($userId), $posture), $attempt->handle);
     }
 
     private function verify(AuthAttempt $attempt, FlowRequest $request): FlowResult
@@ -1232,7 +1291,7 @@ final readonly class AuthFlow
         $factorId = $request->action === 'recover' ? 'recovery_code' : $this->defaultFactorFor($attempt->user_id);
 
         if (! $this->registry->has($factorId) || $attempt->user_id === null) {
-            return new Continuing($this->screens->refused(AuthStep::Challenge, Outcome::CredentialRejected, $posture, $factorId));
+            return new Continuing($this->screens->refused(AuthStep::Challenge, Outcome::CredentialRejected, $posture, $factorId), $attempt->handle);
         }
 
         $result = $this->registry->get($factorId)->verify(new VerificationRequest(
@@ -1243,7 +1302,7 @@ final readonly class AuthFlow
         ));
 
         if (! $result->isSatisfied()) {
-            return new Continuing($this->screens->refused(AuthStep::Challenge, Outcome::CredentialRejected, $posture, $factorId));
+            return new Continuing($this->screens->refused(AuthStep::Challenge, Outcome::CredentialRejected, $posture, $factorId), $attempt->handle);
         }
 
         $satisfied = array_values([...$this->existingFactors($attempt), $result->factor]);
@@ -1251,7 +1310,7 @@ final readonly class AuthFlow
         $target = $isRecovery ? AttemptState::FactorSatisfied : $this->targetState($attempt, $satisfied);
 
         if ($this->store->transition($attempt, $target, ...$result->mutations) !== TransitionOutcome::Succeeded) {
-            return new Continuing($this->screens->refused(AuthStep::Challenge, Outcome::CredentialRejected, $posture, $factorId));
+            return new Continuing($this->screens->refused(AuthStep::Challenge, Outcome::CredentialRejected, $posture, $factorId), $attempt->handle);
         }
 
         $attempt->update(['satisfied_factors' => $this->encode($satisfied)]);
@@ -1265,7 +1324,7 @@ final readonly class AuthFlow
         }
 
         if ($target !== AttemptState::Authenticated) {
-            return new Continuing($this->screens->challenge($this->defaultFactorFor($attempt->user_id), $posture));
+            return new Continuing($this->screens->challenge($this->defaultFactorFor($attempt->user_id), $posture), $attempt->handle);
         }
 
         $facts = AssuranceFacts::fromFactors($satisfied);
@@ -2151,7 +2210,7 @@ final readonly class FlowResultHandler
 
 - [ ] **Step 4: Write `FlowResultSerializer` and `AuthController`**
 
-The serializer produces `{result: 'continuing'|'authenticated'|'recovery_grace', handle?: string, screen: {...}}`. `ScreenSpec` becomes a plain array: `step` as the enum value, `offeredFactors` and `fields` as arrays of scalars, `challengePayload` verbatim, `errors` as-is, `retry` as `null` in 2.3. It throws `UnknownFlowResult` on an unrecognised variant, matching the handler.
+The serializer produces `{result: 'continuing'|'authenticated'|'recovery_grace', handle: ?string, screen: {...}, returnTo?: ?string}`. `handle` comes from `Continuing::$handle` and is `null` on a refusal for an unknown handle. `returnTo` appears only on `authenticated` and carries the already-validated step-up return target from Task 11. `ScreenSpec` becomes a plain array: `step` as the enum value, `offeredFactors` and `fields` as arrays of scalars, `challengePayload` verbatim, `errors` as-is, `retry` as `null` in 2.3. It throws `UnknownFlowResult` on an unrecognised variant, matching the handler.
 
 `AuthController` has one `__invoke`: build a `FlowRequest` (deriving `boundContext` via `SessionBinding::for($request->session()->getId(), BindingDomain::Attempt)`), call `AuthFlow::advance()`, pass the result through `FlowResultHandler`, serialize, return 200. **No `match` on `AuthStep` anywhere in it.**
 
@@ -2536,52 +2595,387 @@ configuration is rejected instantly and would invert the leak."
 
 ---
 
-## Task 11: Interactive `RequireAssurance` and step-up
+## Task 11: Interactive `RequireAssurance`, step-up, and the return target
 
-**Files:** Create `src/Http/Middleware/RequireAssurance.php`, `src/Http/AssuranceComparator.php`, `src/Vouch.php`; test `tests/Http/RequireAssuranceTest.php`.
+**Files:** Create `src/Http/AssuranceComparator.php`, `src/Http/IntendedDestination.php`, `src/Http/Middleware/RequireAssurance.php`, `src/Vouch.php`; modify `src/Http/FlowResultSerializer.php`, `src/Http/FlowResultHandler.php`, `config/vouch.php`; test `tests/Http/RequireAssuranceTest.php`, `tests/Http/IntendedDestinationTest.php`.
 
-**Interfaces:** Produces middleware alias `vouch.assurance:{level}`; `AssuranceComparator::isSufficient(AuthSession $session, string $required): bool`; `Vouch::stepUp(string $level): RedirectResponse`
+**Interfaces:**
+- Consumes: `AuthSession` (2.1), `AssuranceVocabulary` (kernel), `SessionLifecycle` (Task 5)
+- Produces:
+  - `AssuranceComparator::isSufficient(?AuthSession $session, string $required): bool`
+  - `IntendedDestination::remember(string $candidate): void`, `::consume(): ?string`
+  - middleware alias `vouch.assurance:{level}`
+  - `Vouch::stepUp(string $level): RedirectResponse`
+  - config `vouch.step_up.presentation_url` (**required**), `vouch.step_up.default_return`
 
-**The comparison lives in `AssuranceComparator`, not in the middleware's redirect branch.** §6.3 specifies one policy object with two renderings; 2.4 adds the RFC 9470 response. Building the comparison inside the redirect branch guarantees a restructure then, so it is extracted now, before there is a second consumer to break.
+**Three contracts this task establishes.**
 
-**Step-up reuses `POST /vouch/auth`** with a step-up intent: policy resolves for step-up rather than login, and there is no identify step since the session already names the user. One flow cannot drift from itself.
+*The comparison lives in `AssuranceComparator`.* §6.3 specifies one policy object with two renderings, and 2.4 adds the RFC 9470 response. Building the comparison inside the redirect branch guarantees a restructure then — extract it now, before there is a second consumer to break.
 
-- [ ] **Step 1: Write the failing test**
+*The redirect has a real destination, or there is no redirect.* 2.3 ships a JSON `POST` endpoint and deliberately no routeable renderer, so a browser sent to `/vouch/auth` issues a `GET` and gets 405. The host configures `vouch.step_up.presentation_url`; if it is unset, `RequireAssurance` **fails closed** rather than guessing. Phase 3 supplies the standard adapter.
+
+*The return target is server-side and never client-supplied.* A `return_to` parameter is an open-redirect primitive. The intended destination is stored in the session as a same-origin origin-form path plus query, validated by allowlist, **discarded rather than sanitised** on failure, and cleared on consumption.
+
+- [ ] **Step 1: Write the failing return-target test**
+
+Create `tests/Http/IntendedDestinationTest.php`:
 
 ```php
-it('lets a sufficient session through', function (): void { /* aal2 session, aal2 route */ });
+<?php
 
-it('redirects an insufficient session to step-up and remembers the destination', function (): void {
-    // Interactive mode. The RFC 9470 rendering is 2.4's.
+declare(strict_types=1);
+
+use Fissible\Vouch\Http\IntendedDestination;
+
+function destination(): IntendedDestination
+{
+    return app(IntendedDestination::class);
+}
+
+it('round-trips a safe same-origin path with its query', function (): void {
+    destination()->remember('/admin/settings?tab=security');
+
+    expect(destination()->consume())->toBe('/admin/settings?tab=security');
 });
 
-it('rotates the session when step-up raises assurance', function (): void {
+it('clears the target once consumed', function (): void {
+    // A stored destination that survives consumption can be replayed by a later
+    // step-up to send a user somewhere they never asked to go.
+    destination()->remember('/admin/settings');
+    destination()->consume();
+
+    expect(destination()->consume())->toBeNull();
+});
+
+it('discards every off-origin form', function (string $hostile): void {
     /*
-     * §7.5 requires regeneration on every assurance INCREASE, not only at
-     * login. A step-up that raised assurance without rotating would leave the
-     * pre-step-up session ID valid at the higher level.
+     * Discarded, not sanitised. Sanitising a hostile value is how the encoded
+     * and normalised authority cases survive: strip one prefix and the next
+     * layer reconstitutes it.
      */
-});
+    destination()->remember($hostile);
 
-it('never sees a grace session', function (): void {
-    // Grace is never authenticated, so the host's own auth middleware denies a
-    // protected route first. RequireAssurance is not grace's containment and
-    // must not be relied on as it.
-});
+    expect(destination()->consume())->toBeNull();
+})->with([
+    'protocol-relative' => '//evil.example/path',
+    'protocol-relative, triple' => '///evil.example',
+    'absolute https' => 'https://evil.example/path',
+    'absolute http' => 'http://evil.example',
+    'scheme-only' => 'javascript:alert(1)',
+    'data uri' => 'data:text/html,<script>alert(1)</script>',
+    'backslash authority' => '/\evil.example',
+    'double backslash' => '\\\\evil.example',
+    'encoded slash authority' => '/%2f%2fevil.example',
+    'encoded slash authority, upper' => '/%2F%2Fevil.example',
+    'encoded backslash' => '/%5cevil.example',
+    'encoded backslash, upper' => '/%5Cevil.example',
+    'relative, no leading slash' => 'admin/settings',
+    'empty' => '',
+]);
 
-it('compares through AssuranceComparator rather than string equality', function (): void {
-    // aal2 must satisfy a route requiring aal1. String equality would refuse a
-    // stronger session, which is a lockout that looks like a security win.
+it('keeps a query string containing an encoded slash in a value', function (): void {
+    // The rejection is about the AUTHORITY position, not about %2f appearing
+    // anywhere. Over-rejecting would break legitimate redirect targets and
+    // train someone to loosen the rule.
+    destination()->remember('/search?q=a%2Fb');
+
+    expect(destination()->consume())->toBe('/search?q=a%2Fb');
 });
 ```
 
-Write these out fully against the fixtures established in Task 8's file.
+- [ ] **Step 2: Run it and watch it fail.** `vendor/bin/pest tests/Http/IntendedDestinationTest.php` — `IntendedDestination` not found.
 
-- [ ] **Step 2: Run and watch fail. Step 3: implement. Step 4: run and pass.**
+- [ ] **Step 3: Write `IntendedDestination`**
 
-- [ ] **Step 5: Probes.** Make `isSufficient()` use `===` on the acr strings — the stronger-session test must FAIL. Remove the rotation on assurance increase — that test must FAIL.
+```php
+<?php
 
-- [ ] **Step 6:** `composer test && composer stan`. **Step 7:** commit.
+declare(strict_types=1);
+
+namespace Fissible\Vouch\Http;
+
+use Illuminate\Contracts\Session\Session;
+
+/**
+ * The post-step-up return target, held server-side.
+ *
+ * Never accepted from the client. A `return_to` parameter is an open-redirect
+ * primitive: whatever validation guards it, the value still arrives from the
+ * attacker. This stores the destination the user was actually refused, as a
+ * same-origin origin-form path plus query — the part after the authority and
+ * nothing more.
+ *
+ * A value failing validation is DISCARDED, never repaired. Sanitising a hostile
+ * value is how the encoded and normalised authority forms survive: strip one
+ * prefix and a later normalisation step reconstitutes it.
+ */
+final readonly class IntendedDestination
+{
+    private const KEY = 'vouch.step_up.intended';
+
+    public function __construct(private Session $session) {}
+
+    public function remember(string $candidate): void
+    {
+        $safe = $this->canonicalize($candidate);
+
+        if ($safe === null) {
+            $this->session->forget(self::KEY);
+
+            return;
+        }
+
+        $this->session->put(self::KEY, $safe);
+    }
+
+    /** Read and clear, so a target cannot be replayed by a later step-up. */
+    public function consume(): ?string
+    {
+        $value = $this->session->get(self::KEY);
+
+        $this->session->forget(self::KEY);
+
+        return is_string($value) ? $value : null;
+    }
+
+    /**
+     * Allowlist. Anything not provably a same-origin origin-form path is null.
+     */
+    private function canonicalize(string $candidate): ?string
+    {
+        // A backslash is normalised to a forward slash by several parsers and
+        // browsers, so `/\evil.example` becomes an authority in practice.
+        if (str_contains($candidate, '\\')) {
+            return null;
+        }
+
+        /*
+         * Percent-encoded slashes and backslashes are rejected only in the PATH.
+         * A later layer that decodes could otherwise reconstitute an authority
+         * the check already passed — while `?q=a%2Fb` is an ordinary value and
+         * must survive.
+         */
+        $path = strstr($candidate, '?', true);
+        $path = $path === false ? $candidate : $path;
+
+        if (preg_match('/%(2f|5c)/i', $path) === 1) {
+            return null;
+        }
+
+        // Exactly one leading slash. `//host` and `///host` are protocol-relative.
+        if (! str_starts_with($candidate, '/') || str_starts_with($candidate, '//')) {
+            return null;
+        }
+
+        $parts = parse_url($candidate);
+
+        if ($parts === false) {
+            return null;
+        }
+
+        // Any authority component at all means it is not origin-form.
+        foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {
+            if (isset($parts[$component])) {
+                return null;
+            }
+        }
+
+        $safe = $parts['path'] ?? null;
+
+        if (! is_string($safe) || ! str_starts_with($safe, '/')) {
+            return null;
+        }
+
+        return isset($parts['query']) ? $safe . '?' . $parts['query'] : $safe;
+    }
+}
+```
+
+- [ ] **Step 4: Run the destination tests.** Expected PASS — 3 plus 14 dataset rows.
+
+- [ ] **Step 5: Write `AssuranceComparator`**
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace Fissible\Vouch\Http;
+
+use Fissible\Vouch\Models\AuthSession;
+
+/**
+ * Decides whether a session's recorded assurance satisfies a requirement.
+ *
+ * Extracted rather than inlined into the redirect branch. §6.3 specifies one
+ * policy object with two renderings, and 2.4 adds the RFC 9470 response; a
+ * comparison living inside the interactive branch would have to be moved then,
+ * and the moved copy is where the two renderings drift apart.
+ *
+ * Ordered comparison, never string equality: an aal2 session must satisfy a
+ * route requiring aal1. Refusing a stronger session is a lockout that looks
+ * like a security win.
+ */
+final readonly class AssuranceComparator
+{
+    /** @var list<string> Weakest first. */
+    private const ORDER = ['aal0', 'aal1', 'aal2', 'aal3'];
+
+    public function isSufficient(?AuthSession $session, string $required): bool
+    {
+        if (! $session instanceof AuthSession || $session->revoked_at !== null) {
+            return false;
+        }
+
+        // A grace session is never sufficient for anything. It is also never
+        // authenticated, so this should be unreachable — fail closed anyway.
+        if ($session->isRecoveryGrace()) {
+            return false;
+        }
+
+        $held = array_search($session->acr, self::ORDER, true);
+        $want = array_search($required, self::ORDER, true);
+
+        if ($held === false || $want === false) {
+            return false;
+        }
+
+        return $held >= $want;
+    }
+}
+```
+
+- [ ] **Step 6: Write `RequireAssurance` and the config**
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace Fissible\Vouch\Http\Middleware;
+
+use Closure;
+use Fissible\Vouch\Http\AssuranceComparator;
+use Fissible\Vouch\Http\IntendedDestination;
+use Fissible\Vouch\Models\AuthSession;
+use Fissible\Vouch\Sessions\BindingDomain;
+use Fissible\Vouch\Sessions\SessionBinding;
+use Illuminate\Http\Request;
+use RuntimeException;
+use Symfony\Component\HttpFoundation\Response;
+
+/**
+ * Interactive mode only. The RFC 9470 non-interactive rendering is 2.4's, and
+ * shares this middleware's AssuranceComparator rather than reimplementing it.
+ *
+ * Grace sessions never reach here: they are not authenticated, so the host's own
+ * auth middleware denies a protected route first. This is NOT grace's
+ * containment mechanism and must never be relied on as one.
+ */
+final class RequireAssurance
+{
+    public function __construct(
+        private readonly AssuranceComparator $comparator,
+        private readonly IntendedDestination $destination,
+    ) {}
+
+    public function handle(Request $request, Closure $next, string $required): Response
+    {
+        $session = AuthSession::query()
+            ->where('session_binding', SessionBinding::for($request->session()->getId(), BindingDomain::Session))
+            ->first();
+
+        if ($this->comparator->isSufficient($session, $required)) {
+            return $next($request);
+        }
+
+        $presentation = config('vouch.step_up.presentation_url');
+
+        /*
+         * FAIL CLOSED. 2.3 ships a JSON POST endpoint and no routeable
+         * renderer, so there is nowhere safe to redirect by default — a browser
+         * sent to /vouch/auth issues a GET and receives 405. Guessing a
+         * destination would be worse than refusing.
+         */
+        if (! is_string($presentation) || $presentation === '') {
+            throw new RuntimeException(
+                'Vouch requires vouch.step_up.presentation_url to be configured before a route '
+                . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies '
+                . 'the standard adapter. Refusing rather than redirecting to an endpoint that '
+                . 'only answers POST.',
+            );
+        }
+
+        // The target the user was actually refused — never a client parameter.
+        $this->destination->remember($request->getRequestUri());
+
+        return redirect()->to($presentation);
+    }
+}
+```
+
+Add to `config/vouch.php`:
+
+```php
+    'step_up' => [
+        /*
+         * REQUIRED before any route uses vouch.assurance. No default: 2.3 ships
+         * no routeable step-up page, and a wrong guess sends browsers to a
+         * POST-only endpoint. Phase 3's adapters provide this page.
+         */
+        'presentation_url' => env('VOUCH_STEP_UP_URL'),
+
+        // Where a completed step-up returns when no intended target survived.
+        'default_return' => env('VOUCH_STEP_UP_DEFAULT_RETURN', '/'),
+    ],
+```
+
+- [ ] **Step 7: Expose the validated target on the authenticated result**
+
+In `FlowResultHandler::establish()`, after `SessionLifecycle::establish()` and the guard login, consume the destination and carry it on the serialized envelope. `FlowResultSerializer` emits `returnTo` **only** for `authenticated`, using the already-validated value or `config('vouch.step_up.default_return')` when none survived.
+
+The adapter performs no validation of its own and must not: a second validator is a second place for the rules to drift, and whichever ran last would win.
+
+- [ ] **Step 8: Write the middleware tests**
+
+Create `tests/Http/RequireAssuranceTest.php` covering: a sufficient session passes; a stronger session passes a weaker requirement (`aal2` against `aal1`); an insufficient session redirects to the configured presentation URL and stores the refused path; an unset `presentation_url` throws rather than redirecting; a completed step-up returns the stored target and clears it; and a grace session never reaches the middleware. Use Task 8's fixtures.
+
+- [ ] **Step 9: Run everything.** `vendor/bin/pest tests/Http` — all green.
+
+- [ ] **Step 10: Probes — four, each naming its test**
+
+```bash
+cp src/Http/AssuranceComparator.php /tmp/ac.bak
+cp src/Http/IntendedDestination.php /tmp/id.bak
+cp src/Http/Middleware/RequireAssurance.php /tmp/ra.bak
+```
+
+1. Change `isSufficient()` to `$session->acr === $required`. The stronger-session test must FAIL — string equality is a lockout dressed as a control.
+2. Make `canonicalize()` return `$candidate` unchanged. Every hostile dataset row must FAIL. If any still passes, that row was never discriminating.
+3. Delete the `%2f|%5c` check. The two encoded-authority rows must FAIL while `/search?q=a%2Fb` stays green — proving the check is scoped to the path, not blanket.
+4. Replace the unset-`presentation_url` throw with `return redirect()->to('/vouch/auth')`. The fail-closed test must FAIL.
+
+Restore each and re-verify.
+
+- [ ] **Step 11:** `composer test && composer stan`.
+
+- [ ] **Step 12: Commit**
+
+```bash
+git add src/Http/AssuranceComparator.php src/Http/IntendedDestination.php src/Http/Middleware/RequireAssurance.php src/Vouch.php src/Http/FlowResultSerializer.php src/Http/FlowResultHandler.php config/vouch.php tests/Http/RequireAssuranceTest.php tests/Http/IntendedDestinationTest.php
+git commit -m "feat: add interactive RequireAssurance with a safe return target
+
+The comparison lives in AssuranceComparator so 2.4's RFC 9470 rendering adds a
+renderer rather than forcing a restructure, and it is ordered rather than
+string equality -- refusing a stronger session is a lockout dressed as a
+control.
+
+The redirect goes to a required host-configured presentation URL and fails
+closed if unset: 2.3 ships no routeable page, so a browser sent to the JSON
+endpoint gets a GET 405. The return target is server-side, origin-form, and
+discarded rather than sanitised when hostile -- sanitising is how the encoded
+authority forms survive."
+```
 
 ---
 
@@ -2667,6 +3061,8 @@ Environment variables go on as a **prefix**, never `env $VAR` — zsh does not w
 
 **Gaps found and closed while reviewing.** The spec's `RequireAssurance` section arrived after the first draft of the task list, so Task 11 was added rather than left implied. The lockout ban was a `ScreenBuilder` convention in the first draft and is now a structural scan across four namespaces, per the mid-flight correction.
 
-**Two things this plan states rather than resolves.** Task 11's tests are described in intent with their probes named, not written out in full — the fixtures they need are established in Task 8 and writing them twice would let the two drift. And `AuthFlow`'s private helpers are specified by contract rather than by body, with the one rule that matters stated explicitly: `targetState()` calls the kernel's evaluator and never re-implements satisfiability. Both are deliberate, and both are places a reviewer should look hardest.
+**Two gaps found after the first draft, both blocking, both now closed.** `advance()` returned an identify screen without ever creating an attempt, while `Continuing` carried no handle and Task 8's tests read one — the contract could not have passed its own tests. Beginning now creates an `Initiated` attempt with a 32-byte CSPRNG handle and required bound context, and `Continuing` carries it, with refusals carrying none. And interactive step-up had no destination: 2.3 ships no routeable renderer, so a redirect to the JSON endpoint is a `GET` 405. Task 11 is now written in full with a required presentation URL, fail-closed behaviour when unset, and a server-side origin-form return target.
+
+**One thing this plan states rather than resolves.** `AuthFlow`'s private helpers are specified by contract rather than by body, with the rule that matters stated explicitly: `targetState()` calls the kernel's evaluator and never re-implements satisfiability. That is deliberate, and it is where a reviewer should look hardest.
 
 **Type consistency.** `SessionBinding::for($id, BindingDomain::X)` is two-argument everywhere after Task 1. `FlowResult` variants are `Continuing`, `Authenticated`, `RecoveryGraceStarted` throughout. `AuthSuccess::amr()` is a method, `->acr` a property. `ScreenSpec` is constructed with named arguments matching Phase 1's actual signature, including `challengePayload` as `?array`.
