@@ -27,10 +27,18 @@ and one of them has a dependency running backwards.
 
 ### One amendment to Phase 2.1
 
-`SessionBinding::for()` gains a **domain**, so `auth_attempts.bound_context` and
-`auth_sessions.session_binding` derive different values from the same session. The default
-preserves existing session behaviour. Reasoning is under "Attempts are always bound"; it
-ships and is tested as part of this slice, as 2.2's four amendments did.
+`SessionBinding::for()` gains a **required domain**, so `auth_attempts.bound_context` and
+`auth_sessions.session_binding` derive different values from the same session. Existing
+call sites are updated to name their domain explicitly.
+
+Required rather than defaulted, deliberately. A default makes an accidental cross-context
+derivation something a future caller can write silently and a reviewer can miss; a required
+argument — an enum, not a free string — makes it unwritable. The domain-difference test
+protects this flow, but the type system should protect every flow that comes after it. This
+is the same "structure enforces rather than documents" choice as the rest of the phase.
+
+Reasoning is under "Attempts are always bound"; it ships and is tested as part of this
+slice, as 2.2's four amendments did.
 
 Session lifecycle and recovery-grace stay **in** 2.3 deliberately: they are inseparable from
 the flow that creates, rotates and enforces sessions. Splitting them would put an invariant
@@ -81,17 +89,16 @@ a specification — it permits storing the raw ID. **It must not.** A host sessi
 live bearer credential; persisting one means any database read — a backup, a support query,
 a log of a slow query, an injection elsewhere in the host — hands over working sessions.
 
-The value written is `SessionBinding::for()`'s keyed HMAC, **domain-separated** from the one
-`auth_sessions.session_binding` stores, computed identically on creation and on every
-advance. The raw ID is never persisted and never returned in a response.
+The value written is `SessionBinding::for()`'s keyed HMAC under a **required domain**,
+distinct from the one `auth_sessions.session_binding` uses, computed identically on creation
+and on every advance. The raw ID is never persisted and never returned in a response.
 
 Domain separation matters because without it both columns hold the same value for the same
 session, so a `bound_context` that escapes — echoed in an error, copied into a log — is
 immediately a valid lookup key into `auth_sessions`. Two contexts, two derivations.
 
 **This is an amendment to 2.1's `SessionBinding`,** which currently takes only the session
-ID. It gains a domain, defaulting to the existing session behaviour so `auth_sessions` is
-unaffected. 2.1's test that the raw ID never reaches the database applies here too, against
+ID. The domain becomes a required enum argument and existing call sites name theirs. 2.1's test that the raw ID never reaches the database applies here too, against
 `auth_attempts`.
 
 **The handle identifies the attempt; it must not also function as its bearer credential.**
@@ -327,10 +334,19 @@ the dependence on middleware placement that this containment model exists to avo
 
 The host guard is never invoked at any point in the table above.
 
-**Expired or revoked grace is rejected and the host session destroyed.** The middleware
-marks the row with the `grace_expired` reason 2.1 constrained, destroys the host session so
-no stale binding survives, and the request continues as an ordinary anonymous one. Grace
-routes then refuse, because there is no live grace record to authorize them.
+**Expired or revoked grace is rejected and the host session destroyed — but the revocation
+reason is never overwritten.**
+
+On natural expiry the middleware marks the row `grace_expired` with a guarded update
+requiring `revoked_at IS NULL`, the same shape as 2.2's `DisableCredential` predicate. If
+the row was already revoked — `admin_revoked`, say — the update affects no rows and **the
+existing reason stands**. The host session is destroyed either way and grace routes refuse
+either way; only the recorded cause differs.
+
+Without the guard, a deliberate administrative revocation would be relabelled as ordinary
+expiry the next time the holder made a request. The audit record would then state that a
+session lapsed when in fact somebody revoked it — a false entry in the one artifact whose
+value is being true, and produced by the system itself rather than by an attacker.
 
 ### Completion
 
@@ -431,8 +447,10 @@ Beyond per-unit coverage, the suite must pin:
   first caller that can actually produce the race.
 - **Unbound attempt refusal** at both creation and advance, independent of middleware
   configuration.
-- **Grace containment** — that no host route is reachable during grace, and that
-  `auth()->user()` is null throughout.
+- **Grace routing matches the policy table, all three rows.** A public host route proceeds
+  anonymously; a protected host route denies; only named vouch grace routes may use the
+  grace capability. Asserting "no host route is reachable" would contradict the settled
+  policy and would pass only against an implementation that blocks public pages.
 - **An unhandled `FlowResult` variant throws** rather than falling through.
 - **The raw host session ID never reaches the database**, asserted against `auth_attempts`
   the way 2.1 asserts it against `auth_sessions`, and never appears in any response body.
@@ -441,7 +459,11 @@ Beyond per-unit coverage, the suite must pin:
 - **An active grace session completes vouch enrollment while `auth()->user()` stays null**
   for the whole exchange.
 - **An active grace session cannot reach a protected host route.**
-- **Expired grace destroys the host session** and leaves the row marked `grace_expired`.
+- **Expired grace destroys the host session** and marks an unrevoked row `grace_expired`.
+- **A row already revoked keeps its original reason.** Expire a session that was previously
+  `admin_revoked` and assert the reason is still `admin_revoked` — the session is destroyed
+  and grace routes refuse either way, so only the audit record distinguishes the two paths,
+  and only this test protects it.
 
 Every guard must be demonstrated failing against a deliberate violation before being
 trusted, per the discipline established in Phases 1, 2.1 and 2.2.
@@ -509,9 +531,9 @@ matrix.
 | Unhandled `FlowResult` | Throws | PHP has no sealed interfaces; falling through would skip session rotation on success. |
 | Session rotation | Fail-closed protocol, guard login last | Different stores, no shared transaction. Never leave a session guard-authenticated without a record. |
 | Session check middleware | Mandatory, appended to `web`, boot fails if absent | A runtime check is authoritative only on requests that traverse it. |
-| `bound_context` value | Keyed HMAC, domain-separated from `session_binding`; raw ID never persisted or returned | A host session ID is a live bearer credential; storing one turns any database read into session hijacking. Shared derivation would make an escaped `bound_context` a valid `auth_sessions` key. Amends 2.1's `SessionBinding`. |
+| `bound_context` value | Keyed HMAC under a **required** domain enum, distinct from `session_binding`; raw ID never persisted or returned | A host session ID is a live bearer credential; storing one turns any database read into session hijacking. Shared derivation would make an escaped `bound_context` a valid `auth_sessions` key. Amends 2.1's `SessionBinding`. |
 | Non-grace host routes during grace | Proceed as anonymous | A grace session is an anonymous session carrying a server-side capability. Blocking every route would reintroduce dependence on middleware placement, in reverse. |
-| Expired grace | Rejected, host session destroyed, row marked `grace_expired` | No stale binding survives, and grace routes then refuse for lack of a live record. |
+| Expired grace | Rejected, host session destroyed; `grace_expired` written only under a `revoked_at IS NULL` guard | A prior `admin_revoked` must survive. Overwriting it would make the system itself file a false audit entry, recording a deliberate revocation as ordinary lapse. |
 | Grace containment | Host guard never invoked; anonymous session retained as bound context | A stolen recovery code becomes a constrained capability, not an application session. |
 | Grace completion | Requires fresh non-recovery evidence | Possession of a credential is not proof of control of it — the 2.1 bypass. |
 | Last-factor protection | Deferred, but defined; 2.3 must not call or expose `revoke()` | Safe to defer only because no deletion surface exists. Defined against the policy-satisfying set, not row count. |
