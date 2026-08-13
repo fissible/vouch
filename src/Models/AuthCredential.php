@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Models;
 
+use Fissible\Vouch\Models\Concerns\GuardsIdentifierLinkage;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
@@ -27,6 +28,8 @@ use Illuminate\Support\Carbon;
  */
 final class AuthCredential extends Model
 {
+    use GuardsIdentifierLinkage;
+
     protected $table = 'auth_credentials';
 
     protected $guarded = [];

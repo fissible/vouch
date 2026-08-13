@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Models;
 
 use Fissible\Vouch\Models\Concerns\EnforcesValueBounds;
+use Fissible\Vouch\Models\Concerns\FreezesReferencedValue;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
@@ -21,6 +22,7 @@ use Illuminate\Support\Carbon;
 final class AuthIdentifier extends Model
 {
     use EnforcesValueBounds;
+    use FreezesReferencedValue;
 
     protected $table = 'auth_identifiers';
 
