@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch;
 
+use Fissible\Vouch\Contracts\TenantResolver;
+use Fissible\Vouch\Tenancy\NullTenantResolver;
 use Illuminate\Support\ServiceProvider;
 
 final class VouchServiceProvider extends ServiceProvider
@@ -11,6 +13,14 @@ final class VouchServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/vouch.php', 'vouch');
+
+        $this->app->bind(TenantResolver::class, NullTenantResolver::class);
+
+        /*
+         * AuditSink is deliberately left unbound. Its drivers ship in Phase 2.4;
+         * a host resolving it before then should get a clear container error
+         * rather than a silent no-op that discards audit events.
+         */
     }
 
     public function boot(): void
