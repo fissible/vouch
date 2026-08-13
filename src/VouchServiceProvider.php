@@ -79,6 +79,9 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(\Fissible\Vouch\Flow\ScreenBuilder::class),
                 new \Fissible\Vouch\Kernel\Satisfiability\SatisfiabilityEvaluator(),
                 $app->make(\Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class),
+                new \Fissible\Vouch\Flow\VerificationEqualizer(
+                    $app->make(\Illuminate\Contracts\Hashing\Hasher::class),
+                ),
                 $app->make(\Psr\Clock\ClockInterface::class),
                 config()->integer('vouch.attempts.ttl_seconds'),
             ),

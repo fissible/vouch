@@ -13,6 +13,7 @@ use Fissible\Vouch\Kernel\Assurance\AssuranceFacts;
 use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary;
 use Fissible\Vouch\Kernel\Attempt\AttemptState;
 use Fissible\Vouch\Kernel\Enumeration\EnumerationPosture;
+use Fissible\Vouch\Factors\FactorFailure;
 use Fissible\Vouch\Kernel\Enumeration\Outcome;
 use Fissible\Vouch\Kernel\Factor\FactorKind;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
@@ -50,6 +51,7 @@ final readonly class AuthFlow
         private ScreenBuilder $screens,
         private SatisfiabilityEvaluator $evaluator,
         private AssuranceVocabulary $vocabulary,
+        private VerificationEqualizer $equalizer,
         private ClockInterface $clock,
         private int $attemptTtlSeconds,
     ) {}
@@ -162,6 +164,13 @@ final readonly class AuthFlow
         $userId = $attempt->user_id;
 
         if (! $this->registry->has($factorId) || $userId === null) {
+            /*
+             * No user means no credential to verify, so nothing would hash --
+             * and under strict posture that speed difference IS the account
+             * existence oracle. Pay the same cost before refusing.
+             */
+            $this->equalizer->equalize($posture);
+
             return $refusal();
         }
 
@@ -173,6 +182,14 @@ final readonly class AuthFlow
         ));
 
         if (! $result->isSatisfied()) {
+            /*
+             * A driver reporting NoCredential also did no hashing -- a user who
+             * exists but has no credential of this type. Same leak, same fix.
+             */
+            if ($result->failure === FactorFailure::NoCredential) {
+                $this->equalizer->equalize($posture);
+            }
+
             return $refusal();
         }
 
