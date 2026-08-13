@@ -49,8 +49,23 @@ those packages; Fortify is a layer above them.
 
 ### Dependencies added
 
-- **`spomky-labs/otphp ^11.5`** for TOTP.
-- **`spatie/laravel-one-time-passwords ^1.1`** for OTP generation and delivery.
+**One only: `spomky-labs/otphp ^11.5`, for TOTP.**
+
+`spatie/laravel-one-time-passwords` was proposed and rejected. It ships its own
+`one_time_passwords` table and requires a `HasOneTimePasswords` trait on the host's
+authenticatable model, and its consume path owns single-use mutation. That breaks two
+load-bearing rules simultaneously: vouch never references the host's user class — every
+foreign key in the schema is a plain integer — and **the store owns every single-use
+mutation**, which it cannot do for a table it does not control. Adopting it would put OTP
+consumption outside `DatabaseAttemptStore`'s transaction, reintroducing exactly the
+atomicity gap §3 exists to close.
+
+OTP therefore uses vouch's own `auth_challenges` storage with platform cryptographic
+primitives: `random_int()` for code generation, which is a CSPRNG, and the host-configured
+`Hash` driver for storage and constant-time comparison — the same primitives the password
+and recovery-code drivers use. Delivery goes through Laravel's notification system behind
+a vouch-defined contract, so the host wires mail or SMS transport without vouch depending
+on either.
 
 Both TOTP candidates were checked for constant-time comparison, because a security
 package should not choose a crypto library on reputation: `pragmarx/google2fa` uses
@@ -85,7 +100,7 @@ interface Factor
     /** Null when the factor needs no challenge (password, TOTP, recovery code). */
     public function challenge(ChallengeRequest $request): ?AuthChallenge;
 
-    public function verify(AuthAttempt $attempt, array $input): FactorResult;
+    public function verify(VerificationRequest $request): FactorResult;
 
     public function revoke(AuthCredential $credential): void;
 }
@@ -121,6 +136,33 @@ final readonly class ChallengeRequest
 Client IP and user-agent travel here because `auth_challenges` binds them (§7.4) and the
 attempt carries only `bound_context`, which is the session.
 
+### `VerificationRequest` — binding is unenforceable without it
+
+An earlier draft had `verify(AuthAttempt, array $input)`. That is broken: the challenge
+records `bound_ip` and `bound_user_agent` at delivery, but a driver with no request
+context cannot compare them, so §7.4's binding would be written to the database and never
+checked. A guard that is stored but never evaluated is not a guard.
+
+```php
+final readonly class VerificationRequest
+{
+    public function __construct(
+        public AuthAttempt $attempt,
+        public array $input,
+        public ?AuthCredential $credential = null,
+        public ?AuthChallenge $challenge = null,
+        public ?string $clientIp = null,
+        public ?string $clientUserAgent = null,
+    ) {}
+}
+```
+
+`enroll()` deliberately keeps its plain signature. Challenge and verification are
+request-bound operations that must compare client context; enrollment happens in an
+already-authenticated context and binds to nothing, with request details reaching audit
+through the `AuditSink` instead. The asymmetry reflects a real difference rather than an
+inconsistency.
+
 ### `maxActiveCredentials()`, not a boolean
 
 A boolean cannot express a recovery-code *set*, and "one TOTP secret" is a current
@@ -137,6 +179,41 @@ product rule rather than an intrinsic property of TOTP.
 **Counted over active credentials only** — `disabled_at IS NULL`. A revoked TOTP must
 never block enrolling its replacement; that would be a self-inflicted lockout.
 
+#### A property is not an invariant until the write path is atomic
+
+Count-then-insert is a read-modify-write, so two concurrent enrollments each observe
+capacity and each proceed: two active passwords, two TOTP secrets, or — worst — twenty
+recovery codes from two interleaved regenerations, or a half-disabled set mixing old
+codes with new. Recovery regeneration is the dangerous case, because §7.3 promises that
+regenerating invalidates every prior code, and an interleaved pair breaks that promise
+while reporting success.
+
+Row locks do not fix it. `SELECT … FOR UPDATE` over `auth_credentials WHERE user_id = ?
+AND type = ?` locks the rows that exist; when the count is zero there are none to lock,
+which is exactly the first-enrollment race.
+
+The mechanism is therefore a dedicated lock row per subject:
+
+```
+auth_enrollment_locks
+  user_id  BIGINT UNSIGNED  NOT NULL
+  type     VARCHAR(32)      NOT NULL
+  UNIQUE (user_id, type)
+```
+
+Enrollment opens a transaction, upserts the `(user_id, type)` row, takes
+`lockForUpdate()` on it, and only then counts and writes. Every enrollment and
+regeneration for one subject serializes behind that row. Recovery regeneration holds it
+across both the disable-all and the create-ten, so the set is never observed mixed.
+
+The three engines reach this differently — MySQL and Postgres block the second
+transaction on the row lock, SQLite serializes writers at the database level and needs a
+`busy_timeout` — so the design is not settled until it is demonstrated. §6 requires a
+cross-engine contention test in the shape 2.1 established: two real connections racing,
+`DatabaseMigrations` rather than `RefreshDatabase`, asserting exactly one enrollment
+succeeds and the loser fails cleanly. The same test must be shown failing with the lock
+removed. Until that runs on all three engines, `maxActiveCredentials()` is a comment.
+
 ### `EnrollmentResult`
 
 Refined while specifying: `enroll()` cannot return a bare `AuthCredential`, because
@@ -148,17 +225,59 @@ final readonly class EnrollmentResult
 {
     /**
      * @param list<AuthCredential> $credentials
-     * @param list<string> $oneTimeSecrets Displayed once at enrollment; never re-retrievable.
+     * @param list<OneTimeSecret> $secrets Revealed once at enrollment; never re-retrievable.
      */
     public function __construct(
         public array $credentials,
-        public array $oneTimeSecrets = [],
+        public array $secrets = [],
     ) {}
 }
 ```
 
 TOTP returns one credential plus its provisioning URI; recovery returns ten credentials
 plus ten plaintext codes; password and OTP return one credential and nothing else.
+
+### Secrets are not plain strings
+
+A provisioning URI and a recovery code are bearer material: whoever reads one can
+authenticate. As an ordinary public `array $oneTimeSecrets` — the first draft's shape —
+they reach a log line, a `dd()`, a serialized queue payload, or an exception context
+without anyone deciding they should. That is not a hypothetical; it is the default
+behaviour of every debugging tool in the stack.
+
+```php
+final class OneTimeSecret implements \JsonSerializable
+{
+    private ?string $value;
+
+    public function __construct(#[\SensitiveParameter] string $value) { $this->value = $value; }
+
+    /** @throws SecretAlreadyRevealed on the second call. */
+    public function reveal(): string
+    {
+        $value = $this->value ?? throw new SecretAlreadyRevealed();
+        $this->value = null;
+
+        return $value;
+    }
+
+    public function __toString(): string { return '[redacted]'; }
+    public function __debugInfo(): array { return ['value' => '[redacted]']; }
+    public function jsonSerialize(): string { return '[redacted]'; }
+    public function __serialize(): array { return ['value' => null]; }
+}
+```
+
+`#[\SensitiveParameter]` keeps the value out of stack traces, which PHP renders with
+full arguments by default. `__serialize()` returning null is what stops a queued job or
+a cached payload from carrying the secret; consume-once turns an accidental second read
+into a loud failure rather than a quiet leak.
+
+This class is a containment measure, not a guarantee — `var_export()` and direct
+reflection still reach a private property, and no PHP object can prevent that. It closes
+the paths that fire by accident. The flow layer in 2.3 must still reveal each secret
+exactly once, straight into the response, and put it in no session, log, audit event, or
+queued payload.
 
 ### `FactorResult`
 
@@ -253,7 +372,7 @@ Each requires exactly one affected row. New `TransitionOutcome` cases:
 
 ## 4. Amendments to Phase 2.1
 
-Three, all to merged and reviewed code. Each ships with tests in this slice.
+Four, all to merged and reviewed code. Each ships with tests in this slice.
 
 ### Amendment A — `auth_credentials.identifier_id`
 
@@ -340,6 +459,38 @@ Technically breaking, though the only callers today are tests. Taken deliberatel
 than bolting on a second nullable integer parameter, which would leave a signature
 nobody can extend when 2.2b adds passkeys.
 
+### Amendment D — `auth_challenges.credential_id`
+
+`auth_challenges` records `attempt_id` and `factor_type` and nothing about *what was
+challenged*. For email and SMS OTP that is a hole: `challenge()` selects a verified
+identifier and delivers a code to it, then `verify()` succeeds and must report a
+`SatisfiedFactor.credentialId`. With no persisted target, that credential is chosen
+**after the fact** — reconstructed at verification from whatever the user's current
+credentials happen to be. A user with OTP on two addresses could have a code delivered
+to one and attributed to the other, and the distinctness key that §3.6's
+`require_distinct_credentials` depends on would then describe something that never
+happened.
+
+```php
+$table->foreignId('credential_id')->nullable()
+    ->constrained('auth_credentials')->cascadeOnDelete();
+```
+
+Nullable at the column, **required for OTP challenges** at the application layer — the
+same split as Amendment A, and for the same reason: password and TOTP challenges have no
+delivery target, so a NOT NULL column would be a lie. Challenges are ephemeral and swept,
+so cascading here is right; it is the credential's *own* deletion, not an identifier's,
+and it orphans nothing meaningful.
+
+At challenge creation the store validates that the credential is active
+(`disabled_at IS NULL`), belongs to the attempt's user, and carries an `identifier_id` —
+the identifier is derived through the credential rather than stored twice, so the two
+cannot drift. `verify()` then compares the submitted code against *that* challenge row,
+and `SatisfiedFactor.credentialId` is read from it rather than inferred.
+
+This is what makes `VerificationRequest::$challenge` load-bearing: the challenge is the
+record of what was actually sent, and verification is a comparison against it.
+
 ---
 
 ## 5. The five drivers
@@ -348,14 +499,24 @@ nobody can extend when 2.2b adds passkeys.
 |---|---|---|---|---|---|
 | `password` | knowledge / knowledge | 1 | none | `Hash` digest | none |
 | `totp` | possession / possession | 1 | none | otphp secret, `encrypted` cast | `AdvanceCredentialTimestep` |
-| `email_otp` | possession / possession_weak | null | code → `auth_challenges` | none | `ConsumeChallenge` |
-| `sms_otp` | possession / possession_weak | null | code → `auth_challenges` | none | `ConsumeChallenge` |
+| `email_otp` | possession / possession_weak | null | code → `auth_challenges`, bound to `credential_id` | digest in `code_hash` | `ConsumeChallenge` |
+| `sms_otp` | possession / possession_weak | null | code → `auth_challenges`, bound to `credential_id` | digest in `code_hash` | `ConsumeChallenge` |
 | `recovery_code` | possession / **recovery** | 10 | none | `Hash` digest, one row per code | `DisableCredential` |
 
 Every driver sets `isMultiFactor`, `userVerified` and `phishingResistant` to `false` on
 the `SatisfiedFactor` it produces. All five are single-factor and none is
 phishing-resistant; those attributes exist for passkeys, and defaulting them false is the
 fail-closed direction.
+
+**OTP codes are built from platform primitives**, since no library sits underneath them.
+Generation is `random_int()` — a CSPRNG, where `rand()` and `mt_rand()` are predictable
+from observed output and must never appear on this path. The code is written to
+`auth_challenges.code_hash` through the host-configured `Hash` driver and verified with
+`Hash::check()`, which compares in constant time; the plaintext is delivered and
+discarded, never stored and never logged. Delivery goes through a vouch-defined
+notification contract so the host chooses mail or SMS transport. Before comparing
+anything, the driver checks the challenge's `bound_ip` and `bound_user_agent` against
+`VerificationRequest` — the reason that request type exists.
 
 **`recovery_code` carries `FactorStrength::Recovery`**, which the kernel filters out of
 both satisfiability and assurance facts. A recovery code therefore cannot satisfy any
@@ -365,10 +526,15 @@ mutation-tested.
 **Recovery-code regeneration** disables every active recovery credential before creating
 the new set, satisfying §7.3's "regeneration invalidates all prior codes."
 
-**Password rehash-on-verify** is deliberately out of scope for v1 and recorded as a
-follow-up. It is a credential write on the verification path, and mixing it into the
-single-use mutation machinery for a non-security-critical optimisation would muddy a
-boundary worth keeping sharp.
+**Password rehash-on-verify** is out of scope for v1 and recorded as a **security-
+maintenance limitation**, not an optimisation deferred for tidiness. Its absence means a
+raised bcrypt cost — or a migration to a stronger algorithm — reaches new and changed
+passwords only; users who never change theirs keep the hash they enrolled with
+indefinitely. The reason for deferring is that it is a credential write on the
+verification path, and threading it through the single-use mutation machinery would blur
+a boundary worth keeping sharp in the slice that establishes it. The cost is that v1
+cannot upgrade a dormant user's hash, and any operator raising the work factor must know
+that.
 
 ---
 
@@ -394,6 +560,23 @@ Beyond per-driver enrollment and verification, the suite must pin:
 - **Re-enrollment preserves the credential ID** rather than inserting a duplicate.
 - **Recovery codes cannot satisfy a policy**, asserted through the kernel evaluator
   rather than by inspecting driver metadata.
+- **Enrollment cardinality under contention**, on all three engines. Two connections
+  enrolling a password or TOTP concurrently must yield exactly one active credential;
+  two concurrent recovery regenerations must yield exactly ten active codes, all from
+  the same generation, never twenty and never a mixed set. Both must be shown failing
+  with `auth_enrollment_locks` removed — otherwise the test proves only that the
+  serialization was never exercised.
+- **OTP binding is enforced, not merely stored.** A code submitted from a different IP or
+  user agent than the one recorded at delivery must be refused. Mutating the driver to
+  skip the comparison must fail the suite; a `bound_ip` written and never read is the
+  vacuous-control shape this project keeps finding.
+- **The challenge target is authoritative.** With OTP credentials on two verified
+  identifiers, a code delivered against one must report *that* credential in
+  `SatisfiedFactor.credentialId`, and a challenge naming a disabled, foreign-user, or
+  identifier-less credential must be refused at creation.
+- **Secrets stay redacted.** `json_encode`, `serialize`, string interpolation and
+  `__debugInfo` on a `OneTimeSecret` must not contain the plaintext, and a second
+  `reveal()` must throw.
 
 Each new guard must be demonstrated failing against a deliberate violation before being
 trusted, per the discipline established in Phase 1 and 2.1.
@@ -410,7 +593,7 @@ trusted, per the discipline established in Phase 1 and 2.1.
   v1, validated per driver at entry. `ChallengeRequest` is typed because it carries
   several well-known values; enrollment and verification inputs are genuinely
   heterogeneous. Recorded as a follow-up.
-- **Password rehash-on-verify.**
+- **Password rehash-on-verify** — a security-maintenance limitation (§5), not an optimisation.
 - **OIDC** — 2.5.
 
 ---
@@ -424,6 +607,11 @@ trusted, per the discipline established in Phase 1 and 2.1.
 | TOTP library | `spomky-labs/otphp` | Both candidates verified to use `hash_equals`, so no security gap decided it. Chosen on maintenance recency, a PHP 8.1+ floor, and a single `compareOTP()` choke point. |
 | `challenge()` input | `ChallengeRequest`, credential optional | OTP, recovery and passkey flows all lack a known credential at challenge time. |
 | Credential cardinality | `maxActiveCredentials(): ?int` over active rows | A boolean cannot express a recovery-code set; disabled rows must not cause lockout. |
+| Enforcing that cardinality | `auth_enrollment_locks` row per `(user_id, type)`, `lockForUpdate()` | Count-then-insert races; row locks cannot lock rows that do not exist yet. Proven by cross-engine contention tests. |
+| OTP library | None — vouch's own challenge storage | `spatie/laravel-one-time-passwords` needs a host-model trait and owns consumption in its own table, breaking both host-model independence and store-owned single-use mutation. |
+| Verification input | `VerificationRequest` carrying IP and user agent | Without it a driver cannot compare `bound_ip`/`bound_user_agent`, so §7.4's binding would be stored and never checked. |
+| Challenge target | `auth_challenges.credential_id`, required for OTP | Otherwise the satisfied credential is chosen after the fact, and distinctness describes something that never happened. |
+| Enrollment secrets | `OneTimeSecret`, consume-once and redacting | Bearer material as a public string reaches logs, dumps and queue payloads by default. |
 | Single-use state | Owned entirely by the store, via typed mutations | A driver-side guarded update burns a code when the transition later fails, and permits two validations before either writes. |
 | Store strictness | Rejects duplicate targets, unknown types, and any non-single-row effect | Keeps the transaction boundary authoritative as drivers are added. |
 | TOTP replay guard | Dedicated `last_used_timestep` | A wall-clock timestamp cannot recover the accepted timestep under a leeway window, and the resulting guard would permit the replay it appears to prevent. |
