@@ -28,6 +28,18 @@ return [
         'revocation_retention_days' => (int) env('VOUCH_REVOCATION_RETENTION_DAYS', 30),
     ],
 
+    'step_up' => [
+        /*
+         * REQUIRED before any route uses vouch.assurance. No default: 2.3 ships
+         * no routeable step-up page, and a wrong guess sends browsers to a
+         * POST-only endpoint. Phase 3's adapters provide this page.
+         */
+        'presentation_url' => env('VOUCH_STEP_UP_URL'),
+
+        // Where a completed step-up returns when no intended target survived.
+        'default_return' => env('VOUCH_STEP_UP_DEFAULT_RETURN', '/'),
+    ],
+
     'routes' => [
         'prefix' => env('VOUCH_ROUTE_PREFIX', 'vouch'),
 

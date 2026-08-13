@@ -114,6 +114,7 @@ final class VouchServiceProvider extends ServiceProvider
         foreach ([
             \Fissible\Vouch\Http\IntendedDestination::class,
             \Fissible\Vouch\Http\FlowResultSerializer::class,
+            \Fissible\Vouch\Http\AssuranceComparator::class,
         ] as $simple) {
             $this->app->singleton($simple);
         }
@@ -221,6 +222,7 @@ final class VouchServiceProvider extends ServiceProvider
 
         $router = $this->app->make(\Illuminate\Routing\Router::class);
         $router->aliasMiddleware('vouch.session', \Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class);
+        $router->aliasMiddleware('vouch.assurance', \Fissible\Vouch\Http\Middleware\RequireAssurance::class);
         $router->pushMiddlewareToGroup('web', \Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class);
 
         /*
