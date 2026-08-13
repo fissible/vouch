@@ -19,7 +19,19 @@ return new class extends Migration
                 ->constrained('auth_connections')
                 ->cascadeOnDelete();
 
-            $table->string('issuer', 512);
+            /*
+             * 255, not 512. This column is part of the unique index below, and
+             * MySQL/InnoDB caps a key at 3072 bytes. Under utf8mb4 at 4 bytes
+             * per character, 512 + 255 + a bigint comes to 3076 — four bytes
+             * over, and the migration fails outright, making the package
+             * uninstallable on MySQL. SQLite has no such limit and cannot
+             * surface this; the cross-engine matrix caught it on its first run.
+             *
+             * 255 is ample for an OIDC issuer identifier, which is a URL —
+             * every mainstream IdP is well under 100 characters. discovery_url
+             * on auth_connections stays 512 because it is not indexed.
+             */
+            $table->string('issuer', 255);
             $table->string('subject', 255);
             $table->json('claims')->nullable();
             $table->unsignedBigInteger('user_id')->nullable()->index();

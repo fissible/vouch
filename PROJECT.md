@@ -327,6 +327,44 @@ deliberate violation before being trusted:
 - The sweep must never enforce grace expiry: teaching it to delete expired-grace rows
   fails its guard test.
 
+**Cross-engine verification, 2026-08-12.** The matrix was run locally against real
+engines in Docker, because CI cannot run it yet — no GitHub remote exists.
+
+| Engine | Version | Result |
+|---|---|---|
+| SQLite | file-backed (`VOUCH_SQLITE_PATH`) | 59 passed, 105 assertions |
+| MySQL | 8.4.11 (`mysql:8`) | 59 passed, 105 assertions |
+| PostgreSQL | 16.14 (`postgres:16`) | 59 passed, 105 assertions |
+
+Containers, on non-colliding ports so as not to disturb other local services:
+
+```
+docker run -d --name vouch-matrix-mysql -e MYSQL_ROOT_PASSWORD=password \
+  -e MYSQL_DATABASE=vouch_test -p 13306:3306 mysql:8
+docker run -d --name vouch-matrix-pg -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=vouch_test -p 15432:5432 postgres:16
+```
+
+Per-leg command, matching the CI job:
+
+```
+VOUCH_TEST_DB=<sqlite|mysql|pgsql> DB_HOST=127.0.0.1 DB_PORT=<13306|15432> \
+DB_DATABASE=vouch_test DB_USERNAME=<root|postgres> DB_PASSWORD=password \
+  vendor/bin/pest tests/Database tests/Concurrency
+```
+
+**The matrix earned its keep on its first run**, catching a defect that would have made
+the package uninstallable on MySQL: the unique index on
+`auth_federated_identities(connection_id, issuer, subject)` came to 3076 bytes under
+utf8mb4, four over InnoDB's 3072-byte cap, so the migration failed outright. `issuer` is
+now 255 rather than 512. SQLite has no key-length limit and could never have surfaced
+it. Every other index was then audited against the same cap; all are clear, the next
+largest being 1148 bytes.
+
+The CAS predicate was also proven load-bearing on each engine independently, not just
+SQLite: stripping it fails the racing-transition and losing-writer-rollback tests on all
+three, with identical guard attribution.
+
 **Carried forward.** The ordinary recovery-code notification is specified in the 2.1
 design but belongs to 2.3: verified identifiers only, post-consumption, best-effort,
 auditable, and delivery failure must neither restore the consumed code nor disclose
