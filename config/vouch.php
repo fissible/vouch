@@ -27,4 +27,16 @@ return [
         // How long revoked session rows are retained before the sweep deletes them.
         'revocation_retention_days' => (int) env('VOUCH_REVOCATION_RETENTION_DAYS', 30),
     ],
+
+    'challenges' => [
+        /*
+         * Factor types whose challenges MUST name the credential they were
+         * delivered against. Configured rather than hardcoded so 2.2b can add
+         * passkey without editing a model.
+         *
+         * Password and TOTP are absent deliberately: they issue no challenge and
+         * have no delivery target, so requiring one would be a lie.
+         */
+        'require_credential' => ['email_otp', 'sms_otp'],
+    ],
 ];

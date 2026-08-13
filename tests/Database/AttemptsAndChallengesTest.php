@@ -45,7 +45,7 @@ it('stores satisfied factors as an array', function (): void {
 it('never stores a challenge code in plaintext', function (): void {
     $challenge = AuthChallenge::create([
         'attempt_id' => attempt()->id,
-        'factor_type' => 'email_otp',
+        'factor_type' => 'password',
         'code_hash' => hash('sha256', '123456'),
         'expires_at' => now()->addMinutes(2),
     ]);
@@ -59,7 +59,7 @@ it('never stores a challenge code in plaintext', function (): void {
 it('starts a challenge unconsumed with a zero attempt counter', function (): void {
     $challenge = AuthChallenge::create([
         'attempt_id' => attempt()->id,
-        'factor_type' => 'email_otp',
+        'factor_type' => 'password',
         'code_hash' => hash('sha256', '123456'),
         'expires_at' => now()->addMinutes(2),
     ]);
@@ -74,7 +74,7 @@ it('deletes challenges when their attempt is deleted', function (): void {
     $a = attempt();
     AuthChallenge::create([
         'attempt_id' => $a->id,
-        'factor_type' => 'email_otp',
+        'factor_type' => 'password',
         'code_hash' => hash('sha256', '123456'),
         'expires_at' => now()->addMinutes(2),
     ]);

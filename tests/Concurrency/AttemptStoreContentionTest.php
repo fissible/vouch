@@ -85,7 +85,7 @@ it('consumes a challenge exactly once under contention', function (): void {
     $attempt = contendedAttempt();
     $challenge = AuthChallenge::create([
         'attempt_id' => $attempt->id,
-        'factor_type' => 'email_otp',
+        'factor_type' => 'password',
         'code_hash' => hash('sha256', '123456'),
         'expires_at' => now()->addMinutes(2),
     ]);
@@ -116,13 +116,13 @@ it('leaves the challenge unconsumed when the losing writer rolls back', function
     $attempt = contendedAttempt();
     $challengeA = AuthChallenge::create([
         'attempt_id' => $attempt->id,
-        'factor_type' => 'email_otp',
+        'factor_type' => 'password',
         'code_hash' => hash('sha256', 'aaa'),
         'expires_at' => now()->addMinutes(2),
     ]);
     $challengeB = AuthChallenge::create([
         'attempt_id' => $attempt->id,
-        'factor_type' => 'email_otp',
+        'factor_type' => 'password',
         'code_hash' => hash('sha256', 'bbb'),
         'expires_at' => now()->addMinutes(2),
     ]);

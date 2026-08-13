@@ -35,7 +35,7 @@ it('reaps challenges belonging to pruned attempts', function (): void {
     ]);
     AuthChallenge::create([
         'attempt_id' => $expired->id,
-        'factor_type' => 'email_otp',
+        'factor_type' => 'password',
         'code_hash' => hash('sha256', '123456'),
         'expires_at' => now()->addMinutes(2),
     ]);

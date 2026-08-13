@@ -29,7 +29,7 @@ function liveChallenge(AuthAttempt $attempt): AuthChallenge
 {
     return AuthChallenge::create([
         'attempt_id' => $attempt->id,
-        'factor_type' => 'email_otp',
+        'factor_type' => 'password',
         'code_hash' => hash('sha256', '123456'),
         'expires_at' => now()->addMinutes(2),
     ]);

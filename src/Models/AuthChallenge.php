@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Models;
 
+use Fissible\Vouch\Models\Concerns\GuardsChallengeTarget;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
@@ -23,6 +24,8 @@ use Illuminate\Support\Carbon;
  */
 final class AuthChallenge extends Model
 {
+    use GuardsChallengeTarget;
+
     protected $table = 'auth_challenges';
 
     protected $guarded = [];
