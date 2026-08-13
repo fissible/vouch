@@ -66,6 +66,24 @@ final class VouchServiceProvider extends ServiceProvider
             ),
         );
 
+        $this->app->singleton(
+            \Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class,
+            \Fissible\Vouch\Kernel\Assurance\NistAssuranceVocabulary::class,
+        );
+
+        $this->app->singleton(
+            \Fissible\Vouch\Flow\AuthFlow::class,
+            fn ($app): \Fissible\Vouch\Flow\AuthFlow => new \Fissible\Vouch\Flow\AuthFlow(
+                $app->make(\Fissible\Vouch\Contracts\AttemptStore::class),
+                $app->make(\Fissible\Vouch\Factors\FactorRegistry::class),
+                $app->make(\Fissible\Vouch\Flow\ScreenBuilder::class),
+                new \Fissible\Vouch\Kernel\Satisfiability\SatisfiabilityEvaluator(),
+                $app->make(\Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class),
+                $app->make(\Psr\Clock\ClockInterface::class),
+                config()->integer('vouch.attempts.ttl_seconds'),
+            ),
+        );
+
         $this->registerFactorDrivers();
 
         /*
