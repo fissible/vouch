@@ -330,7 +330,7 @@ cp /tmp/ots.bak src/Secrets/OneTimeSecret.php
 vendor/bin/pest tests/Secrets/OneTimeSecretTest.php   # green again
 ```
 
-- [ ] **Step 9: Write `SystemClock`**
+- [ ] **Step 11: Write `SystemClock`**
 
 ```php
 <?php
@@ -363,12 +363,12 @@ final class SystemClock implements ClockInterface
 }
 ```
 
-- [ ] **Step 10: Run the full suite and the analyser**
+- [ ] **Step 12: Run the full suite and the analyser**
 
 Run: `composer test && composer stan`
 Expected: both green. The pre-existing suite is unaffected by this task.
 
-- [ ] **Step 11: Commit**
+- [ ] **Step 13: Commit**
 
 ```bash
 git add composer.json composer.lock src/Support/SystemClock.php src/Secrets tests/Secrets
@@ -2195,7 +2195,7 @@ vendor/bin/pest tests/Database/MutationStoreTest.php   # green again
 Run: `composer test && composer stan`
 Expected: both green. PHPStan will check that the `match (true)` arms narrow correctly; if it reports the `default` arm as unreachable, that is a real signal the arms are not exhaustive in the way intended — report it rather than suppressing.
 
-- [ ] **Step 12: Commit**
+- [ ] **Step 14: Commit**
 
 ```bash
 git add src/Attempts src/Contracts/AttemptStore.php tests/Database/MutationStoreTest.php tests/Database/AttemptStoreTest.php tests/Concurrency/AttemptStoreContentionTest.php
@@ -4101,7 +4101,7 @@ cp /tmp/rcf.bak src/Factors/Drivers/RecoveryCodeFactor.php
 vendor/bin/pest tests/Factors/RecoveryCodeFactorTest.php   # green again
 ```
 
-- [ ] **Step 13: Run the full suite and the analyser**
+- [ ] **Step 15: Run the full suite and the analyser**
 
 Run: `composer test && composer stan`
 Expected: both green.
@@ -6155,38 +6155,9 @@ it('never leaves two recovery-code generations live under interleaved regenerati
 
 ```
 
-- [ ] **Step 2: Run it on file-backed SQLite**
+- [ ] **Step 2: Start the two engine containers**
 
-```bash
-VOUCH_TEST_DB=sqlite VOUCH_SQLITE_PATH=/tmp/vouch-contention.sqlite vendor/bin/pest tests/Concurrency
-```
-
-Note the environment variables are set as a **prefix**, not via `env $VAR`. Zsh does not word-split unquoted variables, and a prior session lost a full matrix run to exactly that mistake — every test "failed" on every engine because of the harness, not the code.
-
-Expected: PASS.
-
-- [ ] **Step 3: Prove the lock is what makes it pass**
-
-```bash
-cp src/Enrollment/EnrollmentGuard.php /tmp/eg2.bak
-```
-
-Comment out the two statements inside `acquire()`'s `try` block, leaving the method a no-op. Re-run Step 2.
-
-Expected: **both the password test and the recovery-generation test FAIL**, and specifically:
-
-- `lets exactly one of two interleaved password enrollments win` — two active password credentials instead of one, and `$refusal` null.
-- `never leaves two recovery-code generations live under interleaved regeneration` — twenty active credentials across two generations, and `$refusal` null.
-
-If either still passes with no locking at all, it is not exercising serialization and must be fixed before proceeding. This is the single most important non-vacuity check in the plan: the spec says outright that the mechanism is unsettled until demonstrated, and a green contention suite over a no-op lock would be the most expensive vacuous control this project has produced.
-
-Restore:
-
-```bash
-cp /tmp/eg2.bak src/Enrollment/EnrollmentGuard.php
-```
-
-- [ ] **Step 4: Start the two engine containers**
+The non-vacuity probe needs MySQL and Postgres, so the containers come up before anything is proven rather than after.
 
 ```bash
 docker run -d --rm --name vouch-mysql -e MYSQL_ROOT_PASSWORD=password -e MYSQL_DATABASE=vouch_test -p 33106:3306 mysql:8
@@ -6200,7 +6171,57 @@ until docker exec vouch-mysql mysqladmin ping -ppassword --silent 2>/dev/null; d
 until docker exec vouch-pgsql pg_isready -U postgres 2>/dev/null; do sleep 2; done; echo "postgres ready"
 ```
 
-- [ ] **Step 5: Run the FULL suite on MySQL**
+- [ ] **Step 3: Establish a green contention baseline on all three engines**
+
+Environment variables go on as a **prefix**, not via `env $VAR`. Zsh does not word-split unquoted variables, and a prior session in this project lost a full matrix run to exactly that — every test "failed" on every engine because of the harness, not the code.
+
+```bash
+VOUCH_TEST_DB=mysql DB_HOST=127.0.0.1 DB_PORT=33106 DB_DATABASE=vouch_test DB_USERNAME=root DB_PASSWORD=password vendor/bin/pest tests/Concurrency
+
+VOUCH_TEST_DB=pgsql DB_HOST=127.0.0.1 DB_PORT=54106 DB_DATABASE=vouch_test DB_USERNAME=postgres DB_PASSWORD=password vendor/bin/pest tests/Concurrency
+
+rm -f /tmp/vouch-contention.sqlite && touch /tmp/vouch-contention.sqlite
+VOUCH_TEST_DB=sqlite VOUCH_SQLITE_PATH=/tmp/vouch-contention.sqlite vendor/bin/pest tests/Concurrency
+```
+
+Expected: PASS on all three.
+
+- [ ] **Step 4: The lock-removal probe — MySQL and Postgres only**
+
+```bash
+cp src/Enrollment/EnrollmentGuard.php /tmp/eg2.bak
+```
+
+Comment out the two statements inside `acquire()`'s `try` block — the `insertOrIgnore` and the `lockForUpdate` — leaving the method a no-op. Re-run **only the MySQL and Postgres legs** of Step 3.
+
+Expected on **both** engines: two named failures with these signatures.
+
+- `lets exactly one of two interleaved password enrollments win` — two active password credentials instead of one, and `$refusal` null.
+- `never leaves two recovery-code generations live under interleaved regeneration` — twenty active credentials across two generations, and `$refusal` null.
+
+These two engines are where the probe means something. A's held row lock is on the `auth_enrollment_locks` row and nothing else; with `acquire()` gone, B touches no row A has locked, so B runs to completion and commits. What survives is attributable to the enrollment-lock protocol specifically.
+
+If either test still passes on either engine, it is not exercising serialization and must be fixed before proceeding. This is the single most important non-vacuity check in the plan: the spec says outright that the mechanism is unsettled until demonstrated, and a green contention suite over a no-op lock would be the most expensive vacuous control this project has produced.
+
+- [ ] **Step 5: SQLite — verify the refusal, and do NOT run the probe as evidence**
+
+**The Step 4 signature cannot occur on SQLite, and running the probe there proves nothing about the protocol.** A calls `insertOrIgnore()` before B is invoked, which by this plan's own verified-facts table takes SQLite's *database-wide* write lock. With `acquire()` removed, B's first write — the disable, or the insert of ten rows — hits `SQLITE_BUSY`, and because the `catch (QueryException)` lives inside `acquire()`, it surfaces as a **raw `QueryException` propagating out of `serialize()`** rather than as twenty rows across two generations.
+
+The test does fail. It fails for the wrong reason. SQLite serializes writers globally, so that failure demonstrates the engine's behaviour, not the enrollment-lock protocol — and crediting it to the protocol would be the vacuous-control mistake inverted: a real failure attributed to the wrong cause. Do not record it as protocol evidence, and do not report the Step 4 signature as observed on three engines when it was observed on two.
+
+What SQLite *can* prove, and should: that a contended enrollment there produces a clean typed refusal rather than a driver error. That exercises the `busy_timeout` setting, the `isLockContention()` driver-code match on `5`, and the `QueryException` → `EnrollmentRefused` mapping — none of which the other two engines cover, since each reaches contention by a different code.
+
+With the guard **restored**, confirm on the Step 3 SQLite leg that the refusals carry `EnrollmentRefusalReason::Contended`. The `refuses cleanly rather than surfacing a driver error` test already asserts exactly this; note in the task report that it was observed passing on SQLite specifically.
+
+- [ ] **Step 6: Restore the guard and re-confirm green**
+
+```bash
+cp /tmp/eg2.bak src/Enrollment/EnrollmentGuard.php
+```
+
+Re-run all three legs of Step 3. Expected: PASS on all three.
+
+- [ ] **Step 7: Run the FULL suite on MySQL**
 
 Not just the contention file — the amendments, guards, mutations and drivers all touch engine-specific behaviour.
 
@@ -6214,7 +6235,7 @@ Expected: PASS, all tests. Record the exact engine version:
 docker exec vouch-mysql mysql -ppassword -e 'SELECT VERSION();'
 ```
 
-- [ ] **Step 6: Run the FULL suite on Postgres**
+- [ ] **Step 8: Run the FULL suite on Postgres**
 
 ```bash
 VOUCH_TEST_DB=pgsql DB_HOST=127.0.0.1 DB_PORT=54106 DB_DATABASE=vouch_test DB_USERNAME=postgres DB_PASSWORD=password vendor/bin/pest
@@ -6226,7 +6247,7 @@ Expected: PASS, all tests. Record the version:
 docker exec vouch-pgsql psql -U postgres -t -c 'SELECT version();'
 ```
 
-- [ ] **Step 7: Run the FULL suite on file-backed SQLite**
+- [ ] **Step 9: Run the FULL suite on file-backed SQLite**
 
 ```bash
 rm -f /tmp/vouch-matrix.sqlite && touch /tmp/vouch-matrix.sqlite
@@ -6238,30 +6259,39 @@ Expected: PASS, all tests.
 
 **If any leg fails, stop and report it.** Do not mark 2.2 complete with a red leg, and do not skip a test to make a leg green — a skipped contention test is the vacuous control this plan exists to avoid.
 
-- [ ] **Step 8: Tear the containers down**
+- [ ] **Step 10: Tear the containers down**
 
 ```bash
 docker stop vouch-mysql vouch-pgsql
 ```
 
-- [ ] **Step 9: Add the enrollment contention job to CI**
+- [ ] **Step 11: Add the enrollment contention job to CI**
 
 In `.github/workflows/ci.yml`, the `database-matrix` job already runs the suite against all three engines. Confirm `tests/Concurrency` is inside its scope — if the job runs `vendor/bin/pest` with no path filter, it already is, and nothing needs changing. If it filters paths, add `tests/Concurrency`.
 
 Also confirm `VOUCH_SQLITE_PATH` in that job points at a **file** and not `:memory:`; the whole contention suite skips itself otherwise, and a skipped suite reports green.
 
-- [ ] **Step 10: Record the verification in `PROJECT.md`**
+- [ ] **Step 12: Record the verification in `PROJECT.md`**
 
 Update the roadmap: mark Phase 2.2 complete, and add a cross-engine verification record in the same shape 2.1 used — exact commands, exact engine versions, and the date. Include:
 
-- the three commands from Steps 5–7, verbatim
+- the three full-suite commands from Steps 7–9, verbatim
 - `mysql:8` / `postgres:16` resolved version strings and the SQLite version
-- the Step 3 result: which contention test failed with the lock removed
+- the Step 4 result: both named contention tests, and the fact that the
+  lock-removal signature was observed on **MySQL and Postgres only**. State
+  plainly that it was not demonstrated on SQLite and why — A's `insertOrIgnore`
+  takes that engine's database-wide write lock before B runs, so the fixture
+  cannot attribute serialization to the enrollment-lock protocol there. Claiming
+  three engines when two were observed would be the vacuous control this record
+  exists to prevent.
+- the Step 5 result: SQLite observed producing `EnrollmentRefusalReason::Contended`,
+  which is the leg that exercises the `busy_timeout`, the driver-code `5` match,
+  and the `QueryException` → `EnrollmentRefused` mapping
 - the carried-forward open items: passkey (2.2b, gated on evaluating `laravel/passkeys` 0.2.x); password rehash-on-verify as a **security-maintenance limitation**, not an optimisation; typed enrollment and verification DTOs; the recovery-code verification cost of up to ten hash comparisons per attempt, mitigated by 2.3's rate limiting; `FactorFailure::BindingMismatch` as a deliberate extension beyond the spec's five cases
 
 Also note in the session-handoff section that `database-matrix` has still never run in CI — this task proves the local equivalent, which is not the same claim.
 
-- [ ] **Step 11: Final full local gate**
+- [ ] **Step 13: Final full local gate**
 
 ```bash
 composer test && composer stan && composer mutate
@@ -6269,19 +6299,25 @@ composer test && composer stan && composer mutate
 
 Expected: all three green. `composer mutate` is still scoped to `Fissible\Vouch\Kernel` and this phase changed nothing there, so the floors should be untouched — if the MSI moved, something did reach the kernel and needs investigating rather than a floor adjustment.
 
-- [ ] **Step 12: Commit**
+- [ ] **Step 14: Commit**
 
 ```bash
 git add tests/Concurrency/EnrollmentContentionTest.php .github/workflows/ci.yml PROJECT.md
 git commit -m "test: prove enrollment serialization on SQLite, MySQL 8 and Postgres 16
 
-Demonstrated failing with the lock removed before being trusted. SQLite
-reaches the same invariant by a different mechanism -- lockForUpdate is a
-no-op there and the database-level write lock does the work -- which is why
-one engine's green says nothing about the others."
+The lock-removal probe was demonstrated on MySQL and Postgres, where A holds
+a row lock on the lock row alone and nothing else B touches, so what survives
+is attributable to the enrollment-lock protocol.
+
+Not demonstrated on SQLite, deliberately: lockForUpdate is a no-op there and
+A's insertOrIgnore already holds the database-wide write lock, so removing
+the lock makes B fail busy rather than commit a second set. That failure
+would evidence the engine's global writer serialization, not the protocol.
+SQLite instead proves the leg the other two cannot -- a contended enrollment
+producing a typed Contended refusal rather than a driver error."
 ```
 
-- [ ] **Step 13: Finish the branch**
+- [ ] **Step 15: Finish the branch**
 
 Announce: "I'm using the finishing-a-development-branch skill to complete this work."
 
@@ -6295,7 +6331,7 @@ Run against the spec after the plan was complete.
 
 **Spec coverage.** Every section maps to a task: §1 dependencies → Task 1; §2 contract and value objects → Task 7, with `maxActiveCredentials` enforcement in Task 6 and `OneTimeSecret` in Task 1; §3 store-owned mutations and the three rejection rules → Task 5; §4 Amendments A/B/C/D → Tasks 2, 3, 4, 5; §5 the five drivers → Tasks 8, 9, 10; §6 testing → distributed, with the contention matrix as Task 12; §7 out-of-scope items → recorded in Task 12's `PROJECT.md` update rather than implemented; §8 decision log → reflected in code comments at each decision point.
 
-**Three gaps found and closed while reviewing.**
+**Five gaps found and closed while reviewing.**
 
 1. The spec says enrollment "upserts the `(user_id, type)` row." Verified against real engines, `upsert()` with an empty update array compiles to a plain `INSERT` and throws on the second call. The plan specifies `insertOrIgnore()` and records why in the verified-facts table. Following the spec literally would have produced a guard that fails on every enrollment after the first.
 
@@ -6303,8 +6339,16 @@ Run against the spec after the plan was complete.
 
 3. `FactorFailure` gains a sixth case, `BindingMismatch`, beyond the spec's five. Flagged in Task 7's preamble and in Task 12's carry-forward list so it reaches the reviewer as a choice.
 
+4. **The interleaved-regeneration test was sequential** — gen-a committed before gen-b began, so it passed with the enrollment lock removed entirely. Rewritten to the held-lock two-connection pattern. Seeding it would have made it vacuous for a second, subtler reason: once A disables an existing set it holds row locks that block B *regardless* of the enrollment lock, so the row locks would have been doing the work. The fixture therefore starts empty and A's disable half runs before B is invoked — the one window row locks cannot cover.
+
+5. **The lock-removal probe was scheduled on the wrong engine.** It ran on SQLite, where the stated failure signature cannot occur: A's `insertOrIgnore` takes that engine's database-wide write lock before B runs, so removing `acquire()` makes B fail busy rather than commit a second set. The test does fail, but the failure evidences SQLite's global writer serialization rather than the enrollment-lock protocol — a real failure credited to the wrong cause, which is the vacuous-control mistake inverted. The probe now runs on MySQL and Postgres, where A holds a row lock on the lock row alone; SQLite gets a separate, narrower claim (a typed `Contended` refusal, which is the leg the other two engines cannot exercise). The `PROJECT.md` record and the commit message both state two engines, not three.
+
 **Type consistency.** `EnrollmentResult` exposes `$secrets` (not `$oneTimeSecrets`) throughout. `FactorResult::satisfied()` is variadic in mutations everywhere it appears. `AttemptStore::transition()` is variadic from Task 5 onward, and Task 5 updates the two existing test files that used the old third parameter. `Verdict` is accessed as a property, `$verdict->satisfied`, verified against `src/Kernel/Satisfiability/Verdict.php`. `EnrollmentGuard::serialize()` has the same four-parameter signature in Tasks 6, 8, 9, 10 and 12.
 
 **No placeholders.** Every code step carries the actual code. Every non-vacuity probe names the specific test that must fail and the specific edit that must cause it.
 
-**One thing the plan cannot prove.** Task 10 Step 10 item 3 asks the implementer to confirm that reordering challenge-creation and delivery breaks nothing observable — because it genuinely does not, from outside. The ordering matters (a delivered code with no row to verify it against locks a user out of a factor they hold) but is not testable through the public surface, so it is a code comment and a note in the report rather than an assertion. Recorded here so the reviewer sees it was considered rather than missed.
+**Two things the plan cannot prove.**
+
+Task 12's lock-removal signature is demonstrated on two engines, not three, and the plan says so in the step, the record, and the commit message. Extending the claim to SQLite would require a different fixture that isolates the protocol from the engine's global write lock, and no such fixture is obvious — so the honest position is a narrower claim rather than a broader one resting on a failure that happens for the wrong reason.
+
+ Task 10 Step 10 item 3 asks the implementer to confirm that reordering challenge-creation and delivery breaks nothing observable — because it genuinely does not, from outside. The ordering matters (a delivered code with no row to verify it against locks a user out of a factor they hold) but is not testable through the public surface, so it is a code comment and a note in the report rather than an assertion. Recorded here so the reviewer sees it was considered rather than missed.
