@@ -37,7 +37,8 @@ These were established by running real code against real engines before this pla
 |---|---|---|
 | `upsert($rows, $uniqueBy, [])` with an **empty** update array compiles to a plain `INSERT`, not `ON CONFLICT DO NOTHING`. It throws `UniqueConstraintViolationException` on the second call. | Probed on MySQL 8 and Postgres 16. | Use **`insertOrIgnore()`** to claim the lock row. Verified idempotent on all three engines. |
 | `lockForUpdate()` on SQLite compiles to a bare `select * from ...` — it is a **no-op**. | `->toSql()` on the SQLite grammar. | SQLite serializes via its own write lock, taken by the `insertOrIgnore`. The mechanism still works, but for a different reason on that engine. Say so in the code comment. |
-| A contended lock produces a **`QueryException`** on all three engines — MySQL 1205 lock-wait timeout, Postgres 55P03, SQLite 5 `database is locked` — not a clean refusal. | Probed on all three with a 4s timeout. | `EnrollmentGuard` must catch it and map to a typed `EnrollmentRefused`, or callers get a raw driver error. |
+| A contended lock produces a **`QueryException`** on all three engines, not a clean refusal. | Probed on all three with a 2s timeout. | `EnrollmentGuard` must catch it and map to a typed `EnrollmentRefused`, or callers get a raw driver error. |
+| **SQLSTATE alone cannot identify contention.** MySQL and SQLite both report it as `HY000`, the general-error catch-all — and a missing table on SQLite is *also* `HY000`. Only Postgres gives a distinct SQLSTATE. Measured: contention is MySQL `HY000`/**1205**, Postgres **`55P03`**/7, SQLite `HY000`/**5**; a missing table is MySQL `42S02`/1146, Postgres `42P01`/7, SQLite `HY000`/**1**; an unknown column is MySQL `42S22`/1054, Postgres `42703`/7, SQLite `HY000`/**1**. | Probed all three failure modes on all three engines. | Match the **driver code** on MySQL and SQLite and the **SQLSTATE** on Postgres. A blanket `catch (QueryException)` would report a dropped table as routine contention and tell the caller to retry. |
 | After the winner commits, a retrying loser observes the committed count and refuses cleanly. | Probed on all three. | Post-condition cardinality check is sufficient and correct. |
 | SQLite accepts `ALTER TABLE` adding a `foreignId()->constrained()` column and a composite unique index; Laravel rebuilds the table, the FK **is** enforced afterwards, and `NULL != NULL` holds in the composite unique. | Probed against a file-backed SQLite database. | The four follow-up migrations are safe on all three engines. |
 | `otphp`'s `TOTP::verify($otp, $timestamp, $leeway)` returns **`bool` only** — it does not report which timestep matched. With a leeway it checks `$timestamp - $leeway`, `$timestamp`, and `$timestamp + $leeway`. | Read `TOTP.php:136-165` at tag 11.5.0. | The TOTP driver **must not** use the leeway parameter. It iterates candidate timesteps itself and calls `verify($code, $step * $period, null)`, so the matched timestep is known and can be recorded. Amendment B is unimplementable otherwise. |
@@ -2271,8 +2272,10 @@ use Fissible\Vouch\Enrollment\EnrollmentGuard;
 use Fissible\Vouch\Enrollment\EnrollmentRefusalReason;
 use Fissible\Vouch\Enrollment\EnrollmentRefused;
 use Fissible\Vouch\Models\AuthCredential;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 uses(RefreshDatabase::class);
 
@@ -2370,6 +2373,20 @@ it('rolls the write back when the post-condition refuses', function (): void {
 
     expect(AuthCredential::where('user_id', 7)->count())->toBe(0);
 });
+
+it('does not disguise an unrelated database error as contention', function (): void {
+    /*
+     * A blanket QueryException -> Contended mapping would report a missing
+     * table, a rejected session setting, or any future query defect as ordinary
+     * enrollment contention. EnrollmentRefused::contended() tells the caller the
+     * operation is safe to retry, which is exactly the wrong advice for a schema
+     * problem — and on SQLite both failures carry the same SQLSTATE (HY000), so
+     * nothing but the driver code separates them.
+     */
+    Schema::drop('auth_enrollment_locks');
+
+    guard()->serialize(7, 'password', 1, fn (): bool => true);
+})->throws(QueryException::class);
 
 it('serializes per user and type rather than globally', function (): void {
     // Two users enrolling passwords must not contend with each other, and one
@@ -2577,14 +2594,56 @@ final class EnrollmentGuard
                 ->first();
         } catch (QueryException $exception) {
             /*
-             * The only statements in this block touch a two-column table by its
-             * unique key, so a QueryException here is a lock-wait timeout or a
-             * busy database rather than a malformed query. Mapping it to a typed
-             * refusal is what stops "somebody else is enrolling" from reaching a
-             * caller as a database error.
+             * ONLY verified lock/busy codes map to a refusal. A blanket
+             * catch would report a dropped table, a rejected session setting, or
+             * any future query defect as ordinary contention — and
+             * EnrollmentRefused::contended() tells the caller it is "safe to
+             * retry", which is precisely the wrong advice for a schema problem.
+             * Everything else rethrows unchanged.
              */
+            if (! $this->isLockContention($exception)) {
+                throw $exception;
+            }
+
             throw EnrollmentRefused::contended($type, $exception);
         }
+    }
+
+    /**
+     * Is this exception a lock-wait timeout or a busy database?
+     *
+     * SQLSTATE alone cannot answer this. MySQL and SQLite both report contention
+     * as HY000 — the general-error catch-all — and on SQLite a missing table is
+     * ALSO HY000. So the driver-specific code is the discriminator on those two,
+     * and the SQLSTATE is the discriminator on Postgres, which is the only engine
+     * that gives contention its own.
+     *
+     * Measured against MySQL 8, Postgres 16 and SQLite:
+     *
+     *   contention     mysql HY000/1205   pgsql 55P03/7   sqlite HY000/5
+     *   missing table  mysql 42S02/1146   pgsql 42P01/7   sqlite HY000/1
+     *   bad column     mysql 42S22/1054   pgsql 42703/7   sqlite HY000/1
+     *
+     * Deadlock siblings — MySQL 1213, Postgres 40P01/40001, SQLite 6
+     * (SQLITE_LOCKED) — are deliberately NOT matched. They are plausibly
+     * retryable too, but they were not observed in the probe, and widening an
+     * error mask on reasoning rather than measurement is the mistake this method
+     * exists to correct. A deadlock therefore surfaces as a QueryException,
+     * which is honest.
+     *
+     * An unrecognised driver returns false, so an unknown engine fails loudly
+     * rather than silently classifying every error as contention.
+     */
+    private function isLockContention(QueryException $exception): bool
+    {
+        $driverCode = $exception->errorInfo[1] ?? null;
+
+        return match ($this->connection->getDriverName()) {
+            'mysql' => $driverCode === 1205,
+            'pgsql' => $exception->getCode() === '55P03',
+            'sqlite' => $driverCode === 5,
+            default => false,
+        };
     }
 
     /**
@@ -2619,7 +2678,7 @@ final class EnrollmentGuard
 - [ ] **Step 7: Run the tests and watch them pass**
 
 Run: `vendor/bin/pest tests/Database/EnrollmentGuardTest.php`
-Expected: PASS, 8 tests.
+Expected: PASS, 9 tests.
 
 - [ ] **Step 8: Prove the post-condition is load-bearing**
 
@@ -2627,7 +2686,12 @@ Expected: PASS, 8 tests.
 cp src/Enrollment/EnrollmentGuard.php /tmp/eg.bak
 ```
 
-Change `if ($active > $maxActive)` to `if ($active > $maxActive + 1)`. The capacity and rollback tests must FAIL. Restore:
+Two probes.
+
+1. Change `if ($active > $maxActive)` to `if ($active > $maxActive + 1)`. The capacity and rollback tests must FAIL.
+2. Change `isLockContention()` to `return true;`. The "does not disguise an unrelated database error as contention" test must FAIL — it will see an `EnrollmentRefused` where a `QueryException` belongs. If it stays green, the classification is not being exercised and a dropped table would reach callers labelled "safe to retry."
+
+Restore:
 
 ```bash
 cp /tmp/eg.bak src/Enrollment/EnrollmentGuard.php
@@ -5993,13 +6057,36 @@ it('bounds the wait rather than hanging the caller', function (): void {
     expect(microtime(true) - $started)->toBeLessThan(10.0);
 });
 
-it('never leaves a mixed recovery-code set under interleaved regeneration', function (): void {
+it('never leaves two recovery-code generations live under interleaved regeneration', function (): void {
     /*
-     * The dangerous case. Regeneration disables all ten then creates ten; two
-     * interleaved regenerations could otherwise leave twenty active, or a set
-     * mixing old and new codes -- breaking the promise that regenerating
-     * invalidates every prior code, while reporting success.
+     * The dangerous case, and the one that needs the most care to test honestly.
+     *
+     * An earlier draft ran the two regenerations SEQUENTIALLY and asserted on the
+     * result. That cannot detect the race it describes: gen-a fully commits
+     * before gen-b starts, so the test passes with the enrollment lock removed
+     * entirely. It measured nothing.
+     *
+     * It also matters WHERE A's disable half sits. Once A has disabled an
+     * existing set, it holds InnoDB row locks on those rows, and B blocks on
+     * THOSE regardless of the enrollment lock -- so a seeded fixture would again
+     * pass without the lock. The window the enrollment lock uniquely covers is
+     * the one with no pre-existing rows: A's disable affects zero rows, takes no
+     * row locks, and nothing but the lock row stands between two writers each
+     * inserting a full set. That is the same first-enrollment hole spec §2
+     * describes for SELECT ... FOR UPDATE, arriving through regeneration.
+     *
+     * So: no seed, and A's disable runs BEFORE B is invoked. With the lock, B is
+     * refused and exactly one generation survives. Without it, B commits ten
+     * gen-b rows that A's already-executed disable can no longer catch, A adds
+     * ten gen-a rows, and the assertions fail on all three counts -- twenty
+     * active, two generations, and no refusal.
      */
+    $disableActive = static function (string $connection): void {
+        DB::connection($connection)->table('auth_credentials')
+            ->where('user_id', 7)->where('type', 'recovery_code')->whereNull('disabled_at')
+            ->update(['disabled_at' => now()]);
+    };
+
     $seed = static function (string $connection, string $generation): void {
         $rows = [];
 
@@ -6017,22 +6104,37 @@ it('never leaves a mixed recovery-code set under interleaved regeneration', func
         DB::connection($connection)->table('auth_credentials')->insert($rows);
     };
 
-    $regenerate = static function (string $connection, string $generation) use ($seed): void {
-        guardOn($connection)->serialize(7, 'recovery_code', 10, static function () use ($connection, $generation, $seed): void {
-            DB::connection($connection)->table('auth_credentials')
-                ->where('user_id', 7)->where('type', 'recovery_code')->whereNull('disabled_at')
-                ->update(['disabled_at' => now()]);
+    $a = DB::connection('enroll_a');
+    $refusal = null;
 
-            $seed($connection, $generation);
-        });
-    };
-
-    $regenerate('enroll_a', 'gen-a');
+    $a->beginTransaction();
 
     try {
-        $regenerate('enroll_b', 'gen-b');
-    } catch (EnrollmentRefused) {
-        // A refusal is an acceptable outcome; a mixed set is not.
+        // A claims and holds the lock for this subject.
+        $a->table('auth_enrollment_locks')->insertOrIgnore([['user_id' => 7, 'type' => 'recovery_code']]);
+        $a->table('auth_enrollment_locks')->where('user_id', 7)->where('type', 'recovery_code')
+            ->lockForUpdate()->first();
+
+        // A's disable half, before B is invoked. Zero rows, so zero row locks.
+        $disableActive('enroll_a');
+
+        // B attempts a complete regeneration through the REAL guard.
+        try {
+            guardOn('enroll_b')->serialize(7, 'recovery_code', 10, static function () use ($disableActive, $seed): void {
+                $disableActive('enroll_b');
+                $seed('enroll_b', 'gen-b');
+            });
+        } catch (EnrollmentRefused $e) {
+            $refusal = $e;
+        }
+
+        // A's create half completes after B's attempt, then A releases.
+        $seed('enroll_a', 'gen-a');
+        $a->commit();
+    } catch (\Throwable $e) {
+        $a->rollBack();
+
+        throw $e;
     }
 
     $active = AuthCredential::where('user_id', 7)
@@ -6041,14 +6143,16 @@ it('never leaves a mixed recovery-code set under interleaved regeneration', func
         ->pluck('secret')
         ->all();
 
-    $generations = array_unique(array_map(
+    $generations = array_values(array_unique(array_map(
         static fn (string $secret): string => substr($secret, 0, 5),
         $active,
-    ));
+    )));
 
-    expect($active)->toHaveCount(10)
-        ->and($generations)->toHaveCount(1);
+    expect($refusal)->toBeInstanceOf(EnrollmentRefused::class)
+        ->and($active)->toHaveCount(10)
+        ->and($generations)->toBe(['gen-a']);
 });
+
 ```
 
 - [ ] **Step 2: Run it on file-backed SQLite**
@@ -6069,7 +6173,12 @@ cp src/Enrollment/EnrollmentGuard.php /tmp/eg2.bak
 
 Comment out the two statements inside `acquire()`'s `try` block, leaving the method a no-op. Re-run Step 2.
 
-Expected: **at least one contention test FAILS.** If the whole file still passes with no locking at all, the tests are not exercising serialization and are worthless — fix them before proceeding. This is the single most important non-vacuity check in the plan, because the spec explicitly says the mechanism is unsettled until demonstrated.
+Expected: **both the password test and the recovery-generation test FAIL**, and specifically:
+
+- `lets exactly one of two interleaved password enrollments win` — two active password credentials instead of one, and `$refusal` null.
+- `never leaves two recovery-code generations live under interleaved regeneration` — twenty active credentials across two generations, and `$refusal` null.
+
+If either still passes with no locking at all, it is not exercising serialization and must be fixed before proceeding. This is the single most important non-vacuity check in the plan: the spec says outright that the mechanism is unsettled until demonstrated, and a green contention suite over a no-op lock would be the most expensive vacuous control this project has produced.
 
 Restore:
 
