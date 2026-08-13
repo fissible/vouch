@@ -81,4 +81,16 @@ return [
          */
         'window' => (int) env('VOUCH_TOTP_WINDOW', 1),
     ],
+
+    'otp' => [
+        /*
+         * Digits per code. Generated with random_int(), a CSPRNG — rand() and
+         * mt_rand() are predictable from observed output and must never appear
+         * on this path.
+         */
+        'length' => (int) env('VOUCH_OTP_LENGTH', 6),
+
+        // Short by design: a six-digit code is only 20 bits.
+        'ttl_seconds' => (int) env('VOUCH_OTP_TTL', 120),
+    ],
 ];

@@ -70,6 +70,24 @@ final class VouchServiceProvider extends ServiceProvider
                 config()->integer('vouch.totp.window'),
             ),
         );
+
+        $this->app->bind(
+            \Fissible\Vouch\Contracts\OtpDelivery::class,
+            \Fissible\Vouch\Notifications\UnconfiguredOtpDelivery::class,
+        );
+
+        foreach ([
+            \Fissible\Vouch\Factors\Drivers\EmailOtpFactor::class,
+            \Fissible\Vouch\Factors\Drivers\SmsOtpFactor::class,
+        ] as $driver) {
+            $this->app->singleton($driver, fn ($app) => new $driver(
+                $app->make(\Fissible\Vouch\Enrollment\EnrollmentGuard::class),
+                $app->make(\Psr\Clock\ClockInterface::class),
+                $app->make(\Fissible\Vouch\Contracts\OtpDelivery::class),
+                config()->integer('vouch.otp.length'),
+                config()->integer('vouch.otp.ttl_seconds'),
+            ));
+        }
     }
 
     public function boot(): void
