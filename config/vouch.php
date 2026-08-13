@@ -39,4 +39,14 @@ return [
          */
         'require_credential' => ['email_otp', 'sms_otp'],
     ],
+
+    'enrollment' => [
+        /*
+         * How long a contended enrollment waits for the (user_id, type) lock
+         * before refusing. Bounded on purpose: the engine defaults are wildly
+         * inconsistent — MySQL waits 50s, Postgres waits forever, SQLite fails
+         * immediately — and an unbounded wait hangs a request thread.
+         */
+        'lock_wait_seconds' => (int) env('VOUCH_ENROLLMENT_LOCK_WAIT', 5),
+    ],
 ];

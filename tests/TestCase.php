@@ -50,6 +50,10 @@ abstract class TestCase extends Orchestra
                 'database' => getenv('VOUCH_SQLITE_PATH') ?: ':memory:',
                 'prefix' => '',
                 'foreign_key_constraints' => true,
+                // Contention tests need a writer to WAIT for the lock rather
+                // than fail instantly. SQLite's default busy timeout is 0.
+                'busy_timeout' => 5000,
+                'journal_mode' => 'wal',
             ]),
             'mysql' => $app['config']->set('database.connections.mysql', [
                 'driver' => 'mysql',
