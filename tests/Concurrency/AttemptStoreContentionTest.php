@@ -10,6 +10,7 @@ use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Models\AuthChallenge;
 use Fissible\Vouch\Models\AuthConnection;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 
 /*
@@ -28,12 +29,11 @@ uses(DatabaseMigrations::class);
 beforeEach(function (): void {
     // Register the two contending connections up front so every test — not
     // only those going through storeOn() — can use them.
+    $default = Config::string('database.default');
+    $settings = Config::array('database.connections.' . $default);
+
     foreach (['race_a', 'race_b'] as $name) {
-        config([
-            'database.connections.' . $name => config(
-                'database.connections.' . config('database.default'),
-            ),
-        ]);
+        config(['database.connections.' . $name => $settings]);
     }
 
     if ((getenv('VOUCH_TEST_DB') ?: 'sqlite') === 'sqlite'
