@@ -84,6 +84,14 @@ final class VouchServiceProvider extends ServiceProvider
             ),
         );
 
+        $this->app->singleton(
+            \Fissible\Vouch\Sessions\SessionLifecycle::class,
+            fn ($app): \Fissible\Vouch\Sessions\SessionLifecycle => new \Fissible\Vouch\Sessions\SessionLifecycle(
+                $app->make(\Illuminate\Contracts\Session\Session::class),
+                $app->make(\Psr\Clock\ClockInterface::class),
+            ),
+        );
+
         $this->registerFactorDrivers();
 
         /*

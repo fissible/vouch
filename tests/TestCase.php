@@ -37,6 +37,15 @@ abstract class TestCase extends Orchestra
         $app['config']->set('app.timezone', 'UTC');
 
         /*
+         * The array driver, not Testbench's default cookie driver.
+         * CookieSessionHandler reads from a bound Request, which does not exist
+         * in a unit test, so SessionLifecycle's regenerate() dies with
+         * "Attempt to read property cookies on null" before reaching anything
+         * under test. The array driver exercises the same Session contract.
+         */
+        $app['config']->set('session.driver', 'array');
+
+        /*
          * A fixed key, so encrypted casts behave reproducibly across runs.
          * Required by AuthCredential::$secret, AuthConnection::$client_secret,
          * and SessionBinding's HMAC — all of which fail loudly without it,
