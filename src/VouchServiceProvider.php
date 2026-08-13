@@ -182,6 +182,28 @@ final class VouchServiceProvider extends ServiceProvider
     {
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
 
+        $router = $this->app->make(\Illuminate\Routing\Router::class);
+        $router->aliasMiddleware('vouch.session', \Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class);
+        $router->pushMiddlewareToGroup('web', \Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class);
+
+        /*
+         * A runtime check is authoritative only on requests that actually
+         * traverse it. Vouch controls its own code path, but not the host's
+         * routes — so the middleware's PRESENCE is asserted at boot, and its
+         * absence is a hard failure rather than a silently unguarded app.
+         */
+        if (! in_array(
+            \Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class,
+            $router->getMiddlewareGroups()['web'] ?? [],
+            true,
+        )) {
+            throw new \RuntimeException(
+                'Vouch requires ValidatesVouchSession in the "web" middleware group. Without '
+                . 'it, revoking a session sets a column nobody reads and the revoked session '
+                . 'keeps working.',
+            );
+        }
+
         if ($this->app->runningInConsole()) {
             $this->publishes([
                 __DIR__ . '/../config/vouch.php' => $this->app->configPath('vouch.php'),
