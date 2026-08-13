@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch;
 
+use Fissible\Vouch\Attempts\DatabaseAttemptStore;
+use Fissible\Vouch\Contracts\AttemptStore;
 use Fissible\Vouch\Contracts\TenantResolver;
+use Fissible\Vouch\Kernel\Attempt\TransitionRules;
 use Fissible\Vouch\Tenancy\NullTenantResolver;
 use Illuminate\Support\ServiceProvider;
 
@@ -15,6 +18,14 @@ final class VouchServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__ . '/../config/vouch.php', 'vouch');
 
         $this->app->bind(TenantResolver::class, NullTenantResolver::class);
+
+        $this->app->singleton(
+            AttemptStore::class,
+            fn ($app): DatabaseAttemptStore => new DatabaseAttemptStore(
+                $app['db']->connection(),
+                new TransitionRules(),
+            ),
+        );
 
         /*
          * AuditSink is deliberately left unbound. Its drivers ship in Phase 2.4;
