@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Http;
 
+use Fissible\Vouch\Flow\Authenticated;
 use Fissible\Vouch\Flow\AuthFlow;
 use Fissible\Vouch\Flow\FlowRequest;
 use Fissible\Vouch\Sessions\BindingDomain;
@@ -29,7 +30,6 @@ final readonly class AuthController
         private AuthFlow $flow,
         private FlowResultHandler $handler,
         private FlowResultSerializer $serializer,
-        private IntendedDestination $destination,
     ) {}
 
     public function __invoke(Request $request): JsonResponse
@@ -47,6 +47,26 @@ final readonly class AuthController
             clientUserAgent: $request->userAgent(),
         )));
 
-        return new JsonResponse($this->serializer->toArray($result, $this->destination->consume()));
+        /*
+         * Built from the REQUEST's session, matching RequireAssurance. A
+         * container-resolved one is the same object in production, but relying
+         * on that means the producer and the consumer are only assumed to share
+         * a session -- and if they ever do not, the target is silently dropped
+         * rather than reported.
+         *
+         * Consumed ONLY on the authenticated result, and exactly once.
+         *
+         * Consuming on every request would clear the target during the
+         * intermediate begin and identify steps, so a user refused from a
+         * protected page would silently land on the default instead of where
+         * they were going -- and nothing would report it. Surviving consumption
+         * is the opposite failure: a stored target replayed by a later step-up.
+         */
+        $returnTo = $result instanceof Authenticated
+            ? (new IntendedDestination($request->session()))->consume()
+                ?? config()->string('vouch.step_up.default_return')
+            : null;
+
+        return new JsonResponse($this->serializer->toArray($result, $returnTo));
     }
 }
