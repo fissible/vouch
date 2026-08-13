@@ -7,10 +7,22 @@ namespace Fissible\Vouch;
 use Fissible\Vouch\Attempts\DatabaseAttemptStore;
 use Fissible\Vouch\Contracts\AttemptStore;
 use Fissible\Vouch\Console\VouchPruneCommand;
+use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Contracts\TenantResolver;
+use Fissible\Vouch\Enrollment\EnrollmentGuard;
+use Fissible\Vouch\Factors\Drivers\EmailOtpFactor;
+use Fissible\Vouch\Factors\Drivers\PasswordFactor;
+use Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor;
+use Fissible\Vouch\Factors\Drivers\SmsOtpFactor;
+use Fissible\Vouch\Factors\Drivers\TotpFactor;
+use Fissible\Vouch\Factors\FactorRegistry;
 use Fissible\Vouch\Kernel\Attempt\TransitionRules;
+use Fissible\Vouch\Kernel\Factor\FactorStrength;
+use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
+use Fissible\Vouch\Support\SystemClock;
 use Fissible\Vouch\Tenancy\NullTenantResolver;
 use Illuminate\Support\ServiceProvider;
+use Psr\Clock\ClockInterface;
 
 final class VouchServiceProvider extends ServiceProvider
 {
@@ -20,6 +32,15 @@ final class VouchServiceProvider extends ServiceProvider
 
         $this->app->bind(TenantResolver::class, NullTenantResolver::class);
 
+        $this->app->singleton(ClockInterface::class, SystemClock::class);
+
+        /*
+         * Unconfigured by default, and it THROWS. A no-op would turn "OTP is not
+         * wired up" into "codes silently never arrive", and a log-writing default
+         * would put a live authentication code into the one file everybody greps.
+         */
+        $this->app->bind(OtpDelivery::class, UnconfiguredOtpDelivery::class);
+
         $this->app->singleton(
             AttemptStore::class,
             fn ($app): DatabaseAttemptStore => new DatabaseAttemptStore(
@@ -28,15 +49,9 @@ final class VouchServiceProvider extends ServiceProvider
             ),
         );
 
-        /*
-         * AuditSink is deliberately left unbound. Its drivers ship in Phase 2.4;
-         * a host resolving it before then should get a clear container error
-         * rather than a silent no-op that discards audit events.
-         */
-
         $this->app->singleton(
-            \Fissible\Vouch\Enrollment\EnrollmentGuard::class,
-            fn ($app): \Fissible\Vouch\Enrollment\EnrollmentGuard => new \Fissible\Vouch\Enrollment\EnrollmentGuard(
+            EnrollmentGuard::class,
+            fn ($app): EnrollmentGuard => new EnrollmentGuard(
                 $app['db']->connection(),
                 // config()->integer(), not (int) config(): the latter casts
                 // mixed, which PHPStan level 9 refuses to trust as safe.
@@ -44,26 +59,36 @@ final class VouchServiceProvider extends ServiceProvider
             ),
         );
 
-        $this->app->singleton(
-            \Psr\Clock\ClockInterface::class,
-            \Fissible\Vouch\Support\SystemClock::class,
-        );
+        $this->registerFactorDrivers();
 
+        /*
+         * AuditSink is deliberately left unbound. Its drivers ship in Phase 2.4;
+         * a host resolving it before then should get a clear container error
+         * rather than a silent no-op that discards audit events.
+         */
+    }
+
+    /**
+     * The five drivers of Phase 2.2, plus the registry that resolves them.
+     *
+     * Passkey is absent on purpose — sub-project 2.2b, gated on evaluating
+     * laravel/passkeys, which is pre-1.0.
+     */
+    private function registerFactorDrivers(): void
+    {
         $this->app->singleton(
-            \Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor::class,
-            fn ($app): \Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor => new \Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor(
-                $app->make(\Fissible\Vouch\Enrollment\EnrollmentGuard::class),
-                $app->make(\Psr\Clock\ClockInterface::class),
-                config()->integer('vouch.recovery.count'),
-                config()->integer('vouch.recovery.length'),
+            PasswordFactor::class,
+            fn ($app): PasswordFactor => new PasswordFactor(
+                $app->make(EnrollmentGuard::class),
+                $app->make(ClockInterface::class),
             ),
         );
 
         $this->app->singleton(
-            \Fissible\Vouch\Factors\Drivers\TotpFactor::class,
-            fn ($app): \Fissible\Vouch\Factors\Drivers\TotpFactor => new \Fissible\Vouch\Factors\Drivers\TotpFactor(
-                $app->make(\Fissible\Vouch\Enrollment\EnrollmentGuard::class),
-                $app->make(\Psr\Clock\ClockInterface::class),
+            TotpFactor::class,
+            fn ($app): TotpFactor => new TotpFactor(
+                $app->make(EnrollmentGuard::class),
+                $app->make(ClockInterface::class),
                 config()->string('vouch.totp.issuer'),
                 config()->integer('vouch.totp.period'),
                 config()->integer('vouch.totp.digits'),
@@ -71,23 +96,53 @@ final class VouchServiceProvider extends ServiceProvider
             ),
         );
 
-        $this->app->bind(
-            \Fissible\Vouch\Contracts\OtpDelivery::class,
-            \Fissible\Vouch\Notifications\UnconfiguredOtpDelivery::class,
+        $this->app->singleton(
+            RecoveryCodeFactor::class,
+            fn ($app): RecoveryCodeFactor => new RecoveryCodeFactor(
+                $app->make(EnrollmentGuard::class),
+                $app->make(ClockInterface::class),
+                config()->integer('vouch.recovery.count'),
+                config()->integer('vouch.recovery.length'),
+            ),
         );
 
-        foreach ([
-            \Fissible\Vouch\Factors\Drivers\EmailOtpFactor::class,
-            \Fissible\Vouch\Factors\Drivers\SmsOtpFactor::class,
-        ] as $driver) {
-            $this->app->singleton($driver, fn ($app) => new $driver(
-                $app->make(\Fissible\Vouch\Enrollment\EnrollmentGuard::class),
-                $app->make(\Psr\Clock\ClockInterface::class),
-                $app->make(\Fissible\Vouch\Contracts\OtpDelivery::class),
+        $this->app->singleton(
+            EmailOtpFactor::class,
+            fn ($app): EmailOtpFactor => new EmailOtpFactor(
+                $app->make(EnrollmentGuard::class),
+                $app->make(ClockInterface::class),
+                $app->make(OtpDelivery::class),
                 config()->integer('vouch.otp.length'),
                 config()->integer('vouch.otp.ttl_seconds'),
-            ));
-        }
+            ),
+        );
+
+        $this->app->singleton(
+            SmsOtpFactor::class,
+            fn ($app): SmsOtpFactor => new SmsOtpFactor(
+                $app->make(EnrollmentGuard::class),
+                $app->make(ClockInterface::class),
+                $app->make(OtpDelivery::class),
+                config()->integer('vouch.otp.length'),
+                config()->integer('vouch.otp.ttl_seconds'),
+            ),
+        );
+
+        $this->app->singleton(FactorRegistry::class, function ($app): FactorRegistry {
+            $registry = new FactorRegistry();
+
+            foreach ([
+                PasswordFactor::class,
+                TotpFactor::class,
+                EmailOtpFactor::class,
+                SmsOtpFactor::class,
+                RecoveryCodeFactor::class,
+            ] as $driver) {
+                $registry->register($app->make($driver));
+            }
+
+            return $registry;
+        });
     }
 
     public function boot(): void
