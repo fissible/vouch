@@ -49,4 +49,17 @@ return [
          */
         'lock_wait_seconds' => (int) env('VOUCH_ENROLLMENT_LOCK_WAIT', 5),
     ],
+
+    'recovery' => [
+        // Regeneration replaces the whole set, so this is the size of a set.
+        'count' => (int) env('VOUCH_RECOVERY_CODE_COUNT', 10),
+
+        /*
+         * Characters per code, drawn from a 32-symbol alphabet, so 10 characters
+         * is 50 bits of entropy. Codes are generated with random_int(), a CSPRNG;
+         * rand() and mt_rand() are predictable from observed output and must
+         * never appear on this path.
+         */
+        'length' => (int) env('VOUCH_RECOVERY_CODE_LENGTH', 10),
+    ],
 ];

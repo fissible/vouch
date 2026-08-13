@@ -33,6 +33,31 @@ final class VouchServiceProvider extends ServiceProvider
          * a host resolving it before then should get a clear container error
          * rather than a silent no-op that discards audit events.
          */
+
+        $this->app->singleton(
+            \Fissible\Vouch\Enrollment\EnrollmentGuard::class,
+            fn ($app): \Fissible\Vouch\Enrollment\EnrollmentGuard => new \Fissible\Vouch\Enrollment\EnrollmentGuard(
+                $app['db']->connection(),
+                // config()->integer(), not (int) config(): the latter casts
+                // mixed, which PHPStan level 9 refuses to trust as safe.
+                config()->integer('vouch.enrollment.lock_wait_seconds'),
+            ),
+        );
+
+        $this->app->singleton(
+            \Psr\Clock\ClockInterface::class,
+            \Fissible\Vouch\Support\SystemClock::class,
+        );
+
+        $this->app->singleton(
+            \Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor::class,
+            fn ($app): \Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor => new \Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor(
+                $app->make(\Fissible\Vouch\Enrollment\EnrollmentGuard::class),
+                $app->make(\Psr\Clock\ClockInterface::class),
+                config()->integer('vouch.recovery.count'),
+                config()->integer('vouch.recovery.length'),
+            ),
+        );
     }
 
     public function boot(): void
