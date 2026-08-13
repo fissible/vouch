@@ -237,9 +237,9 @@ Run locally before 2.2 was marked complete. Every leg is the **full** suite, not
 
 | Engine | Version | Result |
 |---|---|---|
-| MySQL | 8.4.11 (`mysql:8`) | 335 passed, 737 assertions |
-| PostgreSQL | 16.14 (`postgres:16`) | 335 passed, 737 assertions |
-| SQLite | 3.53.4, **file-backed** | 335 passed, 737 assertions |
+| MySQL | 8.4.11 (`mysql:8`) | 351 passed, 761 assertions |
+| PostgreSQL | 16.14 (`postgres:16`) | 351 passed, 761 assertions |
+| SQLite | 3.53.4, **file-backed** | 351 passed, 761 assertions |
 
 PHP 8.4.24. Commands, verbatim:
 
@@ -294,6 +294,38 @@ mapping. Verified passing.
    `PDOException: SAVEPOINT trans2 does not exist` instead of the expected
    `QueryException`. Passed on SQLite and Postgres, which support transactional DDL. Moved
    to `tests/Database/EnrollmentGuardErrorsTest.php` under `DatabaseMigrations`.
+
+### Security fixes from the final whole-branch review
+
+Three defects that twelve scoped reviews each saw only a slice of, all fixed in `991d3a4`:
+
+1. **An empty submitted code verified successfully.** `(int) ''` is `0`, so a set-but-empty
+   `VOUCH_OTP_LENGTH=` — which deploy tooling emits routinely — made `generateCode()`
+   return `''`, stored as `Hash::make('')`; and `password_verify('', hash_of(''))` is
+   `true`. Recovery was contained by `FactorStrength::Recovery` being filtered out of
+   satisfiability, but **OTP was not** and would have satisfied a `PossessionWeak`
+   requirement. Fixed with constructor guards on `RecoveryCodeFactor` and `OtpFactor` plus
+   empty-secret rejection in all five drivers — in recovery's case *after* normalisation,
+   so a submission of only spaces and hyphens is caught too.
+2. **Revoking an OTP credential did not invalidate its outstanding challenge.** The other
+   three drivers filter `disabled_at` at verify time; `OtpFactor::verify()` read only the
+   challenge row, and `GuardsChallengeTarget` hooks `creating`. A revoked credential's live
+   code kept working for the rest of its TTL — a security action that silently did nothing.
+3. **`challenge()` did not validate a caller-supplied credential's type**, so an
+   email-specific policy was satisfiable by an SMS credential.
+
+**A calibration point about the mutation figures.** `composer mutate` is scoped to
+`--class="Fissible\Vouch\Kernel"`, and the kernel is untouched by this phase. The 86.67% /
+97.47% scores are evidence that the kernel still works and say **nothing** about the five
+drivers, the store amendments, or the enrollment guard — all of which sit outside the
+mutation gate entirely. Widening that scope to Phase 2 code is a candidate for 2.3.
+
+**Nine assertions that could not fail were found and fixed across this phase**, most of
+them originating in the plan rather than in an implementation. The last was caught during
+the final fix wave itself: `ChallengeTargetViolation extends InvalidArgumentException`, so
+the obvious form of the revoked-credential test would have passed with the driver guard
+deleted, because the model-layer guard throws a subclass. Treat a green suite here as weak
+evidence until the control has been shown failing.
 
 **Still true: `database-matrix` has never run in CI.** This record is the local
 equivalent, which is not the same claim. The job now also covers `tests/Factors`.
