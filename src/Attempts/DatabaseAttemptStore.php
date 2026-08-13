@@ -55,6 +55,11 @@ final class DatabaseAttemptStore implements AttemptStore
         // the transaction opens.
         $this->assertNoConflictingTargets($mutations);
 
+        // Likewise pure: a ConsumeChallenge naming a different attempt than the
+        // one being advanced is a programming error, not a race, and must never
+        // reach a write.
+        $this->assertMutationsTargetThisAttempt($attempt, $mutations);
+
         /*
          * Refusals are signalled by throwing, not by calling rollBack() inside
          * the closure. Laravel's transaction() owns the transaction lifecycle:
@@ -106,6 +111,20 @@ final class DatabaseAttemptStore implements AttemptStore
             }
 
             $seen[$target] = true;
+        }
+    }
+
+    /**
+     * @param list<SingleUseMutation> $mutations
+     *
+     * @throws MisdirectedMutation
+     */
+    private function assertMutationsTargetThisAttempt(AuthAttempt $attempt, array $mutations): void
+    {
+        foreach ($mutations as $mutation) {
+            if ($mutation instanceof ConsumeChallenge && $mutation->attemptId !== $attempt->id) {
+                throw MisdirectedMutation::forChallenge($mutation, $attempt->id);
+            }
         }
     }
 
