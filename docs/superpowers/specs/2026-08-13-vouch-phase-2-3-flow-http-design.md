@@ -334,6 +334,30 @@ the dependence on middleware placement that this containment model exists to avo
 
 The host guard is never invoked at any point in the table above.
 
+### Expiry is decided by the database clock, in the predicate
+
+Grace must never be resolved by loading a row and comparing `recovery_grace_expires_at` to
+PHP's `now()`. That recreates exactly the application/database-clock seam documented on
+`DatabaseAttemptStore::now()` — the one that silently invalidated the TOTP tests, where a
+frozen application clock disagreed with `CURRENT_TIMESTAMP` and changed what counted as
+expired.
+
+- **Active-grace resolution** carries `recovery_grace_expires_at > CURRENT_TIMESTAMP` in the
+  query itself. A row that does not come back live is not live.
+- **Natural-expiry revocation** uses the same database-time predicate together with
+  `revoked_at IS NULL`, in one guarded update.
+- **Completion re-checks active, unrevoked and unexpired status at its mutation boundary**,
+  not only at request entry. A row that was live when the request arrived can expire before
+  the mutation lands; an entry-only check is a time-of-check/time-of-use window, and grace
+  completion is the mutation that hands over an authenticated session.
+
+**One asymmetry, stated rather than hidden.** `recovery_grace_expires_at` is *written* from
+the application clock at grace creation while it is *evaluated* against the database clock,
+so skew shifts the effective window rather than the nominal fifteen minutes. This is the
+same seam `OtpFactor` carries for `expires_at`. Writing it database-side would close it but
+needs per-driver SQL — MySQL, Postgres and SQLite express interval arithmetic differently —
+so the plan evaluates that deliberately rather than assuming it.
+
 **Expired or revoked grace is rejected and the host session destroyed — but the revocation
 reason is never overwritten.**
 
@@ -460,6 +484,12 @@ Beyond per-unit coverage, the suite must pin:
   for the whole exchange.
 - **An active grace session cannot reach a protected host route.**
 - **Expired grace destroys the host session** and marks an unrevoked row `grace_expired`.
+- **Expiry follows the database clock, not the application clock.** Skew or freeze the
+  application clock away from the database's and prove the expiry decision is unchanged.
+  Without this the predicate could quietly be rewritten as a PHP comparison and every other
+  grace test would stay green.
+- **Completion refuses a grace row that expires between request entry and the mutation**,
+  proving the re-check at the mutation boundary rather than only at entry.
 - **A row already revoked keeps its original reason.** Expire a session that was previously
   `admin_revoked` and assert the reason is still `admin_revoked` — the session is destroyed
   and grace routes refuse either way, so only the audit record distinguishes the two paths,
@@ -533,6 +563,7 @@ matrix.
 | Session check middleware | Mandatory, appended to `web`, boot fails if absent | A runtime check is authoritative only on requests that traverse it. |
 | `bound_context` value | Keyed HMAC under a **required** domain enum, distinct from `session_binding`; raw ID never persisted or returned | A host session ID is a live bearer credential; storing one turns any database read into session hijacking. Shared derivation would make an escaped `bound_context` a valid `auth_sessions` key. Amends 2.1's `SessionBinding`. |
 | Non-grace host routes during grace | Proceed as anonymous | A grace session is an anonymous session carrying a server-side capability. Blocking every route would reintroduce dependence on middleware placement, in reverse. |
+| Grace expiry evaluation | Database-clock predicate in the query; re-checked at completion's mutation boundary | Loading and comparing in PHP recreates the clock seam that invalidated the TOTP tests. An entry-only check leaves a TOCTOU window on the mutation that hands over a session. |
 | Expired grace | Rejected, host session destroyed; `grace_expired` written only under a `revoked_at IS NULL` guard | A prior `admin_revoked` must survive. Overwriting it would make the system itself file a false audit entry, recording a deliberate revocation as ordinary lapse. |
 | Grace containment | Host guard never invoked; anonymous session retained as bound context | A stolen recovery code becomes a constrained capability, not an application session. |
 | Grace completion | Requires fresh non-recovery evidence | Possession of a credential is not proof of control of it — the 2.1 bypass. |
