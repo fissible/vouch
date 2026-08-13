@@ -29,6 +29,44 @@ abstract class TestCase extends Orchestra
      *
      * @param  Application  $app
      */
+    /**
+     * Pin one session across every request in a test.
+     *
+     * Laravel's test client does NOT carry response cookies between calls, so
+     * each request would otherwise get a fresh session — and vouch binds an
+     * attempt to its session, so step two of any flow dies on a context
+     * mismatch.
+     *
+     * That failure is silent in the worst way: two flows that both die on
+     * context mismatch return IDENTICAL refusals, so an enumeration test
+     * comparing them passes while proving nothing. Verified, not assumed.
+     *
+     * The cookie is sent unencrypted so the app reads it as the session ID
+     * directly; passing the response's encrypted value here would be read as a
+     * raw ID, fail validation, and silently start a new session. The ID must be
+     * 40 alphanumeric characters or Store::setId() discards it and substitutes
+     * a random one — also silently.
+     */
+    protected function pinSession(?string $id = null): string
+    {
+        $id ??= substr(str_repeat('vouchtestsession', 4), 0, 40);
+
+        $this->withUnencryptedCookie(config()->string('session.cookie'), $id);
+
+        return $id;
+    }
+
+    protected function vouchSessionPath(): string
+    {
+        $path = sys_get_temp_dir() . '/vouch-test-sessions';
+
+        if (! is_dir($path)) {
+            mkdir($path, 0777, true);
+        }
+
+        return $path;
+    }
+
     protected function defineEnvironment($app): void
     {
         $connection = (string) (getenv('VOUCH_TEST_DB') ?: 'sqlite');
@@ -43,7 +81,8 @@ abstract class TestCase extends Orchestra
          * "Attempt to read property cookies on null" before reaching anything
          * under test. The array driver exercises the same Session contract.
          */
-        $app['config']->set('session.driver', 'array');
+        $app['config']->set('session.driver', 'file');
+        $app['config']->set('session.files', $this->vouchSessionPath());
 
         /*
          * A fixed key, so encrypted casts behave reproducibly across runs.

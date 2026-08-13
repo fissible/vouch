@@ -28,6 +28,18 @@ return [
         'revocation_retention_days' => (int) env('VOUCH_REVOCATION_RETENTION_DAYS', 30),
     ],
 
+    'routes' => [
+        'prefix' => env('VOUCH_ROUTE_PREFIX', 'vouch'),
+
+        /*
+         * Inside `web` by default so session and CSRF protection apply. This is
+         * a convenience default, NOT the guarantee — AuthFlow independently
+         * requires a bound context on creation and every advance, because
+         * middleware configuration can change after boot.
+         */
+        'middleware' => ['web'],
+    ],
+
     'challenges' => [
         /*
          * Factor types whose challenges MUST name the credential they were

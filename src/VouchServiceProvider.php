@@ -108,6 +108,23 @@ final class VouchServiceProvider extends ServiceProvider
             ),
         );
 
+        foreach ([
+            \Fissible\Vouch\Http\IntendedDestination::class,
+            \Fissible\Vouch\Http\FlowResultSerializer::class,
+        ] as $simple) {
+            $this->app->singleton($simple);
+        }
+
+        $this->app->singleton(
+            \Fissible\Vouch\Http\FlowResultHandler::class,
+            fn ($app): \Fissible\Vouch\Http\FlowResultHandler => new \Fissible\Vouch\Http\FlowResultHandler(
+                $app->make(\Fissible\Vouch\Sessions\SessionLifecycle::class),
+                $app->make(\Fissible\Vouch\Recovery\GraceGuard::class),
+                $app->make(\Illuminate\Contracts\Auth\StatefulGuard::class),
+                $app->make(\Illuminate\Contracts\Session\Session::class),
+            ),
+        );
+
         $this->registerFactorDrivers();
 
         /*
@@ -197,6 +214,7 @@ final class VouchServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+        $this->loadRoutesFrom(__DIR__ . '/../routes/vouch.php');
 
         $router = $this->app->make(\Illuminate\Routing\Router::class);
         $router->aliasMiddleware('vouch.session', \Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class);
