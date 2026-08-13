@@ -145,8 +145,10 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.1 | Persistence foundation — ten tables, ten models, three contracts, CAS attempt store | **Complete** |
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
-| 2.3 | Flow & HTTP — orchestrator, routes, `ScreenSpec`→JSON, `RequireAssurance` both modes, rate limiting (§7.4) | Not planned |
-| 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers | Not planned |
+| 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Designed 2026-08-13** |
+| 2.3b | Abuse controls & rate limiting (§7.4) — multi-dimensional limits, backoff, lockout, OTP-pumping and SMS toll-fraud defenses, CAPTCHA contract | Not planned |
+| 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
+| post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
 | 2.5 | OIDC & federation — separate track, gated on the client evaluation (§6.4) | Not planned |
 | 2.6 | Sluice adoption — first dogfood | Not planned |
 
