@@ -7,6 +7,7 @@ use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Models\AuthChallenge;
 use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\Sessions\RevokedReason;
+use Fissible\Vouch\Sessions\BindingDomain;
 use Fissible\Vouch\Sessions\SessionBinding;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -49,23 +50,23 @@ it('deletes revoked sessions past the retention window and keeps recent ones', f
     config(['vouch.sessions.revocation_retention_days' => 30]);
 
     AuthSession::create([
-        'session_binding' => SessionBinding::for('old'), 'user_id' => 1, 'amr' => ['password'],
+        'session_binding' => SessionBinding::for('old', BindingDomain::Session), 'user_id' => 1, 'amr' => ['password'],
         'revoked_at' => now()->subDays(31), 'revoked_reason' => RevokedReason::Logout,
     ]);
     AuthSession::create([
-        'session_binding' => SessionBinding::for('recent'), 'user_id' => 1, 'amr' => ['password'],
+        'session_binding' => SessionBinding::for('recent', BindingDomain::Session), 'user_id' => 1, 'amr' => ['password'],
         'revoked_at' => now()->subDays(29), 'revoked_reason' => RevokedReason::Logout,
     ]);
 
     expect(Artisan::call('vouch:prune'))->toBe(0);
 
     expect(AuthSession::count())->toBe(1)
-        ->and(AuthSession::firstOrFail()->session_binding)->toBe(SessionBinding::for('recent'));
+        ->and(AuthSession::firstOrFail()->session_binding)->toBe(SessionBinding::for('recent', BindingDomain::Session));
 });
 
 it('never deletes a live session', function (): void {
     AuthSession::create([
-        'session_binding' => SessionBinding::for('live'), 'user_id' => 1, 'amr' => ['password'],
+        'session_binding' => SessionBinding::for('live', BindingDomain::Session), 'user_id' => 1, 'amr' => ['password'],
     ]);
 
     expect(Artisan::call('vouch:prune'))->toBe(0);
@@ -81,7 +82,7 @@ it('does not delete an unrevoked session whose grace has expired', function (): 
     // sweep would have quietly become the enforcement mechanism it must
     // never be.
     AuthSession::create([
-        'session_binding' => SessionBinding::for('grace'), 'user_id' => 1,
+        'session_binding' => SessionBinding::for('grace', BindingDomain::Session), 'user_id' => 1,
         'amr' => ['recovery_code'],
         'recovery_grace_expires_at' => now()->subHour(),
     ]);

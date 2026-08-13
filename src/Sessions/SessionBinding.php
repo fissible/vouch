@@ -20,7 +20,7 @@ use RuntimeException;
  */
 final class SessionBinding
 {
-    public static function for(string $hostSessionId): string
+    public static function for(string $hostSessionId, BindingDomain $domain): string
     {
         $key = config('app.key');
 
@@ -30,6 +30,12 @@ final class SessionBinding
             );
         }
 
-        return hash_hmac('sha256', $hostSessionId, $key);
+        /*
+         * The domain is part of the HMAC input, separated by a NUL byte so that
+         * no domain/session-ID pair can be confused with another. Without the
+         * separator, domain "sessiona" + id "bc" and domain "session" + id "abc"
+         * would derive the same value.
+         */
+        return hash_hmac('sha256', $domain->value . "\0" . $hostSessionId, $key);
     }
 }

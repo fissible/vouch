@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\Sessions\RevokedReason;
+use Fissible\Vouch\Sessions\BindingDomain;
 use Fissible\Vouch\Sessions\SessionBinding;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -13,18 +14,18 @@ uses(RefreshDatabase::class);
 it('never stores the raw host session id', function (): void {
     $hostSessionId = 'the-raw-bearer-session-id';
 
-    $binding = SessionBinding::for($hostSessionId);
+    $binding = SessionBinding::for($hostSessionId, BindingDomain::Session);
 
     expect($binding)->not->toContain($hostSessionId)
         ->and($binding)->toHaveLength(64);
 });
 
 it('produces a stable binding for the same session id', function (): void {
-    expect(SessionBinding::for('abc'))->toBe(SessionBinding::for('abc'));
+    expect(SessionBinding::for('abc', BindingDomain::Session))->toBe(SessionBinding::for('abc', BindingDomain::Session));
 });
 
 it('produces different bindings for different session ids', function (): void {
-    expect(SessionBinding::for('abc'))->not->toBe(SessionBinding::for('abd'));
+    expect(SessionBinding::for('abc', BindingDomain::Session))->not->toBe(SessionBinding::for('abd', BindingDomain::Session));
 });
 
 it('produces a different binding when APP_KEY changes', function (): void {
@@ -32,22 +33,22 @@ it('produces a different binding when APP_KEY changes', function (): void {
     // invalidates every session, which is already true of Laravel's encrypted
     // cookies. If someone swaps the HMAC for an unkeyed hash for convenience,
     // this fails and asks why.
-    $before = SessionBinding::for('abc');
+    $before = SessionBinding::for('abc', BindingDomain::Session);
 
     config(['app.key' => 'base64:' . base64_encode(random_bytes(32))]);
 
-    expect(SessionBinding::for('abc'))->not->toBe($before);
+    expect(SessionBinding::for('abc', BindingDomain::Session))->not->toBe($before);
 });
 
 it('refuses to derive a binding with no APP_KEY', function (): void {
     config(['app.key' => null]);
 
-    SessionBinding::for('abc');
+    SessionBinding::for('abc', BindingDomain::Session);
 })->throws(RuntimeException::class);
 
 it('never writes the raw session id to the database', function (): void {
     AuthSession::create([
-        'session_binding' => SessionBinding::for('raw-id-must-not-appear'),
+        'session_binding' => SessionBinding::for('raw-id-must-not-appear', BindingDomain::Session),
         'user_id' => 1,
         'amr' => ['password'],
     ]);
@@ -58,7 +59,7 @@ it('never writes the raw session id to the database', function (): void {
 });
 
 it('permits only one row per session binding', function (): void {
-    $binding = SessionBinding::for('abc');
+    $binding = SessionBinding::for('abc', BindingDomain::Session);
 
     AuthSession::create(['session_binding' => $binding, 'user_id' => 1, 'amr' => ['password']]);
     AuthSession::create(['session_binding' => $binding, 'user_id' => 2, 'amr' => ['password']]);
@@ -66,14 +67,14 @@ it('permits only one row per session binding', function (): void {
 
 it('rotates by updating the binding in place rather than adding a row', function (): void {
     $session = AuthSession::create([
-        'session_binding' => SessionBinding::for('old-id'),
+        'session_binding' => SessionBinding::for('old-id', BindingDomain::Session),
         'user_id' => 1,
         'amr' => ['recovery_code'],
         'recovery_grace_expires_at' => now()->addMinutes(15),
     ]);
 
     $session->update([
-        'session_binding' => SessionBinding::for('new-id'),
+        'session_binding' => SessionBinding::for('new-id', BindingDomain::Session),
         'amr' => ['totp'],
         'recovery_grace_expires_at' => null,
     ]);
@@ -89,14 +90,14 @@ it('reports recovery grace by the marker, not by inspecting the amr', function (
     // Reads the timestamp so an empty or malformed amr cannot be mistaken for
     // a normal session. The failure direction matters; this one fails closed.
     $grace = AuthSession::create([
-        'session_binding' => SessionBinding::for('grace'),
+        'session_binding' => SessionBinding::for('grace', BindingDomain::Session),
         'user_id' => 1,
         'amr' => ['recovery_code'],
         'recovery_grace_expires_at' => now()->addMinutes(15),
     ]);
 
     $normal = AuthSession::create([
-        'session_binding' => SessionBinding::for('normal'),
+        'session_binding' => SessionBinding::for('normal', BindingDomain::Session),
         'user_id' => 1,
         'amr' => ['password', 'totp'],
     ]);
@@ -107,7 +108,7 @@ it('reports recovery grace by the marker, not by inspecting the amr', function (
 
 it('constrains the revocation reason to the known set', function (): void {
     $session = AuthSession::create([
-        'session_binding' => SessionBinding::for('abc'),
+        'session_binding' => SessionBinding::for('abc', BindingDomain::Session),
         'user_id' => 1,
         'amr' => ['password'],
     ]);
