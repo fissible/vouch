@@ -281,6 +281,54 @@ On success the recorded assurance increases, which is precisely the trigger §7.
 session rotation; the fail-closed protocol runs, and only then is the user returned to the
 intended destination.
 
+### Beginning an attempt
+
+A request with no handle **atomically creates an `Initiated` attempt** — cryptographically
+random handle, the bound HMAC context, and an expiry from `vouch.attempts.ttl_seconds` —
+and returns it alongside the identify screen. `Continuing` therefore carries the handle;
+without it a client has nothing to advance with, and the endpoint cannot begin anything.
+
+The handle is returned only when the request created or legitimately advanced the attempt
+it belongs to. A refusal for an unknown or mismatched handle returns none — echoing one
+back would let a caller learn which handles exist.
+
+### Where an interactive redirect actually goes
+
+2.3 ships a JSON `POST` endpoint and, deliberately, no routeable renderer. A browser
+redirected straight to `/vouch/auth` issues a `GET` and receives 405, so "redirect to
+step-up" is not yet a destination — it is a gap.
+
+**The host configures the step-up presentation URL, and it is required.** If
+`vouch.step_up.presentation_url` is unset, `RequireAssurance` **fails closed** rather than
+guessing: no redirect, no silent pass-through. Phase 3's adapters supply the standard
+implementation of that page; 2.3 defines the contract it must satisfy.
+
+### The return target is server-side and canonical
+
+The intended destination is stored **server-side in the session**, never accepted from the
+client as a `return_to` parameter and never stored as an absolute URL. It is kept as a
+**same-origin origin-form path plus query** — the part after the authority, nothing more.
+
+Validation is an allowlist, applied before storage:
+
+- must begin with exactly one `/`, and **not** `//` — `//evil.example` is a protocol-relative
+  URL that navigates off-origin;
+- must contain no scheme — anything matching `scheme:` is rejected outright;
+- must contain no backslash, which some parsers and browsers normalise to `/`, making
+  `/\evil.example` an authority in practice;
+- must contain no percent-encoded slash or backslash (`%2f`, `%5c`, in any case), so a
+  layer that decodes later cannot reconstitute an authority the check already passed;
+- anything failing these is not sanitised into shape — it is **discarded**, and the user
+  returns to the configured default.
+
+**The target is cleared on successful consumption**, so a stored destination cannot be
+replayed by a later step-up.
+
+On success the JSON `authenticated` result exposes the **already-validated** target for the
+presentation adapter to navigate to. The adapter performs no validation of its own and must
+not: a second validator is a second place for the rules to drift, and the one that runs
+last would win.
+
 `Vouch::stepUp($level)` is the imperative entry point for hosts that need to demand
 assurance outside a route declaration (§7.5).
 
@@ -569,6 +617,9 @@ matrix.
 | Grace completion | Requires fresh non-recovery evidence | Possession of a credential is not proof of control of it — the 2.1 bypass. |
 | Last-factor protection | Deferred, but defined; 2.3 must not call or expose `revoke()` | Safe to defer only because no deletion surface exists. Defined against the policy-satisfying set, not row count. |
 | Timing equalization | In 2.3, strict posture only, active hasher, tested by work performed | Enumeration resistance, not abuse control. A duration assertion would be flaky and prove nothing. |
+| Beginning an attempt | Handle-less request creates an `Initiated` attempt and `Continuing` carries the handle | Without it the endpoint cannot begin anything and a client has nothing to advance. Refusals carry no handle, so a caller cannot learn which exist. |
+| Step-up destination | Required host-configured presentation URL; fail closed if unset | 2.3 ships no routeable renderer, so a browser redirect to the JSON endpoint is a GET 405. Guessing a destination would be worse than refusing. |
+| Return target | Server-side session, origin-form path+query, allowlist-validated, cleared on consumption | A client-supplied `return_to` is an open-redirect primitive. Discarded rather than sanitised, because sanitising a hostile value is how the encoded-authority cases survive. |
 | Step-up | Reuses `POST /vouch/auth` with a step-up intent | One flow cannot drift from itself; a separate step-up path would re-derive transition, error-shaping and single-use handling. |
 | `RequireAssurance` structure | Comparison lives in one place both modes consume | §6.3's two renderings; building it inside the redirect branch would force a restructure when 2.4 adds RFC 9470. |
 | Mutation gate | Baseline-then-floor, scope fixed in config beforehand | No invented number; no post-hoc narrowing. 2.3 is not complete until it is committed and green. |
