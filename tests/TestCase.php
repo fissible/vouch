@@ -36,6 +36,14 @@ abstract class TestCase extends Orchestra
         $app['config']->set('database.default', $connection);
         $app['config']->set('app.timezone', 'UTC');
 
+        /*
+         * A fixed key, so encrypted casts behave reproducibly across runs.
+         * Required by AuthCredential::$secret, AuthConnection::$client_secret,
+         * and SessionBinding's HMAC — all of which fail loudly without it,
+         * which is the correct behaviour and worth preserving in production.
+         */
+        $app['config']->set('app.key', 'base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=');
+
         match ($connection) {
             'sqlite' => $app['config']->set('database.connections.sqlite', [
                 'driver' => 'sqlite',
