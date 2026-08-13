@@ -50,10 +50,32 @@ abstract class TestCase extends Orchestra
                 'database' => getenv('VOUCH_SQLITE_PATH') ?: ':memory:',
                 'prefix' => '',
                 'foreign_key_constraints' => true,
-                // Contention tests need a writer to WAIT for the lock rather
-                // than fail instantly. SQLite's default busy timeout is 0.
+                /*
+                 * Contention tests need a writer to WAIT for the lock rather
+                 * than fail instantly. SQLite's default busy timeout is 0.
+                 */
                 'busy_timeout' => 5000,
-                'journal_mode' => 'wal',
+
+                /*
+                 * journal_mode is deliberately NOT set here, and this is not an
+                 * oversight — it was tried and it broke the contention suite.
+                 *
+                 * Laravel's SQLite connector issues `pragma journal_mode = ...`
+                 * on EVERY new connection, and switching journal mode needs a
+                 * brief exclusive lock. The contention tests open several
+                 * connections to one file precisely so that one of them holds a
+                 * lock, so the later connections' pragma fails outright with
+                 * SQLITE_BUSY before any test body runs.
+                 *
+                 * It hid for several tasks because the default database here is
+                 * `:memory:`, where the whole contention suite skips itself —
+                 * so the regression was only reachable with VOUCH_SQLITE_PATH
+                 * set to a file, which is exactly the configuration CI uses.
+                 *
+                 * The serialization these tests prove does not need WAL: it
+                 * comes from SQLite's database-level write lock plus the
+                 * busy_timeout above.
+                 */
             ]),
             'mysql' => $app['config']->set('database.connections.mysql', [
                 'driver' => 'mysql',

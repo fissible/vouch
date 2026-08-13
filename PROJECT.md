@@ -143,7 +143,8 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | # | Sub-project | Status |
 |---|---|---|
 | 2.1 | Persistence foundation — ten tables, ten models, three contracts, CAS attempt store | **Complete** |
-| 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery, passkey | Not planned |
+| 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
+| 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, routes, `ScreenSpec`→JSON, `RequireAssurance` both modes, rate limiting (§7.4) | Not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers | Not planned |
 | 2.5 | OIDC & federation — separate track, gated on the client evaluation (§6.4) | Not planned |
@@ -191,6 +192,130 @@ explicitly. See item 1 under "Known issues carried into Phase 2".
 
 **Gating item:** the `facile-it/php-openid-client` evaluation (§6.4) is a hard gate, not
 a checkbox. If it fails, generic OIDC leaves v1 and enterprise SSO becomes broker-only.
+
+### 2.2 — delivered
+
+Spec: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-2-factor-drivers-design.md`](docs/superpowers/specs/2026-08-12-vouch-phase-2-2-factor-drivers-design.md)
+Plan: [`docs/superpowers/plans/2026-08-12-vouch-phase-2-2-factor-drivers.md`](docs/superpowers/plans/2026-08-12-vouch-phase-2-2-factor-drivers.md)
+
+The `Factor` contract and five drivers — password, TOTP, email OTP, SMS OTP, recovery
+codes — plus four versioned amendments to 2.1 and the enrollment-serialization mechanism
+that turns `maxActiveCredentials()` from a declaration into an invariant.
+
+2.2 delivers **no HTTP surface and no flow orchestration.** Nothing here logs anyone in.
+
+**One production dependency added: `spomky-labs/otphp ^11.5`.** Fortify and
+`spatie/laravel-one-time-passwords` were both evaluated and rejected — the latter because
+it ships its own table and requires a trait on the host's authenticatable model, breaking
+both vouch's rule against touching the host user class and the rule that the store owns
+every single-use mutation.
+
+**Amendments to 2.1**, all shipped as follow-up migrations so the history shows the
+amendment: `auth_credentials.identifier_id` (A), `auth_credentials.last_used_timestep`
+(B), the variadic `AttemptStore::transition()` signature (C), and
+`auth_challenges.credential_id` (D). Plus `auth_enrollment_locks`, a keyless mutex anchor.
+
+**Load-bearing invariants, each demonstrated failing before being trusted:**
+
+- Drivers never write single-use state. `RecoveryCodeFactor` returns a `DisableCredential`
+  mutation rather than burning the code; the store applies it in the same transaction that
+  advances the attempt. Making the driver burn it directly reproduced the denial of
+  service live — a spent code and an unauthenticated user.
+- The TOTP replay guard records the **matched timestep**, not a wall-clock time. otphp's
+  `verify()` returns `bool` and hides which of three timestamps matched under a leeway, so
+  the driver iterates candidate steps itself and never passes a leeway.
+- A challenge records the credential it was delivered against; `verify()` reads the
+  satisfied credential from that row rather than inferring it.
+- `bound_ip` / `bound_user_agent` are compared before the code comparison, not merely
+  stored.
+- OTP re-enrollment re-enables and preserves the credential id, so
+  `auth_token_assurances.credential_ids` references stay coherent.
+
+### Cross-engine verification record — 2026-08-13
+
+Run locally before 2.2 was marked complete. Every leg is the **full** suite, not a subset.
+
+| Engine | Version | Result |
+|---|---|---|
+| MySQL | 8.4.11 (`mysql:8`) | 335 passed, 737 assertions |
+| PostgreSQL | 16.14 (`postgres:16`) | 335 passed, 737 assertions |
+| SQLite | 3.53.4, **file-backed** | 335 passed, 737 assertions |
+
+PHP 8.4.24. Commands, verbatim:
+
+```bash
+VOUCH_TEST_DB=mysql DB_HOST=127.0.0.1 DB_PORT=33106 DB_DATABASE=vouch_test \
+  DB_USERNAME=root DB_PASSWORD=password vendor/bin/pest
+
+VOUCH_TEST_DB=pgsql DB_HOST=127.0.0.1 DB_PORT=54106 DB_DATABASE=vouch_test \
+  DB_USERNAME=postgres DB_PASSWORD=password vendor/bin/pest
+
+rm -f /tmp/vouch-matrix.sqlite && touch /tmp/vouch-matrix.sqlite
+VOUCH_TEST_DB=sqlite VOUCH_SQLITE_PATH=/tmp/vouch-matrix.sqlite vendor/bin/pest
+```
+
+Environment variables go on as a **prefix**. `env $VAR` does not work — zsh does not
+word-split unquoted variables, and that mistake cost a full matrix run twice in this
+project, most recently during this very verification.
+
+**The enrollment-lock removal probe — observed on two engines, not three.**
+
+With `EnrollmentGuard::acquire()`'s `insertOrIgnore` and `lockForUpdate` commented out:
+
+- **PostgreSQL — the predicted signature, measured.** Both named tests failed with
+  `refusal=none`, and the recovery test's actual state was **20 active credentials across
+  two generations** (`["gen-b","gen-a"]`).
+- **MySQL — password test showed the predicted signature; the recovery test did not.** It
+  failed with a raw `1205 Lock wait timeout` on B's insert instead. Cause: A's *zero-row*
+  `UPDATE ... WHERE user_id/type` takes an InnoDB **gap lock** over that range, which
+  blocks B. The plan asserted a zero-row disable "takes no row locks" — true of row locks,
+  false of gap locks. So on MySQL, InnoDB gap locking does part of the serialization the
+  enrollment lock is credited with.
+- **SQLite — deliberately not run as protocol evidence.** A's `insertOrIgnore` takes that
+  engine's database-wide write lock before B runs, so removing the guard makes B fail busy
+  rather than commit a second set. That failure would evidence the engine's global writer
+  serialization, not the enrollment-lock protocol.
+
+What SQLite *does* prove, and the other two cannot: a contended enrollment there produces
+a typed `EnrollmentRefusalReason::Contended` rather than a driver error, exercising
+`busy_timeout`, the driver-code `5` match, and the `QueryException` → `EnrollmentRefused`
+mapping. Verified passing.
+
+**Two defects the matrix caught that no single-engine run would have:**
+
+1. `journal_mode => wal` in `tests/TestCase.php` broke the entire file-backed SQLite
+   contention suite. Laravel re-issues the pragma on every connection and switching
+   journal mode needs an exclusive lock, so later connections failed with `SQLITE_BUSY`
+   before any test body ran. It hid because the default database is `:memory:`, where the
+   contention suite skips itself — reachable only with `VOUCH_SQLITE_PATH` set, which is
+   exactly what CI does. Removed; the serialization does not need WAL.
+2. The error-classification test dropped a table inside `RefreshDatabase`'s transaction.
+   **MySQL implicitly commits on DDL**, so the savepoint vanished and the rollback threw
+   `PDOException: SAVEPOINT trans2 does not exist` instead of the expected
+   `QueryException`. Passed on SQLite and Postgres, which support transactional DDL. Moved
+   to `tests/Database/EnrollmentGuardErrorsTest.php` under `DatabaseMigrations`.
+
+**Still true: `database-matrix` has never run in CI.** This record is the local
+equivalent, which is not the same claim. The job now also covers `tests/Factors`.
+
+### Carried into 2.3 and beyond
+
+- **Passkey is 2.2b**, gated on evaluating `laravel/passkeys` 0.2.x. Until it lands,
+  `isMultiFactor`, `userVerified` and `phishingResistant` are `false` on every driver and
+  the kernel never emits `aal2` from a single factor.
+- **Password rehash-on-verify is absent, and that is a security-maintenance limitation,
+  not a deferred optimisation.** Raising the bcrypt cost reaches new and changed passwords
+  only; a user who never changes theirs keeps the hash they enrolled with indefinitely.
+- **Recovery verification costs up to ten hash comparisons per attempt.** Accepted;
+  rate limiting is 2.3's and this driver deliberately does not invent its own.
+- **`FactorFailure::BindingMismatch`** is a deliberate sixth case beyond the design spec's
+  five: a wrong request context is a different fact from a wrong code, and collapsing them
+  is a disclosure judgement belonging to `ErrorShaper`.
+- **Enrollment is serialized, not queued.** A contended enrollment refuses with
+  `Contended` after a bounded wait (`vouch.enrollment.lock_wait_seconds`, default 5). 2.3
+  decides whether the HTTP surface retries or surfaces it.
+- **Typed enrollment/verification DTOs** remain a follow-up; `enroll()` and `verify()`
+  take arrays validated per driver at entry.
 
 ---
 
