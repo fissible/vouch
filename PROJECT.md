@@ -5,8 +5,9 @@ fresh session with no prior context.
 
 **Design spec:** [`docs/superpowers/specs/2026-08-11-vouch-design.md`](docs/superpowers/specs/2026-08-11-vouch-design.md)
 
-**Status:** Phase 1 (`Vouch\Kernel`) complete as of 2026-08-12. All 11 tasks shipped;
-exit criteria met. Phase 2 not yet planned.
+**Status:** Phase 1 (`Vouch\Kernel`) complete 2026-08-12. Phase 2 decomposed into six
+sub-projects; **2.1 (persistence foundation) complete 2026-08-12**. Next: plan 2.2,
+factor drivers.
 
 ---
 
@@ -136,13 +137,48 @@ no other durable home.
 
 ## Phase 2 — vouch Laravel package
 
-Not yet planned. Depends on Phase 1 interfaces being settled.
+Decomposed into six sub-projects, each with its own spec → plan → implementation cycle.
+Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.md`](docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.md)
 
-Expected shape, dependency-ordered: migrations and Eloquent models → `auth_attempts`
-CAS persistence (§4.3) → factor drivers (password, TOTP, email OTP, SMS OTP, passkey,
-recovery, OIDC) → policy/connection repositories → `RequireAssurance` middleware in both
-response modes → Sanctum issuance gate (§6.5) → audit sinks → Artisan commands →
-Sluice adoption.
+| # | Sub-project | Status |
+|---|---|---|
+| 2.1 | Persistence foundation — ten tables, ten models, three contracts, CAS attempt store | **Complete** |
+| 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery, passkey | Not planned |
+| 2.3 | Flow & HTTP — orchestrator, routes, `ScreenSpec`→JSON, `RequireAssurance` both modes, rate limiting (§7.4) | Not planned |
+| 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers | Not planned |
+| 2.5 | OIDC & federation — separate track, gated on the client evaluation (§6.4) | Not planned |
+| 2.6 | Sluice adoption — first dogfood | Not planned |
+
+OIDC is isolated deliberately: it is gated on an evaluation that may fail and carries the
+§7.2 account-linking rules, the highest-risk surface in the package. Blocking six working
+drivers behind it would be bad sequencing.
+
+### 2.1 — delivered
+
+Plan: [`docs/superpowers/plans/2026-08-12-vouch-phase-2-1-persistence.md`](docs/superpowers/plans/2026-08-12-vouch-phase-2-1-persistence.md)
+
+Ten migrations and models (`auth_identifiers`, `auth_credentials`,
+`auth_connections`, `auth_federated_identities`, `auth_link_requests`, `auth_policies`,
+`auth_token_assurances`, `auth_sessions`, `auth_attempts`, `auth_challenges`); three
+contracts at genuine seams (`AttemptStore`, `TenantResolver`, `AuditSink`); and
+`DatabaseAttemptStore` with compare-and-swap transitions and all-or-nothing
+consume-and-advance.
+
+2.1 delivers **no authentication** — nothing in it can log anyone in. Its purpose was a
+data layer plus an attempt store whose concurrency is proven rather than argued.
+
+Constraints now enforced by the database rather than by convention: unique
+`(connection_id, issuer, subject)` and a non-null `connection_id` on federated
+identities (§7.2 cross-tenant takeover guards); unique `(type, value)` on identifiers;
+one assurance record per token; one live row per session binding.
+
+`auth_sessions.session_binding` stores an HMAC-SHA256 of the host session ID keyed to
+`APP_KEY`, never the raw bearer value. Deriving one without a key throws.
+
+**Deviations from the plan, all recorded in commits:** PHPStan needs
+`--memory-limit=1G` because Larastan loads the whole framework; Testbench sets no
+`APP_KEY`, so `TestCase` sets a fixed one; models carry `@property` annotations because
+Larastan cannot know Eloquent's dynamic attributes.
 
 **First design input — recovery-grace.** Before anything else in Phase 2 is planned,
 decide how spec §7.3's *restricted recovery-grace session* is represented. Phase 1 made
@@ -260,3 +296,38 @@ bodies, which would falsify the record of what was planned, eight
 `> **AMENDED DURING EXECUTION —**` callouts were inserted immediately before each
 superseded block, stating what changed and why. Read the plan with those callouts as
 authoritative; the code beneath them is historical.
+
+---
+
+## Session handoff — 2026-08-12, Phase 2.1
+
+Completed on `feat/vouch-2-1-persistence`, ten tasks. Delivered: ten migrations and
+models, three contracts, `DatabaseAttemptStore` with CAS, the `vouch:prune` sweep, and a
+cross-engine CI matrix.
+
+**What Phase 2.2 starts from.** `AuthCredential.type` is an open string by design —
+2.2's drivers register their own type keys. The `Factor` contract itself (parent spec
+§3.1) does not exist yet; it is 2.2's first deliverable. `AuditSink` is defined but
+deliberately unbound, with a test pinning that resolving it throws; 2.4 binds the real
+drivers and must update that test rather than delete it.
+
+**Guards that are proven, not assumed.** Each was demonstrated failing against a
+deliberate violation before being trusted:
+- The kernel framework ban now catches a real `Illuminate` import — it had nothing to
+  catch until Laravel was installed in Task 1.
+- The CAS predicate: removing it fails the stale-version and rollback tests.
+- All-or-nothing consume-and-advance: swallowing the challenge refusal fails both
+  rollback tests.
+- The contention suite fails against a non-CAS store, and **skips** rather than passes
+  against in-memory SQLite, where each connection gets its own private database.
+- Foreign keys are genuinely enforced here — SQLite ignores them silently unless
+  enabled.
+- `UNIQUE(binding, revoked_at)` was verified to accept two live rows per binding, which
+  is why the shipped index is a plain `UNIQUE(binding)`.
+- The sweep must never enforce grace expiry: teaching it to delete expired-grace rows
+  fails its guard test.
+
+**Carried forward.** The ordinary recovery-code notification is specified in the 2.1
+design but belongs to 2.3: verified identifiers only, post-consumption, best-effort,
+auditable, and delivery failure must neither restore the consumed code nor disclose
+anything to the requester.

@@ -6,6 +6,7 @@ namespace Fissible\Vouch;
 
 use Fissible\Vouch\Attempts\DatabaseAttemptStore;
 use Fissible\Vouch\Contracts\AttemptStore;
+use Fissible\Vouch\Console\VouchPruneCommand;
 use Fissible\Vouch\Contracts\TenantResolver;
 use Fissible\Vouch\Kernel\Attempt\TransitionRules;
 use Fissible\Vouch\Tenancy\NullTenantResolver;
@@ -46,6 +47,10 @@ final class VouchServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__ . '/../database/migrations' => $this->app->databasePath('migrations'),
             ], 'vouch-migrations');
+
+            $this->commands([
+                VouchPruneCommand::class,
+            ]);
         }
     }
 }
