@@ -2351,11 +2351,22 @@ it('ignores disabled credentials when counting capacity', function (): void {
 });
 
 it('skips the capacity check entirely when the driver is unbounded', function (): void {
-    foreach (range(1, 3) as $n) {
-        guard()->serialize(7, 'email_otp', null, fn (): bool => true);
+    foreach (['a', 'b', 'c'] as $suffix) {
+        guard()->serialize(7, 'email_otp', null, static function () use ($suffix): void {
+            AuthCredential::create([
+                'user_id' => 7,
+                'type' => 'email_otp',
+                'strength' => 'possession_weak',
+                'authenticator_id' => $suffix,
+            ]);
+        });
     }
 
-    expect(true)->toBeTrue();
+    // Three live rows for one (user, type). Permitted because identifier_id is
+    // null on all three and NULL != NULL in the composite unique index -- the
+    // deliberate semantics of Amendment A.
+    expect(AuthCredential::where('user_id', 7)->where('type', 'email_otp')->whereNull('disabled_at')->count())
+        ->toBe(3);
 });
 
 it('rolls the write back when the post-condition refuses', function (): void {
@@ -5637,6 +5648,7 @@ use Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor;
 use Fissible\Vouch\Factors\Drivers\SmsOtpFactor;
 use Fissible\Vouch\Factors\Drivers\TotpFactor;
 use Fissible\Vouch\Factors\FactorRegistry;
+use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
 use Fissible\Vouch\Support\SystemClock;
 use Psr\Clock\ClockInterface;
@@ -5692,17 +5704,22 @@ it('carries the cardinality rule each driver declares in the spec', function ():
         ->and($registry->get('sms_otp')->maxActiveCredentials())->toBeNull();
 });
 
-it('reports every driver as single-factor and not phishing-resistant', function (): void {
+it('declares the strength each driver is entitled to and no more', function (): void {
     /*
-     * All five are genuinely both, so this pins a fact rather than a limitation.
-     * It exists because those three SatisfiedFactor attributes get no `true`
-     * until passkeys land in 2.2b, and a driver that started claiming
-     * phishing_resistant would otherwise satisfy a high-assurance policy
-     * silently.
+     * Pins each driver's declared strength exactly. Strength is what the kernel
+     * reads: Recovery is filtered out of satisfiability entirely, and a driver
+     * that quietly promoted itself to PossessionStrong would satisfy a
+     * high-assurance policy it has no business satisfying. None of the five is
+     * entitled to that -- it is reserved for the phishing-resistant passkey
+     * arriving in 2.2b.
      */
-    foreach (app(FactorRegistry::class)->all() as $factor) {
-        expect($factor->strength()->name)->not->toBe('PossessionStrong');
-    }
+    $registry = app(FactorRegistry::class);
+
+    expect($registry->get('password')->strength())->toBe(FactorStrength::Knowledge)
+        ->and($registry->get('totp')->strength())->toBe(FactorStrength::Possession)
+        ->and($registry->get('email_otp')->strength())->toBe(FactorStrength::PossessionWeak)
+        ->and($registry->get('sms_otp')->strength())->toBe(FactorStrength::PossessionWeak)
+        ->and($registry->get('recovery_code')->strength())->toBe(FactorStrength::Recovery);
 });
 ```
 
@@ -5845,6 +5862,7 @@ use Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor;
 use Fissible\Vouch\Factors\Drivers\SmsOtpFactor;
 use Fissible\Vouch\Factors\Drivers\TotpFactor;
 use Fissible\Vouch\Factors\FactorRegistry;
+use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
 use Fissible\Vouch\Support\SystemClock;
 use Psr\Clock\ClockInterface;
