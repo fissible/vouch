@@ -7,6 +7,7 @@ use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Models\AuthPolicy;
 use Fissible\Vouch\Tests\Support\CountingHasher;
 use Fissible\Vouch\Tests\Support\RecordingGuard;
+use Fissible\Vouch\Tests\Support\RecordingHasher;
 use Illuminate\Contracts\Auth\StatefulGuard;
 use Illuminate\Contracts\Hashing\Hasher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -112,11 +113,12 @@ it('does not equalize under friendly posture', function (): void {
     expect(verificationsFor('nobody@acme.example'))->toBe(0);
 });
 
-it('uses the active hasher for the dummy digest', function (): void {
+it('still performs one verification under a non-bcrypt hasher (compatibility only)', function (): void {
     /*
-     * A hard-coded bcrypt digest checked by an Argon-configured hasher is
-     * rejected immediately, so the mitigation would return FASTER than the real
-     * path and silently invert the leak it was added to close.
+     * COMPATIBILITY COVERAGE, not the proof of the timing-inversion safeguard.
+     * It shows the equalizer still does its work under Argon; it does NOT show
+     * the digest came from the active hasher, because it errors before reaching
+     * that question. The provenance proof is the sentinel test below.
      */
     config(['hashing.driver' => 'argon2id']);
     // A fresh manager: the facade root is already the double from beforeEach,
@@ -137,4 +139,39 @@ it('uses the active hasher for the dummy digest', function (): void {
     app()->forgetInstance(\Fissible\Vouch\Http\AuthController::class);
 
     expect(verificationsFor('nobody@acme.example'))->toBe(1);
+});
+
+it('verifies against a digest the ACTIVE hasher produced', function (): void {
+    /*
+     * The provenance proof, and the one the invocation count cannot give.
+     *
+     * A hard-coded bcrypt digest under an Argon-configured hasher is rejected
+     * instantly, so the mitigation would return FASTER than the real path and
+     * invert the leak it exists to close. Counting verifications cannot see
+     * that: one check() happens either way. Identity can.
+     *
+     * The recorder hands back a unique sentinel from make() and records what
+     * check() receives. If they match, the digest demonstrably came from the
+     * active hasher.
+     */
+    $recorder = new RecordingHasher();
+
+    // Swapped AFTER enrollment, so the only make() observed is the equalizer's.
+    Hash::swap($recorder);
+    app()->instance(Hasher::class, $recorder);
+    app()->forgetInstance(\Fissible\Vouch\Flow\AuthFlow::class);
+    app()->forgetInstance(\Fissible\Vouch\Http\AuthController::class);
+
+    $session = timingSession();
+    $session->start();
+    $begin = timingCall([], $session);
+    timingCall(['handle' => $begin['handle'], 'input' => ['identifier' => 'nobody@acme.example']], $session);
+    timingCall(['handle' => $begin['handle'], 'input' => ['password' => 'wrong']], $session);
+
+    // Identity first, deliberately. A hard-coded digest still produces exactly
+    // one check(), so a count assertion firing first would mask WHY it failed;
+    // this way the failure names the provenance, which is the actual claim.
+    expect($recorder->checkedAgainst)->toHaveCount(1)
+        ->and($recorder->made)->toContain($recorder->checkedAgainst[0])
+        ->and($recorder->makeCalls)->toBe(1);
 });
