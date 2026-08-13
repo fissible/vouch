@@ -7,8 +7,11 @@
         "php": "^8.4",
         "illuminate/console": "^13.0",
         "illuminate/database": "^13.0",
+        "illuminate/hashing": "^13.0",
+        "illuminate/notifications": "^13.0",
         "illuminate/support": "^13.0",
-        "psr/clock": "^1.0"
+        "psr/clock": "^1.0",
+        "spomky-labs/otphp": "^11.5"
     },
     "require-dev": {
         "larastan/larastan": "^3.10",
