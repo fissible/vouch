@@ -25,6 +25,13 @@ and one of them has a dependency running backwards.
 | **2.4** | `RequireAssurance` non-interactive mode (RFC 9470) | It is default-deny against `auth_token_assurances`, and nothing writes those records until 2.4's `Vouch::issueToken()`. Building the enforcement half first means testing it only against hand-written fixture rows, and shaping enforcement to fit fixtures rather than to fit what issuance produces. |
 | **A post-2.4 slice** | Remember-me (§7.5 device-bound persistent login) | A persistent bearer credential is a separate authentication system: rotation, reuse/theft detection, revocation, device lifecycle. Its ceiling — never above `knowledge` strength — must be expressed against 2.4's token-assurance machinery rather than invented alongside it. |
 
+### One amendment to Phase 2.1
+
+`SessionBinding::for()` gains a **domain**, so `auth_attempts.bound_context` and
+`auth_sessions.session_binding` derive different values from the same session. The default
+preserves existing session behaviour. Reasoning is under "Attempts are always bound"; it
+ships and is tested as part of this slice, as 2.2's four amendments did.
+
 Session lifecycle and recovery-grace stay **in** 2.3 deliberately: they are inseparable from
 the flow that creates, rotates and enforces sessions. Splitting them would put an invariant
 in one phase and its enforcement in another.
@@ -64,8 +71,28 @@ becoming an injection surface.
 
 ## Attempts are always bound
 
-Every attempt is created with a non-null `bound_context` derived from the host session. An
-attempt cannot be started without one.
+Every attempt is created with a non-null `bound_context`. An attempt cannot be started
+without one.
+
+### `bound_context` stores a keyed binding, never the raw session ID
+
+`auth_attempts.bound_context` is `varchar(255)`, and "derived from the host session" is not
+a specification — it permits storing the raw ID. **It must not.** A host session ID is a
+live bearer credential; persisting one means any database read — a backup, a support query,
+a log of a slow query, an injection elsewhere in the host — hands over working sessions.
+
+The value written is `SessionBinding::for()`'s keyed HMAC, **domain-separated** from the one
+`auth_sessions.session_binding` stores, computed identically on creation and on every
+advance. The raw ID is never persisted and never returned in a response.
+
+Domain separation matters because without it both columns hold the same value for the same
+session, so a `bound_context` that escapes — echoed in an error, copied into a log — is
+immediately a valid lookup key into `auth_sessions`. Two contexts, two derivations.
+
+**This is an amendment to 2.1's `SessionBinding`,** which currently takes only the session
+ID. It gains a domain, defaulting to the existing session behaviour so `auth_sessions` is
+unaffected. 2.1's test that the raw ID never reaches the database applies here too, against
+`auth_attempts`.
 
 **The handle identifies the attempt; it must not also function as its bearer credential.**
 2.1 built `auth_attempts.handle` as unique and opaque, and `DatabaseAttemptStore` returns
@@ -215,8 +242,9 @@ Setting `revoked_at` changes nothing on its own — the host's session cookie st
 Revocation without an authoritative read is only a database annotation.
 
 So vouch ships middleware that resolves `SessionBinding::for(session id)` against 2.1's
-unique index on every authenticated request and refuses when the row is revoked, missing, or
-past its absolute grace expiry. That is one indexed read per request, and it is the correct
+unique index on every request and, for a **normal** session, refuses when the row is revoked
+or missing. Grace-bound sessions follow the routing table below rather than this rule —
+they are never authenticated in the first place, so there is nothing to refuse. That is one indexed read per request, and it is the correct
 price: without it, "all other sessions invalidated on password change" is a documented
 promise with no mechanism.
 
@@ -251,10 +279,10 @@ assurance outside a route declaration (§7.5).
 
 **Two interactions worth stating explicitly:**
 
-- **Grace sessions never reach this middleware.** A grace session is not authenticated, so
-  the session-check middleware refuses it first. `RequireAssurance` is never the component
-  keeping a recovery-grace session out of a protected route, and must not be relied on for
-  that — containment is grace's own, described below.
+- **`RequireAssurance` sees only normal authenticated sessions.** A grace session is never
+  authenticated to the host guard, so `auth()->user()` is null and the host's own auth
+  middleware denies a protected route before assurance is ever considered. `RequireAssurance`
+  is **not** the containment mechanism for grace and must never be relied on as one.
 - **The non-interactive mode is 2.4, and the middleware must be shaped for it now.** §6.3
   specifies one policy object with two renderings. The assurance comparison and the decision
   that a request is insufficient belong in a single place that both modes consume, so adding
@@ -277,6 +305,32 @@ server-side grace record authorizes only vouch's own recovery and enrollment end
 This makes a stolen recovery code a **constrained recovery capability, not a broadly
 authenticated application session.** Containment is by construction rather than by the host
 remembering to apply a middleware.
+
+### Routing behaviour during grace, stated explicitly
+
+The grace routes live in the same `web` group as everything else, so "the session-check
+middleware refuses grace sessions" cannot be true — it would refuse the routes grace exists
+to reach. The middleware never refuses a grace session wholesale. It never *authenticates*
+one, which is a different thing, and the routing policy is:
+
+| Request target | Behaviour with an **active** grace record |
+|---|---|
+| Named vouch grace routes (enrollment, recovery-completion) | **Accepted**, authorized by the grace-record guard reading the row by binding. |
+| Host routes behind the host's auth | User is anonymous, so the host's own middleware **denies normally**. Vouch adds nothing. |
+| Any other host route | **Proceeds as anonymous.** |
+
+That last row is a policy choice, so it is stated rather than implied: a grace session *is*
+an anonymous session that happens to carry a server-side capability, so public pages, assets
+and error pages behave exactly as they would for any anonymous visitor. Denying them would
+mean the middleware actively blocking every route during grace — reintroducing, in reverse,
+the dependence on middleware placement that this containment model exists to avoid.
+
+The host guard is never invoked at any point in the table above.
+
+**Expired or revoked grace is rejected and the host session destroyed.** The middleware
+marks the row with the `grace_expired` reason 2.1 constrained, destroys the host session so
+no stale binding survives, and the request continues as an ordinary anonymous one. Grace
+routes then refuse, because there is no live grace record to authorize them.
 
 ### Completion
 
@@ -380,6 +434,14 @@ Beyond per-unit coverage, the suite must pin:
 - **Grace containment** — that no host route is reachable during grace, and that
   `auth()->user()` is null throughout.
 - **An unhandled `FlowResult` variant throws** rather than falling through.
+- **The raw host session ID never reaches the database**, asserted against `auth_attempts`
+  the way 2.1 asserts it against `auth_sessions`, and never appears in any response body.
+- **`bound_context` and `session_binding` differ** for the same session, proving the domain
+  separation rather than assuming it.
+- **An active grace session completes vouch enrollment while `auth()->user()` stays null**
+  for the whole exchange.
+- **An active grace session cannot reach a protected host route.**
+- **Expired grace destroys the host session** and leaves the row marked `grace_expired`.
 
 Every guard must be demonstrated failing against a deliberate violation before being
 trusted, per the discipline established in Phases 1, 2.1 and 2.2.
@@ -447,6 +509,9 @@ matrix.
 | Unhandled `FlowResult` | Throws | PHP has no sealed interfaces; falling through would skip session rotation on success. |
 | Session rotation | Fail-closed protocol, guard login last | Different stores, no shared transaction. Never leave a session guard-authenticated without a record. |
 | Session check middleware | Mandatory, appended to `web`, boot fails if absent | A runtime check is authoritative only on requests that traverse it. |
+| `bound_context` value | Keyed HMAC, domain-separated from `session_binding`; raw ID never persisted or returned | A host session ID is a live bearer credential; storing one turns any database read into session hijacking. Shared derivation would make an escaped `bound_context` a valid `auth_sessions` key. Amends 2.1's `SessionBinding`. |
+| Non-grace host routes during grace | Proceed as anonymous | A grace session is an anonymous session carrying a server-side capability. Blocking every route would reintroduce dependence on middleware placement, in reverse. |
+| Expired grace | Rejected, host session destroyed, row marked `grace_expired` | No stale binding survives, and grace routes then refuse for lack of a live record. |
 | Grace containment | Host guard never invoked; anonymous session retained as bound context | A stolen recovery code becomes a constrained capability, not an application session. |
 | Grace completion | Requires fresh non-recovery evidence | Possession of a credential is not proof of control of it — the 2.1 bypass. |
 | Last-factor protection | Deferred, but defined; 2.3 must not call or expose `revoke()` | Safe to defer only because no deletion surface exists. Defined against the policy-satisfying set, not row count. |
