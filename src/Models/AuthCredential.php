@@ -11,6 +11,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $user_id
  * @property string $type
+ * @property int|null $identifier_id
  * @property string|null $relying_party_id
  * @property string|null $secret
  * @property string $strength
@@ -19,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property bool $phishing_resistant
  * @property string|null $authenticator_id
  * @property Carbon|null $last_used_at
+ * @property int|null $last_used_timestep
  * @property Carbon|null $disabled_at
  * @property Carbon $created_at
  * @property Carbon $updated_at
@@ -49,6 +51,7 @@ final class AuthCredential extends Model
             'user_verified' => 'boolean',
             'phishing_resistant' => 'boolean',
             'last_used_at' => 'datetime',
+            'last_used_timestep' => 'integer',
             'disabled_at' => 'datetime',
         ];
     }

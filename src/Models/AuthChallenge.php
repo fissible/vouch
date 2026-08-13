@@ -11,6 +11,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $attempt_id
  * @property string $factor_type
+ * @property int|null $credential_id
  * @property string $code_hash
  * @property int $attempts
  * @property string|null $bound_ip
