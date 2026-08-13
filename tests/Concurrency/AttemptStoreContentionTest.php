@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Fissible\Vouch\Attempts\DatabaseAttemptStore;
+use Fissible\Vouch\Attempts\Mutations\ConsumeChallenge;
 use Fissible\Vouch\Attempts\TransitionOutcome;
 use Fissible\Vouch\Kernel\Attempt\AttemptState;
 use Fissible\Vouch\Kernel\Attempt\TransitionRules;
@@ -94,8 +95,8 @@ it('consumes a challenge exactly once under contention', function (): void {
     $b = AuthAttempt::findOrFail($attempt->id);
 
     $outcomes = [
-        storeOn('race_a')->transition($a, AttemptState::FactorSatisfied, $challenge->id),
-        storeOn('race_b')->transition($b, AttemptState::FactorSatisfied, $challenge->id),
+        storeOn('race_a')->transition($a, AttemptState::FactorSatisfied, new ConsumeChallenge($challenge->id, $attempt->id)),
+        storeOn('race_b')->transition($b, AttemptState::FactorSatisfied, new ConsumeChallenge($challenge->id, $attempt->id)),
     ];
 
     $succeeded = array_filter(
@@ -130,8 +131,8 @@ it('leaves the challenge unconsumed when the losing writer rolls back', function
     $a = AuthAttempt::findOrFail($attempt->id);
     $b = AuthAttempt::findOrFail($attempt->id);
 
-    storeOn('race_a')->transition($a, AttemptState::FactorSatisfied, $challengeA->id);
-    $loser = storeOn('race_b')->transition($b, AttemptState::FactorSatisfied, $challengeB->id);
+    storeOn('race_a')->transition($a, AttemptState::FactorSatisfied, new ConsumeChallenge($challengeA->id, $attempt->id));
+    $loser = storeOn('race_b')->transition($b, AttemptState::FactorSatisfied, new ConsumeChallenge($challengeB->id, $attempt->id));
 
     expect($loser)->toBe(TransitionOutcome::ConcurrentModification)
         ->and(AuthChallenge::findOrFail($challengeB->id)->consumed_at)->toBeNull()

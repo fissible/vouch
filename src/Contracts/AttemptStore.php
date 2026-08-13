@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Contracts;
 
+use Fissible\Vouch\Attempts\ConflictingMutations;
+use Fissible\Vouch\Attempts\Mutations\SingleUseMutation;
 use Fissible\Vouch\Attempts\TransitionOutcome;
+use Fissible\Vouch\Attempts\UnknownMutation;
 use Fissible\Vouch\Kernel\Attempt\AttemptState;
 use Fissible\Vouch\Models\AuthAttempt;
 
@@ -18,17 +21,20 @@ use Fissible\Vouch\Models\AuthAttempt;
 interface AttemptStore
 {
     /**
-     * Attempt a state transition, optionally consuming a challenge atomically
+     * Attempt a state transition, applying any single-use mutations atomically
      * with it.
      *
-     * When $consumeChallengeId is given, the challenge consumption and the
-     * attempt advance are all-or-nothing: if the challenge was already consumed
-     * or has expired, the attempt does not advance; if the attempt's CAS loses,
-     * the consumption is rolled back.
+     * All-or-nothing: if any mutation's guard has already fired, the attempt
+     * does not advance; if the attempt's CAS loses, every mutation is rolled
+     * back. A driver must never write single-use state itself — a code burned
+     * outside this transaction stays burned when the transition then fails.
+     *
+     * @throws ConflictingMutations when two mutations share a target.
+     * @throws UnknownMutation when a mutation type cannot be executed.
      */
     public function transition(
         AuthAttempt $attempt,
         AttemptState $to,
-        ?int $consumeChallengeId = null,
+        SingleUseMutation ...$mutations,
     ): TransitionOutcome;
 }

@@ -26,6 +26,12 @@ enum TransitionOutcome: string
     /** The challenge was already consumed or has expired. */
     case ChallengeAlreadyConsumed = 'challenge_already_consumed';
 
+    /** The credential was already disabled — a recovery code spent, or replayed. */
+    case CredentialAlreadyConsumed = 'credential_already_consumed';
+
+    /** The TOTP timestep was already used, or the clock moved backwards. */
+    case TimestepReplay = 'timestep_replay';
+
     /** Lost the compare-and-swap: another writer advanced the attempt first. */
     case ConcurrentModification = 'concurrent_modification';
 }

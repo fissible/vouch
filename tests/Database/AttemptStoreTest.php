@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Fissible\Vouch\Attempts\Mutations\ConsumeChallenge;
 use Fissible\Vouch\Attempts\TransitionOutcome;
 use Fissible\Vouch\Contracts\AttemptStore;
 use Fissible\Vouch\Kernel\Attempt\AttemptState;
@@ -81,7 +82,7 @@ it('consumes a challenge and advances in one operation', function (): void {
     $outcome = app(AttemptStore::class)->transition(
         $attempt,
         AttemptState::FactorSatisfied,
-        $challenge->id,
+        new ConsumeChallenge($challenge->id, $attempt->id),
     );
 
     expect($outcome)->toBe(TransitionOutcome::Succeeded)
@@ -97,7 +98,7 @@ it('refuses to advance on an already-consumed challenge and rolls back', functio
     $outcome = app(AttemptStore::class)->transition(
         $attempt,
         AttemptState::FactorSatisfied,
-        $challenge->id,
+        new ConsumeChallenge($challenge->id, $attempt->id),
     );
 
     $fresh = AuthAttempt::findOrFail($attempt->id);
@@ -115,7 +116,7 @@ it('refuses to advance on an expired challenge and rolls back', function (): voi
     $outcome = app(AttemptStore::class)->transition(
         $attempt,
         AttemptState::FactorSatisfied,
-        $challenge->id,
+        new ConsumeChallenge($challenge->id, $attempt->id),
     );
 
     expect($outcome)->toBe(TransitionOutcome::ChallengeAlreadyConsumed)
@@ -129,7 +130,11 @@ it('leaves an expired challenge unconsumed when it refuses', function (): void {
     $challenge = liveChallenge($attempt);
     $challenge->update(['expires_at' => now()->subSecond()]);
 
-    app(AttemptStore::class)->transition($attempt, AttemptState::FactorSatisfied, $challenge->id);
+    app(AttemptStore::class)->transition(
+        $attempt,
+        AttemptState::FactorSatisfied,
+        new ConsumeChallenge($challenge->id, $attempt->id),
+    );
 
     expect(AuthChallenge::findOrFail($challenge->id)->consumed_at)->toBeNull();
 });
@@ -155,7 +160,7 @@ it('does not consume a challenge when the attempt CAS loses', function (): void 
     $outcome = app(AttemptStore::class)->transition(
         $attempt,
         AttemptState::FactorSatisfied,
-        $challenge->id,
+        new ConsumeChallenge($challenge->id, $attempt->id),
     );
 
     expect($outcome)->toBe(TransitionOutcome::ConcurrentModification)
