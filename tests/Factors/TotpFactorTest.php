@@ -93,16 +93,36 @@ function codeAtWith(string $secret, int $timestamp, int $period, int $digits): s
 
 beforeEach(function (): void {
     /*
-     * A fixed clock, so timestep arithmetic is deterministic rather than a
-     * function of when the suite happened to run. SystemClock is Carbon-backed
-     * precisely so this moves it. Calls Carbon::setTestNow() directly rather
-     * than the equivalent $this->travelTo(): PHPStan/Larastan cannot resolve
-     * $this inside a Pest closure to Fissible\Vouch\Tests\TestCase (which is
-     * where travelTo() — from Illuminate's InteractsWithTime — actually
-     * lives), only to the base PHPUnit\Framework\TestCase. Reading
-     * travelTo()'s source confirms it does nothing more than this call.
+     * Aligned to a minute boundary of the REAL clock — deliberately not a fixed
+     * calendar date.
+     *
+     * Two requirements pull against each other here. TOTP arithmetic needs a
+     * deterministic instant, which argues for a hard-coded timestamp. But these
+     * tests also drive `AttemptStore::transition()`, and the store evaluates
+     * expiry with the database's `CURRENT_TIMESTAMP` rather than the frozen
+     * application clock — that app-clock/database-clock seam is documented on
+     * `DatabaseAttemptStore::now()`. An attempt whose `expires_at` is computed
+     * from a frozen 2026-08-13 12:00 is compared against the database's real
+     * clock, so the moment real time passes 12:10 the transition returns
+     * `Expired` and three replay tests fail. Permanently, from that day on.
+     *
+     * That is exactly what happened: the suite was green while it ran before
+     * the threshold and began failing after, with nothing in the code changed.
+     *
+     * Anchoring to real `now()` keeps the two clocks in agreement, and
+     * `startOfMinute()` restores the determinism the arithmetic needs: a unix
+     * timestamp at :00 seconds is divisible by 60, hence by both the default
+     * 30-second period and the 60-second period the non-default-config test
+     * uses, so every candidate step lands on an exact boundary either way.
+     *
+     * Calls Carbon::setTestNow() directly rather than the equivalent
+     * $this->travelTo(): PHPStan/Larastan cannot resolve $this inside a Pest
+     * closure to Fissible\Vouch\Tests\TestCase (which is where travelTo() —
+     * from Illuminate's InteractsWithTime — actually lives), only to the base
+     * PHPUnit\Framework\TestCase. Reading travelTo()'s source confirms it does
+     * nothing more than this call.
      */
-    Carbon::setTestNow('2026-08-13 12:00:00');
+    Carbon::setTestNow(Carbon::now('UTC')->startOfMinute());
 });
 
 it('describes itself as a single possession factor', function (): void {

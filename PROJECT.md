@@ -327,6 +327,17 @@ the obvious form of the revoked-credential test would have passed with the drive
 deleted, because the model-layer guard throws a subclass. Treat a green suite here as weak
 evidence until the control has been shown failing.
 
+**A time-bomb test the merge verification caught.** `TotpFactorTest` froze the clock to a
+fixed calendar instant (`2026-08-13 12:00:00`) and created attempts whose `expires_at` was
+ten minutes later — but `AttemptStore` evaluates expiry with the database's
+`CURRENT_TIMESTAMP`, not the frozen application clock. Every run after 12:10 UTC on that
+date returned `Expired` instead of `Succeeded`, so three replay tests failed permanently
+from that moment on. The suite was green only because every run until then happened before
+the threshold. The freeze is now anchored to real `now()` aligned with `startOfMinute()`,
+which keeps the two clocks in agreement while preserving the step-boundary determinism the
+TOTP arithmetic needs. This is the same app-clock/database-clock seam documented on
+`DatabaseAttemptStore::now()`, reaching the tests rather than production.
+
 **Still true: `database-matrix` has never run in CI.** This record is the local
 equivalent, which is not the same claim. The job now also covers `tests/Factors`.
 
