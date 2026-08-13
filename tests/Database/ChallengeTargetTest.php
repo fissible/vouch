@@ -82,6 +82,16 @@ it('permits a password challenge with no credential target', function (): void {
     expect($challenge->credential_id)->toBeNull();
 });
 
+it('refuses a challenge naming a credential that does not exist', function (): void {
+    // If this check were skipped, $credential would stay null and the property
+    // reads further down (disabled_at, user_id) would silently evaluate to null
+    // instead of failing loudly. null !== $attemptUserId would then satisfy the
+    // foreignUser check and raise that violation instead — same exception
+    // class, wrong reason. Matching the message is what pins this to the
+    // missing() branch specifically rather than any of its neighbours.
+    makeChallenge(['credential_id' => 999_999]);
+})->throws(ChallengeTargetViolation::class, 'does not exist');
+
 it('refuses a challenge naming a disabled credential', function (): void {
     $credential = targetCredential();
     $credential->update(['disabled_at' => now()]);
