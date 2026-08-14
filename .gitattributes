@@ -1,0 +1,14 @@
+# Keep development-only files out of the distributed package.
+#
+# tests/TestCase.php lowers hashing.bcrypt.rounds so the mutation gate is
+# affordable to run. It is not autoloadable in a production install and its
+# parent class is a dev dependency, but the cheapest guarantee is for the file
+# not to be there at all. tests/Arch/TestOnlyOverridesTest.php asserts this.
+/tests               export-ignore
+/docs                export-ignore
+/.superpowers        export-ignore
+/.github             export-ignore
+/.gitattributes      export-ignore
+/.gitignore          export-ignore
+/phpunit.xml         export-ignore
+/phpstan.neon        export-ignore
