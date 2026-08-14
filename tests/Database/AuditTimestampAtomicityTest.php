@@ -101,3 +101,59 @@ it('leaves the audit timestamp untouched when the compare-and-swap loses', funct
         ->and($credential->last_used_timestep)->toBeNull()
         ->and($credential->last_used_at)->toBeNull();
 });
+
+/*
+ * updated_at gets the same explicit decision rather than being carried along.
+ *
+ * It IS trustworthy transactional metadata here, and the reason is specific to
+ * this code path: these mutations are raw query-builder updates, which bypass
+ * Eloquent and therefore do NOT maintain timestamps. A row whose contents change
+ * while updated_at stays put is a column that lies -- it reports the row as older
+ * than it is, and anything reading it (incremental sync, cache invalidation, or
+ * an engineer asking what changed recently) is misled by exactly the writes that
+ * matter most.
+ *
+ * So it holds the same contract as last_used_at: advance on commit, do not move
+ * when the compare-and-swap loses.
+ */
+
+/** Backdate a credential so a later write is observable. */
+function backdatedCredential(): AuthCredential
+{
+    $credential = auditCredential();
+
+    DB::table('auth_credentials')->where('id', $credential->id)
+        ->update(['updated_at' => now()->subDay()]);
+
+    return $credential->refresh();
+}
+
+it('advances the row timestamp when the transition commits', function (): void {
+    $attempt = auditAttempt();
+    $credential = backdatedCredential();
+    $before = $credential->updated_at;
+
+    app(AttemptStore::class)->transition(
+        $attempt,
+        AttemptState::FactorSatisfied,
+        new AdvanceCredentialTimestep($credential->id, 12_345),
+    );
+
+    expect($credential->refresh()->updated_at->greaterThan($before))->toBeTrue();
+});
+
+it('leaves the row timestamp untouched when the compare-and-swap loses', function (): void {
+    $attempt = auditAttempt();
+    $credential = backdatedCredential();
+    $before = $credential->updated_at;
+
+    DB::table('auth_attempts')->where('id', $attempt->id)->update(['version' => $attempt->version + 1]);
+
+    app(AttemptStore::class)->transition(
+        $attempt,
+        AttemptState::FactorSatisfied,
+        new AdvanceCredentialTimestep($credential->id, 12_345),
+    );
+
+    expect($credential->refresh()->updated_at->equalTo($before))->toBeTrue();
+});
