@@ -184,3 +184,32 @@ it('offers nothing when the identifier resolved to no user', function (): void {
     expect($result)->toBeInstanceOf(Continuing::class)
         ->and($result)->not->toBeInstanceOf(\Fissible\Vouch\Flow\Authenticated::class);
 });
+
+it('defaults the attempt version to the CAS epoch at the schema level', function (): void {
+    /*
+     * The contract that makes AuthFlow's explicit `'version' => 1` a documented
+     * redundancy rather than the only thing establishing the CAS epoch.
+     *
+     * The mutation that removes that array item survives, and it SHOULD: the
+     * column carries `default(1)`, which compiles to `default '1'` on MySQL,
+     * Postgres and SQLite alike, so removing the key changes nothing under the
+     * current schema. That is schema-conditional equivalence, not a gap -- and
+     * this test is what keeps the condition true.
+     *
+     * Inserting without the column is the point: it reads the DATABASE default
+     * rather than anything the application supplied. If a later migration drops
+     * or changes it, the equivalence silently becomes a real defect, and this
+     * fails instead.
+     */
+    $id = \Illuminate\Support\Facades\DB::table('auth_attempts')->insertGetId([
+        'handle' => bin2hex(random_bytes(32)),
+        'state' => \Fissible\Vouch\Kernel\Attempt\AttemptState::Initiated->value,
+        'bound_context' => str_repeat('a', 64),
+        'expires_at' => now()->addMinutes(10),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    expect(\Illuminate\Support\Facades\DB::table('auth_attempts')->where('id', $id)->value('version'))
+        ->toEqual(1);
+});

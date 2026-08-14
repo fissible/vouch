@@ -332,6 +332,37 @@ stated reason:
 | `OtpFactor:421` | `RemoveStringCast` | PHP concatenates an int identically |
 | `FactorResult:33` | `UnwrapArrayValues` | A variadic is already a list; `array_values` is a no-op |
 
+## Schema-conditional equivalence
+
+A survivor whose equivalence depends on a fact outside the file needs that fact
+verified and then held true, not assumed once.
+
+**`AuthFlow` — `RemoveArrayItem` on `'version' => 1`.** The attempt's version is
+the compare-and-swap epoch, so removing it from the insert looks alarming. It is
+not, under the current schema: the column carries `->default(1)`, and the
+compiled DDL was checked on every supported engine rather than inferred from
+Laravel's API.
+
+| Engine | Compiled column |
+|---|---|
+| MySQL | `` `version` bigint unsigned not null default '1' `` |
+| Postgres | `version" bigint not null default '1'` |
+| SQLite | `version" integer not null default '1'` |
+
+Disposition: **equivalent, conditional on the schema.** The explicit assignment
+stays — it documents the CAS invariant at the point of creation, where a reader
+looks for it — but it is a documented redundancy rather than the mechanism.
+
+The condition is now pinned by a test that inserts an attempt row **without** the
+column and asserts it reads back as 1, so it reads the database default rather
+than anything the application supplied. Probed: removing `->default(1)` from the
+migration fails it. If a later migration drops or changes that default, the
+equivalence would silently become a real defect; instead the test fails.
+
+This is the pattern to reuse whenever a survivor is equivalent "because of
+something elsewhere": verify the something, then make it a test, then record the
+disposition as conditional on it.
+
 ## Remaining work
 
 1. ~~**Timeouts**~~ — cause identified and bounded above. Confirm the count reaches
