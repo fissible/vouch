@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Flow;
 
 use DateTimeImmutable;
+use Exception;
 use Fissible\Vouch\Attempts\TransitionOutcome;
 use Fissible\Vouch\Contracts\AttemptStore;
 use Fissible\Vouch\Factors\FactorRegistry;
@@ -432,6 +433,22 @@ final readonly class AuthFlow
                 continue;
             }
 
+            /*
+             * is_string() above proves the field is a string, not that it is a
+             * PARSABLE one. new DateTimeImmutable('not-a-date') throws, and this
+             * runs on a public code path over data from a database column -- so
+             * an unparsable timestamp was a request-triggerable 500 rather than a
+             * rejected row.
+             *
+             * Skipping matches every other guard here: a row we cannot read is a
+             * row we do not trust, and it costs exactly itself.
+             */
+            try {
+                $satisfiedAt = new DateTimeImmutable($row['satisfied_at']);
+            } catch (Exception) {
+                continue;
+            }
+
             $factors[] = new SatisfiedFactor(
                 factorId: $row['factor_id'],
                 credentialId: $row['credential_id'],
@@ -441,7 +458,7 @@ final readonly class AuthFlow
                 userVerified: ($row['user_verified'] ?? false) === true,
                 phishingResistant: ($row['phishing_resistant'] ?? false) === true,
                 authenticatorId: is_string($authenticatorId) ? $authenticatorId : null,
-                satisfiedAt: new DateTimeImmutable($row['satisfied_at']),
+                satisfiedAt: $satisfiedAt,
             );
         }
 

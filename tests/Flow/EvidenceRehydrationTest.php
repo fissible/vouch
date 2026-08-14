@@ -177,6 +177,14 @@ it('drops a stored row whose fields are the wrong shape rather than trusting it'
     'satisfied_at not a string' => ['satisfied_at', 1_700_000_000],
     'kind not a known case' => ['kind', 'telepathy'],
     'strength not a known case' => ['strength', 9_999],
+    /*
+     * A STRING that is not a date. is_string() proves the field's type, not that
+     * it parses, and new DateTimeImmutable() throws on failure -- so before the
+     * guarded parse this row was an uncaught exception on a public code path
+     * rather than a rejected row. Skipping is the fail-closed answer, matching
+     * every other guard: a row we cannot read is a row we do not trust.
+     */
+    'satisfied_at unparsable' => ['satisfied_at', 'not-a-date'],
 ]);
 
 it('routes a selected factor to that factor driver, not the first-credential fallback', function (): void {
@@ -284,10 +292,11 @@ it('discards only the malformed row, not the evidence after it', function (): vo
     }
 
     /*
-     * TWO corrupt rows, because there are two `continue` statements and they
+     * THREE corrupt rows, because there are three `continue` statements and they
      * guard different things. The first rejects a row of the wrong SHAPE; the
-     * second rejects a well-shaped row naming an enum case that does not exist.
-     * A fixture that trips only one leaves the other's continue-vs-break
+     * second rejects a well-shaped row naming an enum case that does not exist;
+     * the third rejects a string that is not a parsable date.
+     * A fixture that trips only one leaves the others' continue-vs-break
      * indistinguishable -- which is exactly what the first version of this test
      * did, and the probe caught it.
      */
@@ -297,8 +306,11 @@ it('discards only the malformed row, not the evidence after it', function (): vo
     $unknownCase = $rows[0];
     $unknownCase['kind'] = 'telepathy';
 
-    // Both corrupt rows FIRST, the genuine password evidence last.
-    $attempt->update(['satisfied_factors' => [$wrongShape, $unknownCase, $rows[0]]]);
+    $unparsableDate = $rows[0];
+    $unparsableDate['satisfied_at'] = 'not-a-date';
+
+    // One corrupt row per guard, FIRST, with the genuine password evidence last.
+    $attempt->update(['satisfied_factors' => [$wrongShape, $unknownCase, $unparsableDate, $rows[0]]]);
 
     $result = rehydrationFlow()->advance(
         new FlowRequest($handle, 'submit', ['factor' => 'totp', 'code' => rehydrationTotpCode()], rehydrationBinding()),
@@ -307,3 +319,104 @@ it('discards only the malformed row, not the evidence after it', function (): vo
     // The surviving password row still satisfies the all_of policy alongside TOTP.
     expect($result)->toBeInstanceOf(Authenticated::class);
 });
+
+it('retains every assurance flag a stored row actually claims', function (): void {
+    /*
+     * No current driver emits a true here -- password, TOTP, OTP and recovery
+     * codes are none of multi-factor, user-verifying or phishing-resistant. That
+     * is exactly why this needs seeding: the rehydration of a TRUE flag is
+     * unreachable through any real driver, so without this test the three
+     * `=== true` comparisons could all be rewritten to constant false and every
+     * other test would stay green.
+     *
+     * The day a WebAuthn driver lands, these flags become the difference between
+     * AAL2 and AAL3. This makes the carrier load-bearing before that.
+     */
+    $handle = rehydrationFixture();
+
+    rehydrationFlow()->advance(
+        new FlowRequest($handle, 'submit', ['password' => 'correct horse battery staple'], rehydrationBinding()),
+    );
+
+    $attempt = AuthAttempt::where('handle', $handle)->firstOrFail();
+    $rows = $attempt->satisfied_factors ?? [];
+    $row = $rows[0];
+
+    $row['is_multi_factor'] = true;
+    $row['user_verified'] = true;
+    $row['phishing_resistant'] = true;
+    $row['authenticator_id'] = 'aaguid-1234';
+
+    $attempt->update(['satisfied_factors' => [$row]]);
+
+    $final = rehydrationFlow()->advance(
+        new FlowRequest($handle, 'submit', ['factor' => 'totp', 'code' => rehydrationTotpCode()], rehydrationBinding()),
+    );
+    assert($final instanceof Authenticated);
+
+    $rehydrated = null;
+
+    foreach ($final->success->factors as $factor) {
+        if ($factor->factorId === 'password') {
+            $rehydrated = $factor;
+        }
+    }
+
+    expect($rehydrated)->not->toBeNull()
+        ->and($rehydrated?->isMultiFactor)->toBeTrue()
+        ->and($rehydrated?->userVerified)->toBeTrue()
+        ->and($rehydrated?->phishingResistant)->toBeTrue()
+        ->and($rehydrated?->authenticatorId)->toBe('aaguid-1234');
+});
+
+it('never elevates an assurance flag from a value that merely looks truthy', function (mixed $stored): void {
+    /*
+     * `($row['x'] ?? false) === true` is a strict comparison on purpose, and this
+     * is the test that keeps it strict.
+     *
+     * The values below are the ordinary ways a boolean degrades in transit: a
+     * JSON string from a hand-edited column, an integer from a legacy encoder,
+     * a null from a column default. Under loose comparison every one of them
+     * elevates the factor -- and these three flags are precisely what an AAL3
+     * decision reads. This is the config-style coercion mistake, arriving
+     * through the evidence ledger instead of through config.
+     */
+    $handle = rehydrationFixture();
+
+    rehydrationFlow()->advance(
+        new FlowRequest($handle, 'submit', ['password' => 'correct horse battery staple'], rehydrationBinding()),
+    );
+
+    $attempt = AuthAttempt::where('handle', $handle)->firstOrFail();
+    $rows = $attempt->satisfied_factors ?? [];
+    $row = $rows[0];
+
+    $row['is_multi_factor'] = $stored;
+    $row['user_verified'] = $stored;
+    $row['phishing_resistant'] = $stored;
+
+    $attempt->update(['satisfied_factors' => [$row]]);
+
+    $final = rehydrationFlow()->advance(
+        new FlowRequest($handle, 'submit', ['factor' => 'totp', 'code' => rehydrationTotpCode()], rehydrationBinding()),
+    );
+    assert($final instanceof Authenticated);
+
+    $rehydrated = null;
+
+    foreach ($final->success->factors as $factor) {
+        if ($factor->factorId === 'password') {
+            $rehydrated = $factor;
+        }
+    }
+
+    expect($rehydrated)->not->toBeNull()
+        ->and($rehydrated?->isMultiFactor)->toBeFalse()
+        ->and($rehydrated?->userVerified)->toBeFalse()
+        ->and($rehydrated?->phishingResistant)->toBeFalse();
+})->with([
+    'the string "true"' => ['true'],
+    'the string "1"' => ['1'],
+    'the integer 1' => [1],
+    'null' => [null],
+]);
