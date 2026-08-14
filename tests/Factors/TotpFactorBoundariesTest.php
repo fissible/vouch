@@ -138,8 +138,75 @@ it('refuses to enroll without a usable label', function (mixed $label): void {
      */
     $data = $label === '__absent__' ? [] : ['label' => $label];
 
-    expect(fn () => boundaryTotp()->enroll(7, $data))->toThrow(InvalidArgumentException::class);
+    /*
+     * The MESSAGE, not just the class. otphp's setLabel() also throws
+     * InvalidArgumentException on an empty label, so asserting the class alone
+     * passes with vouch's own guard removed -- the exception simply arrives from
+     * a library call two lines later, after a TOTP secret has already been
+     * generated. Pinning the wording is what makes this a test of the guard.
+     */
+    expect(fn () => boundaryTotp()->enroll(7, $data))
+        ->toThrow(InvalidArgumentException::class, 'TotpFactor::enroll() requires a non-empty "label" string');
 })->with(['absent' => ['__absent__'], 'empty' => [''], 'not a string' => [123]]);
+
+it('does not replace when the caller says nothing about replacing', function (): void {
+    /*
+     * The default side of the replace contract. With `?? false` read as
+     * `?? true`, an ordinary enrollment would silently disable the credential
+     * the user is already authenticating with -- and every existing test would
+     * stay green, because they all pass `replace` explicitly.
+     */
+    boundaryTotp()->enroll(7, ['label' => 'first']);
+    $original = AuthCredential::where('user_id', 7)->where('type', 'totp')->firstOrFail()->secret;
+
+    expect(fn () => boundaryTotp()->enroll(7, ['label' => 'second']))
+        ->toThrow(\Fissible\Vouch\Enrollment\EnrollmentRefused::class);
+
+    $active = AuthCredential::where('user_id', 7)->where('type', 'totp')->whereNull('disabled_at')->get();
+
+    expect($active)->toHaveCount(1)
+        ->and($active->first()?->secret)->toBe($original);
+});
+
+it('provisions at a non-default period and digit count', function (): void {
+    /*
+     * setPeriod() and setDigits() are invisible at the defaults, because 30 and
+     * 6 are what the TOTP library would use anyway -- removing either call
+     * changes nothing a default-configured test could see. Only a non-default
+     * configuration makes those two calls load-bearing.
+     */
+    $factor = boundaryTotp(period: 60, digits: 8);
+    $uri = $factor->enroll(7, ['label' => 'ada'])->secrets[0]->reveal();
+
+    $secret = AuthCredential::where('user_id', 7)->where('type', 'totp')->firstOrFail()->secret;
+    $timestamp = (new SystemClock())->now()->getTimestamp();
+
+    if (! is_string($secret) || $secret === '' || $timestamp < 0) {
+        throw new RuntimeException('Enrollment produced no usable secret.');
+    }
+
+    $reference = TOTP::createFromSecret($secret, new SystemClock());
+    $reference->setPeriod(60);
+    $reference->setDigits(8);
+    $code = $reference->at($timestamp);
+
+    $result = $factor->verify(new VerificationRequest(boundaryAttempt(), ['code' => $code]));
+
+    /*
+     * The URI assertions are the ones that kill setPeriod() and setDigits().
+     * Neither call affects verification at all -- the period and digit count are
+     * re-read from config on every verify(), and the credential stores only the
+     * seed. What they affect is the provisioning URI, which is the ONLY place
+     * the authenticator app learns how to generate codes. Drop either call and
+     * the app is told 30/6 while the server checks 60/8: every code the user
+     * ever produces is rejected, and no round-trip test written against the
+     * server alone would notice.
+     */
+    expect($code)->toHaveLength(8)
+        ->and($result->failure)->toBeNull()
+        ->and($uri)->toContain('period=60')
+        ->and($uri)->toContain('digits=8');
+});
 
 it('replaces an existing secret on an exact true', function (): void {
     boundaryTotp()->enroll(7, ['label' => 'first']);
@@ -206,6 +273,41 @@ it('reports no credential when the stored secret is blank', function (): void {
     expect($result->failure)->toBe(FactorFailure::NoCredential);
 });
 
+it('accepts a code newer than the recorded timestep', function (): void {
+    /*
+     * The complement to the replay tests, and the half that was missing.
+     *
+     * `last_used_timestep !== null && $matched <= $last_used` is an AND, and the
+     * existing tests only ever exercise the case where BOTH sides are true. With
+     * the AND read as an OR, any credential that has ever been used would refuse
+     * every subsequent code as Consumed -- a permanent lockout for every user
+     * who has successfully authenticated once, which is as total a failure as
+     * this driver has and no test would have noticed.
+     */
+    $factor = boundaryTotp();
+    $factor->enroll(7, ['label' => 'ada']);
+
+    $credential = AuthCredential::where('user_id', 7)->where('type', 'totp')->firstOrFail();
+    $secret = $credential->secret;
+    $timestamp = (new SystemClock())->now()->getTimestamp();
+
+    if (! is_string($secret) || $secret === '' || $timestamp < 60) {
+        throw new RuntimeException('Enrollment produced no usable secret.');
+    }
+
+    // A timestep genuinely in the past, so the current code is strictly newer.
+    $credential->last_used_timestep = intdiv($timestamp, 30) - 1;
+    $credential->save();
+
+    $reference = TOTP::createFromSecret($secret, new SystemClock());
+    $reference->setPeriod(30);
+    $reference->setDigits(6);
+
+    $result = $factor->verify(new VerificationRequest(boundaryAttempt(), ['code' => $reference->at($timestamp)]));
+
+    expect($result->failure)->toBeNull();
+});
+
 it('skips timesteps before the epoch instead of computing a negative one', function (): void {
     /*
      * The `$step < 0` guard only ever fires within one drift window of the Unix
@@ -227,9 +329,27 @@ it('skips timesteps before the epoch instead of computing a negative one', funct
     $factor = boundaryTotp(window: 2, clock: $epoch);
     $factor->enroll(7, ['label' => 'ada']);
 
-    $result = $factor->verify(new VerificationRequest(boundaryAttempt(), ['code' => '000000']));
+    $secret = AuthCredential::where('user_id', 7)->where('type', 'totp')->firstOrFail()->secret;
 
-    // A mismatch, not an error: the loop skipped the impossible steps and
-    // compared only the real ones.
-    expect($result->failure)->toBe(FactorFailure::Mismatch);
+    if (! is_string($secret) || $secret === '') {
+        throw new RuntimeException('Enrollment produced no usable secret.');
+    }
+
+    $reference = TOTP::createFromSecret($secret, new SystemClock());
+    $reference->setPeriod(30);
+    $reference->setDigits(6);
+
+    $wrong = $factor->verify(new VerificationRequest(boundaryAttempt(), ['code' => '000000']));
+
+    /*
+     * Step zero is a REAL step and must still be compared. Asserting only the
+     * mismatch above would leave `$step < 0` free to become `$step <= 0`, which
+     * silently skips the current step -- at the epoch that is the whole
+     * authentication, refused. The correct code for step 0 is the assertion that
+     * separates "skipped the impossible steps" from "skipped one too many".
+     */
+    $right = $factor->verify(new VerificationRequest(boundaryAttempt(), ['code' => $reference->at(0)]));
+
+    expect($wrong->failure)->toBe(FactorFailure::Mismatch)
+        ->and($right->failure)->toBeNull();
 });

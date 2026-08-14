@@ -198,9 +198,22 @@ final readonly class TotpFactor implements Factor
             ->whereNull('disabled_at')
             ->first();
 
-        $secret = $credential?->secret;
+        /*
+         * Two guards, not one condition. Folded together as
+         * `! $credential instanceof AuthCredential || ! is_string($secret)`,
+         * the arms shadow each other: a null credential yields a null secret, so
+         * the is_string arm already catches it and the instanceof arm can never
+         * be the reason the branch is taken. Nothing can tell the two apart, and
+         * that is not a testing problem — it is a redundant condition wearing
+         * the appearance of two checks.
+         */
+        if ($credential === null) {
+            return FactorResult::failed(FactorFailure::NoCredential);
+        }
 
-        if (! $credential instanceof AuthCredential || ! is_string($secret) || $secret === '') {
+        $secret = $credential->secret;
+
+        if (! is_string($secret) || $secret === '') {
             return FactorResult::failed(FactorFailure::NoCredential);
         }
 
