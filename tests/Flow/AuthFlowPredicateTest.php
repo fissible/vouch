@@ -224,3 +224,54 @@ it('defaults the attempt version to the CAS epoch at the schema level', function
     expect(\Illuminate\Support\Facades\DB::table('auth_attempts')->where('id', $id)->value('version'))
         ->toEqual(1);
 });
+
+it('will not satisfy a policy with a recovery code offered as an ordinary factor', function (): void {
+    /*
+     * offeredFactorsFor()'s guard chain is a disjunction: a credential type is
+     * skipped if ANY of "not a string", "is recovery_code", "not registered", or
+     * "already satisfied" holds. Read as a conjunction it must satisfy ALL of
+     * them to be skipped -- which no real type does, so recovery_code becomes
+     * offered and therefore selectable.
+     *
+     * That is the failure this test exists for, and it needs a VALID recovery
+     * code to see it. Submitting a wrong code refuses under either reading, so
+     * an earlier version of this case -- factor=recovery_code carrying a TOTP
+     * code -- passed with the guard inverted and proved nothing.
+     *
+     * Recovery evidence must never satisfy a login policy through the ordinary
+     * path. It has its own action and its own outcome, and the whole point of
+     * FactorStrength::Recovery is that a printed code buys a constrained
+     * capability rather than a session.
+     */
+    predicatePolicy();
+    AuthIdentifier::create([
+        'user_id' => 7, 'type' => 'email', 'value' => 'ada@acme.example', 'verified_at' => now(),
+    ]);
+    app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class)->enroll(7, ['password' => 'correct horse battery staple']);
+
+    $codes = array_map(
+        static fn (\Fissible\Vouch\Secrets\OneTimeSecret $secret): string => $secret->reveal(),
+        app(\Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor::class)->enroll(7, [])->secrets,
+    );
+
+    $begun = predicateFlow()->advance(new FlowRequest(null, 'begin', [], predicateBinding()));
+    assert($begun instanceof Continuing && is_string($begun->handle));
+
+    predicateFlow()->advance(
+        new FlowRequest($begun->handle, 'submit', ['identifier' => 'ada@acme.example'], predicateBinding()),
+    );
+
+    // A genuine recovery code, named as an ordinary factor on the submit action.
+    $result = predicateFlow()->advance(new FlowRequest(
+        $begun->handle,
+        'submit',
+        ['factor' => 'recovery_code', 'code' => $codes[0]],
+        predicateBinding(),
+    ));
+
+    expect($result)->not->toBeInstanceOf(\Fissible\Vouch\Flow\Authenticated::class)
+        // And not spent either: a code refused for being offered through the
+        // wrong door must still work through the right one.
+        ->and(AuthCredential::where('user_id', 7)->where('type', 'recovery_code')
+            ->whereNull('disabled_at')->count())->toBe(10);
+});
