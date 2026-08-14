@@ -239,13 +239,48 @@ Suite 463 → 499.
   breaking visit the same set.
 - `OtpFactor:416` `RemoveStringCast` — PHP concatenates an int identically.
 
-### Dispositioned real but not economically detectable
+### `RecoveryCodeFactor:240` — closed, not normalised
 
-- `RecoveryCodeFactor:240` `DecrementInteger` — `random_int(0, $max)` becomes
-  `random_int(-1, $max)`. PHP reads `$alphabet[-1]` as the last character, so the
-  generator still produces valid codes; the only effect is a slight bias toward
-  'Z'. Coverage assertions cannot see it and a distribution test would be flaky.
-  Recorded as a known, bounded entropy defect rather than closed or waved off.
+First recorded as "real but not economically detectable". That was the wrong
+call: a mutation floor must not carry a known entropy defect in
+authentication-secret generation as an accepted constant.
+
+The mutation turns `random_int(0, $max)` into `random_int(-1, $max)`. PHP reads
+`$alphabet[-1]` as the LAST character, so the generator keeps producing
+ordinary-looking codes and the only symptom is a bias toward 'Z' — invisible to
+any assertion about length, shape or character coverage, and reachable only by a
+distribution test that would be flaky by construction.
+
+The fix is an injectable `RandomSource` (`src/Contracts/RandomSource.php`).
+Production delegates to `random_int()`; the test double returns its own lower
+bound, so drawing from index 0 must yield '0' on every draw and the mutant yields
+'Z' on every draw. The tests assert the requested RANGE as well as the output,
+since a generator quietly asking for `int(1, $max)` would otherwise still look
+self-consistent. Probed both directions; each fails deterministically.
+
+The injection is a seam, and it is pinned: the contract resolves to
+`SystemRandomSource` by default, the container-resolved drivers are asserted on
+generated OUTPUT rather than wiring (a constructor default would paper over a
+broken binding), and the source is checked to return both of its bounds — a
+source that never does would relocate the same defect one layer down.
+
+`RecoveryCodeFactor` 80.65% → **81.72%**, zero non-message survivors.
+
+### On the assurance attributes — stated conservatively
+
+An earlier note here claimed that flipping `isMultiFactor`, `userVerified` and
+`phishingResistant` would let an emailed code satisfy a hardware-key requirement.
+That overstates the present risk and should not stand.
+
+As the system is configured today, recovery evidence is filtered out of
+satisfiability by the kernel, and the default assurance vocabulary caps at AAL2 —
+so there is no present default path by which these flags issue AAL3. What they
+are is a future-proofing gap: the values are hard-coded false because none of
+these credentials is multi-factor, user-verifying or phishing-resistant, and
+nothing outside TOTP asserted that. The moment an AAL3 rung enters the vocabulary
+or the recovery filter changes, an unasserted `false` becomes load-bearing with
+no test standing behind it. Worth closing on those grounds, not on a claim of
+current exploitability.
 
 ### Still open in `OtpFactor` — the next work
 

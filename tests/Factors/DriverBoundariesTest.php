@@ -22,11 +22,15 @@ uses(RefreshDatabase::class);
  * constructor boundaries, the enrollment guards, the assurance attributes, and
  * recovery-code normalisation and generation.
  *
- * The assurance attributes are the sharpest of these. isMultiFactor,
- * userVerified and phishingResistant are hard-coded false because none of these
- * credentials is any of those things; flipped true, the factor would advertise
- * AAL3 eligibility to the policy evaluator and a one-time code sent over email
- * would satisfy a hardware-key requirement.
+ * On the assurance attributes, stated carefully. isMultiFactor, userVerified and
+ * phishingResistant are hard-coded false because none of these credentials is
+ * any of those things. As configured today this is future-proofing rather than a
+ * live exposure: recovery evidence is filtered out of satisfiability by the
+ * kernel, and the default assurance vocabulary caps at AAL2, so there is no
+ * present default path by which these flags issue AAL3. The gap is that nothing
+ * outside TOTP asserted them -- so the moment an AAL3 rung enters the vocabulary
+ * or the recovery filter changes, an unasserted `false` becomes load-bearing with
+ * no test behind it.
  */
 
 function driverAttemptFor(int $userId = 7): AuthAttempt
