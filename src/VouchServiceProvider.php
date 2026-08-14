@@ -10,6 +10,7 @@ use Fissible\Vouch\Console\VouchPruneCommand;
 use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Contracts\TenantResolver;
 use Fissible\Vouch\Enrollment\EnrollmentGuard;
+use Fissible\Vouch\Contracts\RandomSource;
 use Fissible\Vouch\Factors\Drivers\EmailOtpFactor;
 use Fissible\Vouch\Factors\Drivers\PasswordFactor;
 use Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor;
@@ -166,6 +167,8 @@ final class VouchServiceProvider extends ServiceProvider
             ),
         );
 
+        $this->app->bind(RandomSource::class, \Fissible\Vouch\Support\SystemRandomSource::class);
+
         $this->app->singleton(
             RecoveryCodeFactor::class,
             fn ($app): RecoveryCodeFactor => new RecoveryCodeFactor(
@@ -173,6 +176,7 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(ClockInterface::class),
                 config()->integer('vouch.recovery.count'),
                 config()->integer('vouch.recovery.length'),
+                $app->make(RandomSource::class),
             ),
         );
 
@@ -184,6 +188,7 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(OtpDelivery::class),
                 config()->integer('vouch.otp.length'),
                 config()->integer('vouch.otp.ttl_seconds'),
+                $app->make(RandomSource::class),
             ),
         );
 
@@ -195,6 +200,7 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(OtpDelivery::class),
                 config()->integer('vouch.otp.length'),
                 config()->integer('vouch.otp.ttl_seconds'),
+                $app->make(RandomSource::class),
             ),
         );
 

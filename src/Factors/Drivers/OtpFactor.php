@@ -18,7 +18,9 @@ use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
 use Fissible\Vouch\Models\AuthChallenge;
 use Fissible\Vouch\Models\AuthCredential;
+use Fissible\Vouch\Contracts\RandomSource;
 use Fissible\Vouch\Models\AuthIdentifier;
+use Fissible\Vouch\Support\SystemRandomSource;
 use Illuminate\Support\Facades\Hash;
 use InvalidArgumentException;
 use Psr\Clock\ClockInterface;
@@ -53,6 +55,9 @@ abstract readonly class OtpFactor implements Factor
         protected OtpDelivery $delivery,
         protected int $length = 6,
         protected int $ttlSeconds = 120,
+        // See RecoveryCodeFactor: injected so the digit range is testable at
+        // its boundaries rather than only in aggregate.
+        protected RandomSource $random = new SystemRandomSource(),
     ) {
         if ($this->length < 1) {
             throw new InvalidArgumentException(sprintf(
@@ -413,7 +418,7 @@ abstract readonly class OtpFactor implements Factor
         $code = '';
 
         for ($i = 0; $i < $this->length; $i++) {
-            $code .= (string) random_int(0, 9);
+            $code .= (string) $this->random->int(0, 9);
         }
 
         return $code;

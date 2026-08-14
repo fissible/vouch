@@ -11,6 +11,7 @@ use Fissible\Vouch\Factors\VerificationRequest;
 use Fissible\Vouch\Kernel\Attempt\AttemptState;
 use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Tests\Support\ArrayOtpDelivery;
+use Fissible\Vouch\Tests\Support\LowerBoundRandomSource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Psr\Clock\ClockInterface;
 
@@ -224,4 +225,66 @@ it('draws otp codes from every digit', function (): void {
 
     expect($joined)->toMatch('/^[0-9]+$/')
         ->and(str_split((string) count_chars($joined, 3)))->toEqualCanonicalizing(str_split('0123456789'));
+});
+
+it('draws recovery characters from the first index of the alphabet', function (): void {
+    /*
+     * The boundary itself, made deterministic. The aggregate coverage test above
+     * shows every character CAN appear; it cannot show which index the range
+     * starts at, because a generator asking for `int(-1, $max)` still produces
+     * perfectly ordinary-looking codes -- PHP reads $alphabet[-1] as the LAST
+     * character, so the only symptom is a bias no sample can distinguish from
+     * luck without a flaky distribution test.
+     *
+     * With a source that returns its own lower bound, the question becomes
+     * exact: drawing from index 0 must yield '0', the first character of the
+     * alphabet. Under the mutation it yields 'Z', every time.
+     */
+    $random = new LowerBoundRandomSource();
+
+    $codes = array_map(
+        static fn (\Fissible\Vouch\Secrets\OneTimeSecret $secret): string => $secret->reveal(),
+        (new RecoveryCodeFactor(app(EnrollmentGuard::class), app(ClockInterface::class), 3, 8, $random))
+            ->enroll(7, [])->secrets,
+    );
+
+    // The range as well as the result: a generator that asked for int(1, $max)
+    // would still be self-consistent, just permanently missing a character.
+    $ranges = array_values(array_unique(array_map(
+        static fn (array $call): string => $call['min'] . '..' . $call['max'],
+        $random->calls,
+    )));
+
+    expect($codes)->toBe(['00000000', '00000000', '00000000'])
+        ->and($ranges)->toBe(['0..31']);
+});
+
+it('draws otp digits from zero', function (): void {
+    // The same boundary in the numeric generator. int(-1, 9) would put a '-' in
+    // a code the user is asked to type; int(1, 9) would never produce a zero.
+    $random = new LowerBoundRandomSource();
+
+    $delivery = new ArrayOtpDelivery();
+    $factor = new EmailOtpFactor(
+        app(EnrollmentGuard::class),
+        app(ClockInterface::class),
+        $delivery,
+        6,
+        120,
+        $random,
+    );
+
+    $identifier = \Fissible\Vouch\Models\AuthIdentifier::create([
+        'user_id' => 7, 'type' => 'email', 'value' => 'ada@acme.example', 'verified_at' => now(),
+    ]);
+    $factor->enroll(7, ['identifier_id' => $identifier->id]);
+    $factor->challenge(new \Fissible\Vouch\Factors\ChallengeRequest(driverAttemptFor()));
+
+    $ranges = array_values(array_unique(array_map(
+        static fn (array $call): string => $call['min'] . '..' . $call['max'],
+        $random->calls,
+    )));
+
+    expect($delivery->lastCode())->toBe('000000')
+        ->and($ranges)->toBe(['0..9']);
 });

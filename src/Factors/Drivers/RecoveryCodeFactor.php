@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Factors\Drivers;
 
+use Fissible\Vouch\Contracts\RandomSource;
+use Fissible\Vouch\Support\SystemRandomSource;
 use Fissible\Vouch\Attempts\Mutations\DisableCredential;
 use Fissible\Vouch\Contracts\Factor;
 use Fissible\Vouch\Enrollment\EnrollmentGuard;
@@ -53,6 +55,13 @@ final readonly class RecoveryCodeFactor implements Factor
         private ClockInterface $clock,
         private int $count = 10,
         private int $length = 10,
+        /*
+         * Injected so the generator's BOUNDS are testable. Called inline,
+         * `random_int(0, $max)` can only be checked statistically, and an
+         * off-by-one at the bottom silently drops a character from every code
+         * the system will ever issue.
+         */
+        private RandomSource $random = new SystemRandomSource(),
     ) {
         if ($this->count < 1) {
             throw new InvalidArgumentException(sprintf(
@@ -237,7 +246,7 @@ final readonly class RecoveryCodeFactor implements Factor
         $code = '';
 
         for ($i = 0; $i < $this->length; $i++) {
-            $code .= $alphabet[random_int(0, $max)];
+            $code .= $alphabet[$this->random->int(0, $max)];
         }
 
         return $code;
