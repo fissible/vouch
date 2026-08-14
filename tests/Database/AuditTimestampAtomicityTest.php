@@ -157,3 +157,42 @@ it('leaves the row timestamp untouched when the compare-and-swap loses', functio
 
     expect($credential->refresh()->updated_at->equalTo($before))->toBeTrue();
 });
+
+it('refuses and mutates nothing when the attempt row vanishes before the guarded write', function (): void {
+    /*
+     * The vanished-row arm. The store re-reads the attempt by id before doing
+     * anything else, so the race it defends against is a caller holding a loaded
+     * attempt whose row is swept -- by an expiry job, a cascade, or an operator
+     * -- between load and transition.
+     *
+     * Reproduced with the same standard as the CAS-loss cases: a valid, current
+     * attempt is loaded, and only then does the row go away. Nothing is stubbed,
+     * and the store performs its own real read.
+     *
+     * The assertion is not just the return value. A refusal that had already
+     * applied its mutations would burn a recovery code or advance a timestep for
+     * an authentication that cannot have happened, which is precisely the
+     * partial commit the single-use design exists to prevent.
+     */
+    $attempt = auditAttempt();
+    $credential = backdatedCredential();
+    $before = $credential->updated_at;
+
+    // The row is gone; the in-memory model the caller holds is not.
+    DB::table('auth_attempts')->where('id', $attempt->id)->delete();
+
+    $outcome = app(AttemptStore::class)->transition(
+        $attempt,
+        AttemptState::FactorSatisfied,
+        new AdvanceCredentialTimestep($credential->id, 12_345),
+    );
+
+    $credential->refresh();
+
+    expect($outcome)->toBe(TransitionOutcome::ConcurrentModification)
+        ->and($credential->last_used_timestep)->toBeNull()
+        ->and($credential->last_used_at)->toBeNull()
+        ->and($credential->updated_at->equalTo($before))->toBeTrue()
+        // And no attempt was recreated on the way past.
+        ->and(AuthAttempt::query()->count())->toBe(0);
+});
