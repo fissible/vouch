@@ -90,21 +90,49 @@ Disposition: **deferred to the cross-engine matrix**, not written off. It is the
 survivor whose verdict depends on which engine the gate runs against, which is worth
 recording as a property of the gate rather than a defect in the tests.
 
-### Two things NOT concluded from this run
+### Why the duration fell 7.7×
 
-- **The 7.7× duration drop is not attributed to the change.** More coverage should
-  make a mutation run slower, not faster, and nothing in the diff shortens the
-  covering test set. The likeliest explanation is contention for the machine during
-  the first run. Recorded as unexplained rather than claimed as a win.
-- **The timeouts are still unaccounted for.** Neither Enrollment run reported a
-  single timeout, before or after. So the 137 / 49 timeouts of the full-scope passes
-  live in other namespaces, and the leading suspect narrows to the remaining
-  candidates — `RecoveryCodeFactor`'s up-to-ten bcrypt comparisons above all.
+A killed mutant stops at the first failing test; a surviving one runs its entire
+covering set to the end. Untested went 25 → 13 and tested went 13 → 32, so most of
+the run stopped paying for full-suite executions.
+
+**Mutation-run duration is therefore dominated by survivors, not by coverage.**
+Closing gaps makes the gate cheaper, which is the opposite of the usual intuition
+and worth knowing before anyone tries to make the gate affordable by narrowing it.
+
+## Timeouts: cause identified and bounded
+
+The Factors slice was killed mid-run inside `RecoveryCodeFactor` — the suspect
+itself. The cause is not a hang. It is bcrypt cost:
+
+`RecoveryCodeFactor` verifies a submitted code against up to ten stored digests, so
+its covering tests perform up to ten real bcrypt rounds each. At the framework
+default those 14 tests cost **35.4 seconds**, and a mutation run pays that per
+mutant. Combined with the survivor effect above, a single surviving mutant in that
+file costs more than half a minute.
+
+**Fix:** `hashing.bcrypt.rounds` is pinned to 4 in `tests/TestCase.php`, the test
+environment only.
+
+| | Before | After |
+|---|---|---|
+| `--filter=RecoveryCode` (14 tests) | 35.38s | **0.67s** |
+| Full suite (463 tests) | 74.37s | **5.01s** |
+
+This weakens nothing asserted. The cost factor is not part of any behaviour under
+test — the equalization tests count hasher calls rather than measure elapsed time,
+precisely so they do not depend on how expensive a round is — and bcrypt verifies a
+digest at whatever cost it was written with. Production cost stays with the host
+application. All 463 tests still pass.
+
+Neither Enrollment run reported a single timeout, so the 137 / 49 timeouts of the
+baseline passes were concentrated in the bcrypt-bound namespaces. The full-scope
+re-run at the end of this audit is what will confirm the count reaches zero.
 
 ## Remaining work
 
-1. **Timeouts** — identify and bound or explicitly disposition the 137 / 49 timeout
-   mutants. Ruled out of `Enrollment`; hunt them in the remaining namespaces.
+1. ~~**Timeouts**~~ — cause identified and bounded above. Confirm the count reaches
+   zero on the full-scope re-run.
 2. **Enumerate and audit** the remaining namespaces non-parallel: `Factors` (running),
    `Flow`, `Http`, `Recovery`, `Sessions`, `Attempts`, `Models`, `Secrets`, `Support`,
    `Persistence`, `Tenancy`, `Console`, `Notifications`, `Contracts`.

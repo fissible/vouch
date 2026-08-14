@@ -92,6 +92,24 @@ abstract class TestCase extends Orchestra
          */
         $app['config']->set('app.key', 'base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=');
 
+        /*
+         * The lowest cost bcrypt accepts, and the reason is the mutation gate.
+         *
+         * RecoveryCodeFactor verifies a submitted code against up to ten stored
+         * digests, so its covering tests do up to ten real bcrypt rounds each.
+         * At the framework default that file's tests cost 35 SECONDS, and a
+         * mutation run pays that per mutant -- which is what put the Factors
+         * slice beyond any usable timeout.
+         *
+         * This weakens nothing that is asserted. The cost factor is not part of
+         * any behaviour under test: the equalization tests count hasher calls
+         * rather than measure elapsed time, precisely so they do not depend on
+         * how expensive a round is, and bcrypt verifies a digest at any cost it
+         * was written with. Production cost stays with the host application,
+         * which is where that decision belongs.
+         */
+        $app['config']->set('hashing.bcrypt.rounds', 4);
+
         match ($connection) {
             'sqlite' => $app['config']->set('database.connections.sqlite', [
                 'driver' => 'sqlite',
