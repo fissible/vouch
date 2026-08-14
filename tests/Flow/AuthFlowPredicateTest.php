@@ -124,12 +124,23 @@ it('presents a refusal against a factor the user actually holds', function (): v
     );
     assert($refused instanceof Continuing);
 
-    $offered = array_map(
-        static fn (\Fissible\Vouch\Kernel\Screen\FactorOption $o): string => $o->factorId,
+    /*
+     * The isDefault FLAG, not membership of the list.
+     *
+     * offeredFactors() maps over the WHOLE registry, marking one entry default,
+     * so every screen contains every driver and `toContain('totp')` is true
+     * whichever factor is presented. The first version of this asserted exactly
+     * that and passed with the presentation hard-coded to 'password' -- the same
+     * containment mistake already made once on defaultFactorFor(), caught the
+     * same way, by probing rather than by reading.
+     */
+    $default = array_values(array_filter(
         $refused->screen->offeredFactors,
-    );
+        static fn (\Fissible\Vouch\Kernel\Screen\FactorOption $o): bool => $o->isDefault,
+    ));
 
-    expect($offered)->toContain('totp');
+    expect($default)->toHaveCount(1)
+        ->and($default[0]->factorId)->toBe('totp');
 });
 
 it('treats a blank factor selection as no selection, not as a factor named ""', function (): void {
