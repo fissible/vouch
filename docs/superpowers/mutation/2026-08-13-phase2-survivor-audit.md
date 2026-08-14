@@ -168,6 +168,57 @@ The 127 fall into recognisable groups, none of them ruled on yet:
 - **Config-default integers** (`OtpFactor` 54–55, 68; `RecoveryCodeFactor`
   54–55, 67; `TotpFactor` 58) — defaults with no assertion behind them.
 
+## The bcrypt override cannot reach production
+
+Commit `4c6a0ec`-series. Four independent controls, so the barrier survives any one
+of them being wrong:
+
+1. Nothing under `src/` or `config/` may write hashing configuration at all — in
+   either direction. Choosing a password hashing cost belongs to the host.
+2. `Fissible\Vouch\Tests\` is absent from the production autoloader (`autoload-dev`
+   only).
+3. `orchestra/testbench` stays in `require-dev`, so `TestCase`'s parent class does
+   not exist in a production install and the file cannot load even if reached for.
+4. `/tests export-ignore` keeps the file out of the distributed archive entirely.
+
+Verified: `git archive HEAD` yields 136 `src/` files and **zero** test files. Probed:
+adding a hashing config write to the service provider fails control 1; removing the
+export-ignore line fails control 4. The directory scan is guarded by a non-empty
+file-count assertion so a mistyped path cannot pass by scanning nothing.
+
+## Irreducible timeouts in the eventual baseline
+
+The four non-terminating loop mutants are a **stable property of the tool**, not
+survivors. They must be carried in the baseline as a named constant — a floor
+expressed as "score ≥ X with 4 known-irreducible timeouts" — and never normalised
+away by counting them as killed or by excluding their files from scope.
+
+| Location | Mutation |
+|---|---|
+| `RecoveryCodeFactor:131` | `PostIncrementToPostDecrement` |
+| `RecoveryCodeFactor:239` | `PostIncrementToPostDecrement` |
+| `OtpFactor:415` | `PostIncrementToPostDecrement` |
+| `TotpFactor:266` | `PostDecrementToPostIncrement` |
+
+## Factors group 1 — `TotpFactor` (partial)
+
+Commit `22a50da`. TotpFactor **62.41% → 66.92%**; suite 463 → 482.
+
+Closed: constructor boundaries for period, digits and window (both sides of each);
+the empty-issuer refusal; the period, digits and window defaults; enroll()'s label
+contract; the `replace === true` strictness together with the original credential
+surviving a refusal; both no-credential paths in verify(); and the pre-epoch
+timestep guard.
+
+**`TotpFactor:267` `PlusToMinus` is dispositioned equivalent by symmetry.** The loop
+is `for ($offset = $this->window; $offset >= -$this->window; $offset--)` and the body
+computes `$currentStep + $offset`. Because the window is symmetric, negating the
+offset maps the set of visited steps onto itself. No test can distinguish the two,
+and none should try.
+
+Still open in `TotpFactor`: message-string concatenation (group 3, pending the
+protocol-value check), and the remaining verify() predicates at lines 203 and 218.
+
 ## Remaining work
 
 1. ~~**Timeouts**~~ — cause identified and bounded above. Confirm the count reaches
