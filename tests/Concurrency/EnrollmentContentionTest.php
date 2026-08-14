@@ -116,8 +116,14 @@ it('bounds the wait rather than hanging the caller', function (): void {
     /*
      * Engine defaults are wildly inconsistent -- MySQL waits 50s, Postgres waits
      * forever, SQLite fails instantly -- so an unbounded wait would hang a
-     * request thread on every contended enrollment. This asserts the bound is
-     * actually applied, which no unit test can.
+     * request thread on every contended enrollment.
+     *
+     * Two assertions, because neither alone is enough. The elapsed time is a
+     * liveness check and nothing more: on SQLite the default behaviour is to
+     * fail instantly, so a fast return is exactly what REMOVING the bound
+     * produces. The setting readback is the mechanism -- it is what the engine
+     * would actually have done had the lock cleared -- and this is the one place
+     * it is read under genuine contention rather than after a quiet enrollment.
      */
     $a = DB::connection('enroll_a');
     $a->beginTransaction();
@@ -134,7 +140,32 @@ it('bounds the wait rather than hanging the caller', function (): void {
         $a->rollBack();
     }
 
-    expect(microtime(true) - $started)->toBeLessThan(10.0);
+    $b = DB::connection('enroll_b');
+
+    // scalar() is honestly typed mixed: the drivers disagree about whether a
+    // numeric setting returns an int or a string.
+    $setting = static function (string $query) use ($b): string {
+        $value = $b->scalar($query);
+
+        return match (true) {
+            is_int($value) => (string) $value,
+            is_string($value) => $value,
+            default => throw new RuntimeException('Non-scalar readback from: ' . $query),
+        };
+    };
+
+    $applied = match ($b->getDriverName()) {
+        // Milliseconds on SQLite: the seconds-to-milliseconds conversion, read
+        // back off the connection that actually contended.
+        'sqlite' => (int) $setting('PRAGMA busy_timeout'),
+        'mysql', 'mariadb' => (int) $setting('SELECT @@SESSION.innodb_lock_wait_timeout') * 1000,
+        // Postgres reverts SET LOCAL on commit, so the bound is no longer
+        // readable here. The dedicated readback test covers that engine.
+        default => 2_000,
+    };
+
+    expect($applied)->toBe(2_000)
+        ->and(microtime(true) - $started)->toBeLessThan(10.0);
 });
 
 it('never leaves two recovery-code generations live under interleaved regeneration', function (): void {
