@@ -133,3 +133,33 @@ it('refuses to derive a binding without an application key', function (): void {
     expect(fn (): string => SessionBinding::for('host-1', BindingDomain::Session))
         ->toThrow(RuntimeException::class, 'Vouch requires APP_KEY to be set');
 });
+
+it('derives a distinct binding per session and per domain', function (): void {
+    /*
+     * This looks like a string-concatenation survivor and is not. The
+     * concatenation IS the HMAC input, so it is a protocol value: dropping the
+     * right-hand side leaves `domain . "\0"` and every session in that domain
+     * derives the SAME binding -- one row for all of them, and any session id
+     * validating against any other.
+     *
+     * The NUL separator is what stops domain "sessiona" + id "bc" colliding with
+     * domain "session" + id "abc". A fixed vector pins the whole construction --
+     * order, separator and operands -- which distinctness alone cannot: swapping
+     * the operands keeps every value distinct while changing all of them.
+     */
+    $key = 'base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+    config(['app.key' => $key]);
+
+    $a = SessionBinding::for('host-a', BindingDomain::Session);
+    $b = SessionBinding::for('host-b', BindingDomain::Session);
+    $attempt = SessionBinding::for('host-a', BindingDomain::Attempt);
+
+    expect($a)->not->toBe($b)
+        ->and($a)->not->toBe($attempt)
+        // The exact construction: hash_hmac over "<domain>\0<hostSessionId>".
+        ->and($a)->toBe(hash_hmac(
+            'sha256',
+            BindingDomain::Session->value . "\0" . 'host-a',
+            $key,
+        ));
+});
