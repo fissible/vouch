@@ -219,3 +219,47 @@ it('does no hashing work at all under a friendly posture', function (): void {
     expect($hasher->makeCalls)->toBe(0)
         ->and($hasher->checkedAgainst)->toBe([]);
 });
+
+it('dispatches each result variant to its own branch and no other', function (): void {
+    /*
+     * Both FlowResultHandler and FlowResultSerializer discriminate with
+     * `match (true)`. Read as `match (false)` the arms invert: the FIRST arm
+     * whose condition is FALSE wins, so a Continuing result -- which is not
+     * Authenticated -- falls into the Authenticated branch and establishes a
+     * session for a flow that has not finished authenticating.
+     *
+     * That is the single worst mis-dispatch available in this file, and it is a
+     * one-token change. Continuing is the variant that proves it: it must pass
+     * through untouched, with the host guard never invoked.
+     */
+    $guard = new RecordingGuard();
+    app()->instance(StatefulGuard::class, $guard);
+
+    $screen = app(\Fissible\Vouch\Flow\ScreenBuilder::class)->identify(EnumerationPosture::Friendly);
+    $continuing = new \Fissible\Vouch\Flow\Continuing($screen, 'handle-1');
+
+    $handled = app(FlowResultHandler::class)->handle($continuing);
+
+    expect($handled)->toBe($continuing)
+        ->and($guard->loggedIn)->toBe([])
+        ->and(AuthSession::count())->toBe(0);
+});
+
+it('serializes a continuing result as continuing, never as an outcome', function (): void {
+    /*
+     * The serializer's half of the same discriminator. Inverted, a still-running
+     * attempt is described to the client as 'authenticated' -- a success-shaped
+     * envelope for a flow that produced no session, which a client has no way to
+     * tell from a real one.
+     */
+    $screen = app(\Fissible\Vouch\Flow\ScreenBuilder::class)->identify(EnumerationPosture::Friendly);
+
+    $payload = app(\Fissible\Vouch\Http\FlowResultSerializer::class)
+        ->toArray(new \Fissible\Vouch\Flow\Continuing($screen, 'handle-1'), '/dashboard');
+
+    expect($payload['result'])->toBe('continuing')
+        ->and($payload['handle'])->toBe('handle-1')
+        // And no returnTo: a redirect target on an unfinished attempt is an open
+        // redirect handed out before authentication.
+        ->and($payload)->not->toHaveKey('returnTo');
+});
