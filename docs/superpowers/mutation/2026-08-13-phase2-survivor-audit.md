@@ -359,9 +359,21 @@ than anything the application supplied. Probed: removing `->default(1)` from the
 migration fails it. If a later migration drops or changes that default, the
 equivalence would silently become a real defect; instead the test fails.
 
+**`AuthFlow` — `RemoveEarlyReturn` on `offeredFactorsFor()`'s `return []`.** The
+same pattern, applied a second time. Removing the early return lets the credential
+query run with a null user id, and Laravel rewrites `where('user_id', null)` into
+`where user_id is null` — so any ownerless credential row would be offered as
+though it belonged to an unknown identifier. No such row can exist:
+`auth_credentials.user_id` is NOT NULL. Equivalent, conditional on that, and the
+condition is pinned by a test asserting the insert is rejected. Probed by making
+the column nullable.
+
 This is the pattern to reuse whenever a survivor is equivalent "because of
 something elsewhere": verify the something, then make it a test, then record the
-disposition as conditional on it.
+disposition as conditional on it. Two of the three schema-conditional rulings in
+this audit would have become real defects under an ordinary migration — one a
+broken CAS epoch, the other credential disclosure to an unknown identifier — so
+the conditional form is not bookkeeping.
 
 ## Remaining work
 

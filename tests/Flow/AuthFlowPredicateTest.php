@@ -275,3 +275,30 @@ it('will not satisfy a policy with a recovery code offered as an ordinary factor
         ->and(AuthCredential::where('user_id', 7)->where('type', 'recovery_code')
             ->whereNull('disabled_at')->count())->toBe(10);
 });
+
+it('cannot store a credential without an owner', function (): void {
+    /*
+     * The schema premise behind a second equivalent-mutant ruling, pinned the
+     * same way as auth_attempts.version.
+     *
+     * offeredFactorsFor() returns [] early when the attempt has no user. Removing
+     * that early return looks dangerous -- the credential query would then run
+     * with a null user_id, and Laravel rewrites `where('user_id', null)` into
+     * `where user_id is null`, so any ownerless row would be offered as though it
+     * belonged to an unknown identifier.
+     *
+     * No such row can exist: the column is NOT NULL on every engine. That makes
+     * the mutant equivalent under the current schema -- and makes this test, not
+     * the reasoning, what keeps it so. If a migration ever makes user_id
+     * nullable, the equivalence becomes a real credential-disclosure defect, and
+     * this fails first.
+     */
+    expect(fn () => \Illuminate\Support\Facades\DB::table('auth_credentials')->insert([
+        'user_id' => null,
+        'type' => 'password',
+        'secret' => 'digest',
+        'strength' => 'knowledge',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]))->toThrow(\Illuminate\Database\QueryException::class);
+});
