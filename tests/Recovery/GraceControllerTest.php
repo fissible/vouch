@@ -105,3 +105,37 @@ it('does not treat another session grace as this one', function (string $method)
 
     expect($response->getData(true))->toBe(['result' => 'grace_expired']);
 })->with(['enroll', 'complete']);
+
+it('strips any assurance level when a session becomes a grace capability', function (): void {
+    /*
+     * A high-priority control, not payload detail.
+     *
+     * start() writes over whatever row the binding already had -- and a user who
+     * authenticated, then lost their factor and used a recovery code, has an
+     * existing row carrying a real acr. If that acr survived, the record would be
+     * a recovery grace capability holding an assurance level, which collapses the
+     * distinction the whole containment model rests on: grace is supposed to buy
+     * the right to re-enrol, never the assurance of the session it replaced.
+     *
+     * Both halves are asserted. The stored acr must be null, AND the comparator
+     * must refuse it -- those are separate mechanisms, and the comparator's
+     * isRecoveryGrace() arm is a compensating control rather than a substitute
+     * for clearing the field.
+     */
+    $id = graceSessionId('was-authenticated');
+
+    AuthSession::create([
+        'session_binding' => SessionBinding::for($id, BindingDomain::Session),
+        'user_id' => 7,
+        'amr' => ['password'],
+        'acr' => 'aal2',
+    ]);
+
+    app(GraceGuard::class)->start($id, 7);
+
+    $row = AuthSession::firstOrFail();
+
+    expect($row->acr)->toBeNull()
+        ->and($row->recovery_grace_expires_at)->not->toBeNull()
+        ->and(app(\Fissible\Vouch\Http\AssuranceComparator::class)->isSufficient($row, 'aal1'))->toBeFalse();
+});
