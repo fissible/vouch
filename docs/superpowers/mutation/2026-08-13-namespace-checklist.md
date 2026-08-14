@@ -104,28 +104,30 @@ review rather than a threshold.
 
 | # | Namespace | Files | Audited |
 |---|---|---|---|
-| 1 | `Fissible\Vouch` | 2 | ☐ |
-| 2 | `Fissible\Vouch\Attempts` | 6 | ☐ |
-| 3 | `Fissible\Vouch\Attempts\Mutations` | 4 | ☐ |
-| 4 | `Fissible\Vouch\Console` | 1 | ☐ |
-| 5 | `Fissible\Vouch\Contracts` | 6 | ☐ |
+| 1 | `Fissible\Vouch` | 2 | ☑ 47.37% measured — survivors open |
+| 2 | `Fissible\Vouch\Attempts` | 6 | ☑ 67.82% audited |
+| 3 | `Fissible\Vouch\Attempts\Mutations` | 4 | ☑ 77.78% measured — 2 open |
+| 4 | `Fissible\Vouch\Console` | 1 | ☑ 0.00% measured — 3 open |
+| 5 | `Fissible\Vouch\Contracts` | 6 | ☑ zero mutations (evidenced) |
 | 6 | `Fissible\Vouch\Enrollment` | 3 | ☑ 71.11% |
 | 7 | `Fissible\Vouch\Factors` | 7 | ☑ 79.23% (with Drivers) |
 | 8 | `Fissible\Vouch\Factors\Drivers` | 6 | ☑ |
-| 9 | `Fissible\Vouch\Flow` | 10 | ☐ |
-| 10 | `Fissible\Vouch\Http` | 5 | ☐ |
-| 11 | `Fissible\Vouch\Http\Middleware` | 2 | ☐ |
-| 12 | `Fissible\Vouch\Models` | 10 | ☐ |
-| 13 | `Fissible\Vouch\Models\Concerns` | 4 | ☐ |
-| 14 | `Fissible\Vouch\Notifications` | 1 | ☐ |
-| 15 | `Fissible\Vouch\Persistence` | 3 | ☐ |
-| 16 | `Fissible\Vouch\Recovery` | 2 | ☐ |
-| 17 | `Fissible\Vouch\Secrets` | 2 | ☐ |
-| 18 | `Fissible\Vouch\Sessions` | 5 | ☐ |
-| 19 | `Fissible\Vouch\Support` | 3 | ☐ |
-| 20 | `Fissible\Vouch\Tenancy` | 1 | ☐ |
+| 9 | `Fissible\Vouch\Flow` | 10 | ☑ audited (AuthFlow 95.63%) |
+| 10 | `Fissible\Vouch\Http` | 5 | ☑ 78.98% audited |
+| 11 | `Fissible\Vouch\Http\Middleware` | 2 | ☑ 79.31% audited |
+| 12 | `Fissible\Vouch\Models` | 10 | ☑ 76.19% measured — survivors open |
+| 13 | `Fissible\Vouch\Models\Concerns` | 4 | ☑ covered by the Models run |
+| 14 | `Fissible\Vouch\Notifications` | 1 | ☑ 0.00% measured — 9 open |
+| 15 | `Fissible\Vouch\Persistence` | 3 | ☑ audited (violation identity) |
+| 16 | `Fissible\Vouch\Recovery` | 2 | ☑ 83.82% audited |
+| 17 | `Fissible\Vouch\Secrets` | 2 | ☑ audited + disclosure fixed |
+| 18 | `Fissible\Vouch\Sessions` | 5 | ☑ 63.33% audited |
+| 19 | `Fissible\Vouch\Support` | 3 | ☑ 0.00% — adequately tested, see above |
+| 20 | `Fissible\Vouch\Tenancy` | 1 | ☑ zero mutations (evidenced) |
 
-**3 of 20 audited. 17 remain.**
+**All 20 measured. 12 audited to disposition; 5 measured with survivors still open (`Fissible\Vouch` root, `Models`, `Console`, `Notifications`, `Attempts\Mutations`); 2 are evidenced zero-mutation namespaces.**
+
+Measurement is not the gate — see *The gate* in the survivor-audit document. A namespace counts as done only when every survivor, timeout and uncovered mutation there is killed or dispositioned.
 
 Excluded, and gated separately at 80 / 95: `Kernel\Assurance`, `Kernel\Attempt`,
 `Kernel\Enumeration`, `Kernel\Factor`, `Kernel\Policy`, `Kernel\Satisfiability`,
