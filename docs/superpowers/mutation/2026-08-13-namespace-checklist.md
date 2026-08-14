@@ -47,6 +47,37 @@ That distinction is the reason to write the list down rather than recall it: the
 gate would still have reported a number, and the number would still have been
 honest, while four namespaces went un-audited behind it.
 
+## What a per-namespace slice is, and is not
+
+**Discovery aid only.** A slice finds survivors to look at. It is not a coverage
+partition and its scores are not additive:
+
+- Slices **over-include** — filtering on `Fissible\Vouch\Flow` also ran
+  `src/Http/FlowResult*.php`.
+- Slices therefore **overlap**, so per-namespace scores cannot be averaged,
+  summed, or combined into a headline number.
+- Namespace completion proves nothing about file coverage. Only the full-scope
+  `RUN`-line-to-`src/` diff does.
+
+The one authoritative completeness check is the diff described under *Before the
+final gate*.
+
+## Zero-mutation files — per-file evidence
+
+A file absent from the full run is only acceptable if it has **no mutable
+statements by construction**, and that must be shown per file. Namespace
+completion is not evidence.
+
+| File | Construct | Evidence |
+|---|---|---|
+| `src/Flow/FlowResult.php` | interface | `interface FlowResult {}` — empty body, no methods |
+| `src/Flow/Authenticated.php` | `final readonly class` | Body is one constructor, promoted properties only (`AuthSuccess $success`, `ScreenSpec $screen`); no statements |
+| `src/Flow/Continuing.php` | `final readonly class` | Body is one constructor, promoted properties only; no statements |
+| `src/Flow/RecoveryGraceStarted.php` | `final readonly class` | Body is one constructor, promoted properties only (`int $userId`, `string $boundContext`, `ScreenSpec $screen`); no statements |
+
+Extend this table as later namespaces are audited. A file appearing in the diff
+for any other reason is a hole in the gate, not an exemption.
+
 ## Checklist
 
 | # | Namespace | Files | Audited |
