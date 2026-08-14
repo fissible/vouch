@@ -76,28 +76,63 @@ it('keeps the plaintext out of serialize()', function (): void {
 
 it('keeps the plaintext out of var_export()', function (): void {
     /*
-     * KNOWN GAP, found by this audit and not yet fixed. Skipped rather than
-     * deleted, and skipped rather than inverted into an assertion that the leak
-     * is correct.
+     * The route that made every other redaction moot. var_export() reads an
+     * object's raw instance properties and consults neither __debugInfo() nor
+     * __toString() nor jsonSerialize(), so a redacting property-holder leaked in
+     * full -- and var_export() is what writes cached config and what several dump
+     * helpers and debug toolbars call.
      *
-     * var_export() reads an object's raw properties. It consults neither
-     * __debugInfo() nor __toString() nor jsonSerialize(), so every redaction
-     * this class implements is bypassed and the output is:
+     * Closed by moving the value off the object entirely, into a WeakMap keyed by
+     * the instance. There is no property left to read.
      *
-     *   \Fissible\Vouch\Secrets\OneTimeSecret::__set_state(array(
-     *      'value' => '<plaintext>',
-     *   ))
-     *
-     * That matters because var_export() is what writes cached config and what
-     * several dump helpers and debug toolbars call. serialize() is already
-     * guarded and emits a null, so this is the one remaining escape route.
-     *
-     * PHP offers no hook to intercept it. The fix is to stop holding the value
-     * in a property at all -- a WeakMap keyed by the object, so there is nothing
-     * for var_export() to read. That is a change to a security primitive and
-     * belongs in its own reviewed commit, not tacked onto an audit pass.
-     *
-     * Un-skip when the holder changes; this test is the regression guard.
+     * Asserted for the plaintext AND for any alternate recoverable value: the
+     * exported state must be empty, not merely free of this particular string.
      */
-    expect(var_export(new OneTimeSecret(SECRET_PLAINTEXT), true))->not->toContain(SECRET_PLAINTEXT);
-})->skip('KNOWN GAP: var_export() reads raw properties and bypasses every redaction hook. Fix is a WeakMap-backed holder, which needs its own reviewed change.');
+    $exported = var_export(new OneTimeSecret(SECRET_PLAINTEXT), true);
+
+    expect($exported)->not->toContain(SECRET_PLAINTEXT)
+        ->and($exported)->not->toContain('correct horse')
+        // An empty state array -- nothing exported that could be recovered.
+        ->and(preg_replace('/\s+/', '', $exported))
+        ->toBe("\\Fissible\\Vouch\\Secrets\\OneTimeSecret::__set_state(array())");
+});
+
+it('cannot be rebuilt into a usable secret from exported state', function (): void {
+    // Evaluating var_export() output must not manufacture a second secret. It
+    // cannot -- no state is exported -- so the refusal is explicit rather than a
+    // hollow instance that looks like a secret and reveals nothing.
+    expect(fn (): OneTimeSecret => OneTimeSecret::__set_state(['value' => SECRET_PLAINTEXT]))
+        ->toThrow(LogicException::class);
+});
+
+it('cannot be cloned into a second usable secret', function (): void {
+    /*
+     * A clone is a distinct object with no map entry of its own. Silently it
+     * would be an unusable look-alike -- easy to mistake for a copy of the
+     * secret, and easy to pass on in place of the original. Refusing says so at
+     * the point of the mistake.
+     */
+    $secret = new OneTimeSecret(SECRET_PLAINTEXT);
+
+    expect(static fn (): OneTimeSecret => clone $secret)->toThrow(LogicException::class)
+        // And the original is untouched by the attempt.
+        ->and($secret->reveal())->toBe(SECRET_PLAINTEXT);
+});
+
+it('still reveals once, and only once, for the original instance', function (): void {
+    // The behaviour the move must not change: one read, then spent.
+    $secret = new OneTimeSecret(SECRET_PLAINTEXT);
+
+    expect($secret->reveal())->toBe(SECRET_PLAINTEXT)
+        ->and(fn (): string => $secret->reveal())
+        ->toThrow(\Fissible\Vouch\Secrets\SecretAlreadyRevealed::class);
+});
+
+it('keeps distinct instances independent', function (): void {
+    // A WeakMap keyed by instance must not let one secret answer for another.
+    $a = new OneTimeSecret('alpha');
+    $b = new OneTimeSecret('beta');
+
+    expect($b->reveal())->toBe('beta')
+        ->and($a->reveal())->toBe('alpha');
+});
