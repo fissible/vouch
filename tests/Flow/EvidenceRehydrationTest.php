@@ -129,13 +129,7 @@ it('carries first-factor evidence across a step and completes a two-factor login
     expect($final)->toBeInstanceOf(Authenticated::class)
         ->and($final->success->amr())->toBe(['password', 'totp'])
         ->and($final->success->userId)->toBe(7);
-})->skip(
-    'INCOMPLETE, not disabled. The two-factor walk does not yet reach Authenticated: '
-    . 'after the password step the flow challenges a code-bearing factor and the '
-    . 'submitted TOTP code is refused with "That credential was not accepted." '
-    . 'Diagnosis is unfinished, so this is recorded rather than guessed at. Un-skip '
-    . 'this FIRST -- the malformed-row cases below are vacuous until it passes.',
-);
+});
 
 it('drops a stored row whose fields are the wrong shape rather than trusting it', function (string $field, mixed $bad): void {
     /*
@@ -183,11 +177,133 @@ it('drops a stored row whose fields are the wrong shape rather than trusting it'
     'satisfied_at not a string' => ['satisfied_at', 1_700_000_000],
     'kind not a known case' => ['kind', 'telepathy'],
     'strength not a known case' => ['strength', 9_999],
-])->skip(
-    'VACUOUS while the happy path above is incomplete. These assert that a corrupted '
-    . 'row does NOT authenticate -- and right now nothing authenticates, so all seven '
-    . 'pass against an implementation that could be doing anything at all. They are '
-    . 'skipped rather than left green because a passing test that cannot fail is worse '
-    . 'than an absent one: it reports coverage of the guards while proving nothing. '
-    . 'Un-skip together with the round-trip test above.',
-);
+]);
+
+it('routes a selected factor to that factor driver, not the first-credential fallback', function (): void {
+    /*
+     * The defect this file first surfaced. verify() special-cased only
+     * action === 'recover' and sent everything else to defaultFactorFor(), which
+     * re-selected the FIRST active non-recovery credential on every step --
+     * password. So a submitted TOTP code was handed to PasswordFactor and
+     * truthfully refused, and no all_of policy could ever reach its second
+     * factor.
+     *
+     * A RecordingGuard-style proxy is unnecessary here: only TotpFactor can
+     * accept a TOTP code, so a satisfied result IS proof the submission reached
+     * it rather than the password fallback.
+     */
+    $handle = rehydrationFixture();
+
+    rehydrationFlow()->advance(
+        new FlowRequest($handle, 'submit', ['password' => 'correct horse battery staple'], rehydrationBinding()),
+    );
+
+    $result = rehydrationFlow()->advance(
+        new FlowRequest($handle, 'submit', ['factor' => 'totp', 'code' => rehydrationTotpCode()], rehydrationBinding()),
+    );
+
+    expect($result)->toBeInstanceOf(Authenticated::class);
+});
+
+it('refuses a factor the server is not currently offering', function (string $requested): void {
+    /*
+     * Client selection is a choice among what the server offers, never a lookup
+     * key. 'webauthn_platform' is not registered; 'recovery_code' is registered
+     * but deliberately excluded, because recovery is its own action with its own
+     * constrained outcome and must not be reachable through the ordinary satisfy
+     * path; 'password' is registered AND held by this user but already satisfied
+     * on this attempt.
+     *
+     * All three refuse identically. A client that could distinguish them would
+     * have a registry oracle and an evidence oracle in the same response.
+     */
+    $handle = rehydrationFixture();
+
+    rehydrationFlow()->advance(
+        new FlowRequest($handle, 'submit', ['password' => 'correct horse battery staple'], rehydrationBinding()),
+    );
+
+    $result = rehydrationFlow()->advance(
+        new FlowRequest($handle, 'submit', ['factor' => $requested, 'code' => rehydrationTotpCode()], rehydrationBinding()),
+    );
+
+    expect($result)->toBeInstanceOf(Continuing::class)
+        ->and($result)->not->toBeInstanceOf(Authenticated::class);
+})->with([
+    'unregistered driver' => 'webauthn_platform',
+    'registered but not offered' => 'recovery_code',
+    'already satisfied on this attempt' => 'password',
+]);
+
+it('cannot advance the policy by re-submitting an already-satisfied factor', function (): void {
+    /*
+     * The stronger half of the case above. Refusing the SELECTION is not enough
+     * on its own -- what matters is that the evidence ledger does not grow. If a
+     * satisfied factor could be re-submitted and re-recorded, an all_of policy
+     * would be satisfiable by one credential presented twice, which is the whole
+     * guarantee multi-factor exists to make.
+     */
+    $handle = rehydrationFixture();
+
+    rehydrationFlow()->advance(
+        new FlowRequest($handle, 'submit', ['password' => 'correct horse battery staple'], rehydrationBinding()),
+    );
+
+    rehydrationFlow()->advance(
+        new FlowRequest($handle, 'submit', ['password' => 'correct horse battery staple'], rehydrationBinding()),
+    );
+
+    $stored = AuthAttempt::where('handle', $handle)->firstOrFail()->satisfied_factors ?? [];
+
+    expect($stored)->toHaveCount(1)
+        ->and(array_column($stored, 'factor_id'))->toBe(['password']);
+});
+
+it('discards only the malformed row, not the evidence after it', function (): void {
+    /*
+     * `continue`, not `break`. A corrupt row must cost exactly itself.
+     *
+     * With `break` the loop abandons the whole ledger at the first bad row, so a
+     * single malformed entry silently discards every valid factor recorded after
+     * it. On an all_of policy that is a lockout, and on a partially-evaluated one
+     * it is worse: assurance is computed from a truncated evidence set that looks
+     * complete. A single-row fixture cannot tell the two apart, which is why this
+     * needs two.
+     */
+    $handle = rehydrationFixture();
+
+    rehydrationFlow()->advance(
+        new FlowRequest($handle, 'submit', ['password' => 'correct horse battery staple'], rehydrationBinding()),
+    );
+
+    $attempt = AuthAttempt::where('handle', $handle)->firstOrFail();
+    $rows = $attempt->satisfied_factors ?? [];
+
+    if ($rows === []) {
+        throw new RuntimeException('Fixture stored no evidence.');
+    }
+
+    /*
+     * TWO corrupt rows, because there are two `continue` statements and they
+     * guard different things. The first rejects a row of the wrong SHAPE; the
+     * second rejects a well-shaped row naming an enum case that does not exist.
+     * A fixture that trips only one leaves the other's continue-vs-break
+     * indistinguishable -- which is exactly what the first version of this test
+     * did, and the probe caught it.
+     */
+    $wrongShape = $rows[0];
+    $wrongShape['factor_id'] = 123;
+
+    $unknownCase = $rows[0];
+    $unknownCase['kind'] = 'telepathy';
+
+    // Both corrupt rows FIRST, the genuine password evidence last.
+    $attempt->update(['satisfied_factors' => [$wrongShape, $unknownCase, $rows[0]]]);
+
+    $result = rehydrationFlow()->advance(
+        new FlowRequest($handle, 'submit', ['factor' => 'totp', 'code' => rehydrationTotpCode()], rehydrationBinding()),
+    );
+
+    // The surviving password row still satisfies the all_of policy alongside TOTP.
+    expect($result)->toBeInstanceOf(Authenticated::class);
+});

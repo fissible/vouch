@@ -154,16 +154,25 @@ final readonly class AuthFlow
     private function verify(AuthAttempt $attempt, FlowRequest $request): FlowResult
     {
         $posture = $this->posture($attempt->tenant_id);
-        $factorId = $request->action === 'recover' ? 'recovery_code' : $this->defaultFactorFor($attempt->user_id);
+        $offered = $this->offeredFactorsFor($attempt);
+        $factorId = $this->selectFactor($attempt, $request, $offered);
+
+        /*
+         * The refusal screen names a factor the server offers, never the one the
+         * client asked for. Echoing an unoffered id back would make the refusal
+         * screen itself a probe: submit a guess, read it in the response, and
+         * learn which drivers the server recognises.
+         */
+        $presented = $offered[0] ?? 'password';
 
         $refusal = fn (): FlowResult => new Continuing(
-            $this->screens->refused(AuthStep::Challenge, Outcome::CredentialRejected, $posture, $factorId),
+            $this->screens->refused(AuthStep::Challenge, Outcome::CredentialRejected, $posture, $presented),
             $attempt->handle,
         );
 
         $userId = $attempt->user_id;
 
-        if (! $this->registry->has($factorId) || $userId === null) {
+        if ($factorId === null || ! $this->registry->has($factorId) || $userId === null) {
             /*
              * No user means no credential to verify, so nothing would hash --
              * and under strict posture that speed difference IS the account
@@ -292,6 +301,85 @@ final readonly class AuthFlow
      * presenting it as the primary path would lead a user into a screen that
      * cannot complete their login.
      */
+    /**
+     * The factors this attempt may be advanced with RIGHT NOW.
+     *
+     * Server-side, and deliberately narrower than "everything registered": a
+     * factor is offered only if the user holds an active credential of that
+     * type, a driver is registered for it, and it has not already been
+     * satisfied on this attempt.
+     *
+     * Excluding already-satisfied factors is what makes an all_of policy
+     * progress. Without it the default is recomputed as the same first
+     * credential on every step, so a two-factor login re-challenges the factor
+     * it just accepted and can never reach its second one.
+     *
+     * recovery_code is absent by design. Recovery is its own action with its own
+     * outcome — a constrained capability rather than a login — and letting it be
+     * selected here would route it through the ordinary satisfy path.
+     *
+     * @return list<string>
+     */
+    private function offeredFactorsFor(AuthAttempt $attempt): array
+    {
+        $userId = $attempt->user_id;
+
+        if ($userId === null) {
+            return [];
+        }
+
+        $satisfied = array_map(
+            static fn (SatisfiedFactor $factor): string => $factor->factorId,
+            $this->existingFactors($attempt),
+        );
+
+        $offered = [];
+
+        foreach (AuthCredential::query()
+            ->where('user_id', $userId)
+            ->whereNull('disabled_at')
+            ->pluck('type') as $type) {
+            if (! is_string($type)
+                || $type === 'recovery_code'
+                || ! $this->registry->has($type)
+                || in_array($type, $satisfied, true)
+                || in_array($type, $offered, true)) {
+                continue;
+            }
+
+            $offered[] = $type;
+        }
+
+        return $offered;
+    }
+
+    /**
+     * Which factor this submission is verified against.
+     *
+     * The client MAY choose, but only from what the server currently offers. A
+     * named factor is honoured when it is in that set and refused otherwise —
+     * it is never used to look up a registry driver or a credential directly,
+     * so a client cannot reach a factor the policy has not put in front of it,
+     * re-submit one it has already satisfied, or name recovery_code to slip
+     * recovery evidence through the ordinary path.
+     *
+     * @param  list<string>  $offered
+     */
+    private function selectFactor(AuthAttempt $attempt, FlowRequest $request, array $offered): ?string
+    {
+        if ($request->action === 'recover') {
+            return 'recovery_code';
+        }
+
+        $requested = $request->string('factor');
+
+        if ($requested !== null && $requested !== '') {
+            return in_array($requested, $offered, true) ? $requested : null;
+        }
+
+        return $offered[0] ?? null;
+    }
+
     private function defaultFactorFor(?int $userId): string
     {
         if ($userId === null) {
