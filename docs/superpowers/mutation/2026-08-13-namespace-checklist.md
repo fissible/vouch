@@ -75,9 +75,30 @@ completion is not evidence.
 | `src/Flow/Continuing.php` | `final readonly class` | Body is one constructor, promoted properties only; no statements |
 | `src/Flow/RecoveryGraceStarted.php` | `final readonly class` | Body is one constructor, promoted properties only (`int $userId`, `string $boundContext`, `ScreenSpec $screen`); no statements |
 | `src/Tenancy/NullTenantResolver.php` | `final class` | One method, whose entire body is `return null;` — no operator, literal or branch to mutate |
+| `src/Contracts/*.php` (all 6) | `interface` | Method signatures only, no bodies — verified by count: 6 files, 6 declaring `interface` |
+| `src/Support/SystemClock.php` | `final class` | One method: `return Carbon::now('UTC')->toDateTimeImmutable();` — a delegation with no operator, literal or branch |
+| `src/Support/SystemRandomSource.php` | `final class` | One method: `return random_int($min, $max);` — a delegation, both operands parameters |
 
 Extend this table as later namespaces are audited. A file appearing in the diff
 for any other reason is a hole in the gate, not an exemption.
+
+## A 0% namespace is not automatically an untested one
+
+`Support` measures 0.00%, and that number is misleading in a way worth recording
+before anyone reads a scoreboard.
+
+Only one of its three files produces mutants at all — `DatabaseTime.php` — and
+all 15 of them sit on one `InvalidArgumentException` message. The SQL fragments
+the class exists to build are covered by `tests/Database/DatabaseTimeTest.php`,
+which asserts each driver's string exactly; string literals simply are not
+mutated, so that coverage earns no score. The other two files are single-method
+delegations with nothing to mutate.
+
+So `Support` reads 0% while being, in substance, adequately tested. The reverse
+error is the dangerous one — `Persistence` also read 0%, and there it meant 39
+genuinely untested mutants. **The score does not distinguish them; only reading
+the survivors does.** That is the argument for the audit gate being survivor
+review rather than a threshold.
 
 ## Checklist
 
