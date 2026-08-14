@@ -375,6 +375,41 @@ this audit would have become real defects under an ordinary migration — one a
 broken CAS epoch, the other credential disclosure to an unknown identifier — so
 the conditional form is not bookkeeping.
 
+## Compensating controls — a third disposition class
+
+Some survivors are neither test gaps nor equivalent mutants. They are arms of a
+deliberately layered defence, individually redundant *for the inputs tested*
+because another arm catches the same input independently.
+
+`IntendedDestination::canonicalize()` is the case. Its overlap was measured, not
+argued — `parse_url()` was run against each bypass to see which arm actually
+fires:
+
+| Candidate | `parse_url` | host | path | Caught by |
+|---|---|---|---|---|
+| `//evil.test/steal` | ok | `evil.test` | `/steal` | `//` prefix **and** host component |
+| `///evil.test/steal` | **false** | — | — | `//` prefix **and** `$parts === false` |
+| `https://user:pass@evil.test/` | ok | `evil.test` | `/` | scheme, host, user, pass — four arms |
+| `/\evil.test` | ok | — | `/\evil.test` | **backslash guard only** |
+| `/%2fevil.test` | ok | — | `/%2fevil.test` | **`%2f` guard only** |
+| `/%5cevil.test` | ok | — | `/%5cevil.test` | **`%5c` guard only** |
+
+The pattern: an input carrying a real authority is caught several times over,
+because `parse_url` exposes it as a component *and* it fails the prefix rule. But
+the **encoded and literal separator cases produce a path that starts with `/` and
+carries no authority at all** — they pass every structural check, and only the
+explicit character guards stop them. Those guards are the ones no other arm
+covers.
+
+That is why probing away the `//` prefix check or the `host` component leaves the
+suite green while dropping the `%2f`/`%5c` guard fails three cases.
+
+**Disposition: compensating control. Keep both arms.** The redundant ones defend
+against a future in which `parse_url`'s behaviour, a PHP upgrade, or an added
+pre-normalisation step changes which arm fires first — and a redirect validator
+is exactly where that margin is worth paying for. A mutation score measures test
+sensitivity; it must never be read as an argument for deleting a layer.
+
 ## Remaining work
 
 1. ~~**Timeouts**~~ — cause identified and bounded above. Confirm the count reaches
