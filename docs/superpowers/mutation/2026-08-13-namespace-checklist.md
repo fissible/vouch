@@ -74,6 +74,7 @@ completion is not evidence.
 | `src/Flow/Authenticated.php` | `final readonly class` | Body is one constructor, promoted properties only (`AuthSuccess $success`, `ScreenSpec $screen`); no statements |
 | `src/Flow/Continuing.php` | `final readonly class` | Body is one constructor, promoted properties only; no statements |
 | `src/Flow/RecoveryGraceStarted.php` | `final readonly class` | Body is one constructor, promoted properties only (`int $userId`, `string $boundContext`, `ScreenSpec $screen`); no statements |
+| `src/Tenancy/NullTenantResolver.php` | `final class` | One method, whose entire body is `return null;` — no operator, literal or branch to mutate |
 
 Extend this table as later namespaces are audited. A file appearing in the diff
 for any other reason is a hole in the gate, not an exemption.
