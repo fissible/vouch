@@ -410,6 +410,54 @@ pre-normalisation step changes which arm fires first — and a redirect validato
 is exactly where that margin is worth paying for. A mutation score measures test
 sensitivity; it must never be read as an argument for deleting a layer.
 
+## The gate — survivor review, not a score floor
+
+**Decided 2026-08-14, and it replaces the floor this document was originally
+written to establish.**
+
+The evidence that overturned it is in this audit. `Support` measures 0.00% and is
+adequately tested: only one of its three files produces mutants, all of them on a
+single exception message, and the SQL fragments the class exists to build are
+asserted exactly — string literals are not mutated, so real coverage earns no
+score. `Persistence` also measured 0.00%, and there it meant 39 genuinely
+untested mutants that took a new test file to close.
+
+**A shared percentage cannot distinguish those two cases.** A global floor would
+therefore reward mutator-friendly implementation shape rather than test quality:
+a class written with more branches and integer literals scores better than a
+delegation, at identical test rigour. It would also have been unreachable for
+`Support` for reasons unrelated to testing, which is exactly the pressure that
+makes teams delete layers — the `IntendedDestination` arms were already a live
+example.
+
+The score stays as a **reported diagnostic**. It is useful for spotting movement
+and for ranking where to look next. It is not the control.
+
+### The enforceable control
+
+1. **A full-scope mutation run** — `Fissible\Vouch`, ignoring only
+   `Fissible\Vouch\Kernel`, which is separately gated at 80 / 95.
+2. **Source-to-`RUN`-line reconciliation plus zero-mutation evidence.** Every file
+   under `src/` either appears in the run or is explained per file by
+   construction. See `2026-08-13-namespace-checklist.md`.
+3. **Every survivor, timeout and uncovered mutation is either killed or
+   explicitly dispositioned**, in one of the three recorded classes — and where a
+   disposition rests on a premise, that premise is itself tested:
+   - *equivalent* — no observable behavioural difference;
+   - *schema-conditional* — equivalent only while a separately tested schema
+     premise holds;
+   - *compensating control* — behaviour overlaps today, and the redundant guard
+     is intentional security margin that must not be removed.
+4. **No newly introduced undispositioned mutation.** New code arrives with its
+   survivors ruled on, rather than raising a number until it clears a bar.
+
+### Why this is stronger than a number
+
+A floor answers "is the score high enough". This answers "has a human looked at
+every mutant the tool could not kill, and said why". The failure this audit kept
+finding — six vacuous tests, four source defects, one live disclosure — was never
+detectable as a percentage. It was detectable by reading survivors and probing
+them.
 ## Remaining work
 
 1. ~~**Timeouts**~~ — cause identified and bounded above. Confirm the count reaches
