@@ -282,23 +282,61 @@ or the recovery filter changes, an unasserted `false` becomes load-bearing with
 no test standing behind it. Worth closing on those grounds, not on a claim of
 current exploitability.
 
-### Still open in `OtpFactor` — the next work
+### Group 2 — config defaults
 
-- Lines 54–55: constructor defaults for `length` and `ttlSeconds`, which need a
-  default-constructed driver (the TOTP lesson: a helper that passes the values
-  explicitly never reads them).
-- Lines 329–331: the assurance attributes, still unasserted for OTP — the same
-  gap already closed for recovery codes and the sharpest one remaining.
-- Line 275: `expires_at <= now` — the exactly-at-expiry boundary.
-- Lines 130, 263, 386: `InstanceOfToTrue`, likely the same redundant-guard shape
-  simplified out of `TotpFactor`.
-- Line 173: `RemoveArrayItem`.
+Subsumed by group 1. Every constructor default in the namespace (`TotpFactor`
+period/digits/window/issuer, `OtpFactor` length/ttl, `RecoveryCodeFactor`
+count/length) is externally meaningful — each is part of the package's contract
+with a host that configures nothing — and each is now pinned by a test that
+constructs the driver with **no** argument for it. Passing the value explicitly
+reads the caller's number, not the default; that mistake was made and caught
+twice.
+
+### Group 3 — message concatenation: equivalent, precondition verified
+
+13 surviving sites remain, all `Concat*`. The disposition is **equivalent**, and
+the three disqualifying conditions were checked rather than assumed:
+
+| Test | Result |
+|---|---|
+| Protocol value? | No. Every site is an exception message. Nothing built by these concatenations is stored, transmitted, or compared. |
+| Exception class contract? | No. `getMessage()` appears **nowhere** in `src/`. Callers match on the exception class and on typed properties (`EnrollmentRefused::$reason`), never on message text. |
+| User-visible shaped error? | No. The JSON surface emits only ScreenSpec-derived keys (`screen`, `step`, `fields`, `errors`, `retry`, …). No exception message is read, and neither `AuthFlow` nor `AuthController` catches `Throwable`. |
+
+Every site is a developer-facing diagnostic — `InvalidArgumentException` for host
+misconfiguration, `LogicException` for the write-once registry violation. Their
+audience is an operator reading a stack trace, and asserting their exact wording
+would make the copy unmaintainable while protecting nothing.
+
+Two message branches were promoted OUT of this group because they are not prose:
+`UnknownFactor`'s empty-vs-populated ternary (a live conditional separating two
+different faults) and its `array_keys()` payload. Both are now tested, and
+`UnknownFactor` is at 100%.
+
+`TotpFactor:128` is partially pinned — its test matches the identifying clause,
+not the whole sentence, deliberately, so the guard is load-bearing while the
+prose stays editable.
+
+### `Fissible\Vouch\Factors` — final
+
+**62.47% → 79.23%.** 4 timeouts, all irreducible non-terminating loop mutants.
+Nine non-message survivors remain, every one dispositioned equivalent with a
+stated reason:
+
+| Location | Mutation | Why equivalent |
+|---|---|---|
+| `TotpFactor:280` | `PlusToMinus` | Symmetric window: negating the offset maps visited steps onto themselves |
+| `TotpFactor:283` | `ContinueToBreak` | Offsets descend, so once a step is negative every later one is |
+| `OtpFactor:178` | `RemoveArrayItem` | Drops `'secret' => null`, which is the column default |
+| `OtpFactor:391` | `InstanceOfToTrue` | Guards a branch the source documents as unreachable |
+| `OtpFactor:421` | `RemoveStringCast` | PHP concatenates an int identically |
+| `FactorResult:33` | `UnwrapArrayValues` | A variadic is already a list; `array_values` is a no-op |
 
 ## Remaining work
 
 1. ~~**Timeouts**~~ — cause identified and bounded above. Confirm the count reaches
    zero on the full-scope re-run.
-2. **Enumerate and audit** the remaining namespaces non-parallel: `Factors` (running),
+2. **Enumerate and audit** the remaining namespaces non-parallel: ~~`Factors`~~ (done),
    `Flow`, `Http`, `Recovery`, `Sessions`, `Attempts`, `Models`, `Secrets`, `Support`,
    `Persistence`, `Tenancy`, `Console`, `Notifications`, `Contracts`.
 3. **Close the real gaps**, then re-run both passes.
