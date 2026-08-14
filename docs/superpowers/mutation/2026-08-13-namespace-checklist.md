@@ -22,12 +22,26 @@ Deriving the list from `src/` corrects both the count and its contents.
   - `Fissible\Vouch\Http\Middleware` — `ValidatesVouchSession` and `RequireAssurance`.
   - `Fissible\Vouch\Models\Concerns`
 
-**Nothing was ever outside the gate.** Pest's `--class` is a PREFIX filter, so
-`--class="Fissible\Vouch"` already covers every namespace below it. Verified
-directly: the run filtered on `Fissible\Vouch\Factors` executed
-`src/Factors/Drivers/*` as well as `src/Factors/*`. What was under-counted was
-the per-namespace AUDIT checklist — the thing that decides whether a human has
-looked at each survivor — not the measured scope.
+**Nothing was ever outside the gate**, but the reason is narrower than first
+recorded, and the correction matters for how these slices may be used.
+
+`--class` was described here as a clean namespace prefix filter. It is looser
+than that. Filtering on `Fissible\Vouch\Flow` also executed
+`src/Http/FlowResultHandler.php` and `src/Http/FlowResultSerializer.php`, which
+are in a different namespace and merely share the leading word of their short
+names. So a per-namespace slice is **over-inclusive and not a partition**.
+
+Two consequences:
+
+1. **Gate scope is still complete.** `Fissible\Vouch` is a genuine superset —
+   every class in the package begins with it — so the full-scope run measures
+   everything regardless of how the matching works underneath.
+2. **The checklist cannot be validated by summing slices.** Overlapping,
+   over-inclusive slices can leave a file un-run while every namespace looks
+   covered. Validate against the FULL-scope run instead (see below).
+
+What was under-counted was the per-namespace AUDIT checklist — the thing that
+decides whether a human has looked at each survivor — not the measured scope.
 
 That distinction is the reason to write the list down rather than recall it: the
 gate would still have reported a number, and the number would still have been
@@ -66,6 +80,26 @@ Excluded, and gated separately at 80 / 95: `Kernel\Assurance`, `Kernel\Attempt`,
 
 ## Before the final gate
 
-Regenerate this list and diff it against the table. A namespace added after this
-audit would be inside the measured scope automatically and outside the audit
-silently — which is exactly the failure this file exists to prevent.
+Two checks, not one.
+
+**1. Regenerate this list and diff it against the table.** A namespace added
+after this audit would be inside the measured scope automatically and outside the
+audit silently — the failure this file exists to prevent.
+
+**2. Account for every file in the full-scope run.** Because slices over-include
+and do not partition, per-namespace coverage does not add up to file coverage.
+Take the `RUN` lines from the full-scope pass and diff them against `src/`:
+
+```bash
+vendor/bin/pest --mutate --class="Fissible\Vouch" --ignore="Fissible\Vouch\Kernel" \
+  | sed -e 's/\x1b\[[0-9;]*m//g' | awk '/^   RUN /{print $2}' | sort -u > /tmp/ran.txt
+find src -name '*.php' | grep -v '^src/Kernel/' | sort > /tmp/all.txt
+comm -13 /tmp/ran.txt /tmp/all.txt   # files with NO mutations
+```
+
+Every file in that difference must be explainable as **zero mutations by
+construction**, not merely absent. Four `src/Flow` files are already in it and
+were checked individually: `FlowResult.php` is an empty interface, and
+`Authenticated.php`, `Continuing.php` and `RecoveryGraceStarted.php` are readonly
+DTOs whose bodies are nothing but promoted constructor properties. A file that
+appears there for any other reason is a hole in the gate.
