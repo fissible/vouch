@@ -58,12 +58,56 @@ non-parallel runs, which are far slower (Enrollment alone: 659s for 45 mutations
 `isLockContention()`'s true-positive path is untested — and found three more lines of the
 same classifier alongside it. That is the gate doing its job before any floor exists.
 
+## Re-measurement after closing the Enrollment gaps
+
+Commit `ddf6724`. Same command, same fixed scope, non-parallel:
+
+| | Before | After |
+|---|---|---|
+| Score | 28.89% | **71.11%** |
+| Untested | 25 | 13 |
+| Uncovered | 7 | 0 |
+| Tested | 13 | 32 |
+| Duration | 659.30s | 86.01s |
+
+**Every `EnrollmentGuard` survivor is killed except one.** All thirteen remaining
+untested mutants but that one are in `EnrollmentRefused`, on exception-message prose
+(lines 32 and 47) and the exception code (line 25) — the mutations already
+dispositioned equivalent, plus the `contended()` message which is the same category.
+
+### The one survivor that is neither closed nor equivalent
+
+`EnrollmentGuard:97`, `RemoveMethodCall` — deleting the `lockForUpdate()` select.
+
+This is **driver-conditional, and the SQLite leg structurally cannot kill it.** The
+method's own docblock says why: on SQLite `lockForUpdate` compiles to a bare SELECT
+and does nothing, because serialization there comes from the database-level write
+lock `insertOrIgnore` already took. On MySQL and Postgres that select IS the
+serialization. So the mutant is genuinely equivalent on the engine the default suite
+runs, and genuinely lethal on the other two.
+
+Disposition: **deferred to the cross-engine matrix**, not written off. It is the one
+survivor whose verdict depends on which engine the gate runs against, which is worth
+recording as a property of the gate rather than a defect in the tests.
+
+### Two things NOT concluded from this run
+
+- **The 7.7× duration drop is not attributed to the change.** More coverage should
+  make a mutation run slower, not faster, and nothing in the diff shortens the
+  covering test set. The likeliest explanation is contention for the machine during
+  the first run. Recorded as unexplained rather than claimed as a win.
+- **The timeouts are still unaccounted for.** Neither Enrollment run reported a
+  single timeout, before or after. So the 137 / 49 timeouts of the full-scope passes
+  live in other namespaces, and the leading suspect narrows to the remaining
+  candidates — `RecoveryCodeFactor`'s up-to-ten bcrypt comparisons above all.
+
 ## Remaining work
 
-1. **Timeouts** — identify and bound or explicitly disposition the 137 / 49 timeout mutants.
-2. **Enumerate and audit** the remaining namespaces non-parallel: `Flow`, `Http`, `Recovery`,
-   `Sessions`, `Factors`, `Attempts`, `Models`, `Secrets`, `Support`, `Persistence`,
-   `Tenancy`, `Console`, `Notifications`, `Contracts`.
+1. **Timeouts** — identify and bound or explicitly disposition the 137 / 49 timeout
+   mutants. Ruled out of `Enrollment`; hunt them in the remaining namespaces.
+2. **Enumerate and audit** the remaining namespaces non-parallel: `Factors` (running),
+   `Flow`, `Http`, `Recovery`, `Sessions`, `Attempts`, `Models`, `Secrets`, `Support`,
+   `Persistence`, `Tenancy`, `Console`, `Notifications`, `Contracts`.
 3. **Close the real gaps**, then re-run both passes.
 4. **Establish floors** at or below the audited, reproducible baseline.
 5. **Commit** commands, reports, dispositions, counts and floors together.
