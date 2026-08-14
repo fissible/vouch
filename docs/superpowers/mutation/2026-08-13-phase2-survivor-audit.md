@@ -219,6 +219,46 @@ and none should try.
 Still open in `TotpFactor`: message-string concatenation (group 3, pending the
 protocol-value check), and the remaining verify() predicates at lines 203 and 218.
 
+## Factors group 1 — complete for four drivers
+
+| Driver | Before | After |
+|---|---|---|
+| `PasswordFactor` | 88.89% | **93.33%** (zero untested) |
+| `RecoveryCodeFactor` | 62.37% | **80.65%** |
+| `TotpFactor` | 62.41% | **74.05%** |
+| `OtpFactor` | 69.87% | **74.36%** |
+
+Suite 463 → 499.
+
+### Dispositioned equivalent, with reasons
+
+- `TotpFactor:280` `PlusToMinus` — the drift window is symmetric, so negating the
+  offset maps the visited steps onto themselves.
+- `TotpFactor:283` `ContinueToBreak` — offsets descend, so steps descend
+  monotonically; once one is negative every later one is, and continuing and
+  breaking visit the same set.
+- `OtpFactor:416` `RemoveStringCast` — PHP concatenates an int identically.
+
+### Dispositioned real but not economically detectable
+
+- `RecoveryCodeFactor:240` `DecrementInteger` — `random_int(0, $max)` becomes
+  `random_int(-1, $max)`. PHP reads `$alphabet[-1]` as the last character, so the
+  generator still produces valid codes; the only effect is a slight bias toward
+  'Z'. Coverage assertions cannot see it and a distribution test would be flaky.
+  Recorded as a known, bounded entropy defect rather than closed or waved off.
+
+### Still open in `OtpFactor` — the next work
+
+- Lines 54–55: constructor defaults for `length` and `ttlSeconds`, which need a
+  default-constructed driver (the TOTP lesson: a helper that passes the values
+  explicitly never reads them).
+- Lines 329–331: the assurance attributes, still unasserted for OTP — the same
+  gap already closed for recovery codes and the sharpest one remaining.
+- Line 275: `expires_at <= now` — the exactly-at-expiry boundary.
+- Lines 130, 263, 386: `InstanceOfToTrue`, likely the same redundant-guard shape
+  simplified out of `TotpFactor`.
+- Line 173: `RemoveArrayItem`.
+
 ## Remaining work
 
 1. ~~**Timeouts**~~ — cause identified and bounded above. Confirm the count reaches
