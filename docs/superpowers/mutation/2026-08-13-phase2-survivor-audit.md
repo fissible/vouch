@@ -129,6 +129,45 @@ Neither Enrollment run reported a single timeout, so the 137 / 49 timeouts of th
 baseline passes were concentrated in the bcrypt-bound namespaces. The full-scope
 re-run at the end of this audit is what will confirm the count reaches zero.
 
+## Audit — `Fissible\Vouch\Factors` (enumerated; dispositions in progress)
+
+127 untested, 40 uncovered, 4 timeout, 274 tested. Score 62.47%, 268.59s.
+Full enumeration: `2026-08-13-factors-survivors.md`.
+
+### All four timeouts dispositioned: non-terminating mutants
+
+| Location | Mutation | Loop |
+|---|---|---|
+| `RecoveryCodeFactor:131` | `PostIncrementToPostDecrement` | `for ($i = 0; $i < $this->count; $i++)` |
+| `RecoveryCodeFactor:239` | `PostIncrementToPostDecrement` | `for ($i = 0; $i < $this->length; $i++)` |
+| `OtpFactor:415` | `PostIncrementToPostDecrement` | `for ($i = 0; $i < $this->length; $i++)` |
+| `TotpFactor:266` | `PostDecrementToPostIncrement` | `for ($offset = $this->window; $offset >= -$this->window; $offset--)` |
+
+Every one reverses a loop counter against its own termination condition, so the
+mutated program never halts. **No test can kill a non-halting mutant** — the run
+either times out or never returns. Timeout is the correct verdict here, not a
+defect and not a gap, and these four are dispositioned as such rather than
+counted against a floor.
+
+That, with the bcrypt bound above, closes the timeout question: the large counts
+were bcrypt cost, and the irreducible remainder is loop-counter non-termination.
+
+### Survivor classes still to disposition
+
+The 127 fall into recognisable groups, none of them ruled on yet:
+
+- **`Concat*` on prompt, label and message strings** (driver lines 54–70, 136,
+  199, 376; `FactorRegistry:29`) — the same category already dispositioned
+  equivalent in `EnrollmentRefused`, pending confirmation that none of these
+  strings is a protocol value rather than display copy.
+- **TOTP drift-window arithmetic** (`TotpFactor` 57–59, 70, 79, 267–269) — the
+  window bounds. Real behaviour; likely real gaps.
+- **Verification and enrollment predicates** (`TotpFactor` 126–150, 201–218;
+  `OtpFactor` 130, 263–275, 329–331, 386; `PasswordFactor:72`;
+  `RecoveryCodeFactor` 165, 210–212) — real behaviour; likely real gaps.
+- **Config-default integers** (`OtpFactor` 54–55, 68; `RecoveryCodeFactor`
+  54–55, 67; `TotpFactor` 58) — defaults with no assertion behind them.
+
 ## Remaining work
 
 1. ~~**Timeouts**~~ — cause identified and bounded above. Confirm the count reaches
