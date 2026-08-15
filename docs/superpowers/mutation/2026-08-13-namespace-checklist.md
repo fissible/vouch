@@ -141,6 +141,28 @@ Two checks, not one.
 after this audit would be inside the measured scope automatically and outside the
 audit silently — the failure this file exists to prevent.
 
+**0. Verify the run did not truncate — it exits 0 when it did.**
+
+The first authoritative attempt died with `Allowed memory size of 134217728 bytes
+exhausted` after covering **12 of 73 files**, and **reported exit code 0**. Its
+log opened with a green test suite and a plausible `Duration:` line. Nothing in
+the exit status, the summary, or a casual read of the output said the run was a
+twelfth of a run.
+
+So before reconciling, check all three:
+
+```bash
+grep -c "Fatal error" /tmp/FULLSCOPE.log            # must be 0
+grep -oE "[0-9]+ Mutations for [0-9]+ Files" …      # files CREATED
+awk '/^   RUN /{print $2}' … | sort -u | wc -l      # files RUN — must match
+```
+
+Run it with a raised limit: `php -d memory_limit=4G vendor/bin/pest --mutate …`.
+
+Had the file-level diff not been part of the gate, this run would have "passed"
+on twelve files. That is the entire argument for reconciling against `src/`
+rather than trusting a headline.
+
 **2. Account for every file in the full-scope run.** Because slices over-include
 and do not partition, per-namespace coverage does not add up to file coverage.
 Take the `RUN` lines from the full-scope pass and diff them against `src/`:
