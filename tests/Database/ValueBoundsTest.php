@@ -56,6 +56,22 @@ it('refuses an over-length issuer', function (): void {
     ]);
 })->throws(ValueBoundViolation::class);
 
+it('refuses an issuer one character over the bound', function (): void {
+    /*
+     * ONE over, not comfortably over. The test above submits 281 characters,
+     * which is refused by any bound from 255 upward — so it cannot see the
+     * limit itself move. Widening `issuer` to 256 left the whole suite green,
+     * and the bound is a deliberate v1 support limit rather than a formatting
+     * preference: `iss` has no protocol length cap, and the value is half of a
+     * unique index whose width is already against the InnoDB key limit.
+     */
+    AuthFederatedIdentity::create([
+        'connection_id' => boundedConnection()->id,
+        'issuer' => 'https://' . str_repeat('i', 256 - 8),
+        'subject' => 'sub-1',
+    ]);
+})->throws(ValueBoundViolation::class);
+
 it('refuses a non-ASCII issuer', function (): void {
     AuthFederatedIdentity::create([
         'connection_id' => boundedConnection()->id,
@@ -100,6 +116,43 @@ it('refuses an over-length tenant id on an attempt', function (): void {
 it('refuses an over-length identifier value', function (): void {
     AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => str_repeat('v', 256)]);
 })->throws(ValueBoundViolation::class);
+
+it('accepts a tenant id and identifier value exactly at the bound', function (): void {
+    /*
+     * The acceptance half of every bound above, and the half that was missing.
+     *
+     * Each "refuses an over-length ..." test submits 256 characters, which stays
+     * refused however far the limit is tightened — so narrowing any of these
+     * bounds to 254 left the suite green. A bound that is only ever probed from
+     * the outside is a bound whose value is not actually asserted, and tightening
+     * it silently is a lockout: a legitimate 255-character tenant id or email
+     * would start being rejected with nothing to catch it.
+     */
+    $connection = AuthConnection::create(['tenant_id' => str_repeat('t', 255)]);
+
+    $policy = AuthPolicy::create([
+        'tenant_id' => str_repeat('t', 255),
+        'scope' => 'login',
+        'document' => ['all_of' => ['password']],
+    ]);
+
+    $attempt = AuthAttempt::create([
+        'handle' => bin2hex(random_bytes(16)),
+        'state' => AttemptState::Initiated,
+        'version' => 1,
+        'tenant_id' => str_repeat('t', 255),
+        'expires_at' => now()->addMinutes(10),
+    ]);
+
+    $identifier = AuthIdentifier::create([
+        'user_id' => 1, 'type' => 'email', 'value' => str_repeat('v', 255),
+    ]);
+
+    expect(mb_strlen((string) $connection->tenant_id))->toBe(255)
+        ->and(mb_strlen((string) $policy->tenant_id))->toBe(255)
+        ->and(mb_strlen((string) $attempt->tenant_id))->toBe(255)
+        ->and(mb_strlen($identifier->value))->toBe(255);
+});
 
 it('enforces the bound on update, not only on insert', function (): void {
     $connection = boundedConnection();

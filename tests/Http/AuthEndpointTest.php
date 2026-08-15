@@ -114,6 +114,36 @@ it('begins an attempt and returns a screen with a handle', function (): void {
         ->and($result['handle'])->toBeString()->toHaveLength(64);
 });
 
+it('carries the submitted action through to factor selection', function (): void {
+    /*
+     * `action` reaches exactly one decision: AuthFlow::selectFactor()'s
+     * `=== 'recover'` branch, which is what lets a user submit a recovery code
+     * instead of the factor the policy would otherwise offer. Nothing asserted
+     * that the controller passes it on. Negating the ternary that reads it —
+     * `is_string($action) ? null : $action` — silently discards every well-formed
+     * action, so recovery through the endpoint stops working while the other
+     * 700-odd tests stay green, because none of them sends one.
+     *
+     * Asserted end to end through the OUTCOME rather than by inspecting the
+     * request: with the action carried, a recovery code opens grace; without it
+     * the flow selects the default factor instead and the same code is refused
+     * as a bad password.
+     */
+    $codes = array_map(
+        static fn (\Fissible\Vouch\Secrets\OneTimeSecret $secret): string => $secret->reveal(),
+        app(\Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor::class)->enroll(7, [])->secrets,
+    );
+
+    $begun = callAuth([]);
+    $handle = $begun['handle'];
+
+    callAuth(['handle' => $handle, 'action' => 'submit', 'input' => ['identifier' => 'ada@acme.example']]);
+
+    $recovered = callAuth(['handle' => $handle, 'action' => 'recover', 'input' => ['code' => $codes[0]]]);
+
+    expect($recovered['result'])->toBe('recovery_grace');
+});
+
 it('returns the same shaped refusal whether or not the identifier exists', function (): void {
     /*
      * The enumeration boundary, compared at the SAME step. An unknown
