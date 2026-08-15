@@ -55,6 +55,43 @@ invocation into a test body does not make the mutation observable. What remains
 unproven is whether some other arrangement could — so this is recorded as *not
 achieved by direct invocation*, not as *provably impossible*.
 
+### The failed layer, identified
+
+The plugin builds its child command as
+`'--filter="'.implode('|', $filters).'"'`
+(`pest-plugin-mutate/src/MutationTest.php:89`), where the filters derive from
+`$codeCoverage->getData()->lineCoverage()`
+(`Tester/MutationTestRunner.php:116`).
+
+Dumping that exact structure for `src/VouchServiceProvider.php` settles which
+layer fails:
+
+```
+line 31   1 test(s): P\Tests\Database\ProviderAttributionProbeTest::__pest_evaluable_it_registers…
+line 226  1 test(s): …same…
+line 227  1 test(s): …same…
+line 230  1 test(s): …same…
+```
+
+**Coverage attribution works.** The provider's `boot()` lines map to the
+direct-invocation test by name, in the very structure the plugin consumes. So
+this is *not* coverage-attribution blindness — the first branch of the diagnostic
+is eliminated.
+
+The mutation nonetheless reports `UNTESTED`, so the failure is downstream of
+attribution: in filter selection or in the child invocation built from it. Two
+candidates remain, and which one has not been established:
+
+- the generated `--filter` argument embeds literal `"` characters, since the
+  quotes are inside a single argv element passed through Symfony Process rather
+  than a shell; and
+- Pest's `__pest_evaluable_…` test identifiers contain characters that must
+  survive being joined with `|` into one regex.
+
+Either would select an empty or non-matching test set, which the plugin then
+reports as a surviving mutation rather than as a selection failure — the same
+silent-success shape as the exit-0 truncation earlier in this audit.
+
 ### A third category: TOOL-BLIND
 
 Distinct from the two already recorded, and it must not be confused with either:
@@ -72,9 +109,10 @@ evidence attached** — `ProviderEffectTest`, the per-expression probes that fai
 11–19 tests each, the whole-suite probe at 530 failures, and the direct-invocation
 attempt above.
 
-The category is held open rather than closed: it says the instrument did not
-observe these kills through the arrangements tried, not that no arrangement
-exists.
+The category is held open rather than closed, and is now narrower still: the
+instrument's coverage attribution is CORRECT, and the failure lies in how it
+turns that attribution into a child test run. That is a defect in the harness,
+not a property of the code or of the tests.
 
 ## Remaining unresolved
 
