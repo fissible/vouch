@@ -1,13 +1,13 @@
-# The no-candidate files — 25 of 44 rows ruled
+# The no-candidate files — 44 of 44 rows ruled
 
 The manifest's check 2 left 63 rows unjoined. 44 of those sit in files that no
-ruling document covered at all. This rules **25** of the 44, by expression and
-dataflow. The remaining 19 are listed at the end, still open.
+ruling document covered at all. This rules **all 44**, by expression and
+dataflow.
 
 Every ruling below is a measurement: the mutation was applied to the source, the
 suite re-run, and the result recorded either way.
 
-## Killed — 11 rows
+## Killed — 11 rows (a twelfth, `AuthFlow:243`, is ruled further down)
 
 ### `Http/AssuranceComparator:24` — 4 rows — KILLED
 
@@ -70,7 +70,7 @@ the two is the **screen** — an offer of the next factor carries no errors, a
 refusal carries `CredentialRejected`. Asserting `$result->screen->errors === []`
 kills it.
 
-## Equivalent — 12 rows
+## Prose and equivalent — 12 rows
 
 ### `Support/DatabaseTime:60` — 10 rows — PROSE
 
@@ -111,24 +111,76 @@ argued. The static analyser is the control, and it runs in CI, so the row is
 covered — by a different instrument than the mutation runner, which is why the
 runner cannot see it.
 
-## Still open — 19 of the 44
+## The three message sites — 16 rows — PROSE
 
-| File | Rows | Shape |
-|---|---|---|
-| `Http/Middleware/RequireAssurance:51` | 6 | `RuntimeException` message, fail-closed step-up config |
-| `Vouch.php:42` | 6 | `RuntimeException` message, embeds `$level` |
-| `Factors/FactorRegistry:29` | 4 | `LogicException` via `sprintf`, write-once registration |
-| `Flow/AuthFlow:329, 387` | 2 | `RemoveEarlyReturn` on `$userId === null` guards |
-| `Flow/AuthFlow:243` | 1 | `RemoveEarlyReturn` on the failed-transition refusal, uncovered |
+Each was checked the way `DatabaseTime` was, rather than ruled prose by
+resemblance: find the **identity artifact** — the part of the message that tells
+the reader which thing went wrong — assert that, then rule what is left.
 
-The three message sites look like the `DatabaseTime` case and should get the same
-treatment rather than a blanket prose ruling: check whether any test asserts the
-message, and where the class is broad and the message carries a discriminating
-value — `Vouch.php:42` embeds `$level` — assert that value first, then rule the
-remainder prose.
+### `Vouch.php:42` — 6 rows
 
-`AuthFlow:329` and `:387` are the same `$userId === null` guard pattern that
-`2026-08-14-driver-rulings.md` ruled equivalent on a tested premise; that
-correspondence needs establishing rather than assuming.
+Identity artifact: the interpolated `$level`. **Already asserted** —
+`StepUpFailClosedTest:52` requires `'Vouch::stepUp(aal3)'`, and that assertion
+already kills 9 of this expression's 15 concat rows. The 6 survivors all preserve
+`'Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be '`
+intact — both the level and the config key — and only drop or reorder the trailing
+advisory sentences. Prose.
 
-**25 of 44 ruled: 11 killed, 12 equivalent, 1 compensating control. 19 open.**
+### `Http/Middleware/RequireAssurance:51` — 6 rows
+
+Identity artifact: the config key the operator has to set. It was **not**
+asserted: `RequireAssuranceTest` used `->throws(RuntimeException::class)` with no
+message, so an unrelated failure inside `handle()` would have satisfied it. Now
+`toThrow(RuntimeException::class, 'vouch.step_up.presentation_url')`.
+`StepUpFailClosedTest` already closes this gap for `Vouch::stepUp()`; the
+middleware is a second entry point to the same refusal and needed its own.
+
+The 6 rows survive the strengthened assertion because they all preserve the
+leading literal that carries the key. Prose.
+
+### `Factors/FactorRegistry:29` — 4 rows
+
+Identity artifacts: both `sprintf` arguments — the colliding factor id and the
+class already holding it. The test asserted only `'already registered'`, which
+says nothing about *which* key collided. Now asserts
+`'already registered for "password" (…\PasswordFactor)'`, which also pins the
+ORDER of the two `%s` substitutions.
+
+The 4 survivors preserve that fragment with both placeholders in sequence and
+only drop or reorder the trailing rationale. Prose.
+
+## `Flow/AuthFlow` — the last three rows
+
+### `:243` — 1 row — KILLED
+
+The most dangerous row in this file, and it was `UNCOVERED` — no test ever
+reached the branch.
+
+`transition()` returns an outcome; it does not throw. If the attempt loses its
+compare-and-swap, or a single-use guard has already fired, the store answers
+something other than `Succeeded` and the flow must refuse. Delete
+`return $refusal();` and execution falls straight through to
+`return new Authenticated(...)`: **the caller is handed a full `AuthSuccess` for
+an attempt the store declined to advance.** Every existing test stayed green,
+because none of them could make that transition fail.
+
+`it('refuses when the final transition to Authenticated does not win its race')`
+forces the outcome with a decorator around the real store — deterministic rather
+than raced, with only the final transition's outcome under test. Verified both
+ways.
+
+### `:329` and `:387` — 2 rows — EQUIVALENT (schema-conditional)
+
+The `$userId === null` guards in `offeredFactorsFor()` and `defaultFactorFor()`.
+Falling through runs `AuthCredential::query()->where('user_id', $userId)` with a
+null id; Laravel compiles that to `where user_id is null`, and
+`auth_credentials.user_id` is `unsignedBigInteger` — NOT NULL — so nothing
+matches. `:387` still returns `'password'` because `is_string(null)` is false;
+`:329` still returns `[]` because the loop body never runs.
+
+Same ruling and same premise as the three `$userId === null` rows in
+`2026-08-14-driver-rulings.md`, and the premise is pinned by
+`AuthFlowPredicateTest`'s *"it cannot store a credential without an owner"*.
+Correspondence established rather than inherited by resemblance.
+
+**44 of 44 ruled: 12 killed, 28 prose, 3 equivalent, 1 compensating control.**

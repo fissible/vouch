@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use Fissible\Vouch\Attempts\Mutations\SingleUseMutation;
+use Fissible\Vouch\Attempts\TransitionOutcome;
+use Fissible\Vouch\Contracts\AttemptStore;
 use Fissible\Vouch\Flow\Authenticated;
 use Fissible\Vouch\Flow\AuthFlow;
 use Fissible\Vouch\Flow\Continuing;
@@ -188,6 +191,62 @@ it('continues with the next factor when the policy is only partly satisfied', fu
         ->and($result->screen->step)->toBe(AuthStep::Challenge)
         // The handle must survive, or the client cannot present the second factor.
         ->and($result->handle)->toBe($handle);
+});
+
+it('refuses when the final transition to Authenticated does not win its race', function (): void {
+    /*
+     * The branch nothing reached, and the most dangerous one in this file.
+     *
+     * `transition()` returns an outcome; it does not throw. If the attempt loses
+     * its compare-and-swap — a concurrent request advanced the same attempt, or
+     * a single-use guard already fired — the store answers something other than
+     * Succeeded and the flow must refuse. Delete that `return $refusal();` and
+     * execution falls straight through to `return new Authenticated(...)`: the
+     * caller is handed a full AuthSuccess for an attempt the store declined to
+     * advance. Every existing test stays green, because none of them can make
+     * the transition fail.
+     *
+     * Forced deterministically with a decorator rather than by racing: the
+     * real store is used for every step except the final one, whose outcome is
+     * the single thing under test.
+     */
+    $inner = app(AttemptStore::class);
+
+    app()->instance(AttemptStore::class, new class($inner) implements AttemptStore
+    {
+        public function __construct(private readonly AttemptStore $inner) {}
+
+        public function transition(
+            AuthAttempt $attempt,
+            AttemptState $to,
+            SingleUseMutation ...$mutations,
+        ): TransitionOutcome {
+            if ($to === AttemptState::Authenticated) {
+                return TransitionOutcome::ConcurrentModification;
+            }
+
+            return $this->inner->transition($attempt, $to, ...$mutations);
+        }
+    });
+
+    // AuthFlow is a singleton; drop any instance built over the real store.
+    app()->forgetInstance(AuthFlow::class);
+
+    flowPolicy();
+    flowPassword();
+
+    $handle = flowIdentified();
+
+    $result = theFlow()->advance(flowAdvance($handle, ['password' => 'correct horse battery staple']));
+
+    expect($result)->not->toBeInstanceOf(Authenticated::class)
+        ->and($result)->toBeInstanceOf(Continuing::class);
+
+    assert($result instanceof Continuing);
+
+    // The refusal screen, not an offer: the same discriminator the partial-policy
+    // test uses, read the other way round.
+    expect($result->screen->errors)->not->toBe([]);
 });
 
 it('does not rotate any session itself', function (): void {

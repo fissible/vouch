@@ -67,8 +67,16 @@ it('refuses to replace a driver that is already registered', function (): void {
     $registry = new FactorRegistry();
     $registry->register(app(PasswordFactor::class));
 
+    /*
+     * 'already registered' is prose and says nothing about WHICH key collided.
+     * The identity artifacts are the two sprintf arguments — the factor id, and
+     * the class already holding it — and they are what makes the refusal
+     * actionable when a host registers a driver over one of the shipped five.
+     * Asserting them also pins their ORDER, which positional %s substitution
+     * would otherwise let drift.
+     */
     expect(function () use ($registry): void { $registry->register(app(PasswordFactor::class)); })
-        ->toThrow(LogicException::class, 'already registered');
+        ->toThrow(LogicException::class, 'already registered for "password" (' . PasswordFactor::class . ')');
 });
 
 it('keeps the first driver when a replacement is refused', function (): void {

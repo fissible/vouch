@@ -105,8 +105,16 @@ it('fails closed when no presentation url is configured', function (): void {
     config(['vouch.step_up.presentation_url' => null]);
     assuranceRow('aal1');
 
-    assuranceMiddleware()->handle(assuranceRequest(), reached(), 'aal2');
-})->throws(RuntimeException::class);
+    /*
+     * The config key is asserted, not just the exception class. RuntimeException
+     * is broad enough that an unrelated failure inside handle() would satisfy a
+     * class-only assertion and this test would still pass while saying nothing —
+     * the same gap StepUpFailClosedTest already closes for Vouch::stepUp(), and
+     * the identity artifact is the same: the setting the operator has to set.
+     */
+    expect(fn (): mixed => assuranceMiddleware()->handle(assuranceRequest(), reached(), 'aal2'))
+        ->toThrow(RuntimeException::class, 'vouch.step_up.presentation_url');
+});
 
 it('refuses a revoked session however strong its recorded assurance', function (): void {
     assuranceRow('aal3', ['revoked_at' => now(), 'revoked_reason' => RevokedReason::PasswordChanged]);
