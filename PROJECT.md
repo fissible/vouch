@@ -568,3 +568,76 @@ silently widen the indexed column and rediscover the InnoDB 3072-byte limit.
 design but belongs to 2.3: verified identifiers only, post-consumption, best-effort,
 auditable, and delivery failure must neither restore the consumed code nor disclose
 anything to the requester.
+
+---
+
+## Session handoff — 2026-08-15, Task 14 (matrix rows) complete
+
+**Blocker 1 of the Phase 2.3 mutation gate is closed.** Task 13 remains blocked,
+now on blocker 2 alone (the 56 provider rows in `docs/superpowers/mutation/anomaly/`).
+Branch `feat/vouch-2-3-flow-http` still must not merge.
+
+Full write-up: `docs/superpowers/mutation/2026-08-15-matrix-rulings.md`.
+
+**What the matrix actually decided.** Three of the four "matrix-required" rows were
+misclassified. They were sent to the matrix on the premise that MySQL and Postgres
+return numeric strings for integer columns; a direct PDO probe disproves it — on
+PHP 8.4, `pdo_mysql`, `pdo_pgsql` and `pdo_sqlite` all return a native `int`. The
+casts were removed and the suite re-run on both engines to confirm rather than
+argue it. `AuthAttempt:42`, `AuthChallenge:39` and `AuthCredential:57` are
+`equivalent`; their shared premise is now pinned by a test in `CastContractTest`
+that reads through the query builder and runs on every engine, so a driver upgrade
+that changes this reopens all three rulings loudly.
+
+`AuthCredential:57` deserved the most care, since its stated risk was a replay
+window. It does not exist: the authoritative guard is the SQL predicate at
+`DatabaseAttemptStore.php:163-166`, evaluated engine-side against an integer
+column, and the PHP fast path compares numerically in PHP 8 regardless.
+
+**`EnrollmentGuard:97` was real, and the test gap it exposed matters more than the
+row.** `acquire()` has two paths. With no lock row, `insertOrIgnore` serializes and
+the second writer is refused by the insert — `lockForUpdate` is never reached. With
+the row already committed, `insertOrIgnore` is a no-op and on Postgres takes no lock
+at all, so `lockForUpdate` is the only thing serializing. Nothing ever deletes from
+`auth_enrollment_locks`, so **every enrollment after a subject's first takes the
+second path** — and all four existing contention tests took the first. The new test
+`it('serializes a re-enrollment, where the lock row already exists')` seeds the row
+committed and races; verified two-sided, it fails on Postgres without the call.
+MySQL survives it because InnoDB takes a shared lock on the conflicting index record
+during `INSERT IGNORE`. `EnrollmentGuard`'s docblock claimed both engines depend on
+the call and has been corrected.
+
+**One pre-existing defect fixed.** `CastContractTest` inserted the string `'tok-1'`
+into `auth_token_assurances.token_id`, an `unsignedBigInteger`. SQLite accepted it;
+MySQL strict mode rejected it. It landed in `56bb638` and had never run on the
+matrix — it was this session's first failure, before any new work.
+
+**Verified state.** SQLite default suite 681 passed / 9 skipped. `tests/Database
+tests/Concurrency tests/Factors` 347 passed on each of file-backed SQLite, MySQL 8
+and Postgres 16. PHPStan level 9 clean. No mutation run was re-executed this
+session; the 2026-08-15 baseline in the gate README still stands.
+
+**Running the matrix locally.** Docker containers, non-default host ports to avoid
+a conflict with whatever already holds 5432 on this machine:
+
+```bash
+docker run -d --name vouch-mysql -e MYSQL_ROOT_PASSWORD=password \
+  -e MYSQL_DATABASE=vouch_test -p 43307:3306 mysql:8
+docker run -d --name vouch-pgsql -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=vouch_test -p 45433:5432 postgres:16
+
+VOUCH_TEST_DB=mysql DB_HOST=127.0.0.1 DB_PORT=43307 DB_DATABASE=vouch_test \
+  DB_USERNAME=root DB_PASSWORD=password \
+  vendor/bin/pest tests/Database tests/Concurrency tests/Factors
+```
+
+Swap `pgsql` / `45433` / `postgres` for the other engine. Note that in zsh an
+unquoted variable holding several `K=V` pairs does **not** word-split, so
+`env $VARS pest` silently misconfigures the run — it reports mass failures with
+zero assertions, which looks like a code break and is not one.
+
+**Next.** Blocker 2 is unchanged and is now the sole gate item. Seven layers of the
+plugin were verified correct without finding the cause; the anomaly directory holds
+a reproduction that kills the mutations a full run reports as `UNTESTED`. Task 13
+cannot close until that is resolved or an alternative control is explicitly accepted
+in its place.

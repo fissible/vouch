@@ -116,12 +116,46 @@ it('never serializes a connection client secret', function (): void {
         ->and((string) json_encode($reloaded))->not->toContain('super-secret-value');
 });
 
+it('hands back a PHP int for an integer column with no cast involved', function (): void {
+    /*
+     * The premise behind every `integer` cast ruling, pinned so it fails loudly
+     * if it ever stops holding.
+     *
+     * The three integer casts -- AuthAttempt.version, AuthChallenge.attempts and
+     * AuthCredential.last_used_timestep -- were each recorded as needing MySQL
+     * and Postgres to decide, on the stated grounds that those drivers return
+     * numeric STRINGS where SQLite returns integers. Measured on PHP 8.4 with
+     * pdo_mysql, pdo_pgsql and pdo_sqlite, that is not true: all three hand back
+     * a native int, so removing any of those casts changes nothing observable on
+     * any supported engine. They are equivalent, not matrix-decidable.
+     *
+     * That ruling rests entirely on driver behaviour, which is not ours and can
+     * change under a PHP or driver upgrade. This asserts it directly, through
+     * the query builder so no Eloquent cast can mask the raw value, and it runs
+     * on every engine in the matrix. If a driver ever does start stringifying,
+     * this fails and the three rulings are back open -- which is the point.
+     */
+    $id = DB::table('auth_attempts')->insertGetId([
+        'handle' => bin2hex(random_bytes(32)),
+        'state' => \Fissible\Vouch\Kernel\Attempt\AttemptState::Initiated->value,
+        'bound_context' => str_repeat('p', 64),
+        'version' => 3,
+        'expires_at' => now()->addMinutes(10),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    expect(DB::table('auth_attempts')->where('id', $id)->value('version'))->toBeInt();
+});
+
 it('reads the attempt version and expiry back as their own types', function (): void {
     /*
      * version drives the compare-and-swap and expires_at bounds the attempt.
-     * Uncast, version arrives as a string on some drivers and the CAS comparison
-     * becomes a string comparison; expires_at arrives as a string and every date
-     * comparison against it is lexicographic.
+     *
+     * expires_at is the load-bearing assertion: uncast it arrives as a string and
+     * every date comparison against it is lexicographic. `version` is asserted
+     * here for the contract's sake, but it does NOT discriminate -- every
+     * supported driver returns an int for that column with or without the cast,
+     * as the premise test above pins.
      */
     $id = DB::table('auth_attempts')->insertGetId([
         'handle' => bin2hex(random_bytes(32)),
@@ -134,14 +168,14 @@ it('reads the attempt version and expiry back as their own types', function (): 
     $attempt = \Fissible\Vouch\Models\AuthAttempt::findOrFail($id);
 
     /*
-     * expires_at is provable here; `version` is NOT. SQLite returns an integer
-     * natively, so the cast's removal is invisible on this engine -- probed, and
-     * the assertion held without it. It matters on MySQL and Postgres, whose
-     * drivers return a numeric string, and where an uncast version turns the
-     * compare-and-swap into a string comparison.
+     * expires_at is provable here; `version` is NOT, on ANY engine.
      *
-     * Recorded as cross-engine rather than dressed up as covered: the row is
-     * discharged by the database matrix, not by this test.
+     * This was previously recorded as cross-engine, on the expectation that
+     * MySQL and Postgres return a numeric string for an integer column and would
+     * therefore decide it. That was run on both engines rather than assumed, and
+     * it does not hold -- the cast's removal leaves the whole Database,
+     * Concurrency and Factors suite green on MySQL and Postgres alike. The row
+     * is equivalent under the premise pinned above, not matrix-decidable.
      */
     expect($attempt->version)->toBeInt()
         ->and($attempt->expires_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
@@ -199,7 +233,13 @@ it('reads identifier, challenge and assurance timestamps back as dates', functio
         'created_at' => now(), 'updated_at' => now(),
     ]);
     $assuranceId = DB::table('auth_token_assurances')->insertGetId([
-        'token_id' => 'tok-1', 'amr' => json_encode(['password']),
+        /*
+         * token_id is unsignedBigInteger. A string here passes on SQLite, whose
+         * dynamic typing accepts it, and is rejected outright by MySQL's strict
+         * mode -- so the wrong literal survived until this test first ran on the
+         * matrix. The column's type is what the value has to match.
+         */
+        'token_id' => 90001, 'amr' => json_encode(['password']),
         'credential_ids' => json_encode([1]), 'acr' => 'aal1',
         'issuing_session_id' => str_repeat('w', 64), 'issued_at' => now(),
         'created_at' => now(), 'updated_at' => now(),

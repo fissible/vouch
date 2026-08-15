@@ -1,6 +1,10 @@
 # Phase 2.3 mutation gate — start here
 
-**Status: Task 13 BLOCKED. Branch `feat/vouch-2-3-flow-http` must not merge.**
+**Status: Task 13 BLOCKED on one remaining item. Branch
+`feat/vouch-2-3-flow-http` must not merge.**
+
+Blocker 1 (the four matrix rows) is closed as of 2026-08-15. Blocker 2, the
+provider-row anomaly in `anomaly/`, is the only thing still outstanding.
 
 ## The gate (revised — there is no score floor)
 
@@ -40,16 +44,20 @@ eager-solver guard only fails, rather than hangs, at that limit.
 Reconciled: 83 files in scope = 60 mutated + 23 zero-mutation, each evidenced per
 file in `2026-08-13-namespace-checklist.md`.
 
-## Two independent blockers
+## Blockers
 
-**1. Matrix-required (4 rows) — Task 14, MySQL and PostgreSQL only.**
-`AuthAttempt:42` version cast (CAS), `AuthChallenge:39` attempts counter,
-`AuthCredential:57` last_used_timestep (TOTP replay guard), `EnrollmentGuard:97`
-`lockForUpdate`. SQLite cannot decide any of them. Proof for each: assert the
-typed behaviour on both engines, remove the cast or call, confirm the
-engine-specific test fails. See `2026-08-15-cast-classification.md`.
+**1. Matrix-required (4 rows) — CLOSED 2026-08-15.** Run on MySQL 8 and
+Postgres 16; see `2026-08-15-matrix-rulings.md`. Three rows were misclassified
+and are `equivalent` on every engine — the premise that MySQL and Postgres
+return numeric strings for integer columns is false on PHP 8.4, and is now
+pinned by a test so the ruling fails loudly if a driver ever changes.
+`EnrollmentGuard:97` was real and is **killed** on Postgres by a new
+re-enrollment contention test; it had survived because every existing contention
+test exercised only the first-enrollment path, where the insert serializes and
+the lock call is redundant.
 
-**2. Unexplained mutation-run discrepancy (56 provider rows).**
+**2. Unexplained mutation-run discrepancy (56 provider rows) — still open.
+This is now the only blocker.**
 See `anomaly/`. A faithfully reproduced child kills these mutations; the
 aggregate run reports `UNTESTED`. Seven layers verified correct. They are neither
 killed nor dispositioned. Independent of blocker 1 — do not sequence Task 14
@@ -72,3 +80,11 @@ as deliberate margin). Per-file rulings are in the dated `*-rulings.md` files.
 - Test the primary mechanism's own artifact, not only the behaviour its layers
   jointly produce.
 - The survivor count is an **upper bound** on real survivors, not a measurement.
+- A claim about what a **driver** returns is an empirical claim. Three rows were
+  sent to the matrix on "MySQL and Postgres return numeric strings", which one
+  `PDO` probe disproves. Probe the driver before classifying on its behaviour,
+  and when a ruling rests on driver behaviour, pin it with a test.
+- When a guard has two paths, ask which one the tests take. Four contention
+  tests all entered `EnrollmentGuard::acquire()` with no lock row, where the
+  insert serializes — so none of them could see `lockForUpdate` disappear, and
+  the path they missed is the one production is almost always on.

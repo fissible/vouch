@@ -27,7 +27,15 @@ assertions in `CastContractTest`.
 the prune retention window both compare against it, and an uncast string
 comparison against a date is lexicographic.
 
-## MATRIX-REQUIRED (2 rows) — SQLite cannot decide them
+## MATRIX-REQUIRED (2 rows) — SUPERSEDED, both equivalent
+
+> **Retracted 2026-08-15 by `2026-08-15-matrix-rulings.md`.** The premise below
+> is false. Both rows were run on MySQL 8 and Postgres 16 with the cast removed
+> and neither engine can decide them: `pdo_mysql`, `pdo_pgsql` and `pdo_sqlite`
+> all return a native PHP `int` for an integer column on PHP 8.4. The same
+> applies to `AuthAttempt:42`. Three of the four "matrix-required" rows are
+> `equivalent`; only `EnrollmentGuard:97` was real, and it was killed. Read the
+> rulings doc rather than the table below.
 
 SQLite returns integers natively, so removing an `integer` cast is invisible
 here. MySQL and Postgres return numeric strings.

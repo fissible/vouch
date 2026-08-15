@@ -93,6 +93,59 @@ it('lets exactly one of two interleaved password enrollments win', function (): 
         ->toBe(1);
 });
 
+it('serializes a re-enrollment, where the lock row already exists', function (): void {
+    /*
+     * The case every other test in this file misses, and the one production
+     * spends most of its time in.
+     *
+     * Everywhere above, the lock row does not exist when the racers start, so
+     * A's insertOrIgnore creates it and B's insertOrIgnore blocks on the
+     * duplicate key. B is refused by the INSERT and never reaches the
+     * lockForUpdate at all -- which is why removing that call leaves all four
+     * of those tests passing on MySQL and Postgres.
+     *
+     * Nothing ever deletes from auth_enrollment_locks: the guard only ever
+     * insertOrIgnores, and vouch:prune does not touch the table. So the row
+     * survives the first enrollment for a subject, and every enrollment after
+     * that one takes this path -- insertOrIgnore is a no-op that takes no lock,
+     * and SELECT ... FOR UPDATE is the only thing standing between two writers.
+     *
+     * Seeded committed, outside either racer's transaction, so both see it.
+     */
+    DB::table('auth_enrollment_locks')->insert([['user_id' => 7, 'type' => 'password']]);
+
+    $a = DB::connection('enroll_a');
+    $refusal = null;
+
+    $a->beginTransaction();
+
+    try {
+        // A's insertOrIgnore is a no-op here. The FOR UPDATE is the whole claim.
+        $a->table('auth_enrollment_locks')->insertOrIgnore([['user_id' => 7, 'type' => 'password']]);
+        $a->table('auth_enrollment_locks')->where('user_id', 7)->where('type', 'password')
+            ->lockForUpdate()->first();
+
+        try {
+            guardOn('enroll_b')->serialize(7, 'password', 1, function (): void {
+                makeCredentialOn('enroll_b');
+            });
+        } catch (EnrollmentRefused $e) {
+            $refusal = $e;
+        }
+
+        makeCredentialOn('enroll_a');
+        $a->commit();
+    } catch (\Throwable $e) {
+        $a->rollBack();
+
+        throw $e;
+    }
+
+    expect($refusal)->toBeInstanceOf(EnrollmentRefused::class)
+        ->and(AuthCredential::where('user_id', 7)->where('type', 'password')->whereNull('disabled_at')->count())
+        ->toBe(1);
+});
+
 it('refuses cleanly rather than surfacing a driver error', function (): void {
     // Without the QueryException -> EnrollmentRefused mapping, "somebody else is
     // enrolling right now" reaches the caller as SQLSTATE noise and becomes

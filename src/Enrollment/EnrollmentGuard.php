@@ -79,10 +79,24 @@ final class EnrollmentGuard
      * to a plain INSERT on every engine and throws a unique violation the second
      * time. Verified on SQLite, MySQL 8 and Postgres 16.
      *
-     * On MySQL and Postgres the lockForUpdate is what serializes. On SQLite it
-     * compiles to a bare SELECT and does nothing — serialization there comes
-     * from the database-level write lock that insertOrIgnore already took. Same
-     * outcome, different mechanism; both are exercised by the contention matrix.
+     * Which of these two statements serializes depends on the engine AND on
+     * whether the lock row already exists. Measured on all three:
+     *
+     * - First enrollment for a subject (no row yet): the insert serializes on
+     *   every engine. The second writer blocks on the duplicate key and is
+     *   refused before it ever reaches the select.
+     * - Every later enrollment (row committed, and nothing ever deletes from
+     *   this table): insertOrIgnore is a no-op. On Postgres it takes no lock at
+     *   all, so lockForUpdate is the ONLY thing serializing — remove it and two
+     *   writers both win. On MySQL InnoDB still takes a shared lock on the
+     *   conflicting index record, which blocks against the holder's exclusive
+     *   lock, so the insert covers it there too. On SQLite lockForUpdate
+     *   compiles to a bare SELECT and does nothing; the database-level write
+     *   lock does the work.
+     *
+     * So the call is load-bearing on Postgres re-enrollment specifically, and
+     * redundant-but-harmless elsewhere. Removing it is only observable on
+     * Postgres, which is what the re-enrollment contention test pins.
      *
      * @throws EnrollmentRefused
      */
