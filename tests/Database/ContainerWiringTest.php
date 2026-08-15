@@ -129,3 +129,34 @@ it('never prunes a session that is still live', function (): void {
 
     expect(DB::table('auth_sessions')->where('id', $live)->exists())->toBeTrue();
 });
+
+it('reports what it pruned', function (): void {
+    /*
+     * The command's output is the only record an operator gets of how many
+     * security records were destroyed. A prune that deletes silently leaves no
+     * account of itself: nothing in the database says what was removed, because
+     * removal is the point.
+     *
+     * The counts are asserted, not merely that something was printed -- "Pruned 0
+     * attempt(s)" and "Pruned 40 attempt(s)" are very different operational
+     * facts, and a message that always said zero would be worse than none.
+     */
+    DB::table('auth_attempts')->insert([
+        'handle' => bin2hex(random_bytes(32)),
+        'state' => \Fissible\Vouch\Kernel\Attempt\AttemptState::Initiated->value,
+        'bound_context' => str_repeat('p', 64),
+        'expires_at' => now()->subMinute(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    DB::table('auth_sessions')->insert([
+        'session_binding' => str_repeat('q', 64), 'user_id' => 7, 'amr' => json_encode(['password']),
+        'revoked_at' => now()->subDays(40), 'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    expect(Artisan::call('vouch:prune'))->toBe(0);
+
+    $output = Artisan::output();
+
+    expect($output)->toContain('1 attempt(s)')
+        ->and($output)->toContain('1 revoked session(s)');
+});
