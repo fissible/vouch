@@ -17,6 +17,7 @@ use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\Sessions\BindingDomain;
 use Fissible\Vouch\Sessions\SessionBinding;
 use Fissible\Vouch\Tests\Support\RecordingHasher;
+use Illuminate\Contracts\Hashing\Hasher as HasherContract;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Fissible\Vouch\Tests\Support\RecordingGuard;
 use Illuminate\Contracts\Auth\StatefulGuard;
@@ -264,23 +265,59 @@ it('serializes a continuing result as continuing, never as an outcome', function
         ->and($payload)->not->toHaveKey('returnTo');
 });
 
-/*
- * OPEN: AuthFlow:200 -- `$this->equalizer->equalize($posture)` on the
- * NoCredential path -- has no test and is NOT ruled.
- *
- * VerificationEqualizer's own tests prove it does the work; what is missing is
- * proof that AuthFlow ASKS for it here, where a driver reported NoCredential and
- * therefore did no hashing. Under strict posture that speed difference is the
- * account-existence oracle the equalizer exists to close.
- *
- * An attempt at this test recorded zero hasher calls, meaning the injected
- * equalizer was not the one the flow used -- the container returned a differently
- * constructed AuthFlow despite forgetInstance(). The seam needs establishing
- * before the assertion can mean anything, and a test that cannot observe the call
- * would be exactly the vacuous control this audit keeps finding.
- *
- * Left undone and recorded rather than committed green.
- */
+it('asks the equalizer for work on the no-credential path', function (): void {
+    /*
+     * The flow-level half of the timing equalization. VerificationEqualizer's own
+     * tests prove it does the work; this proves AuthFlow ASKS for it here, where
+     * a driver reported NoCredential and therefore did no hashing. Under strict
+     * posture that speed difference is the account-existence oracle.
+     *
+     * The seam is the HASHER, not the equalizer. The provider constructs
+     * `new VerificationEqualizer($app->make(Hasher::class))` inline, so rebinding
+     * VerificationEqualizer cannot reach the flow -- which is why an earlier
+     * attempt recorded zero calls and was left unruled rather than loosened until
+     * it passed.
+     *
+     * Order matters: set up with the real hasher, then swap, then rebuild the
+     * flow. Both the container binding and the facade root, because the facade
+     * caches its resolved root.
+     */
+    AuthPolicy::create([
+        'tenant_id' => null, 'scope' => 'login',
+        'document' => ['any_of' => ['totp']], 'posture' => 'strict',
+    ]);
+    AuthIdentifier::create([
+        'user_id' => 7, 'type' => 'email', 'value' => 'ada@acme.example', 'verified_at' => now(),
+    ]);
+    // A credential row so totp is offered, with no usable secret so the driver
+    // reports NoCredential without hashing.
+    AuthCredential::create([
+        'user_id' => 7, 'type' => 'totp', 'secret' => '', 'strength' => 'possession',
+    ]);
+
+    $recorder = new RecordingHasher();
+    Hash::swap($recorder);
+    app()->instance(HasherContract::class, $recorder);
+    app()->forgetInstance(\Fissible\Vouch\Flow\AuthFlow::class);
+    app()->forgetInstance(\Fissible\Vouch\Flow\VerificationEqualizer::class);
+
+    $flow = app(\Fissible\Vouch\Flow\AuthFlow::class);
+
+    $begun = $flow->advance(new FlowRequest(null, 'begin', [], riskBinding()));
+    assert($begun instanceof Continuing && is_string($begun->handle));
+
+    $flow->advance(new FlowRequest($begun->handle, 'submit', ['identifier' => 'ada@acme.example'], riskBinding()));
+    $flow->advance(new FlowRequest($begun->handle, 'submit', ['code' => '123456'], riskBinding()));
+
+    // The equalizer's own sentinel digest, produced by the ACTIVE hasher. A
+    // hard-coded or cached digest could not carry this marker.
+    $sentinels = array_filter(
+        $recorder->checkedAgainst,
+        static fn (string $digest): bool => str_starts_with($digest, 'sentinel:'),
+    );
+
+    expect($sentinels)->not->toBeEmpty();
+});
 
 it('does not authenticate when no policy is configured', function (): void {
     /*
