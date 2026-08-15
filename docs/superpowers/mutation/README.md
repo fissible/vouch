@@ -3,8 +3,13 @@
 **Status: Task 13 BLOCKED on one remaining item. Branch
 `feat/vouch-2-3-flow-http` must not merge.**
 
-Blocker 1 (the four matrix rows) is closed as of 2026-08-15. Blocker 2, the
-provider-row anomaly in `anomaly/`, is the only thing still outstanding.
+Blocker 1 (the four matrix rows) is closed as of 2026-08-15. Blocker 2's cause is
+now identified and 42 of its 56 rows were instrument artifacts; 14 real survivors
+remain to rule. See `anomaly/`.
+
+**The score is unreliable while the provider is measured by an unpatched
+plugin.** A run that reports 56 provider survivors is reporting a PCRE failure,
+not test quality.
 
 ## The gate (revised — there is no score floor)
 
@@ -56,12 +61,18 @@ re-enrollment contention test; it had survived because every existing contention
 test exercised only the first-enrollment path, where the insert serializes and
 the lock call is redundant.
 
-**2. Unexplained mutation-run discrepancy (56 provider rows) — still open.
-This is now the only blocker.**
-See `anomaly/`. A faithfully reproduced child kills these mutations; the
-aggregate run reports `UNTESTED`. Seven layers verified correct. They are neither
-killed nor dispositioned. Independent of blocker 1 — do not sequence Task 14
-behind it.
+**2. The 56 provider rows — CAUSE FOUND 2026-08-15, 42 were artifacts.**
+See `anomaly/`. Not an unexplained discrepancy: PCRE cannot compile the plugin's
+453-alternation, 37,818-byte `--filter`, and PHPUnit's `@preg_match(...) === 1`
+turns that compile failure into "no test matches". The child runs zero tests,
+exits 0, and the plugin scores survival. Threshold bisected at 409 alternations /
+34,140 bytes. Re-measured with the overflow bypassed: **49 killed, 14 genuine
+survivors**, 6 uncovered. Exactly **1 of 90** covered files can overflow, so the
+rest of the baseline is unaffected.
+
+Remaining before Task 13 closes: rule the 14 survivors, regenerate the manifest,
+and choose a durable control for the provider — an unpatched plugin will silently
+report 56 survivors again.
 
 ## Disposition classes
 
@@ -84,6 +95,10 @@ as deliberate margin). Per-file rulings are in the dated `*-rulings.md` files.
   sent to the matrix on "MySQL and Postgres return numeric strings", which one
   `PDO` probe disproves. Probe the driver before classifying on its behaviour,
   and when a ruling rests on driver behaviour, pin it with a test.
+- **A tool that reports success can be reporting nothing at all.** The provider's
+  56 "survivors" were a child process running zero tests and exiting 0. When a
+  runner's verdict rests on an exit code, confirm work actually happened — count
+  the tests it claims to have run.
 - When a guard has two paths, ask which one the tests take. Four contention
   tests all entered `EnrollmentGuard::acquire()` with no lock row, where the
   insert serializes — so none of them could see `lockForUpdate` disappear, and

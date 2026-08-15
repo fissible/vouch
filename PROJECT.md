@@ -641,3 +641,59 @@ plugin were verified correct without finding the cause; the anomaly directory ho
 a reproduction that kills the mutations a full run reports as `UNTESTED`. Task 13
 cannot close until that is resolved or an alternative control is explicitly accepted
 in its place.
+
+---
+
+## Session handoff — 2026-08-15, blocker 2 root cause found
+
+**The 56 provider rows were never survivors.** 42 were instrument artifacts and
+are killed; 14 are genuine and still need rulings. Full record:
+`docs/superpowers/mutation/anomaly/README.md`.
+
+**Cause.** The plugin builds one `--filter` regex alternating every test that
+covers the mutated lines. `VouchServiceProvider.php` is touched by 453 tests, so
+the pattern is 37,818 bytes, and PCRE2 refuses it — "regular expression is too
+large". PHPUnit's `NameFilterIterator:66` is `@preg_match(...) === 1`, so the
+compile failure is swallowed and reads as "no test matches". The child selects
+zero tests, prints `INFO No tests found.`, and exits 0; the plugin reads exit 0
+as survival. A green suite and a silently-empty suite are the same exit code.
+
+Threshold bisected: 409 alternations / 34,140 bytes compiles, 410 / 34,222 does
+not. Not the JIT (identical at `pcre.jit=0`), not the capture groups (`(?:.*)`
+and bare `.*` both fail), not tunable from php.ini.
+
+**Blast radius is one file.** Replaying the plugin's filter construction over the
+real full-suite coverage map, at whole-file union (the upper bound on any single
+mutation's filter): 1 of 90 covered source files can overflow. Next largest is
+`EnforcesValueBounds.php` at 19,263 bytes, a 1.8x margin under the ceiling. The
+rest of the 1314-mutation baseline is unaffected.
+
+**Corrected provider verdicts** (overflow bypassed): 49 killed / 14 untested /
+6 uncovered, versus 7 / 56 / 6 before. Zero children reported "No tests found".
+
+**Two things that make this cheap to work with.** The anomaly reproduces at file
+scope — `vendor/bin/pest --mutate --path=src/VouchServiceProvider.php`, 149s,
+exactly 56/6/7 — so no 814s full run is needed. And the parallel-worker branch is
+ruled out: captured spawns show `processId: null` and only
+`PEST_MUTATION_TESTING` / `PEST_MUTATION_FILE` in the child env, because
+`CliConfiguration::fromArguments()` builds its InputDefinition solely from
+options present in argv, so `hasOption('parallel')` is true only when `--parallel`
+was actually passed.
+
+**vendor/ is pristine.** The corrected numbers came from a temporary patch to
+`MutationTest.php` (drop the filter above 30,000 bytes, run the whole suite with
+`--bail`). It was a measurement instrument and has been reverted, verified by
+diff against a pristine copy.
+
+**Next, in order.**
+1. Rule the 14 genuine survivors listed in the anomaly README — all in
+   `VouchServiceProvider.php`. Classify the two `ConcatRemoveRight` rows by
+   dataflow, not mutator family.
+2. Regenerate the authoritative mutation manifest. IDs may be stable but no
+   current outcome is attested by the pre-matrix run, and the provider's rows
+   were measured by a broken instrument.
+3. Choose and WRITE DOWN a durable control for the provider: carry the vendor
+   patch deliberately, report upstream (the reportable defect is `@preg_match`
+   swallowing a compile failure; the fix is chunking the filter), or accept
+   whole-suite measurement for this one file. Without one, the next run on an
+   unpatched plugin silently reports 56 survivors again.
