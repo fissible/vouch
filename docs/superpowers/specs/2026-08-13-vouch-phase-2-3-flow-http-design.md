@@ -21,7 +21,8 @@ and one of them has a dependency running backwards.
 
 | Moved to | What | Why |
 |---|---|---|
-| **2.3b** | §7.4 abuse controls and rate limiting, entire | Its own data model, cost controls and adversarial tests. Per-identifier send caps, per-tenant spend ceilings, country allow-lists and hard daily limits are an anti-fraud subsystem the orchestrator *calls*, not a feature of it. |
+| **2.3b** | Authentication throttling from §7.4 | The flow-facing system: submitted-identifier/IP/tenant/global limits, exponential backoff, lockout, challenge-attempt caps, and posture-safe retry disclosure. It replaces 2.3's explicit `retry: null` with measured state without changing the frozen kernel disclosure contract. |
+| **2.3c** | OTP pumping and delivery-fraud controls from §7.4 | Per-identifier send caps, per-tenant spend ceilings, country allow-lists, hard daily limits, and CAPTCHA are delivery/economic controls. They need delivery-facing metadata and their own adversarial tests; the orchestrator calls them rather than owning them. |
 | **2.4** | `RequireAssurance` non-interactive mode (RFC 9470) | It is default-deny against `auth_token_assurances`, and nothing writes those records until 2.4's `Vouch::issueToken()`. Building the enforcement half first means testing it only against hand-written fixture rows, and shaping enforcement to fit fixtures rather than to fit what issuance produces. |
 | **A post-2.4 slice** | Remember-me (§7.5 device-bound persistent login) | A persistent bearer credential is a separate authentication system: rotation, reuse/theft detection, revocation, device lifecycle. Its ceiling — never above `knowledge` strength — must be expressed against 2.4's token-assurance machinery rather than invented alongside it. |
 
@@ -45,7 +46,7 @@ the flow that creates, rotates and enforces sessions. Splitting them would put a
 in one phase and its enforcement in another.
 
 The resulting sequence: **2.3** login flow, HTTP/presenter, session/grace, interactive
-step-up → **2.3b** abuse controls → **2.4** token issuance/audit plus non-interactive
+step-up → **2.3b** authentication throttling → **2.3c** OTP delivery-fraud controls → **2.4** token issuance/audit plus non-interactive
 assurance enforcement.
 
 ---
