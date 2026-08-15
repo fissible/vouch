@@ -410,6 +410,50 @@ pre-normalisation step changes which arm fires first — and a redirect validato
 is exactly where that margin is worth paying for. A mutation score measures test
 sensitivity; it must never be read as an argument for deleting a layer.
 
+## RECONCILIATION FAILED — the kernel was never excluded
+
+**2026-08-14. The first authoritative run to complete, and it invalidates a
+premise this task has carried since its first commit.**
+
+Step 0 passed cleanly: zero fatals, `1539 Mutations for 73 Files`, 73 files in the
+`RUN` list, 967s. Headline 74.40% — 336 untested, 58 uncovered, 4 timeout, 1141
+tested. The 4 timeouts are the documented non-terminating loop mutants.
+
+Then the file diff:
+
+| Check | Result |
+|---|---|
+| Non-kernel files mutated | **60 of 83** |
+| `src/Kernel/*` files mutated | **13 — should be 0** |
+| Non-kernel files not mutated | 23, needing per-file evidence |
+
+**`--ignore="Fissible\Vouch\Kernel"` does not exclude the kernel.** Thirteen
+kernel files were mutated in a run that declared them out of scope.
+
+The consequence reaches backwards. The scope was fixed in `composer.json` before
+the first measurement precisely so it could not be narrowed afterwards — and the
+same `--ignore` was in that fixed scope. So **the original baselines (67.22% full,
+71.08% covered-only) were never non-kernel scores**; they included kernel files
+that are separately gated at 80/95. Every full-scope number in this document
+inherits that error. The per-namespace slices are unaffected where their `--class`
+prefix already excluded the kernel, which is most of them, but that is a
+different argument and has to be made per slice rather than assumed.
+
+Nothing about the survivor dispositions changes — those were reached by reading
+code, not by reading a percentage. What changes is that no full-scope figure here
+means what its label says.
+
+Open, in order:
+
+1. Establish why `--ignore` does not match, and what form does. Until then the
+   run cannot be scoped as designed.
+2. Re-run and re-reconcile once it can.
+3. Evidence the 23 unmutated non-kernel files per file. Most are interfaces,
+   enums, readonly DTOs and single-method delegations already in the checklist's
+   table, but `EmailOtpFactor` and `SmsOtpFactor` are concrete drivers and were
+   not expected there — each is 18 lines returning two string literals, which is
+   plausible but unverified, and plausible is not the standard this gate uses.
+
 ## The gate — survivor review, not a score floor
 
 **Decided 2026-08-14, and it replaces the floor this document was originally
