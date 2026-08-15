@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Fissible\Vouch\Flow\Authenticated;
 use Fissible\Vouch\Flow\AuthFlow;
 use Fissible\Vouch\Flow\Continuing;
+use Fissible\Vouch\Kernel\Screen\AuthStep;
 use Fissible\Vouch\Flow\FlowRequest;
 use Fissible\Vouch\Flow\RecoveryGraceStarted;
 use Fissible\Vouch\Kernel\Attempt\AttemptState;
@@ -148,6 +149,45 @@ it('authenticates when the policy is satisfied', function (): void {
         ->and($result->success->userId)->toBe(7)
         ->and($result->success->amr())->toBe(['password'])
         ->and($result->success->boundContext)->toBe(flowBinding());
+});
+
+it('continues with the next factor when the policy is only partly satisfied', function (): void {
+    /*
+     * The other half of "authenticates when the policy is satisfied", and the
+     * half nothing asserted: an `all_of` policy with one factor still
+     * outstanding must come back as Continuing with the next challenge.
+     *
+     * Without this, deleting the `return new Continuing(...)` on the
+     * not-yet-Authenticated branch leaves the whole suite green while a
+     * half-authenticated attempt falls straight through into the Authenticated
+     * transition below it. The outcome there depends on what the transition
+     * rules allow, which is exactly the wrong thing for this decision to depend
+     * on: whether a second factor is still required is the policy's call, not
+     * the state machine's.
+     */
+    flowPolicy(['all_of' => ['password', 'totp']]);
+    flowPassword();
+    app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)->enroll(7, ['label' => 'ada@acme.example']);
+
+    $handle = flowIdentified();
+
+    $result = theFlow()->advance(flowAdvance($handle, ['password' => 'correct horse battery staple']));
+
+    expect($result)->toBeInstanceOf(Continuing::class);
+
+    assert($result instanceof Continuing);
+
+    /*
+     * The class alone does NOT discriminate, and assuming it did is how this
+     * test first failed to kill anything: the fall-through lands on $refusal(),
+     * which also returns a Continuing carrying the same handle. The artifact
+     * that distinguishes the two is the SCREEN — an offer of the next factor
+     * carries no errors, whereas a refusal carries CredentialRejected.
+     */
+    expect($result->screen->errors)->toBe([])
+        ->and($result->screen->step)->toBe(AuthStep::Challenge)
+        // The handle must survive, or the client cannot present the second factor.
+        ->and($result->handle)->toBe($handle);
 });
 
 it('does not rotate any session itself', function (): void {

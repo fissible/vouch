@@ -40,6 +40,27 @@ it('opens a live capability', function (): void {
         ->and(AuthSession::firstOrFail()->amr)->toBe(['recovery_code']);
 });
 
+it('stamps the row it creates, from the database clock', function (): void {
+    /*
+     * `$table->timestamps()` is nullable, so dropping either stamp from the
+     * insert leaves the row perfectly usable and every other grace assertion
+     * green — while `AuthSession` declares both as non-null `Carbon`. A model
+     * whose declared type is contradicted by its own writer is a defect that
+     * only surfaces at the reader.
+     *
+     * Asserted as instances rather than values: what matters is that the write
+     * path sets them at all. That they come from the DATABASE clock, not the
+     * application clock, is pinned separately by the expiry test below — the
+     * same authority the deadline uses.
+     */
+    graceGuard()->start('host-stamped', 7);
+
+    $session = AuthSession::firstOrFail();
+
+    expect($session->created_at)->toBeInstanceOf(Carbon::class)
+        ->and($session->updated_at)->toBeInstanceOf(Carbon::class);
+});
+
 it('never stores the raw host session id', function (): void {
     graceGuard()->start('host-1', 7);
 

@@ -25,9 +25,18 @@ it('refuses an unrecognised driver rather than falling back', function (): void 
      * Falling back to an application timestamp would reintroduce clock drift
      * into a security window — silently, on whichever engine nobody tested.
      * Throwing is the whole point of centralising this.
+     *
+     * The driver NAME is asserted, not just the exception class. The standing
+     * rule is to assert the message when the class is as broad as this one:
+     * InvalidArgumentException is SPL and anything could raise it, so a
+     * class-only assertion would stay green if an unrelated defect threw it
+     * before this branch was ever reached — and would say nothing about whether
+     * the operator can tell WHICH driver is unsupported, which is the only
+     * actionable content the message carries.
      */
-    DatabaseTime::deadlineSql('oracle');
-})->throws(InvalidArgumentException::class);
+    expect(fn (): string => DatabaseTime::deadlineSql('oracle'))
+        ->toThrow(InvalidArgumentException::class, 'oracle');
+});
 
 it('writes a deadline from the database clock, not the application clock', function (): void {
     /*
