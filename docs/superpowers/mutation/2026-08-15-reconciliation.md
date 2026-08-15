@@ -94,19 +94,38 @@ exactly one test: **1 passed**.
 **Discrimination.** With the routes path broken, the same filter gives
 **1 failed**.
 
-So attribution is correct, derivation is correct, the derived filter selects the
-right test, and that test detects the mutation. The literal-quote candidate was
-separately eliminated by running both the normal and the plugin-style quoted argv
-form.
+**Mutation-file interception.** A child was then reproduced faithfully: a mutated
+copy of the provider on disk, `PEST_MUTATION_TESTING` set to the original path,
+`PEST_MUTATION_FILE` to the mutated copy, plus `--bail` and the derived filter.
 
-Every layer works in isolation, and the plugin still reports the mutation as
-surviving. What remains unexamined is the assembled child invocation — the
-plugin passes `...$originalArguments` alongside the filter
-(`MutationTest.php:86-90`), so the child inherits `--mutate --class=… --ignore=…`
-from the parent run, and the interaction of those flags with the filter in a
-child process has not been reproduced.
+**It fails — the mutation is applied and the test detects it.** Both argv forms
+were tried, the plugin's literal-quoted `--filter="…"` and the shell-stripped
+form; both give `1 failed`.
 
-That is where the defect lies, and it is not yet pinned to a single cause.
+**Argument inheritance is not the cause either.** The plugin strips `--mutate`,
+`--class` and `--ignore` before saving `originalArguments` — `MutateOption`,
+`ClassOption` and `IgnoreOption` each return `remove() === true` — so the child
+receives the stripped arguments plus `--bail` and the filter, which is what was
+reproduced.
+
+### Where this leaves it
+
+Every layer has now been tested individually and each works:
+
+| Layer | Verdict |
+|---|---|
+| Coverage attribution | correct — line maps to the probe by name |
+| Filter derivation | correct — plugin's own transformation applied |
+| Filter selection | correct — selects exactly that test |
+| Filter discrimination | correct — fails when the line is broken |
+| Literal-quote argv form | not the cause — both forms behave identically |
+| Inherited scope options | not the cause — stripped before the child is built |
+| Mutation-file interception | correct — the reproduced child KILLS the mutation |
+
+A faithfully reproduced child kills the mutation; the plugin reports it
+surviving. **The cause is not identified.** Every named hypothesis has been
+tested and eliminated, and what differs between the reproduced child and the
+plugin's own child has not been found.
 
 ### A third category: TOOL-BLIND
 
@@ -125,11 +144,12 @@ evidence attached** — `ProviderEffectTest`, the per-expression probes that fai
 11–19 tests each, the whole-suite probe at 530 failures, and the direct-invocation
 attempt above.
 
-The category is held open, and is now narrow: coverage attribution, filter
-derivation, and filter selection are each verified correct, and the derived
-filter is discriminating. The defect lies in the assembled child invocation. That
-is a harness defect, not a property of the code or of the tests — but the precise
-cause is not yet established, so tool-blind remains PROVISIONAL.
+Tool-blind remains **PROVISIONAL and now poorly named**: seven candidate layers
+were tested and every one works, including a faithfully reproduced child that
+kills the mutation. Whatever differs between that reproduction and the plugin's
+own child has not been found, so the honest statement is *unexplained*, not
+*impossible*. The behavioural evidence for the 56 rows is unchanged and strong;
+what is unresolved is why the instrument does not observe it.
 
 ## Remaining unresolved
 
