@@ -40,11 +40,74 @@ it('registers every shipped factor driver', function (): void {
 });
 
 it('resolves every singleton the provider registers as one shared instance', function (string $class): void {
-    // Registered in a loop, so a dropped entry is invisible at the call site --
-    // the class still resolves, just not as the shared instance the rest of the
-    // request is using.
+    /*
+     * Registered in a loop, so a dropped entry is invisible at the call site --
+     * the class still resolves, just not as the shared instance the rest of the
+     * request is using.
+     *
+     * The dataset below named three of the provider's sixteen singletons while
+     * the test's name promised all of them, and the gap was not academic: the
+     * mutation gate killed the three that were listed and left the other eight
+     * registrations that nothing else covers surviving. Dropping any one of them
+     * leaves a class that still resolves -- Laravel autowires most of these --
+     * but hands a fresh instance to every caller, so shared state registered
+     * once per request silently becomes per-resolution state.
+     *
+     * Kept as an exact enumeration rather than derived from the provider, for
+     * the same reason the factor-driver list above is: a list derived from the
+     * thing under test cannot detect that the thing under test lost an entry.
+     */
     expect(app($class))->toBe(app($class));
-})->with([IntendedDestination::class, FlowResultSerializer::class, AssuranceComparator::class]);
+})->with([
+    // Bound by class name in the foreach loop.
+    IntendedDestination::class,
+    FlowResultSerializer::class,
+    AssuranceComparator::class,
+    // Bound with explicit construction closures.
+    \Fissible\Vouch\Contracts\AttemptStore::class,
+    \Fissible\Vouch\Enrollment\EnrollmentGuard::class,
+    \Fissible\Vouch\Flow\ScreenBuilder::class,
+    \Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class,
+    \Fissible\Vouch\Flow\AuthFlow::class,
+    \Fissible\Vouch\Sessions\SessionLifecycle::class,
+    \Fissible\Vouch\Support\DatabaseTime::class,
+    \Fissible\Vouch\Recovery\GraceGuard::class,
+    // FlowResultHandler is NOT here: it needs a StatefulGuard, which the test
+    // application does not bind. It has its own test below rather than being
+    // quietly dropped from this list -- a singleton omitted from an exhaustive
+    // enumeration is the exact defect this test exists to catch.
+    // The five factor drivers and the registry that resolves them.
+    \Fissible\Vouch\Factors\Drivers\PasswordFactor::class,
+    \Fissible\Vouch\Factors\Drivers\TotpFactor::class,
+    \Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor::class,
+    \Fissible\Vouch\Factors\Drivers\EmailOtpFactor::class,
+    \Fissible\Vouch\Factors\Drivers\SmsOtpFactor::class,
+    FactorRegistry::class,
+    // Bound as an interface-to-implementation pair.
+    \Psr\Clock\ClockInterface::class,
+]);
+
+it('resolves the flow result handler as one shared instance too', function (): void {
+    /*
+     * Separated from the enumeration above only because its construction pulls
+     * a StatefulGuard and a Session, which the test application does not bind by
+     * default. Binding the guard here is setup, not the assertion: what is being
+     * asserted is the same shared-instance contract every other singleton gets.
+     */
+    $guard = auth()->guard('web');
+
+    // A real check rather than a cast, matching the convention in
+    // ProviderEffectTest: that the web guard is stateful is a premise of this
+    // test, so say so where it would otherwise be assumed.
+    if (! $guard instanceof \Illuminate\Contracts\Auth\StatefulGuard) {
+        throw new RuntimeException('The web guard is not stateful; this test needs one.');
+    }
+
+    app()->bind(\Illuminate\Contracts\Auth\StatefulGuard::class, static fn (): \Illuminate\Contracts\Auth\StatefulGuard => $guard);
+
+    expect(app(\Fissible\Vouch\Http\FlowResultHandler::class))
+        ->toBe(app(\Fissible\Vouch\Http\FlowResultHandler::class));
+});
 
 it('prunes revoked sessions on the documented retention window and not before', function (): void {
     /*

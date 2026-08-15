@@ -32,7 +32,10 @@ jobs:
         uses: actions/cache@v5
         with:
           path: vendor
-          key: composer-${{ matrix.os }}-${{ matrix.php }}-${{ hashFiles('composer.json') }}
+          # patches/ is part of the key: vendor/ carries an applied patch, so a
+          # changed patch with an unchanged composer.json would otherwise restore
+          # a stale, unpatched plugin from cache.
+          key: composer-${{ matrix.os }}-${{ matrix.php }}-${{ hashFiles('composer.json', 'patches/**') }}
 
       - name: Install
         run: composer install --prefer-dist --no-progress

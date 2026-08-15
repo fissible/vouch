@@ -13,10 +13,12 @@
         "spomky-labs/otphp": "^11.5"
     },
     "require-dev": {
+        "cweagans/composer-patches": "^1.7",
         "larastan/larastan": "^3.10",
         "orchestra/testbench": "^11.0",
         "pestphp/pest": "^3.0",
         "pestphp/pest-plugin-arch": "^3.0",
+        "pestphp/pest-plugin-mutate": "3.0.5",
         "phpstan/phpstan": "^2.0"
     },
     "autoload": {
@@ -32,7 +34,8 @@
     "config": {
         "sort-packages": true,
         "allow-plugins": {
-            "pestphp/pest-plugin": true
+            "pestphp/pest-plugin": true,
+            "cweagans/composer-patches": true
         }
     },
     "scripts": {
@@ -61,7 +64,13 @@
             "providers": [
                 "Fissible\\Vouch\\VouchServiceProvider"
             ]
-        }
+        },
+        "patches": {
+            "pestphp/pest-plugin-mutate": {
+                "Chunk derived test filters below PCRE compile limit (upstream defect)": "patches/pest-plugin-mutate-3.0.5-chunk-filters.patch"
+            }
+        },
+        "composer-exit-on-patch-failure": true
     },
     "minimum-stability": "stable",
     "prefer-stable": true

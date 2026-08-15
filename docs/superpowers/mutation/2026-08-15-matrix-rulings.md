@@ -132,5 +132,5 @@ matrix. It was the first failure of this session.
 | PHPStan level 9 | clean |
 
 Blocker 1 is closed: 3 rows dispositioned `equivalent` with their shared premise
-tested, 1 row killed. Blocker 2 (the 56 provider rows in `anomaly/`) is
+tested, 1 row killed. Blocker 2 (the 56 provider rows in `upstream-defect/`) is
 untouched and remains the only thing between Task 13 and its gate.

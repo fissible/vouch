@@ -1,15 +1,17 @@
 # Phase 2.3 mutation gate — start here
 
-**Status: Task 13 BLOCKED on one remaining item. Branch
-`feat/vouch-2-3-flow-http` must not merge.**
+**Status: both blockers closed as of 2026-08-15. Branch
+`feat/vouch-2-3-flow-http` must not merge until the regenerated manifest lands.**
 
-Blocker 1 (the four matrix rows) is closed as of 2026-08-15. Blocker 2's cause is
-now identified and 42 of its 56 rows were instrument artifacts; 14 real survivors
-remain to rule. See `anomaly/`.
+Blocker 1 (the four matrix rows) and blocker 2 (the provider rows, a confirmed
+`pest-plugin-mutate` defect) are both resolved. What remains is the authoritative
+manifest, regenerated with the patch in place.
 
-**The score is unreliable while the provider is measured by an unpatched
-plugin.** A run that reports 56 provider survivors is reporting a PCRE failure,
-not test quality.
+**Run the gate only on a patched install.** `composer install` applies
+`patches/pest-plugin-mutate-3.0.5-chunk-filters.patch`; without it the provider
+silently reports 56 phantom survivors, because a child that runs zero tests exits
+0 and is scored as survival. `tests/Mutation/FilterChunkingTest.php` fails if the
+patch is not declared.
 
 ## The gate (revised — there is no score floor)
 
@@ -61,18 +63,23 @@ re-enrollment contention test; it had survived because every existing contention
 test exercised only the first-enrollment path, where the insert serializes and
 the lock call is redundant.
 
-**2. The 56 provider rows — CAUSE FOUND 2026-08-15, 42 were artifacts.**
-See `anomaly/`. Not an unexplained discrepancy: PCRE cannot compile the plugin's
-453-alternation, 37,818-byte `--filter`, and PHPUnit's `@preg_match(...) === 1`
-turns that compile failure into "no test matches". The child runs zero tests,
-exits 0, and the plugin scores survival. Threshold bisected at 409 alternations /
-34,140 bytes. Re-measured with the overflow bypassed: **49 killed, 14 genuine
-survivors**, 6 uncovered. Exactly **1 of 90** covered files can overflow, so the
-rest of the baseline is unaffected.
+**2. The 56 provider rows — CLOSED 2026-08-15. A confirmed upstream defect.**
+See `upstream-defect/`. PCRE cannot compile the plugin's 453-alternation,
+37,818-byte `--filter`, and PHPUnit's `@preg_match(...) === 1` turns that compile
+failure into "no test matches". The child runs zero tests, exits 0, and the
+plugin scores survival. Threshold bisected at 409 alternations / 34,140 bytes.
+Exactly **1 of 90** covered files can overflow, so the rest of the baseline was
+never affected.
 
-Remaining before Task 13 closes: rule the 14 survivors, regenerate the manifest,
-and choose a durable control for the provider — an unpatched plugin will silently
-report 56 survivors again.
+42 rows were artifacts; the 14 genuine survivors are killed. The provider now
+reports **0 untested, 63 tested, 6 uncovered (dispositioned prose), 91.30%**.
+
+The durable control is a version-pinned Composer patch that chunks the derived
+filters, applied by `composer install` and guarded by
+`tests/Mutation/FilterChunkingTest.php` — see `2026-08-15-durable-control.md`.
+Whole-suite-per-mutant was the diagnostic, NOT the control: an unrelated flaky
+failure would falsely credit a kill, where chunked filters keep the tool's
+intended causal signal.
 
 ## Disposition classes
 

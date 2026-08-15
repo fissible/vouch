@@ -59,15 +59,51 @@ it('loads routes from its own path', function (): void {
 });
 
 it('publishes its config and migrations from the intended paths', function (): void {
-    $paths = ServiceProvider::pathsToPublish(VouchServiceProvider::class);
+    /*
+     * Asserted per tag, as exact source-to-target pairs.
+     *
+     * The previous version asked only that the source list was non-empty and
+     * that every entry existed on disk, and the mutation gate showed both halves
+     * to be too weak to see anything:
+     *
+     *  - Non-empty survives DELETING either publishes() call outright, because
+     *     the other one keeps the list non-empty. Same for emptying either
+     *     array. That is the standing rule about never asserting membership of a
+     *     list that contains all the candidates.
+     *  - file_exists() survives truncating `__DIR__ . '/../config/vouch.php'`
+     *     down to `__DIR__`, because a directory exists just as happily as the
+     *     file inside it. An assertion that cannot tell a path from its own
+     *     parent cannot tell a correct path from a wrong one.
+     *
+     * Resolving both sides means a truncated concatenation fails on the value,
+     * and a missing publishes() call fails on the tag.
+     */
+    $config = ServiceProvider::pathsToPublish(VouchServiceProvider::class, 'vouch-config');
+    $migrations = ServiceProvider::pathsToPublish(VouchServiceProvider::class, 'vouch-migrations');
 
-    $sources = array_keys($paths);
+    // Exactly one mapping per tag: a deleted publishes() call, or an emptied
+    // array, leaves the tag with nothing and fails here rather than hiding
+    // behind the other tag's entries.
+    expect($config)->toHaveCount(1)
+        ->and($migrations)->toHaveCount(1);
 
-    expect($sources)->not->toBeEmpty()
-        // Sources are absolute paths built by concatenation; assert they exist
-        // on disk rather than merely that a key is present.
-        ->and(array_filter($sources, static fn (string $p): bool => file_exists($p)))
-        ->toHaveCount(count($sources));
+    /*
+     * Sources are compared through realpath because the provider builds them by
+     * concatenation and they arrive unresolved, as `.../src/../config/vouch.php`.
+     * Normalising both sides compares the file each path actually names.
+     */
+    expect(realpath((string) array_key_first($config)))
+        ->toBe(realpath(__DIR__ . '/../../config/vouch.php'))
+        ->and(realpath((string) array_key_first($migrations)))
+        ->toBe(realpath(__DIR__ . '/../../database/migrations'));
+
+    expect(array_values($config))->toBe([config_path('vouch.php')])
+        ->and(array_values($migrations))->toBe([database_path('migrations')]);
+
+    // The sources are what gets copied; a directory standing in for a file is
+    // exactly the shape a truncated concatenation produces.
+    expect(is_file((string) array_key_first($config)))->toBeTrue()
+        ->and(is_dir((string) array_key_first($migrations)))->toBeTrue();
 });
 
 it('binds every contract to its intended implementation', function (string $contract, string $implementation): void {

@@ -1,0 +1,187 @@
+--- a/src/MutationTest.php	2026-08-15 12:37:01
++++ b/src/MutationTest.php	2026-08-15 12:37:01
+@@ -24,8 +24,121 @@
+ 
+     private Process $process;
+ 
++    /**
++     * Remaining filter chunks for this mutation, if the covering test set had to
++     * be split to stay within PCRE's pattern compilation limit.
++     *
++     * @var array<int, array<int, string>>
++     */
++    private array $pendingChunks = [];
++
++    /** @var array<string, string|int> */
++    private array $envs = [];
++
++    /** @var array<int, string> */
++    private array $originalArguments = [];
++
++    /**
++     * Largest filter payload handed to a child, in bytes.
++     *
++     * PCRE refuses to compile a pattern once it grows past roughly 34KB --
++     * "regular expression is too large" -- and PHPUnit's NameFilterIterator
++     * calls preg_match() with the diagnostic suppressed, so the failure is
++     * indistinguishable from "no test matched". The child then selects zero
++     * tests and exits 0, which this class would score as a surviving mutant.
++     *
++     * This bound is deliberately well under the observed ceiling: the limit is
++     * on the COMPILED pattern, not the source bytes, so the ratio varies with
++     * pattern content and no exact byte figure is portable.
++     */
++    private const MAX_FILTER_BYTES = 16000;
++
+     public function __construct(public readonly Mutation $mutation) {}
+ 
++    /**
++     * Split covering-test filters into chunks that PCRE can actually compile.
++     *
++     * Every chunk is verified by compiling it, and any chunk that still fails is
++     * halved until it compiles or cannot be split further, so the result never
++     * depends on the byte budget above being exactly right.
++     *
++     * @param  array<int, string>  $filters
++     * @return array<int, array<int, string>>
++     */
++    public static function chunkFilters(array $filters, int $maxBytes = self::MAX_FILTER_BYTES): array
++    {
++        $filters = array_values($filters);
++        $chunks = [];
++        $current = [];
++        $length = 2; // the surrounding quotes
++
++        foreach ($filters as $filter) {
++            $addition = strlen($filter) + ($current === [] ? 0 : 1);
++
++            if ($current !== [] && $length + $addition > $maxBytes) {
++                $chunks[] = $current;
++                $current = [];
++                $length = 2;
++                $addition = strlen($filter);
++            }
++
++            $current[] = $filter;
++            $length += $addition;
++        }
++
++        if ($current !== []) {
++            $chunks[] = $current;
++        }
++
++        $verified = [];
++
++        foreach ($chunks as $chunk) {
++            foreach (self::splitUntilCompilable($chunk) as $piece) {
++                $verified[] = $piece;
++            }
++        }
++
++        return $verified;
++    }
++
++    /**
++     * @param  array<int, string>  $chunk
++     * @return array<int, array<int, string>>
++     */
++    private static function splitUntilCompilable(array $chunk): array
++    {
++        if (self::compiles($chunk) || count($chunk) < 2) {
++            return [$chunk];
++        }
++
++        $half = intdiv(count($chunk), 2);
++
++        return [
++            ...self::splitUntilCompilable(array_slice($chunk, 0, $half)),
++            ...self::splitUntilCompilable(array_slice($chunk, $half)),
++        ];
++    }
++
++    /**
++     * @param  array<int, string>  $chunk
++     */
++    public static function compiles(array $chunk): bool
++    {
++        /*
++         * An installed error handler (PHPUnit's, for one) still receives the
++         * "regular expression is too large" warning through the @ operator, and
++         * probing for compilability is not an error worth reporting. Swallow it
++         * for the duration of the probe only.
++         */
++        set_error_handler(static fn (): bool => true);
++
++        try {
++            return preg_match('"'.implode('|', $chunk).'"', '') !== false;
++        } finally {
++            restore_error_handler();
++        }
++    }
++
+     public function getId(): string
+     {
+         return $this->mutation->id;
+@@ -81,24 +194,40 @@
+             $envs['LARAVEL_PARALLEL_TESTING'] = 1;
+         }
+ 
++        $this->envs = $envs;
++        $this->originalArguments = $originalArguments;
++
++        $this->pendingChunks = self::chunkFilters($filters);
++
++        $this->start = microtime(true);
++
++        $this->startNextChunk();
++
++        return true;
++    }
++
++    /**
++     * Start the next filter chunk. A mutation survives only if EVERY chunk
++     * passes; the first chunk that fails has killed it.
++     */
++    private function startNextChunk(): void
++    {
++        $chunk = array_shift($this->pendingChunks);
++
+         // TODO: filter arguments to remove unnecessary stuff (Teamcity, Coverage, etc.)
+         $process = new Process(
+             command: [
+-                ...$originalArguments,
++                ...$this->originalArguments,
+                 '--bail',
+-                '--filter="'.implode('|', $filters).'"',
++                '--filter="'.implode('|', $chunk ?? []).'"',
+             ],
+-            env: $envs,
++            env: $this->envs,
+             timeout: $this->calculateTimeout(),
+         );
+ 
+-        $this->start = microtime(true);
+-
+         $process->start();
+ 
+         $this->process = $process;
+-
+-        return true;
+     }
+ 
+     private function calculateTimeout(): int
+@@ -127,6 +256,14 @@
+             return true;
+         }
+ 
++        if ($this->process->isSuccessful() && $this->pendingChunks !== []) {
++            // This chunk of covering tests passed, but others have not run yet.
++            // The mutation has not survived until every chunk has passed.
++            $this->startNextChunk();
++
++            return false;
++        }
++
+         if ($this->process->isSuccessful()) {
+             $this->updateResult(MutationTestResult::Untested);
+ 

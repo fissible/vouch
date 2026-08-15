@@ -574,7 +574,7 @@ anything to the requester.
 ## Session handoff — 2026-08-15, Task 14 (matrix rows) complete
 
 **Blocker 1 of the Phase 2.3 mutation gate is closed.** Task 13 remains blocked,
-now on blocker 2 alone (the 56 provider rows in `docs/superpowers/mutation/anomaly/`).
+now on blocker 2 alone (the 56 provider rows in `docs/superpowers/mutation/upstream-defect/`).
 Branch `feat/vouch-2-3-flow-http` still must not merge.
 
 Full write-up: `docs/superpowers/mutation/2026-08-15-matrix-rulings.md`.
@@ -637,7 +637,7 @@ unquoted variable holding several `K=V` pairs does **not** word-split, so
 zero assertions, which looks like a code break and is not one.
 
 **Next.** Blocker 2 is unchanged and is now the sole gate item. Seven layers of the
-plugin were verified correct without finding the cause; the anomaly directory holds
+plugin were verified correct without finding the cause; the upstream-defect directory holds
 a reproduction that kills the mutations a full run reports as `UNTESTED`. Task 13
 cannot close until that is resolved or an alternative control is explicitly accepted
 in its place.
@@ -648,7 +648,7 @@ in its place.
 
 **The 56 provider rows were never survivors.** 42 were instrument artifacts and
 are killed; 14 are genuine and still need rulings. Full record:
-`docs/superpowers/mutation/anomaly/README.md`.
+`docs/superpowers/mutation/upstream-defect/README.md`.
 
 **Cause.** The plugin builds one `--filter` regex alternating every test that
 covers the mutated lines. `VouchServiceProvider.php` is touched by 453 tests, so
@@ -671,7 +671,7 @@ rest of the 1314-mutation baseline is unaffected.
 **Corrected provider verdicts** (overflow bypassed): 49 killed / 14 untested /
 6 uncovered, versus 7 / 56 / 6 before. Zero children reported "No tests found".
 
-**Two things that make this cheap to work with.** The anomaly reproduces at file
+**Two things that make this cheap to work with.** The defect reproduces at file
 scope — `vendor/bin/pest --mutate --path=src/VouchServiceProvider.php`, 149s,
 exactly 56/6/7 — so no 814s full run is needed. And the parallel-worker branch is
 ruled out: captured spawns show `processId: null` and only
@@ -686,7 +686,7 @@ was actually passed.
 diff against a pristine copy.
 
 **Next, in order.**
-1. Rule the 14 genuine survivors listed in the anomaly README — all in
+1. Rule the 14 genuine survivors listed in the upstream-defect README — all in
    `VouchServiceProvider.php`. Classify the two `ConcatRemoveRight` rows by
    dataflow, not mutator family.
 2. Regenerate the authoritative mutation manifest. IDs may be stable but no
