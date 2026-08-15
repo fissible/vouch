@@ -855,7 +855,8 @@ distinct from OtpDelivery, verified-identifiers-only audience, non-disclosure in
 the response, and the instruction that the unbound-sink test is UPDATED rather than
 deleted when the drivers land.
 
-No `src/` change. Phase 2.3 scope is now closed pending Task 14.
+No `src/` change. Phase 2.3 scope is closed; Task 14's completed verification
+record follows.
 
 ## Task 14 verification record — 2026-08-15
 
