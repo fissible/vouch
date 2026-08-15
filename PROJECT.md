@@ -569,6 +569,11 @@ design but belongs to 2.3: verified identifiers only, post-consumption, best-eff
 auditable, and delivery failure must neither restore the consumed code nor disclose
 anything to the requester.
 
+> **Superseded 2026-08-15 — deferred to Phase 2.4.** "Auditable" needs `AuditSink`,
+> which is deliberately unbound until 2.4 so audit events cannot silently vanish,
+> and "best-effort" has no contract to travel on (`OtpDelivery` is OTP-shaped and
+> fails closed). See `docs/superpowers/specs/2026-08-15-recovery-notification-amendment.md`.
+
 ---
 
 ## Session handoff — 2026-08-15, Task 14 (matrix rows) complete
@@ -822,3 +827,58 @@ audit, hiding four already-killed rows and one real fail-open.
 
 **Next.** Phase 2.3's remaining scope is unchanged; the mutation gate no longer
 blocks it. The recovery-code notification carried forward from 2.1 is still open.
+
+---
+
+## Scope decision — 2026-08-15: recovery-code notification deferred to 2.4
+
+**Not implemented, by decision.** Full reasoning in
+`docs/superpowers/specs/2026-08-15-recovery-notification-amendment.md`.
+
+The 2.1 specification requires the notice to be **auditable** and **best-effort**.
+Neither is available in 2.3:
+
+- `AuditSink` has no binding and resolving it throws — a designed property, pinned
+  by `TenancyTest`, because "a silently-bound no-op would discard security events
+  while looking healthy". Its drivers wait on the §7.6 redaction pass that ships
+  with them. Building the notice now means binding a no-op sink, emitting no audit
+  event, swallowing the resolution error, or letting it break a recovery whose code
+  is already consumed. All four break the spec.
+- The only delivery contract is `OtpDelivery`, which is OTP-shaped and whose
+  unconfigured driver throws by design. A best-effort notice routed through it
+  turns into a hard failure on an unconfigured host, after consumption.
+
+2.4 inherits the requirement plus a fixed hook point (after the FactorSatisfied
+transition that carries the driver mutations), a new best-effort delivery contract
+distinct from OtpDelivery, verified-identifiers-only audience, non-disclosure in
+the response, and the instruction that the unbound-sink test is UPDATED rather than
+deleted when the drivers land.
+
+No `src/` change. Phase 2.3 scope is now closed pending Task 14.
+
+## Remaining before 2.3 is complete — Task 14
+
+The final 2.3 gate, not yet started:
+
+1. Full suites on file-backed SQLite, MySQL 8 and Postgres 16.
+2. Database-clock grace proof: creation, active, expiry and completion decided by
+   the database clock rather than the application clock, on each engine.
+3. CI matrix path coverage — the `database-matrix` job runs `tests/Database
+   tests/Concurrency tests/Factors`; confirm the grace and flow paths are inside
+   that selection or widen it.
+4. Kernel-boundary diff: confirm Phase 1's frozen kernel API surface is unchanged
+   by 2.3, against `docs/kernel-api-surface.md`.
+5. Record the verification.
+
+Containers, non-default host ports to avoid a local 5432 conflict:
+
+```bash
+docker run -d --name vouch-mysql -e MYSQL_ROOT_PASSWORD=password \
+  -e MYSQL_DATABASE=vouch_test -p 43307:3306 mysql:8
+docker run -d --name vouch-pgsql -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=vouch_test -p 45433:5432 postgres:16
+```
+
+Note for the runner: in zsh an unquoted variable holding several `K=V` pairs does
+not word-split, so `env $VARS pest` silently misconfigures the run and reports
+mass failures with zero assertions. Set the variables inline instead.
