@@ -103,3 +103,44 @@ it('refuses an assurance level it does not recognise, in either position', funct
         ->and($comparator->isSufficient($known, 'aal1'))->toBeTrue()
         ->and($comparator->isSufficient($known, 'aal3'))->toBeFalse();
 });
+
+it('orders every assurance level, and each one exactly', function (): void {
+    /*
+     * The ORDER constant IS the assurance lattice. Removing a level does not
+     * error -- array_search() simply returns false for it, and the class then
+     * refuses everything involving that level while every OTHER comparison keeps
+     * working. A missing rung is therefore invisible except to a test that names
+     * all four.
+     *
+     * Asserted as a full ordering rather than a couple of pairs: sufficiency must
+     * hold downwards and fail upwards at every step, which is what makes the
+     * lattice a lattice.
+     */
+    $comparator = app(AssuranceComparator::class);
+    $levels = ['aal0', 'aal1', 'aal2', 'aal3'];
+
+    foreach ($levels as $heldIndex => $held) {
+        $session = new AuthSession(['acr' => $held, 'user_id' => 7]);
+
+        foreach ($levels as $wantIndex => $want) {
+            expect($comparator->isSufficient($session, $want))
+                ->toBe($heldIndex >= $wantIndex, "held {$held} vs required {$want}");
+        }
+    }
+});
+
+it('refuses an unrecognised level even against the weakest requirement', function (): void {
+    /*
+     * `$held === false || $want === false`. array_search() returns false for an
+     * unknown level, and false is not a position -- compared numerically it
+     * coerces to 0, which SATISFIES a requirement of aal0. So the guard has to
+     * fire before the comparison, and the weakest requirement is the only case
+     * that can tell the difference.
+     */
+    $comparator = app(AssuranceComparator::class);
+
+    expect($comparator->isSufficient(new AuthSession(['acr' => 'aal9', 'user_id' => 7]), 'aal0'))
+        ->toBeFalse()
+        ->and($comparator->isSufficient(new AuthSession(['acr' => 'aal2', 'user_id' => 7]), 'aal9'))
+        ->toBeFalse();
+});

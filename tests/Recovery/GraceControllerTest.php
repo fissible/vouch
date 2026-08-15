@@ -139,3 +139,36 @@ it('strips any assurance level when a session becomes a grace capability', funct
         ->and($row->recovery_grace_expires_at)->not->toBeNull()
         ->and(app(\Fissible\Vouch\Http\AssuranceComparator::class)->isSufficient($row, 'aal1'))->toBeFalse();
 });
+
+it('clears a prior revocation when opening grace on the same host session', function (): void {
+    /*
+     * start() writes through updateOrCreate keyed on the session binding, so a
+     * host session that previously held a REVOKED vouch session lands on that
+     * row. Without `revoked_at => null` and `revoked_reason => null` in the
+     * payload, the new grace capability is born already revoked: activeFor()
+     * filters on revoked_at, so recovery would appear to succeed and then refuse
+     * every subsequent step, with no error explaining why.
+     *
+     * Both keys, because they are separate columns and the reason outlives the
+     * timestamp: a row cleared of revoked_at but still carrying
+     * revoked_reason = AdminRevoked reports a false cause in the audit trail.
+     */
+    $id = graceSessionId('previously-revoked');
+
+    AuthSession::create([
+        'session_binding' => SessionBinding::for($id, BindingDomain::Session),
+        'user_id' => 7,
+        'amr' => ['password'],
+        'revoked_at' => now()->subHour(),
+        'revoked_reason' => RevokedReason::AdminRevoked,
+    ]);
+
+    app(GraceGuard::class)->start($id, 7);
+
+    $row = AuthSession::firstOrFail();
+
+    expect($row->revoked_at)->toBeNull()
+        ->and($row->revoked_reason)->toBeNull()
+        // And the capability is genuinely usable, not merely un-revoked.
+        ->and(app(GraceGuard::class)->activeFor($id))->toBeInstanceOf(AuthSession::class);
+});
