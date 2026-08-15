@@ -75,3 +75,74 @@ it('reads the grace deadline back as a date, not a string', function (): void {
     expect(AuthSession::findOrFail($id)->recovery_grace_expires_at)
         ->toBeInstanceOf(\Illuminate\Support\Carbon::class);
 });
+
+it('never serializes a stored secret', function (): void {
+    /*
+     * `$hidden` is a disclosure control, not presentation preference. Eloquent
+     * models reach JSON by many routes nobody plans -- an API resource, a queued
+     * job payload, a log line, a debug dump -- and toArray() is what every one of
+     * them calls.
+     *
+     * The value is encrypted at rest, so what leaks is ciphertext rather than a
+     * plaintext secret. That is still material: it hands an attacker the exact
+     * target for an offline attack and confirms the credential exists. This is
+     * the same boundary OneTimeSecret defends in memory, defended at the
+     * persistence layer.
+     */
+    $credential = AuthCredential::create([
+        'user_id' => 7, 'type' => 'totp', 'secret' => 'seed-material', 'strength' => 'possession',
+    ]);
+
+    $reloaded = AuthCredential::findOrFail($credential->id);
+
+    expect(array_keys($reloaded->toArray()))->not->toContain('secret')
+        ->and((string) json_encode($reloaded))->not->toContain('seed-material');
+});
+
+it('never serializes a connection client secret', function (): void {
+    // The same control on the SSO side, where the value is a shared credential
+    // with an identity provider rather than a user's own.
+    $connection = \Fissible\Vouch\Models\AuthConnection::create([
+        'tenant_id' => null,
+        'email_domain' => 'acme.example',
+        'discovery_url' => 'https://idp.example/.well-known/openid-configuration',
+        'client_id' => 'abc',
+        'client_secret' => 'super-secret-value',
+    ]);
+
+    $reloaded = \Fissible\Vouch\Models\AuthConnection::findOrFail($connection->id);
+
+    expect(array_keys($reloaded->toArray()))->not->toContain('client_secret')
+        ->and((string) json_encode($reloaded))->not->toContain('super-secret-value');
+});
+
+it('reads the attempt version and expiry back as their own types', function (): void {
+    /*
+     * version drives the compare-and-swap and expires_at bounds the attempt.
+     * Uncast, version arrives as a string on some drivers and the CAS comparison
+     * becomes a string comparison; expires_at arrives as a string and every date
+     * comparison against it is lexicographic.
+     */
+    $id = DB::table('auth_attempts')->insertGetId([
+        'handle' => bin2hex(random_bytes(32)),
+        'state' => \Fissible\Vouch\Kernel\Attempt\AttemptState::Initiated->value,
+        'bound_context' => str_repeat('z', 64),
+        'expires_at' => now()->addMinutes(10),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    $attempt = \Fissible\Vouch\Models\AuthAttempt::findOrFail($id);
+
+    /*
+     * expires_at is provable here; `version` is NOT. SQLite returns an integer
+     * natively, so the cast's removal is invisible on this engine -- probed, and
+     * the assertion held without it. It matters on MySQL and Postgres, whose
+     * drivers return a numeric string, and where an uncast version turns the
+     * compare-and-swap into a string comparison.
+     *
+     * Recorded as cross-engine rather than dressed up as covered: the row is
+     * discharged by the database matrix, not by this test.
+     */
+    expect($attempt->version)->toBeInt()
+        ->and($attempt->expires_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+});
