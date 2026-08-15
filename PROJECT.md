@@ -145,7 +145,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.1 | Persistence foundation — ten tables, ten models, three contracts, CAS attempt store | **Complete** |
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
-| 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Designed 2026-08-13** |
+| 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Complete 2026-08-15** |
 | 2.3b | Abuse controls & rate limiting (§7.4) — multi-dimensional limits, backoff, lockout, OTP-pumping and SMS toll-fraud defenses, CAPTCHA contract | Not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -825,8 +825,9 @@ Run the gate only on a patched install: without it the provider silently reports
 a routing limitation, not a verdict — it was wrong in BOTH directions in this
 audit, hiding four already-killed rows and one real fail-open.
 
-**Next.** Phase 2.3's remaining scope is unchanged; the mutation gate no longer
-blocks it. The recovery-code notification carried forward from 2.1 is still open.
+**Next.** The recovery-code notification was resolved separately below: it is a
+2.4 concern because its auditable, best-effort contract depends on the audit and
+redacted delivery seams that phase owns.
 
 ---
 
@@ -856,29 +857,42 @@ deleted when the drivers land.
 
 No `src/` change. Phase 2.3 scope is now closed pending Task 14.
 
-## Remaining before 2.3 is complete — Task 14
+## Task 14 verification record — 2026-08-15
 
-The final 2.3 gate, not yet started:
+**Complete.** The final Phase 2.3 gate ran against real engines in isolated
+containers and a file-backed SQLite database. Every leg ran the full suite.
 
-1. Full suites on file-backed SQLite, MySQL 8 and Postgres 16.
-2. Database-clock grace proof: creation, active, expiry and completion decided by
-   the database clock rather than the application clock, on each engine.
-3. CI matrix path coverage — the `database-matrix` job runs `tests/Database
-   tests/Concurrency tests/Factors`; confirm the grace and flow paths are inside
-   that selection or widen it.
-4. Kernel-boundary diff: confirm Phase 1's frozen kernel API surface is unchanged
-   by 2.3, against `docs/kernel-api-surface.md`.
-5. Record the verification.
+| Engine | Version | Result |
+|---|---|---|
+| SQLite | 3.43.2, file-backed | 729 passed, 2,419 assertions |
+| MySQL | 8.4.11 (`mysql:8`) | 729 passed, 2,419 assertions |
+| PostgreSQL | 16.14 (`postgres:16`) | 729 passed, 2,419 assertions |
 
-Containers, non-default host ports to avoid a local 5432 conflict:
+The cross-engine grace proof creates a capability with PHP two hours behind the
+database, then resolves, expires, and completes it with PHP two hours ahead. It
+passes on all three engines. Replacing the resolution predicate's database clock
+with PHP time fails at the ahead-skew assertion, so the test is discriminating.
+
+The `database-matrix` CI job now runs `vendor/bin/pest` rather than a partial
+directory selection, covering flow, session, HTTP, and recovery paths alongside
+the original database, concurrency, and factor tests. It has not run on GitHub:
+the repository still has no remote, so this is local engine evidence rather than
+a claim about a hosted runner.
+
+The final default local gate was 720 passed / 9 skipped (the skips are the
+contention tests, which correctly require file-backed SQLite or a server engine);
+PHPStan level 9 was clean. `git diff --stat main -- src/Kernel` was empty, keeping
+the Phase 1 kernel boundary unchanged.
+
+Containers used non-default host ports to avoid local conflicts:
 
 ```bash
-docker run -d --name vouch-mysql -e MYSQL_ROOT_PASSWORD=password \
-  -e MYSQL_DATABASE=vouch_test -p 43307:3306 mysql:8
-docker run -d --name vouch-pgsql -e POSTGRES_PASSWORD=password \
-  -e POSTGRES_DB=vouch_test -p 45433:5432 postgres:16
+docker run -d --name vouch-phase23-mysql -e MYSQL_ROOT_PASSWORD=password \
+  -e MYSQL_DATABASE=vouch_test -p 33106:3306 mysql:8
+docker run -d --name vouch-phase23-pg -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=vouch_test -p 54106:5432 postgres:16
 ```
 
-Note for the runner: in zsh an unquoted variable holding several `K=V` pairs does
-not word-split, so `env $VARS pest` silently misconfigures the run and reports
-mass failures with zero assertions. Set the variables inline instead.
+Commands used inline environment variables; in zsh an unquoted variable holding
+several `K=V` pairs does not word-split, so `env $VARS pest` silently misconfigures
+the run and reports mass failures with zero assertions.

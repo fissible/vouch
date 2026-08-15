@@ -121,7 +121,11 @@ jobs:
           DB_USERNAME: ${{ matrix.db == 'mysql' && 'root' || 'postgres' }}
           DB_PORT: ${{ matrix.db == 'mysql' && '3306' || '5432' }}
           VOUCH_SQLITE_PATH: ${{ runner.temp }}/vouch-matrix.sqlite
-        run: vendor/bin/pest tests/Database tests/Concurrency tests/Factors
+        # The matrix is a completion gate for persistence-sensitive package
+        # behaviour, not only the original contention suite. Run the whole
+        # suite so grace expiry, flow/session rotation and HTTP bindings are
+        # exercised against every supported engine as well.
+        run: vendor/bin/pest
 
   # Single stable required status check for branch protection. Requiring the
   # matrix jobs directly means their names embed the matrix values, so editing

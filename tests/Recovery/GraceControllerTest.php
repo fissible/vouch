@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Session\ArraySessionHandler;
 use Illuminate\Session\Store;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 
 uses(RefreshDatabase::class);
 
@@ -171,4 +172,35 @@ it('clears a prior revocation when opening grace on the same host session', func
         ->and($row->revoked_reason)->toBeNull()
         // And the capability is genuinely usable, not merely un-revoked.
         ->and(app(GraceGuard::class)->activeFor($id))->toBeInstanceOf(AuthSession::class);
+});
+
+it('uses database time for grace creation, resolution, expiry and completion', function (): void {
+    /*
+     * This is the cross-engine proof for the preflight decision. Creation is
+     * tested with PHP behind the database: an application-clock deadline would
+     * already be expired. Resolution, expiry and completion are then tested
+     * with PHP ahead: PHP comparisons would reject or revoke a still-live
+     * capability. The database has not moved in either direction.
+     */
+    $databaseNow = now();
+    $id = graceSessionId('database-clock-matrix');
+    $guard = app(GraceGuard::class);
+
+    Carbon::setTestNow($databaseNow->copy()->subHours(2));
+    $guard->start($id, 7);
+
+    expect($guard->activeFor($id))->toBeInstanceOf(AuthSession::class);
+
+    Carbon::setTestNow($databaseNow->copy()->addHours(2));
+
+    expect($guard->activeFor($id))->toBeInstanceOf(AuthSession::class);
+
+    $guard->expireIfLapsed($id);
+
+    expect(AuthSession::firstOrFail()->revoked_at)->toBeNull();
+
+    $response = graceController()->complete(graceRequest($id));
+
+    expect($response->getData(true))->toBe(['result' => 'grace_active'])
+        ->and(AuthSession::firstOrFail()->revoked_at)->toBeNull();
 });

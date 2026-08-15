@@ -75,8 +75,9 @@ it('persists every field of the assurance record', function (): void {
      * matter most: absent, they rehydrate as their defaults, and a factor that
      * claimed nothing becomes indistinguishable from one that was never asked.
      *
-     * Asserted as a complete, ordered key set, because the failure mode is
-     * omission and no assertion about a single field can see it.
+     * Asserted as a complete key set, because the failure mode is omission and
+     * no assertion about a single field can see it. JSON object member order
+     * is not portable: MySQL normalizes it on persistence.
      */
     $stored = riskAuthenticate()->satisfied_factors;
 
@@ -90,16 +91,19 @@ it('persists every field of the assurance record', function (): void {
 
     $row = $stored[0];
 
-    expect(array_keys($row))->toBe([
-        'factor_id',
-        'credential_id',
-        'kind',
-        'strength',
-        'is_multi_factor',
-        'user_verified',
-        'phishing_resistant',
+    $keys = array_keys($row);
+    sort($keys);
+
+    expect($keys)->toBe([
         'authenticator_id',
+        'credential_id',
+        'factor_id',
+        'is_multi_factor',
+        'kind',
+        'phishing_resistant',
         'satisfied_at',
+        'strength',
+        'user_verified',
     ])
         ->and($row['factor_id'])->toBe('password')
         ->and($row['is_multi_factor'])->toBeFalse()
