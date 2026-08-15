@@ -1,11 +1,16 @@
 # Phase 2.3 mutation gate — start here
 
-**Status: both blockers closed as of 2026-08-15. Branch
-`feat/vouch-2-3-flow-http` must not merge until the regenerated manifest lands.**
+**Status: Task 13 OPEN. Branch `feat/vouch-2-3-flow-http` must not merge.**
 
-Blocker 1 (the four matrix rows) and blocker 2 (the provider rows, a confirmed
-`pest-plugin-mutate` defect) are both resolved. What remains is the authoritative
-manifest, regenerated with the patch in place.
+Both original blockers are resolved — blocker 1 (the four matrix rows) and
+blocker 2 (the provider rows, a confirmed `pest-plugin-mutate` defect). The
+manifest has been regenerated on a patched install
+(`2026-08-15-survivor-manifest.md`) and two of its three closure checks pass:
+the provider reports 0 untested, and no new mutation escaped.
+
+**The third does not: 63 of 261 surviving rows are not yet joined to a ruling.**
+They sit in files no exhaustive ruling document covers — `DatabaseTime` (15) has
+no candidate document at all. That is what Task 13 now waits on.
 
 **Run the gate only on a patched install.** `composer install` applies
 `patches/pest-plugin-mutate-3.0.5-chunk-filters.patch`; without it the provider
@@ -47,9 +52,18 @@ eager-solver guard only fails, rather than hangs, at that limit.
 
 ## Last authoritative run
 
-0 fatals · 1314 mutations · 60 files · 60 `RUN` · 0 kernel · 814s · 75.88%.
+2026-08-15, on a patched install: 0 fatals · 1314 mutations · 60 files · 60 `RUN`
+· 0 kernel · 0 "No tests found" · 899s · **80.14%**. 239 untested · 22 uncovered ·
+4 timeout · 1049 tested. Enumerated row by row in
+`2026-08-15-survivor-manifest.md`.
+
 Reconciled: 83 files in scope = 60 mutated + 23 zero-mutation, each evidenced per
 file in `2026-08-13-namespace-checklist.md`.
+
+A row is discharged only by a document that rules its file-set **exhaustively**
+("N of N ruled"). A document that merely mentions a file does not rule its rows —
+the slices over-include and do not partition, so membership is not
+correspondence.
 
 ## Blockers
 
@@ -106,6 +120,17 @@ as deliberate margin). Per-file rulings are in the dated `*-rulings.md` files.
   56 "survivors" were a child process running zero tests and exiting 0. When a
   runner's verdict rests on an exit code, confirm work actually happened — count
   the tests it claims to have run.
+- **A ruling document discharges a row only if it rules its file-set
+  exhaustively.** Joining the manifest by "which document mentions this file"
+  over-credits badly: it counted `Vouch.php` as ruled by a reconciliation record
+  that only listed how many of its IDs had disappeared. Require an "N of N
+  ruled" claim, and treat a subset of an exhaustively ruled set as ruled only
+  once you have checked the file gained no rows.
+- **Namespace-organised passes leave whole directories unruled.** `Secrets`,
+  `Notifications` and `Support/DatabaseTime` were enumerated in the manifest and
+  never ruled, because every file-by-file pass was scoped to namespaces that did
+  not include them. Reconcile the manifest against the rulings, not the rulings
+  against themselves.
 - When a guard has two paths, ask which one the tests take. Four contention
   tests all entered `EnrollmentGuard::acquire()` with no lock row, where the
   insert serializes — so none of them could see `lockForUpdate` disappear, and

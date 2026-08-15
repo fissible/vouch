@@ -697,3 +697,59 @@ diff against a pristine copy.
    swallowing a compile failure; the fix is chunking the filter), or accept
    whole-suite measurement for this one file. Without one, the next run on an
    unpatched plugin silently reports 56 survivors again.
+
+---
+
+## Session handoff — 2026-08-15, manifest regenerated; Task 13 still open
+
+**Task 13 is NOT closed.** Both original blockers are resolved, but the
+regenerated manifest fails one of its three closure checks.
+
+**The durable control for the tool defect is in place.** A version-pinned
+Composer patch (`patches/pest-plugin-mutate-3.0.5-chunk-filters.patch`) chunks
+the plugin's derived filters below PCRE's compile limit and requires every chunk
+to pass before recording survival, preserving the tool's causal signal.
+`composer-exit-on-patch-failure` is set, the plugin is pinned at exactly 3.0.5,
+CI's vendor cache key includes `patches/**`, and
+`tests/Mutation/FilterChunkingTest.php` fails if the declaration is dropped.
+Whole-suite-per-mutant was the diagnostic only — an unrelated flaky failure would
+falsely credit a kill.
+
+**Authoritative run, patched install:** 1314 mutations / 60 files / 60 RUN /
+0 kernel / 0 fatals / 0 "No tests found" / 899s / 80.14%. 239 untested,
+22 uncovered, 4 timeout, 1049 tested. Enumerated in
+`docs/superpowers/mutation/2026-08-15-survivor-manifest.md`.
+
+**Closure checks.**
+1. Provider rows report Tested — **PASS.** 0 untested, down from 62 surviving
+   rows; the 6 remaining are line 246's message, uncovered and ruled prose.
+2. Only already-resolved/dispositioned classes remain — **NOT CONFIRMED.**
+3. No unruled IDs introduced — **PASS.** One row looked new at ID level
+   (`EnrollmentGuard` 97 -> 111) purely because a docblock correction added a net
+   14 lines and IDs are position sensitive; both lines hold the identical
+   statement. Verified position-independently: no file gained survivors and every
+   surviving (file, mutator) pair existed in the prior manifest.
+
+**What check 2 needs: 63 of 261 rows joined to a ruling.** A row is discharged
+only by a document that rules its file-set exhaustively ("N of N ruled") —
+198 rows are. The rest sit in files no such document covers:
+
+- `Support/DatabaseTime.php` (15) — no candidate document at all, the largest gap
+- `Http/Middleware/RequireAssurance.php` (6), `Vouch.php` (6), `Flow/AuthFlow.php` (5),
+  `Factors/FactorRegistry.php` (4), `Http/AssuranceComparator.php` (4),
+  `Attempts/DatabaseAttemptStore.php` (2), `Recovery/GraceGuard.php` (2) — no candidate
+- the remainder are single-digit counts with a candidate in `2026-08-15-tail-rulings.md`,
+  `2026-08-15-matrix-rulings.md` or `2026-08-15-cast-classification.md`, which make no
+  exhaustive claim, so correspondence has to be established row by row
+
+**Two errors worth not repeating.** Joining the manifest by "which document
+mentions this file" over-credited badly — it counted `Vouch.php` as ruled by a
+reconciliation record that only listed how many of its IDs had vanished. And the
+gap in `Secrets` / `Notifications` / `DatabaseTime` exists because every
+file-by-file pass was organised around namespaces that did not include them; 12
+of those rows are now ruled in `2026-08-15-secrets-delivery-rulings.md`, applying
+the same three disqualifying conditions the 46 exception rows used.
+
+**Next.** Rule the 63. Start with `DatabaseTime` (15, no document) and the other
+no-candidate files, then establish row-by-row correspondence for the tail and
+matrix candidates. Then re-run the reconciliation; nothing else blocks Task 13.
