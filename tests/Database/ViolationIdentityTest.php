@@ -5,6 +5,9 @@ declare(strict_types=1);
 use Fissible\Vouch\Persistence\ChallengeTargetViolation;
 use Fissible\Vouch\Persistence\IdentifierLinkageViolation;
 use Fissible\Vouch\Persistence\ValueBoundViolation;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+uses(RefreshDatabase::class);
 
 /*
  * The violation classes had NO coverage -- 39 mutations, none tested -- while
@@ -89,4 +92,55 @@ it('reports the model, attribute and bound of a value-bound violation', function
         ->and($notAscii)->toContain('AuthIdentifier')
         ->and($notAscii)->toContain('value')
         ->and($notAscii)->not->toBe($tooLong);
+});
+
+it('refuses a challenge naming an attempt that does not exist', function (): void {
+    /*
+     * `$attempt?->user_id`. Without the null-safe operator this dereferences null
+     * and the guard raises a TypeError instead of its own violation -- a
+     * persistence invariant failing as an unhandled engine error rather than a
+     * refusal the caller can act on.
+     *
+     * The fixture reaches the guard despite the foreign key because the guard
+     * runs on `creating`, BEFORE the insert: a challenge naming attempt 999999
+     * is rejected by vouch, not by the database. That ordering is the whole
+     * reason this branch is reachable at all.
+     *
+     * The credential is real and enabled, so the earlier arms pass and execution
+     * reaches this one specifically.
+     */
+    $credential = \Fissible\Vouch\Models\AuthCredential::create([
+        'user_id' => 7, 'type' => 'totp', 'secret' => 'seed', 'strength' => 'possession',
+    ]);
+
+    expect(function () use ($credential): void {
+        \Fissible\Vouch\Models\AuthChallenge::create([
+            'attempt_id' => 999_999,
+            'credential_id' => $credential->id,
+            'factor_type' => 'totp',
+            'code_hash' => 'digest',
+            'expires_at' => now()->addMinutes(5),
+        ]);
+    })->toThrow(ChallengeTargetViolation::class);
+});
+
+it('names no user when the attempt is missing rather than inventing one', function (): void {
+    // The message must distinguish "no identified user" from a real id -- the
+    // same live ternary asserted from the missing-attempt direction.
+    $credential = \Fissible\Vouch\Models\AuthCredential::create([
+        'user_id' => 7, 'type' => 'totp', 'secret' => 'seed', 'strength' => 'possession',
+    ]);
+
+    try {
+        \Fissible\Vouch\Models\AuthChallenge::create([
+            'attempt_id' => 999_999,
+            'credential_id' => $credential->id,
+            'factor_type' => 'totp',
+            'code_hash' => 'digest',
+            'expires_at' => now()->addMinutes(5),
+        ]);
+        throw new RuntimeException('Expected ChallengeTargetViolation.');
+    } catch (ChallengeTargetViolation $violation) {
+        expect($violation->getMessage())->toContain('no identified user');
+    }
 });
