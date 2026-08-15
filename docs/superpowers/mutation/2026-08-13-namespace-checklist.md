@@ -157,7 +157,30 @@ grep -oE "[0-9]+ Mutations for [0-9]+ Files" …      # files CREATED
 awk '/^   RUN /{print $2}' … | sort -u | wc -l      # files RUN — must match
 ```
 
-Run it with a raised limit: `php -d memory_limit=4G vendor/bin/pest --mutate …`.
+**BLOCKED — the full-scope run cannot currently be executed to completion on this
+machine.** Four attempts, all truncating at the same point (12 of 73 files) with
+`Allowed memory size of 134217728 bytes exhausted` in
+`symfony/process/Pipes/UnixPipes.php`:
+
+| Attempt | Configuration | Result |
+|---|---|---|
+| 1 | default | OOM at 12/73, **exit 0** — silent |
+| 2 | `php -d memory_limit=4G` | identical OOM; parent verified at 4G, so the limit is not reaching the process that dies |
+| 3 | `PHPRC=<temp ini>` | replaced php.ini, lost `pcov`, coverage unavailable, exit 1 |
+| 4 | `PHP_INI_SCAN_DIR=":/tmp/vouchscan"` | parent verified `mem=4G pcov=1`; child STILL reports 128M; exit 255 |
+
+The 128M is the stock default, so whatever process exhausts it is not seeing any
+of the raised limits. Next diagnostics, in order: whether Pest's mutation runner
+passes an explicit `-d memory_limit` or a fixed `env` to its children
+(`vendor/pestphp/pest-plugin-mutate`), and whether it exposes its own memory
+option. Raising the limit in the system `php.ini` would also settle it, but that
+is a machine change and belongs to whoever owns the box.
+
+Until this runs clean, the audit is **namespace-complete but not
+file-reconciled**, and Task 13 stays open. Per-namespace results in this document
+were produced by slices that CAN truncate the same way; they were not
+re-validated against this failure mode, so treat every score here as provisional
+until the authoritative pass succeeds.
 
 Had the file-level diff not been part of the gate, this run would have "passed"
 on twelve files. That is the entire argument for reconciling against `src/`
