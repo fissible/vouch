@@ -51,3 +51,42 @@ it('names the drivers it does have', function (): void {
     expect(fn (): mixed => $registry->get('totp'))
         ->toThrow(UnknownFactor::class, 'No factor driver is registered for "totp". Registered: password.');
 });
+
+it('refuses to replace a driver that is already registered', function (): void {
+    /*
+     * Write-once registration, and the reason it is write-once is a security
+     * one: the registry is what maps a credential type to the driver that owns
+     * it, and silent replacement would let a permissive implementation displace a
+     * restrictive one simply by registering afterwards. The recovery-code driver
+     * is the sharpest case -- it carries FactorStrength::Recovery, which is what
+     * stops a printed code satisfying a login policy.
+     *
+     * The refusal was described by an exception message that nothing asserted;
+     * this asserts the behaviour the message describes.
+     */
+    $registry = new FactorRegistry();
+    $registry->register(app(PasswordFactor::class));
+
+    expect(function () use ($registry): void { $registry->register(app(PasswordFactor::class)); })
+        ->toThrow(LogicException::class, 'already registered');
+});
+
+it('keeps the first driver when a replacement is refused', function (): void {
+    /*
+     * The refusal must leave the original in place. A registry that threw AFTER
+     * overwriting would report the violation and still be compromised -- the
+     * error would look like the control working while the permissive driver was
+     * already installed.
+     */
+    $registry = new FactorRegistry();
+    $first = app(PasswordFactor::class);
+    $registry->register($first);
+
+    try {
+        $registry->register(app(PasswordFactor::class));
+    } catch (LogicException) {
+        // expected
+    }
+
+    expect($registry->get('password'))->toBe($first);
+});
