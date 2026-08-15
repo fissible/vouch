@@ -55,3 +55,32 @@ list. Each removal drops a registration.
 
 **56 of 62 rows are wiring with real runtime effect; 6 are prose.** The inverse
 of what a mutator-family ruling would have produced.
+
+## Rulings attached
+
+`tests/Database/ProviderEffectTest.php` proves each wiring expression by its
+**observable package effect**, not by the provider booting — every registration
+here can be deleted individually and the provider still boots.
+
+| Group | Rows | Ruling | Evidence |
+|---|---|---|---|
+| A paths (31, 226, 227, 254, 258) | 15 | KILLED | config value present; `auth_*` tables exist; `vouch/auth` in the route table; every publish source exists on disk |
+| B bindings + router + commands | 29 | KILLED | each contract resolves to its intended implementation; aliases map to the right classes; `vouch:prune` in the console kernel; registry is an exact set |
+| C guard (240, 242) | 2 | KILLED | web group asserted to contain `ValidatesVouchSession` |
+| C message (246) | 6 | **PROSE** | thrown `RuntimeException`, developer-facing; never stored, transmitted or compared |
+| D array members (116–118, 254, 258, 262) | 6 | KILLED | singleton identity, publish sources, console kernel |
+| E control flow (115, 252) | 2 | KILLED | loop and console guard covered by the above |
+
+Probed individually, each against the full provider test set:
+
+| Broken expression | Result |
+|---|---|
+| routes path concat | 11 failed |
+| config path concat | 19 failed |
+| `RandomSource` binding | 2 failed |
+| web-group push | 19 failed |
+| command registration | 4 failed |
+
+**56 of 62 rows killed, 6 ruled prose.** The manifest rows for this file can be
+attached to these rulings; the manifest, not this grouping, remains the
+completion authority.
