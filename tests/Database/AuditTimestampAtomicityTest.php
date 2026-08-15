@@ -196,3 +196,59 @@ it('refuses and mutates nothing when the attempt row vanishes before the guarded
         // And no attempt was recreated on the way past.
         ->and(AuthAttempt::query()->count())->toBe(0);
 });
+
+it('advances the attempt row timestamp when it transitions', function (): void {
+    /*
+     * The ATTEMPT's own updated_at, written by the transition's CAS update.
+     * Same contract as the credential timestamps and the same reason: this is a
+     * raw query-builder update, so nothing maintains the column automatically,
+     * and an attempt whose state changed while updated_at stayed put reports
+     * itself as older than it is.
+     */
+    $attempt = auditAttempt();
+
+    DB::table('auth_attempts')->where('id', $attempt->id)->update(['updated_at' => now()->subDay()]);
+    $before = $attempt->refresh()->updated_at;
+
+    app(AttemptStore::class)->transition($attempt, AttemptState::FactorSatisfied);
+
+    expect($attempt->refresh()->updated_at->greaterThan($before))->toBeTrue();
+});
+
+it('leaves the attempt row timestamp untouched when the transition loses', function (): void {
+    $attempt = auditAttempt();
+
+    DB::table('auth_attempts')->where('id', $attempt->id)->update(['updated_at' => now()->subDay()]);
+    $before = $attempt->refresh()->updated_at;
+
+    // A concurrent writer takes the version.
+    DB::table('auth_attempts')->where('id', $attempt->id)->update(['version' => $attempt->version + 1]);
+
+    app(AttemptStore::class)->transition($attempt, AttemptState::FactorSatisfied);
+
+    expect($attempt->refresh()->updated_at->equalTo($before))->toBeTrue();
+});
+
+it('advances the credential timestamp when a disable mutation commits', function (): void {
+    /*
+     * DisableCredential's own update, which the recovery-code burn exercises for
+     * disabled_at but not for updated_at. Both keys ride the same write, and the
+     * audit answer is the same: a credential that was disabled must not read as
+     * untouched since enrollment.
+     */
+    $attempt = auditAttempt();
+    $credential = backdatedCredential();
+    $before = $credential->updated_at;
+
+    $outcome = app(AttemptStore::class)->transition(
+        $attempt,
+        AttemptState::FactorSatisfied,
+        new \Fissible\Vouch\Attempts\Mutations\DisableCredential($credential->id),
+    );
+
+    $credential->refresh();
+
+    expect($outcome)->toBe(TransitionOutcome::Succeeded)
+        ->and($credential->disabled_at)->not->toBeNull()
+        ->and($credential->updated_at->greaterThan($before))->toBeTrue();
+});
