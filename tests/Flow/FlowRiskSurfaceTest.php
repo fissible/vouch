@@ -263,3 +263,46 @@ it('serializes a continuing result as continuing, never as an outcome', function
         // redirect handed out before authentication.
         ->and($payload)->not->toHaveKey('returnTo');
 });
+
+/*
+ * OPEN: AuthFlow:200 -- `$this->equalizer->equalize($posture)` on the
+ * NoCredential path -- has no test and is NOT ruled.
+ *
+ * VerificationEqualizer's own tests prove it does the work; what is missing is
+ * proof that AuthFlow ASKS for it here, where a driver reported NoCredential and
+ * therefore did no hashing. Under strict posture that speed difference is the
+ * account-existence oracle the equalizer exists to close.
+ *
+ * An attempt at this test recorded zero hasher calls, meaning the injected
+ * equalizer was not the one the flow used -- the container returned a differently
+ * constructed AuthFlow despite forgetInstance(). The seam needs establishing
+ * before the assertion can mean anything, and a test that cannot observe the call
+ * would be exactly the vacuous control this audit keeps finding.
+ *
+ * Left undone and recorded rather than committed green.
+ */
+
+it('does not authenticate when no policy is configured', function (): void {
+    /*
+     * targetState() returns FactorSatisfied when policyFor() finds nothing.
+     * Without that early return the method falls through to evaluate a null
+     * policy -- and whatever it produced, "no policy" must never mean "any
+     * credential authenticates". A host that has not configured a login policy
+     * has not authorised anyone.
+     */
+    AuthIdentifier::create([
+        'user_id' => 7, 'type' => 'email', 'value' => 'ada@acme.example', 'verified_at' => now(),
+    ]);
+    app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class)->enroll(7, ['password' => 'correct horse battery staple']);
+
+    $begun = riskFlow()->advance(new FlowRequest(null, 'begin', [], riskBinding()));
+    assert($begun instanceof Continuing && is_string($begun->handle));
+
+    riskFlow()->advance(new FlowRequest($begun->handle, 'submit', ['identifier' => 'ada@acme.example'], riskBinding()));
+
+    $result = riskFlow()->advance(
+        new FlowRequest($begun->handle, 'submit', ['password' => 'correct horse battery staple'], riskBinding()),
+    );
+
+    expect($result)->not->toBeInstanceOf(\Fissible\Vouch\Flow\Authenticated::class);
+});
