@@ -1,0 +1,17 @@
+  
+
+   UNTESTED  src/VouchServiceProvider.php  > Line 227: RemoveMethodCall - ID: 7f096b01bc284cb7
+
+       public function boot(): void
+       {
+           $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+  -        $this->loadRoutesFrom(__DIR__ . '/../routes/vouch.php');
+  +        
+           $router = $this->app->make(\Illuminate\Routing\Router::class);
+           $router->aliasMiddleware('vouch.session', \Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class);
+           $router->aliasMiddleware('vouch.assurance', \Fissible\Vouch\Http\Middleware\RequireAssurance::class);
+  
+
+   UNTESTED  src/VouchServiceProvider.php  > Line 227: ConcatRemoveLeft - ID: c6f11b27c54167f3
+
+       public function boot(): void
