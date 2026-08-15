@@ -193,7 +193,40 @@ it('continues with the next factor when the policy is only partly satisfied', fu
         ->and($result->handle)->toBe($handle);
 });
 
-it('refuses when the final transition to Authenticated does not win its race', function (): void {
+/**
+ * Swap in a store that DECLINES the given target state with the given outcome,
+ * delegating every other transition to the real one.
+ */
+function declineTransition(AttemptState $declined, TransitionOutcome $outcome): void
+{
+    $inner = app(AttemptStore::class);
+
+    app()->instance(AttemptStore::class, new class($inner, $declined, $outcome) implements AttemptStore
+    {
+        public function __construct(
+            private readonly AttemptStore $inner,
+            private readonly AttemptState $declined,
+            private readonly TransitionOutcome $outcome,
+        ) {}
+
+        public function transition(
+            AuthAttempt $attempt,
+            AttemptState $to,
+            SingleUseMutation ...$mutations,
+        ): TransitionOutcome {
+            if ($to === $this->declined) {
+                return $this->outcome;
+            }
+
+            return $this->inner->transition($attempt, $to, ...$mutations);
+        }
+    });
+
+    // AuthFlow is a singleton; drop any instance built over the real store.
+    app()->forgetInstance(AuthFlow::class);
+}
+
+it('never returns Authenticated when the final transition is declined', function (TransitionOutcome $outcome): void {
     /*
      * The branch nothing reached, and the most dangerous one in this file.
      *
@@ -203,34 +236,17 @@ it('refuses when the final transition to Authenticated does not win its race', f
      * Succeeded and the flow must refuse. Delete that `return $refusal();` and
      * execution falls straight through to `return new Authenticated(...)`: the
      * caller is handed a full AuthSuccess for an attempt the store declined to
-     * advance. Every existing test stays green, because none of them can make
+     * advance. Every earlier test stayed green, because none of them could make
      * the transition fail.
      *
-     * Forced deterministically with a decorator rather than by racing: the
-     * real store is used for every step except the final one, whose outcome is
-     * the single thing under test.
+     * Asserted over EVERY declined outcome, not just the one that found it. The
+     * rule is "a declined transition terminates in a refusal", and a rule stated
+     * for one enum case is a coincidence waiting to be relied on.
+     *
+     * Forced deterministically with a decorator rather than by racing: the real
+     * store handles every step except the one under test.
      */
-    $inner = app(AttemptStore::class);
-
-    app()->instance(AttemptStore::class, new class($inner) implements AttemptStore
-    {
-        public function __construct(private readonly AttemptStore $inner) {}
-
-        public function transition(
-            AuthAttempt $attempt,
-            AttemptState $to,
-            SingleUseMutation ...$mutations,
-        ): TransitionOutcome {
-            if ($to === AttemptState::Authenticated) {
-                return TransitionOutcome::ConcurrentModification;
-            }
-
-            return $this->inner->transition($attempt, $to, ...$mutations);
-        }
-    });
-
-    // AuthFlow is a singleton; drop any instance built over the real store.
-    app()->forgetInstance(AuthFlow::class);
+    declineTransition(AttemptState::Authenticated, $outcome);
 
     flowPolicy();
     flowPassword();
@@ -247,7 +263,44 @@ it('refuses when the final transition to Authenticated does not win its race', f
     // The refusal screen, not an offer: the same discriminator the partial-policy
     // test uses, read the other way round.
     expect($result->screen->errors)->not->toBe([]);
-});
+})->with([
+    'illegal transition' => [TransitionOutcome::IllegalTransition],
+    'expired' => [TransitionOutcome::Expired],
+    'context mismatch' => [TransitionOutcome::ContextMismatch],
+    'challenge already consumed' => [TransitionOutcome::ChallengeAlreadyConsumed],
+    'credential already consumed' => [TransitionOutcome::CredentialAlreadyConsumed],
+    'timestep replay' => [TransitionOutcome::TimestepReplay],
+    'concurrent modification' => [TransitionOutcome::ConcurrentModification],
+]);
+
+it('never returns Authenticated when any transition on the path is declined', function (AttemptState $declined): void {
+    /*
+     * The generalisation that stops this failure mode re-entering through a
+     * different branch. `new Authenticated(...)` is constructed in exactly one
+     * place, but it is reached through a chain of transitions — Identified,
+     * FactorPending, FactorSatisfied, Authenticated — each guarded separately,
+     * and one of those guards was missing its return for the whole of Phase 2.
+     *
+     * Declining any single link must end the request in a refusal. Asserting it
+     * per link means a future guard that forgets to return fails here, rather
+     * than waiting for someone to notice a fail-open in review.
+     */
+    declineTransition($declined, TransitionOutcome::ConcurrentModification);
+
+    flowPolicy();
+    flowPassword();
+
+    $handle = flowIdentified();
+
+    $result = theFlow()->advance(flowAdvance($handle, ['password' => 'correct horse battery staple']));
+
+    expect($result)->not->toBeInstanceOf(Authenticated::class);
+})->with([
+    'identified' => [AttemptState::Identified],
+    'factor pending' => [AttemptState::FactorPending],
+    'factor satisfied' => [AttemptState::FactorSatisfied],
+    'authenticated' => [AttemptState::Authenticated],
+]);
 
 it('does not rotate any session itself', function (): void {
     // AuthFlow is not session-aware. Authenticated carries the facts;
