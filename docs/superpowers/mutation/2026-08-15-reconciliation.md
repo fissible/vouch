@@ -78,19 +78,35 @@ direct-invocation test by name, in the very structure the plugin consumes. So
 this is *not* coverage-attribution blindness — the first branch of the diagnostic
 is eliminated.
 
-The mutation nonetheless reports `UNTESTED`, so the failure is downstream of
-attribution: in filter selection or in the child invocation built from it. Two
-candidates remain, and which one has not been established:
+The mutation nonetheless reports `UNTESTED`, so the failure is downstream. Three
+further layers were then tested and each works:
 
-- the generated `--filter` argument embeds literal `"` characters, since the
-  quotes are inside a single argv element passed through Symfony Process rather
-  than a shell; and
-- Pest's `__pest_evaluable_…` test identifiers contain characters that must
-  survive being joined with `|` into one regex.
+**Filter derivation.** Applying the plugin's own transformation
+(`MutationTest.php:56`) to the dumped coverage entry yields:
 
-Either would select an empty or non-matching test set, which the plugin then
-reports as a surviving mutation rather than as a selection failure — the same
-silent-success shape as the exit-0 truncation earlier in this audit.
+```
+ProviderAttributionProbeTest::(.*)it.registers.its.routes.when.boot.{1,2}.is.invoked.from.a.test.body
+```
+
+**Filter selection.** Running Pest manually with that exact filter selects
+exactly one test: **1 passed**.
+
+**Discrimination.** With the routes path broken, the same filter gives
+**1 failed**.
+
+So attribution is correct, derivation is correct, the derived filter selects the
+right test, and that test detects the mutation. The literal-quote candidate was
+separately eliminated by running both the normal and the plugin-style quoted argv
+form.
+
+Every layer works in isolation, and the plugin still reports the mutation as
+surviving. What remains unexamined is the assembled child invocation — the
+plugin passes `...$originalArguments` alongside the filter
+(`MutationTest.php:86-90`), so the child inherits `--mutate --class=… --ignore=…`
+from the parent run, and the interaction of those flags with the filter in a
+child process has not been reproduced.
+
+That is where the defect lies, and it is not yet pinned to a single cause.
 
 ### A third category: TOOL-BLIND
 
@@ -109,10 +125,11 @@ evidence attached** — `ProviderEffectTest`, the per-expression probes that fai
 11–19 tests each, the whole-suite probe at 530 failures, and the direct-invocation
 attempt above.
 
-The category is held open rather than closed, and is now narrower still: the
-instrument's coverage attribution is CORRECT, and the failure lies in how it
-turns that attribution into a child test run. That is a defect in the harness,
-not a property of the code or of the tests.
+The category is held open, and is now narrow: coverage attribution, filter
+derivation, and filter selection are each verified correct, and the derived
+filter is discriminating. The defect lies in the assembled child invocation. That
+is a harness defect, not a property of the code or of the tests — but the precise
+cause is not yet established, so tool-blind remains PROVISIONAL.
 
 ## Remaining unresolved
 
