@@ -46,8 +46,8 @@
         ],
         "mutate:msi": "pest --mutate --class=\"Fissible\\Vouch\\Kernel\" --min=80",
         "mutate:covered": "pest --mutate --class=\"Fissible\\Vouch\\Kernel\" --covered-only --min=95",
-        "mutate:phase2": "pest --mutate --class=\"Fissible\\\\Vouch\" --ignore=\"Fissible\\\\Vouch\\\\Kernel\"",
-        "mutate:phase2:covered": "pest --mutate --class=\"Fissible\\\\Vouch\" --ignore=\"Fissible\\\\Vouch\\\\Kernel\" --covered-only"
+        "mutate:phase2": "pest --mutate --class=\"Fissible\\\\Vouch\" --ignore=\"Kernel\"",
+        "mutate:phase2:covered": "pest --mutate --class=\"Fissible\\\\Vouch\" --ignore=\"Kernel\" --covered-only"
     },
     "scripts-descriptions": {
         "mutate": "Mutation testing over Fissible\\Vouch\\Kernel. Two runs: overall MSI >= 80 (detects untested classes), covered-code MSI >= 95 (primary quality gate).",
