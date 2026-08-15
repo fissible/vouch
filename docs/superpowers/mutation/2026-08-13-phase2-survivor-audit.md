@@ -410,7 +410,61 @@ pre-normalisation step changes which arm fires first — and a redirect validato
 is exactly where that margin is worth paying for. A mutation score measures test
 sensitivity; it must never be read as an argument for deleting a layer.
 
-## RECONCILIATION FAILED — the kernel was never excluded
+## Authoritative run — RECONCILED
+
+**2026-08-14, after the `--ignore` path fix. The first run whose scope matches its
+declaration.**
+
+```
+pest --mutate --class="Fissible\Vouch" --ignore="Kernel"
+```
+
+| Step 0 | Result |
+|---|---|
+| Fatal errors | **0** |
+| Mutations created | 1314 for 60 files |
+| Files in `RUN` list | **60 — matches** |
+| `src/Kernel/*` present | **0** |
+| Duration | 830s |
+
+**Headline (diagnostic, not a gate): 72.30%** — 331 untested, 33 uncovered,
+4 timeout, 946 tested. The 4 timeouts are the documented non-terminating
+loop-counter mutants.
+
+### File reconciliation — passes
+
+| Check | Result |
+|---|---|
+| Files in scope (`src/` minus `Kernel`) | 83 |
+| Mutated | 60 |
+| Not mutated | 23 |
+| 60 + 23 | **83 ✓** |
+| Mutated but outside scope | **none ✓** |
+
+All 23 unmutated files are explained by construction, verified per file:
+
+- **8 interfaces** — `SingleUseMutation`, `FlowResult`, and the six `Contracts`.
+  Method signatures, no bodies.
+- **5 enums** — `TransitionOutcome`, `EnrollmentRefusalReason`, `FactorFailure`,
+  `BindingDomain`, `RevokedReason`. Cases only.
+- **7 `final readonly`** — `ChallengeRequest`, `EnrollmentResult`,
+  `Authenticated`, `Continuing`, `RecoveryGraceStarted`, and both concrete OTP
+  drivers. Promoted properties and string-literal returns; string literals are
+  not mutated, which is why `EmailOtpFactor` and `SmsOtpFactor` appear here
+  despite being real drivers.
+- **3 single-delegation classes** — `SystemClock`, `SystemRandomSource`,
+  `NullTenantResolver`. One `return` each, no operator or branch.
+
+### Still open
+
+The run's **331 untested and 33 uncovered mutants have not been cross-checked
+against the recorded dispositions**. Every disposition in this document was
+reached against a per-namespace slice; the gate requires each survivor in the
+AUTHORITATIVE run to be killed or dispositioned. Mapping this run's survivor list
+onto the recorded rulings is the remaining work, and until it is done Task 13
+stays open.
+
+## RECONCILIATION FAILED — the kernel was never excluded (superseded)
 
 **2026-08-14. The first authoritative run to complete, and it invalidates a
 premise this task has carried since its first commit.**
