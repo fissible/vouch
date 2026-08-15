@@ -753,3 +753,72 @@ the same three disqualifying conditions the 46 exception rows used.
 **Next.** Rule the 63. Start with `DatabaseTime` (15, no document) and the other
 no-candidate files, then establish row-by-row correspondence for the tail and
 matrix candidates. Then re-run the reconciliation; nothing else blocks Task 13.
+
+---
+
+## Session handoff — 2026-08-15, the mutation gate is met
+
+The authoritative rerun on the current tree (719 tests, patched install) passes
+all three closure checks. Task 13's mutation control is complete; merging is a
+separate decision for the branch owner.
+
+```
+1314 mutations · 60 files · 60 RUN · 0 kernel · 0 fatals · 0 "No tests found"
+225 untested · 21 uncovered · 4 timeout · 1064 tested · 81.28% · 834s
+```
+
+**246 rows require a ruling; all 246 are ruled**, across nine documents, 0 unruled
+and 0 double-claimed. Enumerated in
+`docs/superpowers/mutation/2026-08-15-survivor-manifest.md` in two views: 137
+`(file, mutator, expression)` groups as the review unit, and the 246 raw rows as
+the tool's evidence, so a future mutator-version change stays distinguishable
+from duplicate mutations against one expression.
+
+**What the reconciliation model requires**, and why each part is there:
+
+- *Run integrity* — zero fatals, "N Mutations for M Files" matching distinct RUN
+  lines, no kernel rows, and zero "No tests found" children.
+- *Membership* — a file having an "N of N" document is necessary but NOT
+  sufficient. Sharing a filename with a ruling is not being ruled by it; that
+  error once credited `Vouch.php` to a reconciliation record that merely listed
+  how many of its IDs had vanished. Each group is checked against its document's
+  explicit ruled set.
+- *No file gained survivors* — the separate safeguard that makes a shrinking set
+  safe to inherit. A subset of an exhaustively ruled set is still ruled; a file
+  that grew would carry rows no document ever saw.
+
+**Rows are referenced by (file, mutator, expression).** Line numbers and mutation
+IDs both drift — `EnrollmentGuard` moved 97 -> 111 under a docblock edit and its
+ID changed with it, while the statement stayed identical.
+
+**Durable controls now in place.** The `pest-plugin-mutate` filter defect is
+patched via a version-pinned Composer patch with
+`composer-exit-on-patch-failure`, CI's vendor cache key includes `patches/**`,
+and `tests/Mutation/FilterChunkingTest.php` fails if the declaration is dropped.
+Run the gate only on a patched install: without it the provider silently reports
+56 phantom survivors.
+
+**Defects this audit found and closed**, beyond the score:
+
+- `AuthFlow:243` — a fail-open. A declined final transition fell through to
+  `new Authenticated(...)`, handing the caller a full AuthSuccess for an attempt
+  the store refused to advance. Now asserted as an invariant over every
+  non-Succeeded outcome AND every link on the path, not just the case that found
+  it.
+- Five value bounds could drift by one in either direction unnoticed. Every
+  "refuses over-length" test submitted 256 (or 281), which stays refused however
+  far the bound is tightened. All six bounded values now assert both max accepted
+  and max+1 rejected — the durable contract.
+- `AuthController` never carried the submitted `action`, so recovery through the
+  HTTP endpoint could break silently.
+- `ContainerWiringTest` named 3 of the provider's 16 singletons while claiming
+  all of them.
+- `ProviderEffectTest` asserted publish sources were "non-empty and exist", which
+  could not tell a path from its own parent directory.
+
+**Standing rules earned here** are in the gate README. The sharpest: UNCOVERED is
+a routing limitation, not a verdict — it was wrong in BOTH directions in this
+audit, hiding four already-killed rows and one real fail-open.
+
+**Next.** Phase 2.3's remaining scope is unchanged; the mutation gate no longer
+blocks it. The recovery-code notification carried forward from 2.1 is still open.

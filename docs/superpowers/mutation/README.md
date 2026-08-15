@@ -1,16 +1,16 @@
 # Phase 2.3 mutation gate — start here
 
-**Status: Task 13 OPEN. Branch `feat/vouch-2-3-flow-http` must not merge.**
+**Status: the gate is MET. Task 13's mutation control is complete.**
 
-Both original blockers are resolved — blocker 1 (the four matrix rows) and
-blocker 2 (the provider rows, a confirmed `pest-plugin-mutate` defect). The
-manifest has been regenerated on a patched install
-(`2026-08-15-survivor-manifest.md`) and two of its three closure checks pass:
-the provider reports 0 untested, and no new mutation escaped.
+Both blockers are resolved and the authoritative manifest
+(`2026-08-15-survivor-manifest.md`) passes all three closure checks on a patched
+install: run integrity, explicit ruling membership for every one of its 137
+groups, and no file having gained survivors.
 
-**The third does not: 63 of 261 surviving rows are not yet joined to a ruling.**
-They sit in files no exhaustive ruling document covers — `DatabaseTime` (15) has
-no candidate document at all. That is what Task 13 now waits on.
+Final: 1314 mutations · 60 files · 0 fatals · 81.28%. 246 rows require a ruling
+and all 246 are ruled, across nine documents, with 0 unruled and 0 double-claimed.
+
+Merging remains a separate decision for the branch owner.
 
 **Run the gate only on a patched install.** `composer install` applies
 `patches/pest-plugin-mutate-3.0.5-chunk-filters.patch`; without it the provider
