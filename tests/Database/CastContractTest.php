@@ -146,3 +146,117 @@ it('reads the attempt version and expiry back as their own types', function (): 
     expect($attempt->version)->toBeInt()
         ->and($attempt->expires_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
 });
+
+/*
+ * The remaining SQLite-observable casts, written raw and read back typed.
+ *
+ * Uncast, a datetime column returns a string and a json column returns a JSON
+ * string on EVERY engine including this one -- which is what makes these
+ * provable here, unlike the integer casts that SQLite types natively and only
+ * the matrix can decide.
+ */
+
+it('reads session and credential timestamps back as dates', function (): void {
+    /*
+     * revoked_at carries the most weight: ValidatesVouchSession and the prune
+     * retention window both compare against it, and an uncast string compared to
+     * a date is a lexicographic comparison that works by accident of format.
+     */
+    $sessionId = DB::table('auth_sessions')->insertGetId([
+        'session_binding' => str_repeat('t', 64), 'user_id' => 7, 'amr' => json_encode(['password']),
+        'last_factor_at' => now(), 'revoked_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    $credentialId = DB::table('auth_credentials')->insertGetId([
+        'user_id' => 7, 'type' => 'totp', 'secret' => 'x', 'strength' => 'possession',
+        'last_used_at' => now(), 'disabled_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    $session = AuthSession::findOrFail($sessionId);
+    $credential = AuthCredential::findOrFail($credentialId);
+
+    expect($session->last_factor_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
+        ->and($session->revoked_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
+        ->and($credential->last_used_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
+        ->and($credential->disabled_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+});
+
+it('reads identifier, challenge and assurance timestamps back as dates', function (): void {
+    $identifierId = DB::table('auth_identifiers')->insertGetId([
+        'user_id' => 7, 'type' => 'email', 'value' => 'ada@acme.example',
+        'verified_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+    ]);
+    $attemptId = DB::table('auth_attempts')->insertGetId([
+        'handle' => bin2hex(random_bytes(32)),
+        'state' => \Fissible\Vouch\Kernel\Attempt\AttemptState::Initiated->value,
+        'bound_context' => str_repeat('u', 64), 'expires_at' => now()->addMinutes(5),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    $challengeId = DB::table('auth_challenges')->insertGetId([
+        'attempt_id' => $attemptId, 'factor_type' => 'totp', 'code_hash' => 'd',
+        'attempts' => 0, 'expires_at' => now()->addMinutes(5), 'consumed_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    $assuranceId = DB::table('auth_token_assurances')->insertGetId([
+        'token_id' => 'tok-1', 'amr' => json_encode(['password']),
+        'credential_ids' => json_encode([1]), 'acr' => 'aal1',
+        'issuing_session_id' => str_repeat('w', 64), 'issued_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    expect(\Fissible\Vouch\Models\AuthIdentifier::findOrFail($identifierId)->verified_at)
+        ->toBeInstanceOf(\Illuminate\Support\Carbon::class)
+        ->and(\Fissible\Vouch\Models\AuthChallenge::findOrFail($challengeId)->consumed_at)
+        ->toBeInstanceOf(\Illuminate\Support\Carbon::class)
+        ->and(\Fissible\Vouch\Models\AuthTokenAssurance::findOrFail($assuranceId)->issued_at)
+        ->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+});
+
+it('reads connection and federated-identity json back as arrays', function (): void {
+    $connectionId = DB::table('auth_connections')->insertGetId([
+        'tenant_id' => null, 'email_domain' => 'acme.example',
+        'discovery_url' => 'https://idp.example/.well-known/openid-configuration',
+        'client_id' => 'abc', 'client_secret' => 'enc',
+        'claim_mappings' => json_encode(['sub' => 'id']),
+        'jit_rules' => json_encode(['create' => true]),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    $federatedId = DB::table('auth_federated_identities')->insertGetId([
+        'connection_id' => $connectionId, 'user_id' => 7,
+        'subject' => 'sub-1', 'issuer' => 'https://idp.example',
+        'claims' => json_encode(['email' => 'ada@acme.example']),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    expect(\Fissible\Vouch\Models\AuthConnection::findOrFail($connectionId)->claim_mappings)
+        ->toBe(['sub' => 'id'])
+        ->and(\Fissible\Vouch\Models\AuthConnection::findOrFail($connectionId)->jit_rules)
+        ->toBe(['create' => true])
+        ->and(\Fissible\Vouch\Models\AuthFederatedIdentity::findOrFail($federatedId)->claims)
+        ->toBe(['email' => 'ada@acme.example']);
+});
+
+it('reads link-request timestamps back as dates', function (): void {
+    $connectionId = DB::table('auth_connections')->insertGetId([
+        'tenant_id' => null, 'email_domain' => 'b.example',
+        'discovery_url' => 'https://b.example/.well-known/openid-configuration',
+        'client_id' => 'b', 'client_secret' => 'enc',
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    $federatedId = DB::table('auth_federated_identities')->insertGetId([
+        'connection_id' => $connectionId, 'user_id' => 7,
+        'subject' => 'sub-2', 'issuer' => 'https://b.example',
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    $linkId = DB::table('auth_link_requests')->insertGetId([
+        'user_id' => 7, 'federated_identity_id' => $federatedId,
+        'proven_at' => now(), 'expires_at' => now()->addMinutes(10),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    $link = \Fissible\Vouch\Models\AuthLinkRequest::findOrFail($linkId);
+
+    expect($link->proven_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
+        ->and($link->expires_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+});
