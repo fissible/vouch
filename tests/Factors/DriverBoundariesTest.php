@@ -12,6 +12,7 @@ use Fissible\Vouch\Factors\VerificationRequest;
 use Fissible\Vouch\Kernel\Attempt\AttemptState;
 use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Tests\Support\ArrayOtpDelivery;
+use Fissible\Vouch\Notifications\OtpChallengeOutbox;
 use Fissible\Vouch\Tests\Support\LowerBoundRandomSource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Psr\Clock\ClockInterface;
@@ -55,7 +56,7 @@ function otpDriver(int $length = 6, int $ttlSeconds = 120): EmailOtpFactor
     return new EmailOtpFactor(
         app(EnrollmentGuard::class),
         app(ClockInterface::class),
-        new ArrayOtpDelivery(),
+        app(OtpChallengeOutbox::class),
         app(AuthThrottleStore::class),
         $length,
         $ttlSeconds,
@@ -73,7 +74,7 @@ function otpCodesFrom(int $length, int $times): array
     $factor = new EmailOtpFactor(
         app(EnrollmentGuard::class),
         app(ClockInterface::class),
-        $delivery,
+        app(OtpChallengeOutbox::class),
         app(AuthThrottleStore::class),
         $length,
         120,
@@ -92,6 +93,7 @@ function otpCodesFrom(int $length, int $times): array
 
     for ($i = 0; $i < $times; $i++) {
         $factor->challenge(new \Fissible\Vouch\Factors\ChallengeRequest(driverAttemptFor()));
+        $delivery->deliverLatestPending();
         $codes[] = $delivery->lastCode();
     }
 
@@ -275,7 +277,7 @@ it('draws otp digits from zero', function (): void {
     $factor = new EmailOtpFactor(
         app(EnrollmentGuard::class),
         app(ClockInterface::class),
-        $delivery,
+        app(OtpChallengeOutbox::class),
         app(AuthThrottleStore::class),
         6,
         120,
@@ -287,6 +289,7 @@ it('draws otp digits from zero', function (): void {
     ]);
     $factor->enroll(7, ['identifier_id' => $identifier->id]);
     $factor->challenge(new \Fissible\Vouch\Factors\ChallengeRequest(driverAttemptFor()));
+    $delivery->deliverLatestPending();
 
     $ranges = array_values(array_unique(array_map(
         static fn (array $call): string => $call['min'] . '..' . $call['max'],

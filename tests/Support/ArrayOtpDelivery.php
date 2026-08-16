@@ -6,7 +6,10 @@ namespace Fissible\Vouch\Tests\Support;
 
 use DateTimeImmutable;
 use Fissible\Vouch\Contracts\OtpDelivery;
+use Fissible\Vouch\Models\AuthChallengeOutbox;
 use Fissible\Vouch\Models\AuthIdentifier;
+use Fissible\Vouch\Notifications\OtpOutboxDelivery;
+use Fissible\Vouch\Notifications\OtpOutboxStatus;
 
 /**
  * Captures delivered codes so tests can assert on what was actually sent.
@@ -27,11 +30,35 @@ final class ArrayOtpDelivery implements OtpDelivery
 
     public function lastCode(): string
     {
+        if ($this->sent === []) {
+            throw new \RuntimeException('No OTP delivery was captured.');
+        }
+
         return $this->sent[count($this->sent) - 1]['code'];
     }
 
     public function lastIdentifier(): AuthIdentifier
     {
+        if ($this->sent === []) {
+            throw new \RuntimeException('No OTP delivery was captured.');
+        }
+
         return $this->sent[count($this->sent) - 1]['identifier'];
+    }
+
+    /** Explicitly run the production worker for the latest pending test row. */
+    public function deliverLatestPending(): void
+    {
+        $outbox = AuthChallengeOutbox::query()
+            ->where('status', OtpOutboxStatus::Pending->value)
+            ->latest('id')
+            ->first();
+
+        if (! $outbox instanceof AuthChallengeOutbox) {
+            return;
+        }
+
+        app()->instance(OtpDelivery::class, $this);
+        app(OtpOutboxDelivery::class)->deliver($outbox->opaque_id);
     }
 }

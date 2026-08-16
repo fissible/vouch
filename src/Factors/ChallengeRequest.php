@@ -26,5 +26,7 @@ final readonly class ChallengeRequest
         public ?AuthCredential $credential = null,
         public ?string $clientIp = null,
         public ?string $clientUserAgent = null,
+        public bool $decoy = false,
+        public bool $reusePending = false,
     ) {}
 }

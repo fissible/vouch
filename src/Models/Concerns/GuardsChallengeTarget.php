@@ -24,9 +24,24 @@ trait GuardsChallengeTarget
         static::creating(static function (self $model): void {
             $factorType = $model->factor_type;
             $credentialId = $model->credential_id;
+            $isDecoy = $model->is_decoy;
 
             /** @var list<string> $requiresTarget */
             $requiresTarget = Config::array('vouch.challenges.require_credential');
+
+            if ($isDecoy) {
+                if ($credentialId !== null) {
+                    throw ChallengeTargetViolation::decoyNamedTarget($credentialId);
+                }
+
+                // Keep the request-side query shape aligned with a real target:
+                // one credential lookup and one attempt lookup. A decoy cannot
+                // name a credential, so key zero is the explicit non-target.
+                AuthCredential::query()->whereKey(0)->first();
+                AuthAttempt::query()->find($model->attempt_id);
+
+                return;
+            }
 
             if ($credentialId === null) {
                 if (in_array($factorType, $requiresTarget, true)) {

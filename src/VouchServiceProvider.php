@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace Fissible\Vouch;
 
 use Fissible\Vouch\Attempts\DatabaseAttemptStore;
+use Fissible\Vouch\Console\VouchDispatchOtpOutboxCommand;
+use Fissible\Vouch\Console\VouchPruneCommand;
 use Fissible\Vouch\Contracts\AttemptStore;
 use Fissible\Vouch\Contracts\AuthThrottleStore;
-use Fissible\Vouch\Console\VouchPruneCommand;
 use Fissible\Vouch\Contracts\OtpDelivery;
+use Fissible\Vouch\Contracts\RandomSource;
 use Fissible\Vouch\Contracts\TenantResolver;
 use Fissible\Vouch\Enrollment\EnrollmentGuard;
-use Fissible\Vouch\Contracts\RandomSource;
+use Fissible\Vouch\Factors\ChallengeIssuer;
 use Fissible\Vouch\Factors\Drivers\EmailOtpFactor;
 use Fissible\Vouch\Factors\Drivers\PasswordFactor;
 use Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor;
@@ -19,6 +21,9 @@ use Fissible\Vouch\Factors\Drivers\SmsOtpFactor;
 use Fissible\Vouch\Factors\Drivers\TotpFactor;
 use Fissible\Vouch\Factors\FactorRegistry;
 use Fissible\Vouch\Kernel\Attempt\TransitionRules;
+use Fissible\Vouch\Notifications\OtpChallengeOutbox;
+use Fissible\Vouch\Notifications\OtpOutboxDelivery;
+use Fissible\Vouch\Notifications\OtpQueueDispatcher;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
 use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\LockContention;
@@ -46,6 +51,35 @@ final class VouchServiceProvider extends ServiceProvider
          * would put a live authentication code into the one file everybody greps.
          */
         $this->app->bind(OtpDelivery::class, UnconfiguredOtpDelivery::class);
+
+        $this->app->singleton(
+            OtpQueueDispatcher::class,
+            fn ($app): OtpQueueDispatcher => new OtpQueueDispatcher(
+                $app->make(\Illuminate\Contracts\Queue\Factory::class),
+                $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
+                is_string(config('vouch.otp.queue_connection'))
+                    ? config('vouch.otp.queue_connection')
+                    : null,
+                config()->string('vouch.otp.queue'),
+            ),
+        );
+
+        $this->app->singleton(
+            OtpChallengeOutbox::class,
+            fn ($app): OtpChallengeOutbox => new OtpChallengeOutbox(
+                $app['db']->connection(),
+                $app->make(OtpQueueDispatcher::class),
+                $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
+            ),
+        );
+
+        $this->app->bind(
+            OtpOutboxDelivery::class,
+            fn ($app): OtpOutboxDelivery => new OtpOutboxDelivery(
+                $app->make(OtpDelivery::class),
+                $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
+            ),
+        );
 
         $this->app->singleton(
             AttemptStore::class,
@@ -106,6 +140,18 @@ final class VouchServiceProvider extends ServiceProvider
         );
 
         $this->app->singleton(
+            ChallengeIssuer::class,
+            fn ($app): ChallengeIssuer => new ChallengeIssuer(
+                $app->make(AuthThrottleStore::class),
+                $app->make(ThrottleKey::class),
+                $app->make(FactorRegistry::class),
+                $app->make(OtpDelivery::class),
+                $app->make(OtpChallengeOutbox::class),
+                $this->challengeFactors(),
+            ),
+        );
+
+        $this->app->singleton(
             \Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class,
             \Fissible\Vouch\Kernel\Assurance\NistAssuranceVocabulary::class,
         );
@@ -118,6 +164,7 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(\Fissible\Vouch\Throttle\ThrottleKey::class),
                 $app->make(\Fissible\Vouch\Contracts\TenantResolver::class),
                 $app->make(\Fissible\Vouch\Factors\FactorRegistry::class),
+                $app->make(ChallengeIssuer::class),
                 $app->make(\Fissible\Vouch\Flow\ScreenBuilder::class),
                 new \Fissible\Vouch\Kernel\Satisfiability\SatisfiabilityEvaluator(),
                 $app->make(\Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class),
@@ -226,7 +273,7 @@ final class VouchServiceProvider extends ServiceProvider
             fn ($app): EmailOtpFactor => new EmailOtpFactor(
                 $app->make(EnrollmentGuard::class),
                 $app->make(ClockInterface::class),
-                $app->make(OtpDelivery::class),
+                $app->make(OtpChallengeOutbox::class),
                 $app->make(AuthThrottleStore::class),
                 config()->integer('vouch.otp.length'),
                 config()->integer('vouch.otp.ttl_seconds'),
@@ -239,7 +286,7 @@ final class VouchServiceProvider extends ServiceProvider
             fn ($app): SmsOtpFactor => new SmsOtpFactor(
                 $app->make(EnrollmentGuard::class),
                 $app->make(ClockInterface::class),
-                $app->make(OtpDelivery::class),
+                $app->make(OtpChallengeOutbox::class),
                 $app->make(AuthThrottleStore::class),
                 config()->integer('vouch.otp.length'),
                 config()->integer('vouch.otp.ttl_seconds'),
@@ -307,7 +354,27 @@ final class VouchServiceProvider extends ServiceProvider
 
             $this->commands([
                 VouchPruneCommand::class,
+                VouchDispatchOtpOutboxCommand::class,
             ]);
         }
+    }
+
+    /** @return list<string> */
+    private function challengeFactors(): array
+    {
+        $configured = config()->array('vouch.challenges.require_credential');
+        $factors = [];
+
+        foreach ($configured as $factor) {
+            if (! is_string($factor)) {
+                throw new \InvalidArgumentException(
+                    'Configuration "vouch.challenges.require_credential" must be a list of strings.',
+                );
+            }
+
+            $factors[] = $factor;
+        }
+
+        return $factors;
     }
 }

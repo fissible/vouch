@@ -51,7 +51,7 @@ function seedScalarRaceSubject(ThrottleSubject $subject): void
  * @param list<ThrottleSubject> $subjects
  * @return array{blockedWhileLocked: list<bool>, exitCodes: list<int>, outputs: list<string>}
  */
-function raceScalarFailures(array $subjects): array
+function raceScalarFailures(array $subjects, bool $issuance = false): array
 {
     $directory = sys_get_temp_dir() . '/vouch-scalar-race-' . bin2hex(random_bytes(8));
 
@@ -119,8 +119,14 @@ function raceScalarFailures(array $subjects): array
                         new DatabaseTime($connection),
                         app(ThrottleConfiguration::class),
                     );
-                    $store->recordIdentifierFailure($subject);
-                    file_put_contents($output, 'ok');
+                    $result = $issuance
+                        ? $store->permitIssuance($subject)->name
+                        : (function () use ($store, $subject): string {
+                            $store->recordIdentifierFailure($subject);
+
+                            return 'ok';
+                        })();
+                    file_put_contents($output, $result);
                     exit(0);
                 } catch (Throwable $exception) {
                     file_put_contents($output, $exception::class . ': ' . $exception->getMessage());
@@ -301,6 +307,30 @@ it('records two racing failures for one subject exactly', function (): void {
         ->and($race['blockedWhileLocked'])->toBe([true, true])
         ->and($race['outputs'])->toBe(['ok', 'ok'])
         ->and($count)->toBe(2);
+});
+
+it('admits exactly one of two issuances racing at the fifth-event boundary', function (): void {
+    $subject = new ThrottleSubject(
+        ThrottleDimension::Issuance,
+        str_repeat('e', 64),
+    );
+    seedScalarRaceSubject($subject);
+    DB::table('auth_throttle_counters')
+        ->where('dimension', ThrottleDimension::Issuance->value)
+        ->where('subject_digest', $subject->digest)
+        ->update(['count' => 4]);
+
+    $race = raceScalarFailures([$subject, $subject], issuance: true);
+    $outputs = $race['outputs'];
+    sort($outputs);
+
+    expect($race['exitCodes'])->toBe([0, 0], implode("\n", $race['outputs']))
+        ->and($race['blockedWhileLocked'])->toBe([true, true])
+        ->and($outputs)->toBe(['Permitted', 'Refused'])
+        ->and(DB::table('auth_throttle_counters')
+            ->where('dimension', ThrottleDimension::Issuance->value)
+            ->where('subject_digest', $subject->digest)
+            ->value('count'))->toBe(5);
 });
 
 it('does not make unrelated subjects contend with one another after release', function (): void {

@@ -4,9 +4,9 @@
 > first, run the named focused gate, probe the exact control, then commit only the
 > listed paths. Never infer cross-engine behavior from SQLite.
 
-**Status:** Dependency-ordered implementation plan, written 2026-08-15. Tasks 1–4
-completed 2026-08-16; later runtime tasks remain open. Task 14's delivery-lifecycle
-design gate is resolved in the scope amendment.
+**Status:** Dependency-ordered implementation plan, written 2026-08-15. Tasks 1–14
+completed 2026-08-16; Task 15 is next. Task 14's delivery-lifecycle design gate is
+resolved in the scope amendment.
 
 **Goal:** Complete the missing production email/SMS OTP issuance path, then add
 enumeration-safe authentication throttling, challenge-attempt and issuance caps,
@@ -792,8 +792,9 @@ the authoritative challenge re-read. Ordinary gate: **913 passed / 24 skipped /
 
 **Dependencies:** Tasks 8, 11, 12, and 13
 
-**Design gate:** The estimate is provisional. Before source work beyond the negative
-controls, write and approve the narrow delivery-lifecycle amendment required below.
+**Design gate:** Resolved in
+[`2026-08-15-vouch-phase-2-3b-scope-amendment.md`](../specs/2026-08-15-vouch-phase-2-3b-scope-amendment.md)
+and the Task 14 delivery-lifecycle record in `PROJECT.md` before source work.
 
 **Files:**
 - Create: `src/Factors/ChallengeIssuer.php`
@@ -817,83 +818,91 @@ controls, write and approve the narrow delivery-lifecycle amendment required bel
   barrier-controlled transport: assert the request cannot complete before release,
   then throw and assert the committed row remains. Do not substitute an elapsed-time
   threshold for either property.
+
+**Recorded implementation deviation:** the two historical negative-control tests above
+were not retained. The pre-fix absence is instead discriminated by the public
+email/SMS endpoint test failing against the pre-fix source, while atomic rollback and
+request-path isolation are probed directly against the implemented boundary. This is a
+process-artifact gap, not an untested production property; the boxes remain unchecked
+rather than retroactively claiming otherwise.
+
 - [x] Before implementation, amend the design to settle challenge verifiability/state
   meanings, durable worker dispatch/recovery, provider
   retry/permanent-failure behavior, resend coalescing, and unconfigured-host behavior.
   Request-path isolation and an encrypted TTL-bound outbox are requirements, not
   options. A database transaction around a network call may not be described as atomic.
-- [ ] Introduce `ChallengeIssuer` as the sole owner of production challenge issuance.
+- [x] Introduce `ChallengeIssuer` as the sole owner of production challenge issuance.
   Construct a typed, immutable, target-free issuance-attempt intent from submitted
   identifier, action, and the factor id carried by posture-safe flow state before user
   or credential resolution.
-- [ ] Atomically charge/permit issuance volume before resolving a real target or decoy.
+- [x] Atomically charge/permit issuance volume before resolving a real target or decoy.
   Known and nonexistent identifiers, on initial issue and explicit resend, must reach
   the cap on the same request. Removing the charge from the no-target branch must fail.
-- [ ] After volume permission, resolve the server-owned target or decoy without
+- [x] After volume permission, resolve the server-owned target or decoy without
   choosing silently among credentials. Only then construct any target-bearing delivery
   intent.
-- [ ] Make the future 2.3c insertion point structural: volume permission first, then
+- [x] Make the future 2.3c insertion point structural: volume permission first, then
   one named delivery-economics boundary, then the factor call. Ship no fake/no-op
   economics binding in 2.3b; 2.3c adds its required contract at that exact boundary.
   Record the inherited 2.3c test obligation—an economics refusal reaches no factor
   and never re-counts volume—without pretending an absent contract executed in 2.3b.
   The future real-target-only economics work inherits the same request-path isolation.
-- [ ] Before any driver call, charge one issuance event for identify+first challenge.
+- [x] Before any driver call, charge one issuance event for identify+first challenge.
   Explicit resend or factor switch charges one more. Screen construction alone does not.
-- [ ] Enforce five issuances per submitted identifier per 900 seconds before delivery.
+- [x] Enforce five issuances per submitted identifier per 900 seconds before delivery.
   Here “issuance” means an admitted issuance-attempt event, not provider success. 2.3c
   may later refuse/account for economics only after this permission and never rewrites
   or recounts it.
-- [ ] Invoke the selected challenge implementation only through the delivery lifecycle
+- [x] Invoke the selected challenge implementation only through the delivery lifecycle
   chosen by the amendment, with captured IP/user-agent and no synchronous real-target
   latency on the observable request path. Password/TOTP/recovery return null and incur
   no delivery.
-- [ ] Create the challenge and outbox atomically in the database, then perform no
+- [x] Create the challenge and outbox atomically in the database, then perform no
   provider I/O before the response. Reject the Laravel `sync` queue driver or any
   equivalent inline executor. Real and decoy paths must perform the same request-side
   durable work shape; the decoy worker path contacts no provider.
-- [ ] Encrypt the exact issued code and target/message metadata in the outbox. Store
+- [x] Encrypt the exact issued code and target/message metadata in the outbox. Store
   only its opaque id in queued jobs. Assert raw database, model array/JSON, serialized
   queue payload, failed-job record, and representative logs contain no plaintext code
   or target.
-- [ ] Retry by reloading and decrypting the same outbox payload; never re-invoke the
+- [x] Retry by reloading and decrypting the same outbox payload; never re-invoke the
   factor/code generator. Prove two delivery attempts carry the same code and still
   match the single `auth_challenges.code_hash`.
-- [ ] Set outbox expiry to the challenge's database-clock `expires_at`—120 seconds by
+- [x] Set outbox expiry to the challenge's database-clock `expires_at`—120 seconds by
   default. Workers refuse expired payloads, retries cannot extend it, and cleanup does
   not inherit throttle retention. Encryption failure has no plaintext fallback.
-- [ ] Model redacted `pending`, `delivered`, and `undeliverable` states. Provider
+- [x] Model redacted `pending`, `delivered`, and `undeliverable` states. Provider
   acceptance clears encrypted payload immediately and marks delivered. Permanent
   failure or expiry clears it and records undeliverable without retaining target
   or credential data.
-- [ ] Treat a missing opaque outbox id as idempotent success with no retry. For a
+- [x] Treat a missing opaque outbox id as idempotent success with no retry. For a
   present expired row, atomically clear payload, mark undeliverable, and return
   success. Prove a backlog beyond 120 seconds produces neither failed-job rows nor a
   retry loop.
-- [ ] Preserve the driver's no-silent-target rule. If multiple active delivery targets
+- [x] Preserve the driver's no-silent-target rule. If multiple active delivery targets
   cannot be represented safely by the current ScreenSpec/request shape, stop this task
   and write the narrow design amendment; do not choose the first target, send to all,
   echo a database id, or let ambiguity become a public 500.
-- [ ] Implement the parent spec's strict unknown-identifier behavior: a decoy challenge
+- [x] Implement the parent spec's strict unknown-identifier behavior: a decoy challenge
   can never validate and sends nothing, while status/body and the documented response
   time posture remain indistinguishable. If the current challenge invariant cannot
   represent that row, amend it explicitly with tests rather than bypassing
   `GuardsChallengeTarget`.
-- [ ] Prove OTP budget multiplication: five live issuances × five attempts, with the
+- [x] Prove OTP budget multiplication: five live issuances × five attempts, with the
   fixed-boundary maximum still ≤ `10^-4` for six digits.
-- [ ] Prove delivery is never attempted after volume refusal and first issuance is not
+- [x] Prove delivery is never attempted after volume refusal and first issuance is not
   double-charged by identify plus FactorPending.
-- [ ] Prove provider retry of one accepted issuance does not charge authentication
+- [x] Prove provider retry of one accepted issuance does not charge authentication
   volume again. Prove any refund/skip keyed to target resolution or delivery outcome is
   impossible; outage mitigation belongs to retry/coalescing semantics instead.
-- [ ] Drive both `email_otp` and `sms_otp` through the public endpoint with a recording
+- [x] Drive both `email_otp` and `sms_otp` through the public endpoint with a recording
   transport. For each, prove one challenge row is stored for the selected credential,
   one code is delivered to the correct verified identifier, and that code advances the
   same flow to authentication. The test must fail against the pre-fix source.
-- [ ] Add architecture tests forbidding direct `Factor::challenge()` calls outside
-  `ChallengeIssuer` and direct `OtpDelivery` calls outside the OTP driver. Keep the
+- [x] Add architecture tests forbidding direct `Factor::challenge()` calls outside
+  `ChallengeIssuer` and direct `OtpDelivery` calls outside the outbox worker. Keep the
   future economics edit localized to the issuer rather than spread across AuthFlow.
-- [ ] Probe removing the permission check, charging screen construction, sending a
+- [x] Probe removing the permission check, charging screen construction, sending a
   decoy, choosing an ambiguous target, bypassing the issuer, and letting 2.3c-style
   economics leak into the volume owner. Probe target-dependent charge/refund and a
   synchronous transport path separately. Order discrimination for the required

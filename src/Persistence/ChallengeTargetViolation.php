@@ -25,6 +25,15 @@ final class ChallengeTargetViolation extends InvalidArgumentException
         ));
     }
 
+    public static function decoyNamedTarget(int $credentialId): self
+    {
+        return new self(sprintf(
+            'Decoy challenge cannot name credential %d. A decoy with a real target could '
+            . 'contact a provider or satisfy verification while claiming to be inert.',
+            $credentialId,
+        ));
+    }
+
     public static function missing(int $credentialId): self
     {
         return new self(sprintf('Credential %d does not exist.', $credentialId));

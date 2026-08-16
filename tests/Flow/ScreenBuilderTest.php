@@ -18,11 +18,22 @@ function screenBuilder(): ScreenBuilder
 
 it('offers an identifier field on the identify screen', function (): void {
     $screen = screenBuilder()->identify(EnumerationPosture::Friendly);
+    $factors = array_map(
+        static fn (FactorOption $option): string => $option->factorId,
+        $screen->offeredFactors,
+    );
+    $defaults = array_values(array_filter(
+        $screen->offeredFactors,
+        static fn (FactorOption $option): bool => $option->isDefault,
+    ));
 
     expect($screen->step)->toBe(AuthStep::Identify)
         ->and($screen->fields)->toHaveCount(1)
         ->and($screen->fields[0])->toBeInstanceOf(FieldSpec::class)
         ->and($screen->fields[0]->name)->toBe('identifier')
+        ->and($factors)->toBe(['password', 'totp', 'email_otp', 'sms_otp'])
+        ->and($defaults)->toHaveCount(1)
+        ->and($defaults[0]->factorId)->toBe('password')
         ->and($screen->errors)->toBe([])
         ->and($screen->retry)->toBeNull();
 });

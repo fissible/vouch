@@ -45,6 +45,20 @@ function otpDelivery(?ArrayOtpDelivery $bind = null): ArrayOtpDelivery
     return $delivery;
 }
 
+function deliveredOtpCode(): string
+{
+    otpDelivery()->deliverLatestPending();
+
+    return otpDelivery()->lastCode();
+}
+
+function deliveredOtpIdentifier(): AuthIdentifier
+{
+    otpDelivery()->deliverLatestPending();
+
+    return otpDelivery()->lastIdentifier();
+}
+
 /**
  * Narrows AuthChallenge|null to AuthChallenge for PHPStan via a real check,
  * mirroring the isSatisfied()/timestepOf() narrowing pattern used in
@@ -167,7 +181,7 @@ it('delivers a code and records the challenge against the credential', function 
         ->and($challenge->credential_id)->toBe($credential->id)
         ->and($challenge->bound_ip)->toBe('198.51.100.7')
         ->and($challenge->bound_user_agent)->toBe('Mozilla/5.0')
-        ->and(otpDelivery()->lastIdentifier()->id)->toBe($identifier->id);
+        ->and(deliveredOtpIdentifier()->id)->toBe($identifier->id);
 });
 
 it('never stores the delivered code in plaintext', function (): void {
@@ -175,7 +189,7 @@ it('never stores the delivered code in plaintext', function (): void {
 
     $challenge = requireChallenge(emailOtp()->challenge(new ChallengeRequest(otpAttempt(), $credential)));
 
-    expect($challenge->code_hash)->not->toBe(otpDelivery()->lastCode())
+    expect($challenge->code_hash)->not->toBe(deliveredOtpCode())
         ->and($challenge->getAttributes())->not->toHaveKey('code');
 });
 
@@ -183,7 +197,7 @@ it('generates a code of the configured length, all digits', function (): void {
     $credential = emailOtp()->enroll(7, ['identifier_id' => verifiedEmail()->id])->credentials[0];
     emailOtp()->challenge(new ChallengeRequest(otpAttempt(), $credential));
 
-    expect(otpDelivery()->lastCode())->toHaveLength(6)
+    expect(deliveredOtpCode())->toHaveLength(6)
         ->and(otpDelivery()->lastCode())->toMatch('/^\d{6}$/');
 });
 
@@ -194,7 +208,7 @@ it('satisfies with the delivered code and returns a consume mutation', function 
 
     $result = emailOtp()->verify(new VerificationRequest(
         attempt: $attempt,
-        input: ['code' => otpDelivery()->lastCode()],
+        input: ['code' => deliveredOtpCode()],
         challenge: $challenge,
         clientIp: '198.51.100.7',
         clientUserAgent: 'UA',
@@ -220,7 +234,7 @@ it('reports the credential the code was actually delivered against', function ()
 
     $result = emailOtp()->verify(new VerificationRequest(
         attempt: $attempt,
-        input: ['code' => otpDelivery()->lastCode()],
+        input: ['code' => deliveredOtpCode()],
         challenge: $challenge,
     ));
 
@@ -237,7 +251,7 @@ it('refuses a code submitted from a different ip', function (): void {
 
     expect(emailOtp()->verify(new VerificationRequest(
         attempt: $attempt,
-        input: ['code' => otpDelivery()->lastCode()],
+        input: ['code' => deliveredOtpCode()],
         challenge: $challenge,
         clientIp: '203.0.113.9',
         clientUserAgent: 'UA',
@@ -251,7 +265,7 @@ it('refuses a code submitted from a different user agent', function (): void {
 
     expect(emailOtp()->verify(new VerificationRequest(
         attempt: $attempt,
-        input: ['code' => otpDelivery()->lastCode()],
+        input: ['code' => deliveredOtpCode()],
         challenge: $challenge,
         clientIp: '198.51.100.7',
         clientUserAgent: 'SomethingElse',
@@ -278,7 +292,7 @@ it('refuses an expired challenge', function (): void {
     $credential = emailOtp()->enroll(7, ['identifier_id' => verifiedEmail()->id])->credentials[0];
     $attempt = otpAttempt();
     $challenge = emailOtp()->challenge(new ChallengeRequest($attempt, $credential));
-    $code = otpDelivery()->lastCode();
+    $code = deliveredOtpCode();
 
     Carbon::setTestNow(now()->addMinutes(5));
 
@@ -293,7 +307,7 @@ it('refuses a challenge already consumed by the store', function (): void {
     $credential = emailOtp()->enroll(7, ['identifier_id' => verifiedEmail()->id])->credentials[0];
     $attempt = otpAttempt();
     $challenge = requireChallenge(emailOtp()->challenge(new ChallengeRequest($attempt, $credential)));
-    $code = otpDelivery()->lastCode();
+    $code = deliveredOtpCode();
 
     $first = emailOtp()->verify(new VerificationRequest($attempt, ['code' => $code], challenge: $challenge));
     expect(app(AttemptStore::class)->transition(
@@ -316,7 +330,7 @@ it('refuses a challenge belonging to a different attempt', function (): void {
 
     expect(emailOtp()->verify(new VerificationRequest(
         attempt: otpAttempt(),
-        input: ['code' => otpDelivery()->lastCode()],
+        input: ['code' => deliveredOtpCode()],
         challenge: $challenge,
     ))->failure)->toBe(FactorFailure::BindingMismatch);
 });
@@ -379,7 +393,7 @@ it('refuses a live code once the credential it was delivered against is revoked'
     $credential = emailOtp()->enroll(7, ['identifier_id' => verifiedEmail()->id])->credentials[0];
     $attempt = otpAttempt();
     $challenge = emailOtp()->challenge(new ChallengeRequest($attempt, $credential));
-    $code = otpDelivery()->lastCode();
+    $code = deliveredOtpCode();
 
     emailOtp()->revoke($credential);
 

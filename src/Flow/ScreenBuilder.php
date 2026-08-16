@@ -45,7 +45,9 @@ final readonly class ScreenBuilder
     {
         return new ScreenSpec(
             step: AuthStep::Identify,
-            offeredFactors: [],
+            // Fixed, registry-derived choices: the list and its default do not
+            // depend on whether the submitted identifier later resolves.
+            offeredFactors: $this->offeredFactors('password', includeRecovery: false),
             fields: [new FieldSpec('identifier', 'text', 'username', 255)],
             challengePayload: null,
             errors: [],
@@ -139,7 +141,10 @@ final readonly class ScreenBuilder
     /**
      * @return list<FactorOption>
      */
-    private function offeredFactors(string $defaultFactorId): array
+    private function offeredFactors(
+        string $defaultFactorId,
+        bool $includeRecovery = true,
+    ): array
     {
         return array_map(
             fn (Factor $factor): FactorOption => new FactorOption(
@@ -148,7 +153,11 @@ final readonly class ScreenBuilder
                 strength: $factor->strength(),
                 isDefault: $factor->id() === $defaultFactorId,
             ),
-            $this->registry->all(),
+            array_values(array_filter(
+                $this->registry->all(),
+                static fn (Factor $factor): bool => $includeRecovery
+                    || $factor->id() !== 'recovery_code',
+            )),
         );
     }
 }

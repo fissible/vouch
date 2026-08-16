@@ -7,7 +7,6 @@ namespace Fissible\Vouch\Factors\Drivers;
 use Fissible\Vouch\Attempts\Mutations\ConsumeChallenge;
 use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Contracts\Factor;
-use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Contracts\RandomSource;
 use Fissible\Vouch\Enrollment\EnrollmentGuard;
 use Fissible\Vouch\Factors\ChallengeRequest;
@@ -21,6 +20,7 @@ use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
 use Fissible\Vouch\Models\AuthChallenge;
 use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
+use Fissible\Vouch\Notifications\OtpChallengeOutbox;
 use Fissible\Vouch\Support\SystemRandomSource;
 use Fissible\Vouch\Throttle\ChallengeAttemptDecision;
 use Illuminate\Support\Facades\Hash;
@@ -38,7 +38,7 @@ use Psr\Clock\ClockInterface;
  *
  * So: random_int() for generation, the host-configured Hash driver for storage
  * and constant-time comparison, vouch's own auth_challenges for state, and an
- * OtpDelivery seam for transport.
+ * encrypted outbox for asynchronous transport.
  */
 abstract readonly class OtpFactor implements Factor
 {
@@ -54,7 +54,7 @@ abstract readonly class OtpFactor implements Factor
     public function __construct(
         protected EnrollmentGuard $guard,
         protected ClockInterface $clock,
-        protected OtpDelivery $delivery,
+        protected OtpChallengeOutbox $outbox,
         protected AuthThrottleStore $throttle,
         protected int $length = 6,
         protected int $ttlSeconds = 120,
@@ -190,65 +190,75 @@ abstract readonly class OtpFactor implements Factor
 
     public function challenge(ChallengeRequest $request): ?AuthChallenge
     {
-        $credential = $request->credential ?? $this->resolveSoleCredential($request);
+        $this->outbox->assertReady();
 
-        /*
-         * resolveSoleCredential() filters on type and disabled_at; a CALLER-
-         * supplied credential has been through neither, and GuardsChallengeTarget
-         * checks existence, active, same-user and identifier linkage but never
-         * that the credential's type matches the challenge's factor_type. Without
-         * this, EmailOtpFactor could be handed an sms_otp credential, deliver to
-         * its phone identifier, and write factor_type='email_otp' — after which
-         * verify() satisfies email_otp and a policy that specifically requires
-         * email is satisfied by SMS.
-         */
-        if ($credential->type !== $this->id()) {
-            throw new InvalidArgumentException(sprintf(
-                'Credential %d is a "%s", but %s issues "%s" challenges. Delivering against '
-                . 'another factor\'s credential would let the challenge claim a factor type it '
-                . 'never exercised.',
-                $credential->id,
-                $credential->type,
-                static::class,
-                $this->id(),
-            ));
+        if ($request->decoy) {
+            if ($request->credential !== null) {
+                throw new InvalidArgumentException(
+                    'A decoy OTP challenge cannot name a real credential target.',
+                );
+            }
+
+            $credential = null;
+            $identifier = null;
+        } else {
+            $credential = $request->credential ?? $this->resolveSoleCredential($request);
+
+            /*
+             * resolveSoleCredential() filters on type and disabled_at; a CALLER-
+             * supplied credential has been through neither, and GuardsChallengeTarget
+             * checks existence, active, same-user and identifier linkage but never
+             * that the credential's type matches the challenge's factor_type. Without
+             * this, EmailOtpFactor could be handed an sms_otp credential, deliver to
+             * its phone identifier, and write factor_type='email_otp' — after which
+             * verify() satisfies email_otp and a policy that specifically requires
+             * email is satisfied by SMS.
+             */
+            if ($credential->type !== $this->id()) {
+                throw new InvalidArgumentException(sprintf(
+                    'Credential %d is a "%s", but %s issues "%s" challenges. Delivering against '
+                    . 'another factor\'s credential would let the challenge claim a factor type it '
+                    . 'never exercised.',
+                    $credential->id,
+                    $credential->type,
+                    static::class,
+                    $this->id(),
+                ));
+            }
+
+            if ($credential->disabled_at !== null) {
+                throw new InvalidArgumentException(sprintf(
+                    'Credential %d is disabled and cannot be sent an %s code.',
+                    $credential->id,
+                    $this->id(),
+                ));
+            }
+
+            $identifier = AuthIdentifier::query()->findOrFail($credential->identifier_id);
         }
-
-        if ($credential->disabled_at !== null) {
-            throw new InvalidArgumentException(sprintf(
-                'Credential %d is disabled and cannot be sent an %s code.',
-                $credential->id,
-                $this->id(),
-            ));
-        }
-
-        $identifier = AuthIdentifier::query()->findOrFail($credential->identifier_id);
 
         $code = $this->generateCode();
-        $expiresAt = $this->clock->now()->modify(sprintf('+%d seconds', $this->ttlSeconds));
 
         /*
-         * The challenge row is written BEFORE delivery. If delivery throws, the
-         * user gets a code that was never sent and the challenge expires
-         * harmlessly; the reverse order risks a delivered code with no row to
-         * verify it against, which locks the user out of a factor they hold.
-         *
-         * GuardsChallengeTarget validates credential_id here — active, same
-         * user, identifier-linked — so an unusable target cannot be persisted.
+         * Challenge and encrypted delivery payload commit atomically. Provider
+         * I/O happens only in the queued worker, and retries reload this exact
+         * code rather than minting a replacement that would no longer match the
+         * challenge hash.
          */
-        $challenge = AuthChallenge::create([
-            'attempt_id' => $request->attempt->id,
-            'credential_id' => $credential->id,
-            'factor_type' => $this->id(),
-            'code_hash' => Hash::make($code),
-            'bound_ip' => $request->clientIp,
-            'bound_user_agent' => $request->clientUserAgent,
-            'expires_at' => $expiresAt,
-        ]);
-
-        $this->delivery->deliver($identifier, $code, $expiresAt);
-
-        return $challenge;
+        return $this->outbox->issue(
+            new ChallengeRequest(
+                attempt: $request->attempt,
+                credential: $credential,
+                clientIp: $request->clientIp,
+                clientUserAgent: $request->clientUserAgent,
+                decoy: $request->decoy,
+                reusePending: $request->reusePending,
+            ),
+            $this->id(),
+            $code,
+            $this->ttlSeconds,
+            $identifier,
+        );
     }
 
     public function verify(VerificationRequest $request): FactorResult

@@ -52,6 +52,8 @@ function issuedCappedOtp(): array
         throw new RuntimeException('The OTP factor did not issue a challenge.');
     }
 
+    $delivery->deliverLatestPending();
+
     return [$factor, $attempt, $challenge, $delivery->lastCode()];
 }
 

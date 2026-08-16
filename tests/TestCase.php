@@ -6,11 +6,22 @@ namespace Fissible\Vouch\Tests;
 
 use Fissible\Vouch\VouchServiceProvider;
 use Illuminate\Foundation\Application;
+use Illuminate\Support\Facades\Queue;
 use InvalidArgumentException;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 abstract class TestCase extends Orchestra
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // OTP delivery is production-async. A queue fake preserves that
+        // request boundary while allowing each test to invoke the worker
+        // explicitly when it needs to inspect the delivered code.
+        Queue::fake();
+    }
+
     /**
      * @param  Application  $app
      * @return list<class-string>

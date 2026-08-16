@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
  * @property int $attempt_id
  * @property string $factor_type
  * @property int|null $credential_id
+ * @property bool $is_decoy
  * @property string $code_hash
  * @property int $attempts
  * @property string|null $bound_ip
@@ -37,6 +38,7 @@ final class AuthChallenge extends Model
     {
         return [
             'attempts' => 'integer',
+            'is_decoy' => 'boolean',
             'expires_at' => 'datetime',
             'consumed_at' => 'datetime',
         ];

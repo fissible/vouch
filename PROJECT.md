@@ -145,8 +145,8 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.1 | Persistence foundation — ten tables, ten models, three contracts, CAS attempt store | **Complete** |
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
-| 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance defect open in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–12 implemented, Task 13 challenge-attempt cap next** |
+| 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance corrected in 2.3b Task 14** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–14 implemented, Task 15 pruning/reporting next** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -1383,3 +1383,45 @@ turning ambiguity into a public 500.
 tests, strict retry-null HTTP tests, EnrollmentGuard wait-bound test, kernel API
 snapshot, and `AuthChallenge:39` mutation ruling each describe the pre-2.3b boundary.
 The plan assigns their replacements explicitly. Deleting any of them is not completion.
+
+### Task 14 production OTP issuance — 2026-08-16
+
+Email and SMS OTP are now reachable through the production authentication flow. One
+target-free `ChallengeIssuer` charges issuance before identifier resolution, resolves
+exactly one server-owned credential or a durable decoy, and owns the sole production
+factor-challenge call. Identify plus first challenge costs one event; resend and factor
+switch cost one additional event; screen rendering costs none. Known and nonexistent
+identifiers each receive exactly five admitted issuances per 900-second window and the
+sixth returns the same shaped refusal.
+
+Challenge and delivery state commit atomically. The outbox encrypts the exact issued
+code and verified destination snapshot, while the queued job contains only a random
+64-character opaque locator. Changing the persisted identifier after commit does not
+retarget the queued code. The queue boundary rejects synchronous, deferred,
+background, null, and mixed failover configurations through their resolved queue
+types before charging or writing state. A scheduled redispatch command recovers the
+commit-before-push window without extending the database-clock challenge deadline.
+
+Workers retry the same encrypted code rather than invoking a generator. Provider
+success, permanent failure, expiry, and exhausted retries all clear ciphertext;
+missing or swept rows are idempotent success. Decoys perform the same request-side
+counter, credential-query, challenge, outbox, and dispatch work but delete their row
+without provider contact and can never verify. An ambiguous set of active targets is
+also a decoy rather than first-target selection, fan-out, or a public exception. The
+named 2.3c delivery-economics seam is after volume permission and target resolution
+but before the factor call, with no fake permissive binding in 2.3b.
+
+The focused gate is **95 passed / 417 assertions**. The persistence-sensitive subset
+is **35 passed / 187 assertions** on each of file-backed SQLite, MySQL 8, and
+PostgreSQL 16, including the existing-window issuance contention case. Manual probes
+separately reject removal of target-independent charging, first-target selection,
+outbox transactionality, terminal payload clearing, asynchronous-queue enforcement,
+and PostgreSQL row locking. Ordinary gate: **948 passed / 25 skipped / 3,285
+assertions**; PHPStan level 9 clean; Composer validation and `git diff --check` clean.
+
+The two planned historical negative-control tests were not retained. That process
+deviation remains visible in the implementation plan: the endpoint test is
+discriminating against the pre-fix source, while transaction rollback and
+request-path isolation are probed directly against the final boundary. Task 17 still
+owns authoritative mutation regeneration and disposition of any rows introduced by
+this task.

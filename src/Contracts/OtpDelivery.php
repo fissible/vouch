@@ -12,8 +12,9 @@ use Fissible\Vouch\Models\AuthIdentifier;
  *
  * A seam rather than an implementation: vouch depends on neither a mail
  * transport nor an SMS gateway, and the host decides both. The plaintext code
- * exists only in this call — it is never stored, never logged, and never
- * returned to the caller.
+ * exists only in an encrypted, TTL-bound outbox and in this worker call. It is
+ * never stored unencrypted, logged, serialized into a queued job, or returned
+ * to the authentication caller.
  */
 interface OtpDelivery
 {

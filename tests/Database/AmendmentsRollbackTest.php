@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Schema;
  * VouchServiceProvider, exactly as the real Pest suite does) exercises the
  * same down()/up() pairs Testbench would have, against the same driver.
  */
-it('rolls back and re-applies all eight amendment migrations cleanly', function (): void {
+it('rolls back and re-applies all nine amendment migrations cleanly', function (): void {
     Artisan::call('migrate:fresh');
 
     expect(Schema::hasColumn('auth_credentials', 'identifier_id'))->toBeTrue()
@@ -28,9 +28,11 @@ it('rolls back and re-applies all eight amendment migrations cleanly', function 
         ->and(Schema::hasTable('auth_throttle_counters'))->toBeTrue()
         ->and(Schema::hasTable('auth_throttle_locks'))->toBeTrue()
         ->and(Schema::hasTable('auth_throttle_ip_windows'))->toBeTrue()
-        ->and(Schema::hasTable('auth_throttle_tuples'))->toBeTrue();
+        ->and(Schema::hasTable('auth_throttle_tuples'))->toBeTrue()
+        ->and(Schema::hasColumn('auth_challenges', 'is_decoy'))->toBeTrue()
+        ->and(Schema::hasTable('auth_challenge_outbox'))->toBeTrue();
 
-    expect(Artisan::call('migrate:rollback', ['--step' => 8]))->toBe(0);
+    expect(Artisan::call('migrate:rollback', ['--step' => 9]))->toBe(0);
 
     expect(Schema::hasColumn('auth_credentials', 'identifier_id'))->toBeFalse()
         ->and(Schema::hasColumn('auth_credentials', 'last_used_timestep'))->toBeFalse()
@@ -39,7 +41,9 @@ it('rolls back and re-applies all eight amendment migrations cleanly', function 
         ->and(Schema::hasTable('auth_throttle_counters'))->toBeFalse()
         ->and(Schema::hasTable('auth_throttle_locks'))->toBeFalse()
         ->and(Schema::hasTable('auth_throttle_ip_windows'))->toBeFalse()
-        ->and(Schema::hasTable('auth_throttle_tuples'))->toBeFalse();
+        ->and(Schema::hasTable('auth_throttle_tuples'))->toBeFalse()
+        ->and(Schema::hasColumn('auth_challenges', 'is_decoy'))->toBeFalse()
+        ->and(Schema::hasTable('auth_challenge_outbox'))->toBeFalse();
 
     expect(Artisan::call('migrate'))->toBe(0);
 
@@ -50,5 +54,7 @@ it('rolls back and re-applies all eight amendment migrations cleanly', function 
         ->and(Schema::hasTable('auth_throttle_counters'))->toBeTrue()
         ->and(Schema::hasTable('auth_throttle_locks'))->toBeTrue()
         ->and(Schema::hasTable('auth_throttle_ip_windows'))->toBeTrue()
-        ->and(Schema::hasTable('auth_throttle_tuples'))->toBeTrue();
+        ->and(Schema::hasTable('auth_throttle_tuples'))->toBeTrue()
+        ->and(Schema::hasColumn('auth_challenges', 'is_decoy'))->toBeTrue()
+        ->and(Schema::hasTable('auth_challenge_outbox'))->toBeTrue();
 });

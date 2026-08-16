@@ -116,6 +116,15 @@ return [
 
         // Short by design: a six-digit code is only 20 bits.
         'ttl_seconds' => (int) env('VOUCH_OTP_TTL', 120),
+
+        /*
+         * OTP delivery is deliberately isolated from the authentication
+         * request. The configured connection must be durable and asynchronous;
+         * sync, null, deferred, and background execution are refused before an
+         * issuance event is charged.
+         */
+        'queue_connection' => env('VOUCH_OTP_QUEUE_CONNECTION'),
+        'queue' => env('VOUCH_OTP_QUEUE', 'vouch-otp'),
     ],
 
     /*

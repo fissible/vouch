@@ -24,6 +24,8 @@ it('adds every amendment column', function (): void {
     expect(Schema::hasColumn('auth_credentials', 'identifier_id'))->toBeTrue()
         ->and(Schema::hasColumn('auth_credentials', 'last_used_timestep'))->toBeTrue()
         ->and(Schema::hasColumn('auth_challenges', 'credential_id'))->toBeTrue()
+        ->and(Schema::hasColumn('auth_challenges', 'is_decoy'))->toBeTrue()
+        ->and(Schema::hasTable('auth_challenge_outbox'))->toBeTrue()
         ->and(Schema::hasTable('auth_enrollment_locks'))->toBeTrue();
 });
 

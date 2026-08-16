@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Throttle;
 
-use BadMethodCallException;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Fissible\Vouch\Contracts\AuthThrottleStore;
@@ -338,7 +337,32 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
 
     public function permitIssuance(ThrottleSubject $issuance): IssuancePermission
     {
-        throw new BadMethodCallException('Challenge-issuance permission is implemented in Task 14.');
+        $this->requireDimension($issuance, ThrottleDimension::Issuance);
+        $counterExists = $this->counter($issuance) !== null;
+
+        return $this->connection->transaction(function () use ($issuance, $counterExists): IssuancePermission {
+            $this->ensureCounter($issuance, $counterExists);
+            $counter = $this->counter($issuance, lock: true);
+
+            if ($counter === null) {
+                $this->insertCounterIfMissing($issuance);
+                $counter = $this->counter($issuance, lock: true);
+            }
+
+            if ($counter === null) {
+                throw new RuntimeException('The issuance counter vanished after recreation.');
+            }
+
+            $expired = $this->windowExpired($issuance);
+
+            if (! $expired && $counter['count'] >= $this->configuration->issuancesPerIdentifier) {
+                return IssuancePermission::Refused;
+            }
+
+            $this->incrementCounter($issuance, forceRollover: $expired);
+
+            return IssuancePermission::Permitted;
+        });
     }
 
     private function recordScalarFailure(ThrottleSubject $subject): SharedThrottle

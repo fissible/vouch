@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Support;
 
+use DateTimeImmutable;
+use DateTimeInterface;
+use Exception;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Expression;
 use InvalidArgumentException;
+use RuntimeException;
 
 /**
  * The database's own clock, for values that are also read in database time.
@@ -80,6 +84,32 @@ final readonly class DatabaseTime
         return self::deadlineSql($this->connection->getDriverName());
     }
 
+    /** Resolve one database-clock deadline for use in a guarded model write. */
+    public function deadline(int $seconds): DateTimeImmutable
+    {
+        if ($seconds < 1) {
+            throw new InvalidArgumentException('A database deadline must be at least one second.');
+        }
+
+        $sql = 'SELECT ' . $this->deadlineSqlHere() . ' AS deadline';
+        $raw = $this->connection->selectOne($sql, [$seconds]);
+        $value = is_object($raw) ? ($raw->deadline ?? null) : null;
+
+        if ($value instanceof DateTimeInterface) {
+            return DateTimeImmutable::createFromInterface($value);
+        }
+
+        if (is_string($value)) {
+            try {
+                return new DateTimeImmutable($value);
+            } catch (Exception) {
+                // Fall through to the one fail-closed diagnostic below.
+            }
+        }
+
+        throw new RuntimeException('The database returned an invalid deadline value.');
+    }
+
     /** @return literal-string */
     public function windowStartedAtAtOrBeforeDeadlineSql(): string
     {
@@ -116,13 +146,22 @@ final readonly class DatabaseTime
         );
     }
 
+    /** @return literal-string */
+    public function dispatchedAtAtOrBeforeDeadlineSql(): string
+    {
+        return self::deadlinePredicateSql(
+            $this->connection->getDriverName(),
+            'dispatched_at_at_or_before',
+        );
+    }
+
     /**
      * Whitelisted predicates retain PHPStan's literal-string guarantee while
      * still binding the interval. Constructing `column . deadlineSql()` at a
      * call site loses that guarantee and invites future dynamic SQL into a
      * security comparison.
      *
-     * @param 'window_started_at_at_or_before'|'window_started_at_after'|'locked_until_after'|'created_at_after' $predicate
+     * @param 'window_started_at_at_or_before'|'window_started_at_after'|'locked_until_after'|'created_at_after'|'dispatched_at_at_or_before' $predicate
      * @return literal-string
      */
     private static function deadlinePredicateSql(string $driver, string $predicate): string
@@ -156,6 +195,13 @@ final readonly class DatabaseTime
                 "created_at > CURRENT_TIMESTAMP(0) + (? * INTERVAL '1 second')",
             'created_at_after:sqlite' =>
                 "created_at > datetime('now', printf('%+d seconds', ?))",
+            'dispatched_at_at_or_before:mysql',
+            'dispatched_at_at_or_before:mariadb' =>
+                'dispatched_at <= DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)',
+            'dispatched_at_at_or_before:pgsql' =>
+                "dispatched_at <= CURRENT_TIMESTAMP(0) + (? * INTERVAL '1 second')",
+            'dispatched_at_at_or_before:sqlite' =>
+                "dispatched_at <= datetime('now', printf('%+d seconds', ?))",
             default => throw new InvalidArgumentException(
                 'Vouch cannot express database-clock predicate "' . $predicate
                 . '" for driver "' . $driver . '".',

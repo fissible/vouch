@@ -143,13 +143,10 @@ it('offers a registered credential type and falls back to password otherwise', f
     assert($next instanceof Continuing);
 
     /*
-     * The DEFAULT option, not mere presence in the list.
-     *
-     * The first version of this asserted `toContain('password')`, which the
-     * policy already guarantees -- `any_of: [password, totp]` offers password no
-     * matter what defaultFactorFor() decides. It passed with the predicate
-     * inverted and measured nothing. Only the isDefault flag reflects this
-     * function's output.
+     * The DEFAULT option, not mere presence in the list. The initial factor
+     * presentation is now deliberately target-independent: deriving it from
+     * the resolved user's credentials would reopen account enumeration before
+     * OTP issuance even though the response message stayed uniform.
      */
     $default = array_values(array_filter(
         $next->screen->offeredFactors,
@@ -159,7 +156,7 @@ it('offers a registered credential type and falls back to password otherwise', f
     expect($default)->toHaveCount(1)
         ->and($default[0]->factorId)->toBe($expected);
 })->with([
-    'registered driver is offered' => ['totp', 'totp'],
+    'registered driver does not alter the fixed default' => ['totp', 'password'],
     'unregistered type falls back' => ['webauthn_platform', 'password'],
 ]);
 

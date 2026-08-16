@@ -10,13 +10,16 @@ use Fissible\Vouch\Attempts\TransitionOutcome;
 use Fissible\Vouch\Contracts\AttemptStore;
 use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Contracts\TenantResolver;
+use Fissible\Vouch\Factors\ChallengeIssuanceIntent;
+use Fissible\Vouch\Factors\ChallengeIssuanceTicket;
+use Fissible\Vouch\Factors\ChallengeIssuer;
+use Fissible\Vouch\Factors\FactorFailure;
 use Fissible\Vouch\Factors\FactorRegistry;
 use Fissible\Vouch\Factors\VerificationRequest;
 use Fissible\Vouch\Kernel\Assurance\AssuranceFacts;
 use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary;
 use Fissible\Vouch\Kernel\Attempt\AttemptState;
 use Fissible\Vouch\Kernel\Enumeration\EnumerationPosture;
-use Fissible\Vouch\Factors\FactorFailure;
 use Fissible\Vouch\Kernel\Enumeration\Outcome;
 use Fissible\Vouch\Kernel\Factor\FactorKind;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
@@ -29,6 +32,7 @@ use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Models\AuthPolicy;
 use Fissible\Vouch\Throttle\IdentifierThrottle;
+use Fissible\Vouch\Throttle\IssuancePermission;
 use Fissible\Vouch\Throttle\SharedThrottle;
 use Fissible\Vouch\Throttle\ThrottleDecision;
 use Fissible\Vouch\Throttle\ThrottleKey;
@@ -59,6 +63,7 @@ final readonly class AuthFlow
         private ThrottleKey $throttleKey,
         private TenantResolver $tenants,
         private FactorRegistry $registry,
+        private ChallengeIssuer $issuer,
         private ScreenBuilder $screens,
         private SatisfiabilityEvaluator $evaluator,
         private AssuranceVocabulary $vocabulary,
@@ -129,6 +134,36 @@ final readonly class AuthFlow
             );
         }
 
+        $requestedFactor = $request->string('factor');
+        $factorId = is_string($requestedFactor)
+            && $requestedFactor !== 'recovery_code'
+            && $this->registry->has($requestedFactor)
+                ? $requestedFactor
+                : 'password';
+
+        // Constructed and charged before the identifier query below. Whether
+        // that query later resolves cannot alter the issuance state channel.
+        $issuance = $this->issuer->supports($factorId)
+            ? $this->issuer->permit($this->issuanceIntent(
+                $attempt,
+                $request,
+                $value,
+                $factorId,
+                'identify',
+            ))
+            : null;
+
+        if ($issuance?->permission === IssuancePermission::Refused) {
+            return new Continuing(
+                $this->screens->refused(
+                    AuthStep::Identify,
+                    Outcome::CredentialRejected,
+                    $posture,
+                ),
+                $attempt->handle,
+            );
+        }
+
         $identifier = AuthIdentifier::query()->where('value', $value)->whereNotNull('verified_at')->first();
 
         /*
@@ -157,10 +192,13 @@ final readonly class AuthFlow
             );
         }
 
-        return new Continuing(
-            $this->screens->challenge($this->defaultFactorFor($userId), $posture),
-            $attempt->handle,
-        );
+        $attempt->refresh();
+
+        if ($issuance instanceof ChallengeIssuanceTicket) {
+            $this->issuer->complete($issuance, $attempt);
+        }
+
+        return new Continuing($this->screens->challenge($factorId, $posture), $attempt->handle);
     }
 
     private function verify(AuthAttempt $attempt, FlowRequest $request): FlowResult
@@ -180,6 +218,32 @@ final readonly class AuthFlow
             // Do not derive presentation from the resolved user on a preflight
             // refusal. The retry state is target-independent, and the screen is too.
             return $this->refusal($attempt, $posture, 'password', $preflight);
+        }
+
+        if ($attempt->state === AttemptState::FactorPending
+            && in_array($request->action, ['challenge', 'resend'], true)) {
+            $requested = $request->string('factor');
+
+            if (is_string($requested) && $this->issuer->supports($requested)) {
+                $ticket = $this->issuer->permit($this->issuanceIntent(
+                    $attempt,
+                    $request,
+                    $submittedIdentifier,
+                    $requested,
+                    $request->action,
+                ));
+
+                if ($ticket->permission === IssuancePermission::Refused) {
+                    return $this->refusal($attempt, $posture, $requested);
+                }
+
+                $this->issuer->complete($ticket, $attempt);
+
+                return new Continuing(
+                    $this->screens->challenge($requested, $posture),
+                    $attempt->handle,
+                );
+            }
         }
 
         $offered = $this->offeredFactorsFor($attempt);
@@ -258,8 +322,27 @@ final readonly class AuthFlow
             // Back to FactorPending: another factor is being offered.
             $this->store->transition($attempt->refresh(), AttemptState::FactorPending);
 
+            $attempt->refresh();
+            $next = $this->offeredFactorsFor($attempt)[0] ?? $this->defaultFactorFor($userId);
+
+            if ($this->issuer->supports($next)) {
+                $ticket = $this->issuer->permit($this->issuanceIntent(
+                    $attempt,
+                    $request,
+                    $submittedIdentifier,
+                    $next,
+                    'continue',
+                ));
+
+                if ($ticket->permission === IssuancePermission::Refused) {
+                    return $refusal();
+                }
+
+                $this->issuer->complete($ticket, $attempt);
+            }
+
             return new Continuing(
-                $this->screens->challenge($this->defaultFactorFor($userId), $posture),
+                $this->screens->challenge($next, $posture),
                 $attempt->handle,
             );
         }
@@ -431,6 +514,24 @@ final readonly class AuthFlow
         string $submittedIdentifier,
     ): ThrottleSubject {
         return $this->throttleKey->identifier($submittedIdentifier, $attempt->tenant_id);
+    }
+
+    private function issuanceIntent(
+        AuthAttempt $attempt,
+        FlowRequest $request,
+        string $submittedIdentifier,
+        string $factorId,
+        string $action,
+    ): ChallengeIssuanceIntent {
+        return new ChallengeIssuanceIntent(
+            attemptId: $attempt->id,
+            submittedIdentifier: $submittedIdentifier,
+            factorId: $factorId,
+            action: $action,
+            tenantId: $attempt->tenant_id,
+            clientIp: $request->clientIp,
+            clientUserAgent: $request->clientUserAgent,
+        );
     }
 
     /**

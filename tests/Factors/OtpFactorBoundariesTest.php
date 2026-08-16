@@ -11,6 +11,7 @@ use Fissible\Vouch\Factors\VerificationRequest;
 use Fissible\Vouch\Kernel\Attempt\AttemptState;
 use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Models\AuthIdentifier;
+use Fissible\Vouch\Notifications\OtpChallengeOutbox;
 use Fissible\Vouch\Tests\Support\ArrayOtpDelivery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Psr\Clock\ClockInterface;
@@ -70,7 +71,7 @@ it('rejects an enrollment against an identifier that does not exist', function (
     $factor = new EmailOtpFactor(
         app(EnrollmentGuard::class),
         app(ClockInterface::class),
-        $delivery,
+        app(OtpChallengeOutbox::class),
         app(AuthThrottleStore::class),
     );
 
@@ -87,7 +88,7 @@ it('reports no credential when there is no challenge to verify against', functio
     $factor = new EmailOtpFactor(
         app(EnrollmentGuard::class),
         app(ClockInterface::class),
-        new ArrayOtpDelivery(),
+        app(OtpChallengeOutbox::class),
         app(AuthThrottleStore::class),
     );
 
@@ -107,16 +108,20 @@ it('issues codes of its documented default length and lifetime', function (): vo
     $factor = new EmailOtpFactor(
         app(EnrollmentGuard::class),
         $clock,
-        $delivery,
+        app(OtpChallengeOutbox::class),
         app(AuthThrottleStore::class),
     );
 
     $factor->enroll(7, ['identifier_id' => otpIdentifierFor()->id]);
+    $before = time();
     $challenge = $factor->challenge(new ChallengeRequest(otpAttemptFor()));
+    $after = time();
+    $expiry = $challenge?->expires_at->getTimestamp();
+    $delivery->deliverLatestPending();
 
     expect(strlen($delivery->lastCode()))->toBe(6)
-        ->and($challenge?->expires_at->getTimestamp())
-        ->toBe($clock->now()->getTimestamp() + 120);
+        ->and($expiry)->toBeGreaterThanOrEqual($before + 120)
+        ->and($expiry)->toBeLessThanOrEqual($after + 120);
 });
 
 it('treats a code as expired at its expiry instant, not one second after', function (): void {
@@ -127,29 +132,42 @@ it('treats a code as expired at its expiry instant, not one second after', funct
      * else in the suite tests AT it -- every other expiry test is comfortably
      * past.
      */
-    $clock = new SteppableClock(new DateTimeImmutable('2026-08-13T12:00:00+00:00'));
     $delivery = new ArrayOtpDelivery();
-    $factor = new EmailOtpFactor(
+    $issuer = new EmailOtpFactor(
         app(EnrollmentGuard::class),
-        $clock,
-        $delivery,
+        app(ClockInterface::class),
+        app(OtpChallengeOutbox::class),
         app(AuthThrottleStore::class),
         6,
         120,
     );
 
-    $factor->enroll(7, ['identifier_id' => otpIdentifierFor()->id]);
+    $issuer->enroll(7, ['identifier_id' => otpIdentifierFor()->id]);
     $attempt = otpAttemptFor();
-    $factor->challenge(new ChallengeRequest($attempt));
+    $challenge = $issuer->challenge(new ChallengeRequest($attempt));
+    $delivery->deliverLatestPending();
     $code = $delivery->lastCode();
 
+    if ($challenge === null) {
+        throw new RuntimeException('Expected the OTP challenge to be issued.');
+    }
+
+    $clock = new SteppableClock($challenge->expires_at->toDateTimeImmutable()->modify('-1 second'));
+    $verifier = new EmailOtpFactor(
+        app(EnrollmentGuard::class),
+        $clock,
+        app(OtpChallengeOutbox::class),
+        app(AuthThrottleStore::class),
+        6,
+        120,
+    );
+
     // One second before the deadline: still good.
-    $clock->advance(119);
-    $early = $factor->verify(new VerificationRequest($attempt, ['code' => $code]));
+    $early = $verifier->verify(new VerificationRequest($attempt, ['code' => $code]));
 
     // Exactly at the deadline: expired.
     $clock->advance(1);
-    $atDeadline = $factor->verify(new VerificationRequest($attempt, ['code' => $code]));
+    $atDeadline = $verifier->verify(new VerificationRequest($attempt, ['code' => $code]));
 
     expect($early->failure)->toBeNull()
         ->and($atDeadline->failure)->toBe(FactorFailure::Expired);
@@ -169,13 +187,14 @@ it('never reports aal3-eligible attributes for an emailed code', function (): vo
     $factor = new EmailOtpFactor(
         app(EnrollmentGuard::class),
         $clock,
-        $delivery,
+        app(OtpChallengeOutbox::class),
         app(AuthThrottleStore::class),
     );
 
     $factor->enroll(7, ['identifier_id' => otpIdentifierFor()->id]);
     $attempt = otpAttemptFor();
     $factor->challenge(new ChallengeRequest($attempt));
+    $delivery->deliverLatestPending();
 
     $result = $factor->verify(new VerificationRequest($attempt, ['code' => $delivery->lastCode()]));
     $satisfied = $result->factor;

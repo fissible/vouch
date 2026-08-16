@@ -19,13 +19,18 @@ use RuntimeException;
  */
 final class UnconfiguredOtpDelivery implements OtpDelivery
 {
-    public function deliver(AuthIdentifier $identifier, string $code, DateTimeImmutable $expiresAt): void
+    public static function exception(): RuntimeException
     {
-        throw new RuntimeException(
+        return new RuntimeException(
             'No OTP delivery is configured. Bind Fissible\Vouch\Contracts\OtpDelivery to an '
             . 'implementation that sends mail or SMS. Vouch refuses to guess: a no-op would '
             . 'make codes silently never arrive, and logging the code would disclose a live '
             . 'credential.',
         );
+    }
+
+    public function deliver(AuthIdentifier $identifier, string $code, DateTimeImmutable $expiresAt): void
+    {
+        throw self::exception();
     }
 }
