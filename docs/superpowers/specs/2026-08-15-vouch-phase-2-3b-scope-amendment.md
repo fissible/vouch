@@ -281,15 +281,19 @@ paths. Long-lived-worker tests must prove that vouch leaves the host connection'
 setting unchanged.
 
 Adopting the primitive in `EnrollmentGuard` is a declared correction to Phase 2.1
-behavior, not an incidental refactor. The guard's current `KNOWN SIDE EFFECT` docblock
-documents a real leak: one enrollment lowers the lock tolerance for unrelated future
-queries on a pooled connection. 2.3b removes that leak, rewrites the docblock to state
-the restoring contract, and makes the guard use the same primitive as throttling.
+behavior, not an incidental refactor. The guard's pre-2.3b `KNOWN SIDE EFFECT`
+docblock documented a real leak: one enrollment lowered the lock tolerance for
+unrelated future queries on a pooled connection. Task 3 removes that leak and makes
+the guard use the same restoring primitive as throttling.
 Keeping a restoring throttle helper beside a leaking enrollment implementation would
 create two meanings for the same database concern.
 
-The prior value is captured for every invocation and restored in `finally`; restoration
-never means resetting to an engine default. Per-call capture makes nesting compose:
+The prior value is captured for every invocation and restoration never means resetting
+to an engine default. MySQL and SQLite restore explicitly in `finally`. PostgreSQL's
+bound is transaction-local: normal and nested exits restore explicitly, while a
+statement failure aborts the transaction and makes restoration SQL fail with `25P02`.
+In that one measured case the primitive preserves the original query exception and
+rollback performs the guaranteed restoration. Per-call capture makes nesting compose:
 if the host value is `H`, an outer throttle scope sets `1`, and a nested enrollment
 scope sets `5`, enrollment restores `1` before throttle restores `H`. MySQL reads the
 prior value from `@@SESSION.innodb_lock_wait_timeout`, SQLite from bare

@@ -146,7 +146,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance defect open in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Core design complete; Task 14 delivery lifecycle gate open** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–3 complete** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -979,8 +979,8 @@ last layer that consumes it.
 
 ## Phase 2.3b planning record — 2026-08-15
 
-**Core throttling design complete; implementation not started.** Task 14 has an
-explicit pre-implementation delivery-lifecycle design gate. Authority:
+**Core throttling and delivery-lifecycle design complete; implementation in
+progress.** Authority:
 
 - Scope amendment:
   `docs/superpowers/specs/2026-08-15-vouch-phase-2-3b-scope-amendment.md`
@@ -1036,6 +1036,37 @@ identifier domain for recovery; remove post-lowercase NFC; remove the IPv6 `/64`
 mask; flatten absent tenant to present-empty; or replace segment framing with naïve
 NUL joining. Focused gate: **47 passed / 120 assertions**. Full gate: **739 passed / 9
 skipped / 2,476 assertions**, PHPStan level 9 clean, Composer strict validation clean.
+
+### Task 3 restoring bounded lock waits — 2026-08-16
+
+`BoundedLockWait` now captures a host connection's current lock-wait setting per
+invocation, applies the caller's bound only around lock acquisition, and restores the
+captured value rather than an engine default. Its enrollment entry point retains the
+separate configured duration; its shared-dimension entry point accepts no duration and
+is fixed at one second. Nested scopes prove `H → 1 → 5 → 1 → H` exactly.
+
+MySQL and SQLite restore explicitly on every exit. PostgreSQL uses a
+transaction-local setting: normal and nested exits restore explicitly, while a real
+statement failure leaves the transaction aborted (`25P02` rejects every subsequent
+statement), so the primitive preserves the original query failure and rollback restores
+the setting. Only that measured PostgreSQL-abort case is deferred; unrelated restore
+failures remain loud. `LockContention` preserves the measured classifier exactly:
+MySQL 1205, PostgreSQL 55P03, SQLite 5. Unknown engines and deadlock siblings remain
+unclassified.
+
+Enrollment now uses the primitive and no longer lowers the host application's future
+lock tolerance on a reused connection. Direct tests own inside-scope readback,
+restoration, caller/query exceptions, and nesting; real held-lock tests separately own
+liveness, verified contention, typed refusal, and fail-closed enrollment. The focused
+gate passed **55 tests** on each of file-backed SQLite, MySQL 8, and PostgreSQL 16
+(92/94/94 assertions respectively), with no skips. The ordinary 128M gate reports
+**748 passed / 10 skipped / 2,502 assertions**, and PHPStan level 9 is clean.
+
+Five probes each fail: remove the setting write; remove restoration; restore a guessed
+default instead of the captured prior; widen SQLite contention to include an unrelated
+driver error; or bypass the primitive in `EnrollmentGuard`. The last probe waited for
+the parked seven-second host timeout and violated the five-second liveness ceiling,
+proving the integration rather than only the helper.
 
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP

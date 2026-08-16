@@ -171,28 +171,11 @@ it('bounds the wait rather than hanging the caller', function (): void {
      * forever, SQLite fails instantly -- so an unbounded wait would hang a
      * request thread on every contended enrollment.
      *
-     * Two assertions, because neither alone is enough. The elapsed time is a
-     * liveness check and nothing more: on SQLite the default behaviour is to
-     * fail instantly, so a fast return is exactly what REMOVING the bound
-     * produces. The setting readback is the mechanism -- it is what the engine
-     * would actually have done had the lock cleared -- and this is the one place
-     * it is read under genuine contention rather than after a quiet enrollment.
+     * The direct BoundedLockWait tests own the setting/readback proof. This test
+     * retains what they cannot provide: a real held lock, a bounded return, a
+     * typed refusal, and proof that enrollment restores the host connection.
      */
     $a = DB::connection('enroll_a');
-    $a->beginTransaction();
-    $a->table('auth_enrollment_locks')->insertOrIgnore([['user_id' => 7, 'type' => 'password']]);
-    $a->table('auth_enrollment_locks')->where('user_id', 7)->where('type', 'password')->lockForUpdate()->first();
-
-    $started = microtime(true);
-
-    try {
-        guardOn('enroll_b', wait: 2)->serialize(7, 'password', 1, fn (): bool => true);
-    } catch (EnrollmentRefused) {
-        // expected
-    } finally {
-        $a->rollBack();
-    }
-
     $b = DB::connection('enroll_b');
 
     // scalar() is honestly typed mixed: the drivers disagree about whether a
@@ -207,18 +190,56 @@ it('bounds the wait rather than hanging the caller', function (): void {
         };
     };
 
-    $applied = match ($b->getDriverName()) {
-        // Milliseconds on SQLite: the seconds-to-milliseconds conversion, read
-        // back off the connection that actually contended.
-        'sqlite' => (int) $setting('PRAGMA busy_timeout'),
-        'mysql', 'mariadb' => (int) $setting('SELECT @@SESSION.innodb_lock_wait_timeout') * 1000,
-        // Postgres reverts SET LOCAL on commit, so the bound is no longer
-        // readable here. The dedicated readback test covers that engine.
-        default => 2_000,
+    $readCurrent = static fn (): string => match ($b->getDriverName()) {
+        'sqlite' => $setting('PRAGMA busy_timeout'),
+        'mysql' => $setting('SELECT @@SESSION.innodb_lock_wait_timeout'),
+        'pgsql' => $setting('SHOW lock_timeout'),
+        default => throw new RuntimeException('No lock-wait readback for this driver.'),
     };
+    $setCurrent = static function (string $value) use ($b): void {
+        match ($b->getDriverName()) {
+            'sqlite' => $b->statement(sprintf('PRAGMA busy_timeout = %d', (int) $value)),
+            'mysql' => $b->statement(
+                sprintf('SET SESSION innodb_lock_wait_timeout = %d', (int) $value),
+            ),
+            'pgsql' => $b->scalar("SELECT set_config('lock_timeout', ?, false)", [$value]),
+            default => throw new RuntimeException('No lock-wait setter for this driver.'),
+        };
+    };
+    $original = $readCurrent();
+    $parked = match ($b->getDriverName()) {
+        'sqlite' => '7000',
+        'mysql' => '7',
+        'pgsql' => '7s',
+        default => throw new RuntimeException('No lock-wait setting for this driver.'),
+    };
+    $setCurrent($parked);
 
-    expect($applied)->toBe(2_000)
-        ->and(microtime(true) - $started)->toBeLessThan(10.0);
+    expect($readCurrent())->toBe($parked);
+
+    $a->beginTransaction();
+    $a->table('auth_enrollment_locks')->insertOrIgnore([['user_id' => 7, 'type' => 'password']]);
+    $a->table('auth_enrollment_locks')->where('user_id', 7)->where('type', 'password')->lockForUpdate()->first();
+
+    $started = microtime(true);
+    $refusal = null;
+    $after = null;
+
+    try {
+        try {
+            guardOn('enroll_b', wait: 1)->serialize(7, 'password', 1, fn (): bool => true);
+        } catch (EnrollmentRefused $exception) {
+            $refusal = $exception;
+        }
+    } finally {
+        $a->rollBack();
+        $after = $readCurrent();
+        $setCurrent($original);
+    }
+
+    expect($refusal)->toBeInstanceOf(EnrollmentRefused::class)
+        ->and($after)->toBe($parked)
+        ->and(microtime(true) - $started)->toBeLessThan(5.0);
 });
 
 it('never leaves two recovery-code generations live under interleaved regeneration', function (): void {
@@ -334,4 +355,3 @@ it('never leaves two recovery-code generations live under interleaved regenerati
         ->and($active)->toHaveCount(10)
         ->and($generations)->toBe(['gen-a']);
 });
-

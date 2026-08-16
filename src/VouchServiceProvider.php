@@ -19,6 +19,8 @@ use Fissible\Vouch\Factors\Drivers\TotpFactor;
 use Fissible\Vouch\Factors\FactorRegistry;
 use Fissible\Vouch\Kernel\Attempt\TransitionRules;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
+use Fissible\Vouch\Support\BoundedLockWait;
+use Fissible\Vouch\Support\LockContention;
 use Fissible\Vouch\Support\SystemClock;
 use Fissible\Vouch\Tenancy\NullTenantResolver;
 use Illuminate\Support\ServiceProvider;
@@ -50,12 +52,21 @@ final class VouchServiceProvider extends ServiceProvider
         );
 
         $this->app->singleton(
+            BoundedLockWait::class,
+            fn ($app): BoundedLockWait => new BoundedLockWait($app['db']->connection()),
+        );
+
+        $this->app->singleton(LockContention::class);
+
+        $this->app->singleton(
             EnrollmentGuard::class,
             fn ($app): EnrollmentGuard => new EnrollmentGuard(
                 $app['db']->connection(),
                 // config()->integer(), not (int) config(): the latter casts
                 // mixed, which PHPStan level 9 refuses to trust as safe.
                 config()->integer('vouch.enrollment.lock_wait_seconds'),
+                $app->make(BoundedLockWait::class),
+                $app->make(LockContention::class),
             ),
         );
 

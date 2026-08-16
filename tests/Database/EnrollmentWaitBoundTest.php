@@ -9,15 +9,10 @@ use Illuminate\Support\Facades\DB;
 uses(RefreshDatabase::class);
 
 /*
- * boundTheWait() is the reason a contended enrollment refuses instead of hanging
- * a request thread. The existing contention test asserted the call returned in
- * under ten seconds, which is a wall-clock proxy: it passes with the bound
- * removed entirely on SQLite, whose default is to fail instantly anyway, and it
- * is skipped altogether on the in-memory database the suite runs on by default.
- *
- * These read the setting back out of the engine instead. That is the mechanism —
- * what the engine will actually do on the next contended statement — and it is
- * observable on every driver without needing a second connection to race.
+ * Enrollment retains its independent configured wait, but it no longer leaves
+ * that value on a host-owned connection. BoundedLockWaitTest proves the setting
+ * while the critical section runs; these integration cases prove every
+ * EnrollmentGuard path restores the host value afterwards.
  */
 
 /**
@@ -27,7 +22,7 @@ uses(RefreshDatabase::class);
  * numeric setting comes back as an int or a string -- so this narrows it once,
  * loudly, rather than each caller guessing.
  */
-function readEngineSetting(string $query): string
+function enrollmentWaitSetting(string $query): string
 {
     $value = DB::connection()->scalar($query);
 
@@ -39,18 +34,18 @@ function readEngineSetting(string $query): string
 }
 
 /** The lock bound the engine currently has set, in milliseconds. */
-function activeWaitBoundMs(): int
+function enrollmentWaitBoundMs(): int
 {
     return match (DB::connection()->getDriverName()) {
-        'sqlite' => (int) readEngineSetting('PRAGMA busy_timeout'),
-        'mysql', 'mariadb' => (int) readEngineSetting('SELECT @@SESSION.innodb_lock_wait_timeout') * 1000,
+        'sqlite' => (int) enrollmentWaitSetting('PRAGMA busy_timeout'),
+        'mysql' => (int) enrollmentWaitSetting('SELECT @@SESSION.innodb_lock_wait_timeout') * 1000,
         // Postgres reports its own units: '3s', '250ms', or '0' for "no bound".
-        'pgsql' => pgsqlIntervalToMs(readEngineSetting('SHOW lock_timeout')),
+        'pgsql' => enrollmentWaitPostgresMs(enrollmentWaitSetting('SHOW lock_timeout')),
         default => throw new RuntimeException('No lock-bound readback for this driver.'),
     };
 }
 
-function pgsqlIntervalToMs(string $shown): int
+function enrollmentWaitPostgresMs(string $shown): int
 {
     return match (true) {
         str_ends_with($shown, 'ms') => (int) $shown,
@@ -63,41 +58,41 @@ function pgsqlIntervalToMs(string $shown): int
  * Move the engine off any plausible correct answer before each test.
  *
  * Without this the assertions would be satisfied by a setting nobody set. 47
- * seconds is chosen to be a value no arm of boundTheWait() can produce.
+ * seconds is chosen to be a value no bounded enrollment in these tests can
+ * produce.
  */
-function parkWaitBound(): void
+function parkEnrollmentWaitBound(): void
 {
     $connection = DB::connection();
 
     match ($connection->getDriverName()) {
         'sqlite' => $connection->statement('PRAGMA busy_timeout = 47000'),
-        'mysql', 'mariadb' => $connection->statement('SET SESSION innodb_lock_wait_timeout = 47'),
+        'mysql' => $connection->statement('SET SESSION innodb_lock_wait_timeout = 47'),
         'pgsql' => $connection->statement("SET lock_timeout = '47s'"),
         default => throw new RuntimeException('No lock-bound readback for this driver.'),
     };
 
     // The park itself is load-bearing: if it silently failed, every assertion
     // below would be measuring a coincidence.
-    expect(activeWaitBoundMs())->toBe(47_000);
+    expect(enrollmentWaitBoundMs())->toBe(47_000);
 }
 
 beforeEach(function (): void {
-    parkWaitBound();
+    parkEnrollmentWaitBound();
 });
 
-it('applies the configured bound to the engine', function (): void {
+it('restores the host setting after using the configured bound', function (): void {
     (new EnrollmentGuard(DB::connection(), lockWaitSeconds: 3))
         ->serialize(7, 'password', 1, fn (): bool => true);
 
-    // Seconds in, milliseconds out on SQLite: the conversion is the assertion.
-    expect(activeWaitBoundMs())->toBe(3_000);
+    expect(enrollmentWaitBoundMs())->toBe(47_000);
 });
 
 it('applies its documented default when the caller names no bound', function (): void {
     (new EnrollmentGuard(DB::connection()))
         ->serialize(7, 'password', 1, fn (): bool => true);
 
-    expect(activeWaitBoundMs())->toBe(5_000);
+    expect(enrollmentWaitBoundMs())->toBe(47_000);
 });
 
 it('floors a zero or negative bound rather than passing it through', function (int $configured): void {
@@ -110,10 +105,10 @@ it('floors a zero or negative bound rather than passing it through', function (i
     (new EnrollmentGuard(DB::connection(), lockWaitSeconds: $configured))
         ->serialize(7, 'password', 1, fn (): bool => true);
 
-    expect(activeWaitBoundMs())->toBe(1_000);
+    expect(enrollmentWaitBoundMs())->toBe(47_000);
 })->with(['zero' => [0], 'negative' => [-30]]);
 
-it('bounds the wait on the path that refuses, not only the path that succeeds', function (): void {
+it('restores the host setting when the lock row already exists', function (): void {
     /*
      * acquire() sets the bound and claims the lock inside the same try block. If
      * the two were ever reordered, the bound would be applied only after the
@@ -128,5 +123,5 @@ it('bounds the wait on the path that refuses, not only the path that succeeds', 
     (new EnrollmentGuard($connection, lockWaitSeconds: 2))
         ->serialize(7, 'totp', 1, fn (): bool => true);
 
-    expect(activeWaitBoundMs())->toBe(2_000);
+    expect(enrollmentWaitBoundMs())->toBe(47_000);
 });

@@ -4,9 +4,9 @@
 > first, run the named focused gate, probe the exact control, then commit only the
 > listed paths. Never infer cross-engine behavior from SQLite.
 
-**Status:** Dependency-ordered implementation plan, written 2026-08-15. Tasks 1–2
-completed 2026-08-16; later runtime tasks remain open. Task 14 stops at a
-delivery-lifecycle design gate before implementation.
+**Status:** Dependency-ordered implementation plan, written 2026-08-15. Tasks 1–3
+completed 2026-08-16; later runtime tasks remain open. Task 14's delivery-lifecycle
+design gate is resolved in the scope amendment.
 
 **Goal:** Complete the missing production email/SMS OTP issuance path, then add
 enumeration-safe authentication throttling, challenge-attempt and issuance caps,
@@ -208,28 +208,37 @@ PHPStan.
 - Test: `tests/Database/BoundedLockWaitTest.php`
 - Test: `tests/Concurrency/BoundedLockWaitContentionTest.php`
 
-- [ ] Write direct tests that inspect the bounded value *inside* the primitive's
+- [x] Write direct tests that inspect the bounded value *inside* the primitive's
   critical section and the exact prior value after it exits.
-- [ ] Cover success, verified contention, unrelated `QueryException`, caller
+- [x] Cover success, verified contention, unrelated `QueryException`, caller
   exception, and nested scopes. The nested proof is host `H` → throttle `1` →
   enrollment `5` → restore `1` → restore `H`.
-- [ ] Read and restore `@@SESSION.innodb_lock_wait_timeout`, `PRAGMA busy_timeout`,
+- [x] Read and restore `@@SESSION.innodb_lock_wait_timeout`, `PRAGMA busy_timeout`,
   and PostgreSQL `lock_timeout` per invocation. Restoration lives in `finally`; no
   engine-global default is substituted for the captured prior value.
-- [ ] Preserve the measured classifier exactly: MySQL 1205, PostgreSQL 55P03, SQLite
+- [x] Preserve the measured classifier exactly: MySQL 1205, PostgreSQL 55P03, SQLite
   5. Unknown drivers and deadlock siblings stay loud until separately measured.
-- [ ] Move `EnrollmentGuard` to the primitive, remove/rewrite its `KNOWN SIDE EFFECT`
+- [x] Move `EnrollmentGuard` to the primitive, remove/rewrite its `KNOWN SIDE EFFECT`
   docblock, and prove enrollment remains fail-closed.
-- [ ] Split the old combined assertion: primitive tests own set/readback/restore;
+- [x] Split the old combined assertion: primitive tests own set/readback/restore;
   `EnrollmentContentionTest` owns real held-lock liveness and refusal. Keep both.
-- [ ] Prove the shared throttle wait budget cannot be configured above one second;
+- [x] Prove the shared throttle wait budget cannot be configured above one second;
   EnrollmentGuard retains its separate configured five-second default.
-- [ ] Probe deleting the set call, deleting restoration, restoring a default instead
+- [x] Probe deleting the set call, deleting restoration, restoring a default instead
   of the prior value, widening the classifier, and removing EnrollmentGuard's use of
   the primitive.
 
 **Focused gate:** database primitive tests on all three engines plus the complete
 enrollment contention suite.
+
+**Recorded 2026-08-16:** 55 focused tests passed on each of file-backed SQLite,
+MySQL 8, and PostgreSQL 16 (92/94/94 assertions, no skips); PHPStan level 9 clean.
+All five named probes fail. PostgreSQL adds one measured nuance: after a statement
+failure aborts a transaction, an explicit restore is itself rejected with `25P02`.
+The bound is therefore transaction-local there; normal/nested exits restore
+explicitly, while rollback restores an aborted scope without masking its original
+query error. Ordinary 128M gate: 748 passed / 10 skipped / 2,502 assertions;
+PHPStan level 9 clean.
 
 **Commit:** `fix: restore database lock wait settings`
 

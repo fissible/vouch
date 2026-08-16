@@ -45,7 +45,7 @@ it('resolves every singleton the provider registers as one shared instance', fun
      * the class still resolves, just not as the shared instance the rest of the
      * request is using.
      *
-     * The dataset below named three of the provider's sixteen singletons while
+     * The dataset below once named three of the provider's singletons while
      * the test's name promised all of them, and the gap was not academic: the
      * mutation gate killed the three that were listed and left the other eight
      * registrations that nothing else covers surviving. Dropping any one of them
@@ -71,6 +71,8 @@ it('resolves every singleton the provider registers as one shared instance', fun
     \Fissible\Vouch\Flow\AuthFlow::class,
     \Fissible\Vouch\Sessions\SessionLifecycle::class,
     \Fissible\Vouch\Support\DatabaseTime::class,
+    \Fissible\Vouch\Support\BoundedLockWait::class,
+    \Fissible\Vouch\Support\LockContention::class,
     \Fissible\Vouch\Recovery\GraceGuard::class,
     // FlowResultHandler is NOT here: it needs a StatefulGuard, which the test
     // application does not bind. It has its own test below rather than being

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Fissible\Vouch\Enrollment\EnrollmentGuard;
 use Fissible\Vouch\Enrollment\EnrollmentRefusalReason;
 use Fissible\Vouch\Enrollment\EnrollmentRefused;
+use Fissible\Vouch\Support\LockContention;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Grammars\SQLiteGrammar;
 use Illuminate\Database\QueryException;
@@ -89,6 +90,17 @@ final class ClassifierProbeConnection extends Connection
         return true;
     }
 
+    /** @param  array<int|string, mixed>  $bindings */
+    public function scalar($query, $bindings = [], $useReadPdo = true): mixed
+    {
+        return match ($this->driver) {
+            'mysql' => 50,
+            'pgsql' => '0',
+            'sqlite' => 5_000,
+            default => throw new InvalidArgumentException('Unsupported database driver.'),
+        };
+    }
+
     /**
      * The call insertOrIgnore() makes.
      *
@@ -102,14 +114,19 @@ final class ClassifierProbeConnection extends Connection
 
 function classifierGuard(string $driver, string $sqlstate, ?int $driverCode): EnrollmentGuard
 {
-    $failure = new QueryException(
+    $failure = classifierException($sqlstate, $driverCode);
+
+    return new EnrollmentGuard(new ClassifierProbeConnection($driver, $failure), lockWaitSeconds: 5);
+}
+
+function classifierException(string $sqlstate, ?int $driverCode): QueryException
+{
+    return new QueryException(
         'probe',
         'insert or ignore into "auth_enrollment_locks" ("type", "user_id") values (?, ?)',
         ['password', 7],
         new ProbeDriverException($sqlstate, $driverCode),
     );
-
-    return new EnrollmentGuard(new ClassifierProbeConnection($driver, $failure), lockWaitSeconds: 5);
 }
 
 it('classifies each engine documented contention code as contention', function (string $driver, string $sqlstate, ?int $code): void {
@@ -142,11 +159,15 @@ it('rethrows anything it has not verified as contention', function (string $driv
     'mysql missing table' => ['mysql', '42S02', 1146],
     'pgsql missing table' => ['pgsql', '42P01', 7],
     'sqlite missing table' => ['sqlite', 'HY000', 1],
-    // MySQL's own contention code on an engine whose behaviour was never
-    // measured: the default arm must still refuse to guess.
-    'unknown engine' => ['oracle', 'HY000', 1205],
     'absent error info' => ['sqlite', 'HY000', null],
 ])->throws(QueryException::class);
+
+it('refuses to classify an engine whose contention behavior was never measured', function (): void {
+    $failure = classifierException('HY000', 1205);
+    $connection = new ClassifierProbeConnection('oracle', $failure);
+
+    expect((new LockContention())->isVerified($connection, $failure))->toBeFalse();
+});
 
 it('does not treat one engine contention code as another engine', function (): void {
     /*
