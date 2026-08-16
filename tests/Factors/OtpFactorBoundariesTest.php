@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Enrollment\EnrollmentGuard;
 use Fissible\Vouch\Factors\ChallengeRequest;
 use Fissible\Vouch\Factors\Drivers\EmailOtpFactor;
@@ -66,7 +67,12 @@ it('rejects an enrollment against an identifier that does not exist', function (
      * row that is not there -- a credential nothing can ever deliver to.
      */
     $delivery = new ArrayOtpDelivery();
-    $factor = new EmailOtpFactor(app(EnrollmentGuard::class), app(ClockInterface::class), $delivery);
+    $factor = new EmailOtpFactor(
+        app(EnrollmentGuard::class),
+        app(ClockInterface::class),
+        $delivery,
+        app(AuthThrottleStore::class),
+    );
 
     expect(fn () => $factor->enroll(7, ['identifier_id' => 999_999]))
         ->toThrow(InvalidArgumentException::class, 'Identifier 999999 does not exist.');
@@ -78,7 +84,12 @@ it('reports no credential when there is no challenge to verify against', functio
      * driver dereferences null on a public code path -- a 500 where a refusal
      * belongs, and one an attacker can trigger at will.
      */
-    $factor = new EmailOtpFactor(app(EnrollmentGuard::class), app(ClockInterface::class), new ArrayOtpDelivery());
+    $factor = new EmailOtpFactor(
+        app(EnrollmentGuard::class),
+        app(ClockInterface::class),
+        new ArrayOtpDelivery(),
+        app(AuthThrottleStore::class),
+    );
 
     $result = $factor->verify(new VerificationRequest(otpAttemptFor(), ['code' => '123456']));
 
@@ -93,7 +104,12 @@ it('issues codes of its documented default length and lifetime', function (): vo
      */
     $clock = new SteppableClock(new DateTimeImmutable('2026-08-13T12:00:00+00:00'));
     $delivery = new ArrayOtpDelivery();
-    $factor = new EmailOtpFactor(app(EnrollmentGuard::class), $clock, $delivery);
+    $factor = new EmailOtpFactor(
+        app(EnrollmentGuard::class),
+        $clock,
+        $delivery,
+        app(AuthThrottleStore::class),
+    );
 
     $factor->enroll(7, ['identifier_id' => otpIdentifierFor()->id]);
     $challenge = $factor->challenge(new ChallengeRequest(otpAttemptFor()));
@@ -113,7 +129,14 @@ it('treats a code as expired at its expiry instant, not one second after', funct
      */
     $clock = new SteppableClock(new DateTimeImmutable('2026-08-13T12:00:00+00:00'));
     $delivery = new ArrayOtpDelivery();
-    $factor = new EmailOtpFactor(app(EnrollmentGuard::class), $clock, $delivery, 6, 120);
+    $factor = new EmailOtpFactor(
+        app(EnrollmentGuard::class),
+        $clock,
+        $delivery,
+        app(AuthThrottleStore::class),
+        6,
+        120,
+    );
 
     $factor->enroll(7, ['identifier_id' => otpIdentifierFor()->id]);
     $attempt = otpAttemptFor();
@@ -143,7 +166,12 @@ it('never reports aal3-eligible attributes for an emailed code', function (): vo
      */
     $clock = new SteppableClock(new DateTimeImmutable('2026-08-13T12:00:00+00:00'));
     $delivery = new ArrayOtpDelivery();
-    $factor = new EmailOtpFactor(app(EnrollmentGuard::class), $clock, $delivery);
+    $factor = new EmailOtpFactor(
+        app(EnrollmentGuard::class),
+        $clock,
+        $delivery,
+        app(AuthThrottleStore::class),
+    );
 
     $factor->enroll(7, ['identifier_id' => otpIdentifierFor()->id]);
     $attempt = otpAttemptFor();

@@ -251,7 +251,89 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
 
     public function recordChallengeFailure(int $challengeId): ChallengeAttemptDecision
     {
-        throw new BadMethodCallException('Challenge-attempt invalidation is implemented in Task 13.');
+        return $this->connection->transaction(function () use ($challengeId): ChallengeAttemptDecision {
+            $grammar = $this->connection->getQueryGrammar();
+            $table = $grammar->wrapTable('auth_challenges');
+            $id = $grammar->wrap('id');
+            $attempts = $grammar->wrap('attempts');
+            $consumedAt = $grammar->wrap('consumed_at');
+            $expiresAt = $grammar->wrap('expires_at');
+            $updatedAt = $grammar->wrap('updated_at');
+            $limit = $this->configuration->challengeAttempts;
+
+            /*
+             * Increment and terminal invalidation are one database operation.
+             * A PHP read-increment-write lets a burst of concurrent guesses all
+             * observe the same count and collapse into one; that is the exact
+             * workload this boundary exists to withstand. Starting with UPDATE
+             * also claims SQLite's writer lock before any state-bearing read.
+             */
+            $affected = $this->connection->update(
+                "UPDATE {$table} SET "
+                . "{$consumedAt} = CASE WHEN {$attempts} + 1 >= ? "
+                . "THEN CURRENT_TIMESTAMP ELSE {$consumedAt} END, "
+                // MySQL evaluates assignments left-to-right. Keep the CASE
+                // before the increment so every engine tests the OLD count;
+                // reversing these two makes MySQL invalidate at four.
+                . "{$attempts} = {$attempts} + 1, "
+                . "{$updatedAt} = CURRENT_TIMESTAMP "
+                . "WHERE {$id} = ? AND {$consumedAt} IS NULL "
+                . "AND {$expiresAt} > CURRENT_TIMESTAMP AND {$attempts} < ?",
+                [$limit, $challengeId, $limit],
+            );
+
+            if ($affected === 0) {
+                $raw = $this->connection->table('auth_challenges')
+                    ->where('id', $challengeId)
+                    ->lockForUpdate()
+                    ->first(['consumed_at']);
+
+                if ($raw === null) {
+                    return ChallengeAttemptDecision::Unavailable;
+                }
+
+                $row = (array) $raw;
+
+                if (($row['consumed_at'] ?? null) !== null) {
+                    return ChallengeAttemptDecision::Consumed;
+                }
+
+                $expired = $this->connection->table('auth_challenges')
+                    ->where('id', $challengeId)
+                    ->where('expires_at', '<=', $this->time->now())
+                    ->exists();
+
+                return $expired
+                    ? ChallengeAttemptDecision::Expired
+                    : ChallengeAttemptDecision::Unavailable;
+            }
+
+            if ($affected !== 1) {
+                throw new RuntimeException(
+                    'The challenge-attempt update did not affect exactly one row.',
+                );
+            }
+
+            $raw = $this->connection->table('auth_challenges')
+                ->where('id', $challengeId)
+                ->lockForUpdate()
+                ->first(['attempts', 'consumed_at']);
+
+            if ($raw === null) {
+                throw new RuntimeException('The challenge vanished after its atomic attempt update.');
+            }
+
+            $row = (array) $raw;
+            $count = $row['attempts'] ?? null;
+
+            if (! is_int($count) || $count < 1 || $count > $limit) {
+                throw new RuntimeException('The database returned an invalid challenge-attempt count.');
+            }
+
+            return $row['consumed_at'] === null
+                ? ChallengeAttemptDecision::Remaining
+                : ChallengeAttemptDecision::Invalidated;
+        });
     }
 
     public function permitIssuance(ThrottleSubject $issuance): IssuancePermission

@@ -747,19 +747,40 @@ ordinary gate: **906 passed / 22 skipped / 3,035 assertions**; PHPStan level 9 c
 - Test: `tests/Concurrency/ChallengeAttemptContentionTest.php`
 - Modify: `docs/superpowers/mutation/2026-08-15-matrix-rulings.md`
 
-- [ ] Keep one database writer for challenge state. Do not let the driver and two stores
+- [x] Keep one database writer for challenge state. Do not let the driver and two stores
   independently write `attempts`/`consumed_at`.
-- [ ] Allow at most five guesses: after the fifth failed comparison, invalidate the
+- [x] Allow at most five guesses: after the fifth failed comparison, invalidate the
   challenge. A correct fifth guess may succeed; a sixth request cannot verify.
-- [ ] Increment/invalidate atomically under concurrent wrong/correct submissions. A
+- [x] Increment/invalidate atomically under concurrent wrong/correct submissions. A
   challenge cap never writes identifier lock state.
-- [ ] Keep expired, consumed, wrong-attempt, and binding-mismatch outcomes distinct
+- [x] Keep expired, consumed, wrong-attempt, and binding-mismatch outcomes distinct
   internally while preserving posture-shaped output.
-- [ ] Prove the cast and integer boundary on all engines, then re-rule
+- [x] Prove the cast and integer boundary on all engines, then re-rule
   `AuthChallenge:39` by expression. The cast itself may remain equivalent on current
   PDO drivers; the SQL update—not the cast—is the security mechanism.
-- [ ] Probe off-by-one in both directions, non-atomic PHP increment, failure to consume,
+- [x] Probe off-by-one in both directions, non-atomic PHP increment, failure to consume,
   and resetting attempts on resend.
+
+**Implemented 2026-08-16.** The one writer performs increment and terminal
+invalidation in one conditional SQL update, then reads the result before releasing
+the row. The cross-engine gate caught MySQL's left-to-right `SET` evaluation: placing
+the increment before the terminal `CASE` invalidated at four on MySQL while SQLite
+and PostgreSQL correctly invalidated at five. The terminal assignment now precedes
+the increment so every engine evaluates the old count.
+
+Two wrong children released against one parent-held row produce exactly Remaining +
+Invalidated. A simultaneous fifth wrong guess and correct consume are mutually
+exclusive: either the wrong guess invalidates and the transition refuses, or the
+transition consumes and the wrong writer observes Consumed. Both children are proven
+blocked before the parent releases the row. A caller-supplied challenge model is
+re-read before verification, so a stale pre-consumption object cannot claim success
+and defer the refusal to the later mutation.
+
+Focused gate: **9 passed / 67 assertions** on each of file-backed SQLite, MySQL 8,
+and PostgreSQL 16. The probes independently kill early and late off-by-one, missing
+terminal consumption, PHP read-modify-write collapse, resend reset, and removal of
+the authoritative challenge re-read. Ordinary gate: **913 passed / 24 skipped /
+3,091 assertions**; PHPStan level 9 clean.
 
 **Focused gate:** OTP factor/store tests and real-engine concurrent challenge tests.
 

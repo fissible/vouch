@@ -9,5 +9,7 @@ enum ChallengeAttemptDecision
 {
     case Remaining;
     case Invalidated;
+    case Expired;
+    case Consumed;
     case Unavailable;
 }

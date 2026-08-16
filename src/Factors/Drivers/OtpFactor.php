@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Factors\Drivers;
 
 use Fissible\Vouch\Attempts\Mutations\ConsumeChallenge;
+use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Contracts\Factor;
 use Fissible\Vouch\Contracts\OtpDelivery;
+use Fissible\Vouch\Contracts\RandomSource;
 use Fissible\Vouch\Enrollment\EnrollmentGuard;
 use Fissible\Vouch\Factors\ChallengeRequest;
 use Fissible\Vouch\Factors\EnrollmentResult;
@@ -18,9 +20,9 @@ use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
 use Fissible\Vouch\Models\AuthChallenge;
 use Fissible\Vouch\Models\AuthCredential;
-use Fissible\Vouch\Contracts\RandomSource;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Support\SystemRandomSource;
+use Fissible\Vouch\Throttle\ChallengeAttemptDecision;
 use Illuminate\Support\Facades\Hash;
 use InvalidArgumentException;
 use Psr\Clock\ClockInterface;
@@ -53,6 +55,7 @@ abstract readonly class OtpFactor implements Factor
         protected EnrollmentGuard $guard,
         protected ClockInterface $clock,
         protected OtpDelivery $delivery,
+        protected AuthThrottleStore $throttle,
         protected int $length = 6,
         protected int $ttlSeconds = 120,
         // See RecoveryCodeFactor: injected so the digit range is testable at
@@ -269,6 +272,18 @@ abstract readonly class OtpFactor implements Factor
             return FactorResult::failed(FactorFailure::NoCredential);
         }
 
+        /*
+         * A caller-supplied Eloquent model is only a locator, never authority.
+         * It may predate another request consuming or invalidating the row. A
+         * stale object must not make verify() claim satisfaction and defer the
+         * refusal to the later ConsumeChallenge mutation.
+         */
+        $challenge = AuthChallenge::query()->find($challenge->id);
+
+        if (! $challenge instanceof AuthChallenge) {
+            return FactorResult::failed(FactorFailure::NoCredential);
+        }
+
         if ($challenge->attempt_id !== $request->attempt->id || $challenge->factor_type !== $this->id()) {
             return FactorResult::failed(FactorFailure::BindingMismatch);
         }
@@ -320,6 +335,20 @@ abstract readonly class OtpFactor implements Factor
         }
 
         if (! Hash::check($submitted, $challenge->code_hash)) {
+            $decision = $this->throttle->recordChallengeFailure($challenge->id);
+
+            if ($decision === ChallengeAttemptDecision::Consumed) {
+                return FactorResult::failed(FactorFailure::Consumed);
+            }
+
+            if ($decision === ChallengeAttemptDecision::Expired) {
+                return FactorResult::failed(FactorFailure::Expired);
+            }
+
+            if ($decision === ChallengeAttemptDecision::Unavailable) {
+                return FactorResult::failed(FactorFailure::NoCredential);
+            }
+
             return FactorResult::failed(FactorFailure::Mismatch);
         }
 

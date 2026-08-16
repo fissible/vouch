@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Enrollment\EnrollmentGuard;
 use Fissible\Vouch\Factors\Drivers\EmailOtpFactor;
 use Fissible\Vouch\Factors\Drivers\PasswordFactor;
@@ -55,6 +56,7 @@ function otpDriver(int $length = 6, int $ttlSeconds = 120): EmailOtpFactor
         app(EnrollmentGuard::class),
         app(ClockInterface::class),
         new ArrayOtpDelivery(),
+        app(AuthThrottleStore::class),
         $length,
         $ttlSeconds,
     );
@@ -72,6 +74,7 @@ function otpCodesFrom(int $length, int $times): array
         app(EnrollmentGuard::class),
         app(ClockInterface::class),
         $delivery,
+        app(AuthThrottleStore::class),
         $length,
         120,
     );
@@ -273,6 +276,7 @@ it('draws otp digits from zero', function (): void {
         app(EnrollmentGuard::class),
         app(ClockInterface::class),
         $delivery,
+        app(AuthThrottleStore::class),
         6,
         120,
         $random,

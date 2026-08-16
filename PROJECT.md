@@ -1282,6 +1282,37 @@ shared-first writes. Focused gate: **66 passed / 170 assertions**. The 13-test f
 integration file passes with **39 assertions** on SQLite, MySQL 8, and PostgreSQL 16;
 ordinary gate: **906 passed / 22 skipped / 3,035 assertions**; PHPStan level 9 clean.
 
+### Task 13 OTP challenge-attempt cap — 2026-08-16
+
+Wrong OTP submissions now advance one database-owned per-challenge counter. The
+fifth failed comparison atomically writes `attempts = 5` and `consumed_at`; a
+correct fifth guess may still be consumed through the attempt transition, while a
+sixth request cannot verify. Malformed, expired, consumed, and binding-mismatched
+submissions remain distinct and do not masquerade as charged wrong guesses. This
+state never writes identifier lock records.
+
+Increment and invalidation are one conditional SQL update rather than a PHP
+read-modify-write. A held-row two-process race proves two simultaneous wrong guesses
+cannot collapse and proves a fifth wrong guess is mutually exclusive with the
+existing atomic `ConsumeChallenge` transition. The matrix found one engine-specific
+defect before commit: MySQL evaluates `UPDATE ... SET` assignments left-to-right, so
+incrementing before the terminal `CASE` invalidated at four there. Evaluating the
+terminal decision before incrementing makes the pre-write count authoritative on all
+three engines.
+
+Any named `AuthChallenge` is re-read from persistence before verification. A stale
+pre-consumption Eloquent object can no longer produce a satisfied factor after
+another request consumed or invalidated its row. Resend creates a new zero-count
+challenge without resetting the previous row's evidence.
+
+`AuthChallenge::$attempts` has therefore been re-ruled: its Eloquent integer cast
+remains runtime-equivalent on the current three PDO drivers, but the old "no
+consumer" premise is retired. SQL arithmetic and terminal consumption are the
+security mechanisms, and raw/model integer shape is pinned so a driver change
+reopens the cast ruling loudly. Focused gate: **9 passed / 67 assertions** on each
+of file-backed SQLite, MySQL 8, and PostgreSQL 16. Ordinary gate: **913 passed /
+24 skipped / 3,091 assertions**; PHPStan level 9 clean.
+
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP
 parent/marker protocol → six-cell three-engine race matrix → flow integration →

@@ -49,12 +49,22 @@ integer column, which both engines coerce; the cast never enters into it.
 
 ### `AuthChallenge:39` — `attempts` → integer · **equivalent**
 
-Same driver evidence, and a stronger independent reason: `attempts` **has no
-consumer anywhere in `src/`**. Nothing reads it, increments it, or compares it to
-a threshold. The classification doc justified this row as "the OTP attempt
-counter — uncast, increments and threshold comparisons become string
-operations", but that logic does not exist yet. When it is written it will need
-its own tests; the cast is not what would protect it.
+Phase 2.3b has now given `attempts` its first production writer and threshold:
+`DatabaseAuthThrottleStore::recordChallengeFailure()`. The prior stronger
+premise — that no consumer existed — is retired.
+
+The ruling remains equivalent for a narrower measured reason. Every security
+operation is SQL arithmetic and comparison against the integer column; no
+production decision reads `AuthChallenge::$attempts` through Eloquent. The
+three-engine premise test now writes and reads an `auth_challenges.attempts`
+value through both the raw query builder and the model. All current PDO drivers
+return a native int before the cast applies. Removing the cast changes the
+model's declared shape but not its runtime value on any supported engine.
+
+The cast is therefore not the control. The atomic SQL update, exact fifth-guess
+boundary, terminal `consumed_at` write, and wrong/correct races are tested on
+file-backed SQLite, MySQL, and PostgreSQL. A driver upgrade that starts returning
+numeric strings reopens this ruling through the raw-value premise test.
 
 ### `AuthCredential:57` — `last_used_timestep` → integer · **equivalent**
 
