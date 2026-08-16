@@ -95,6 +95,14 @@ load balancer into one bucket, while over-trust permits forged forwarding header
 When no IP is available, the IP dimension is skipped rather than sharing an
 `unknown` bucket that an attacker could use for a global lockout.
 
+IPv4-address and IPv6-`/64` buckets are distinct configuration dimensions, not two
+encodings of one limit. An IPv6 `/64` is commonly one subscriber, while one public
+IPv4 address behind NAT or CGNAT may represent thousands of unrelated users. Applying
+one threshold to both would systematically give the IPv4 path the larger collateral
+denial surface. Both remain backoff-only, but IPv4 therefore requires a more generous
+threshold than IPv6 `/64`, and both backoff caps remain measured in seconds rather
+than minutes so an advisory shared bucket cannot become a lockout in effect.
+
 This rule applies to the existing OTP challenge binding as well. `OtpFactor` may use
 the captured IP as an advisory mismatch check, but it must not grant identity or
 assurance, nor become a lockout authority. Its operational strength depends on the
@@ -199,7 +207,11 @@ requires real three-engine contention tests.
 
 Locks are duration-bounded. Time expiry is 2.3b's documented sufficient unlock path;
 there is no administrative unlock before 2.4 can make that security-relevant action
-auditable. Expiry must be enforced on the request path, never by `vouch:prune`.
+auditable. The configured duration defaults to 900 seconds and may not exceed 3600
+seconds: that is the maximum time a legitimate user may be stranded while no audited
+operator escape exists. A larger value fails at boot and names the 2.4 audited-unlock
+dependency; it is never silently clamped. Expiry must be enforced on the request
+path, never by `vouch:prune`.
 
 While a derived backoff or stored lock is active, preflight refuses before credential
 verification. That refusal does not increment a counter or extend any deadline;
@@ -220,10 +232,12 @@ successful authentication may reset identifier-specific and `(IP, identifier)`
 state for that subject; it never resets shared IP, tenant, global, or issuance-volume
 state, because one successful account must not erase aggregate abuse.
 
-## Security budgets and provisional defaults
+## Security budgets and defaults
 
-The constraints below are normative; the numbers are starting defaults for
-adversarial review.
+The explicit worst-case target is a successful online guess probability no greater
+than `10^-4` per submitted identifier across a fixed-window boundary for any current
+six-digit OTP or TOTP factor. The constraints and adopted defaults below are
+normative. Shared-dimension numeric limits remain open where explicitly marked.
 
 OTP guessing has a multiplicative budget. With a six-digit code, challenge-attempt
 cap `N = 5`, and issuance cap `M = 5`, the nominal budget is `M × N = 25` guesses
@@ -247,23 +261,43 @@ justified by an OTP-only challenge cap.
 | Backoff base | 2 | Exponential, derived rather than stored |
 | Initial backoff | 1 second | First penalty at `backoff_after` |
 | Backoff cap | 60 seconds | Must be less than or equal to the counter window |
-| Lock duration | 900 seconds | Wait-out-able; administrative unlock waits for 2.4 audit |
+| Lock duration | 900 seconds; maximum 3600 | Wait-out-able; larger values fail at boot and require 2.4's audited unlock |
 | Challenge attempts | 5 | Per challenge; exhaustion invalidates that challenge |
 | Issuances per identifier | 5 per 900 seconds | Multiplies with challenge attempts; first identify/issuance counts once |
-| IP / tuple | Unresolved, higher and backoff-only | Must tolerate NAT/CGNAT; never locks an identifier |
-| Tenant / global | Unresolved, high and refusal-only | Operational load shedding; never reported as account lockout |
+| Identifier + IP tuple | Numeric limit unresolved; fairly tight and backoff/refusal-only | Collision requires both subjects; never locks an identifier |
+| IPv6 `/64` | Numeric limit unresolved; moderate and backoff-only | Usually one subscriber; cap remains seconds, never an account lock |
+| IPv4 address | Numeric limit unresolved; generous and backoff-only | Must tolerate NAT/CGNAT populations; threshold must exceed IPv6 `/64` |
+| Tenant | Disabled (`null`) | Opt-in, very-high refusal-only load shedding; never reported as account lockout |
+| Global | Disabled (`null`) | Opt-in circuit breaker with the widest blast radius; never reported as account lockout |
+| Throttle prune retention | 86400 seconds | Must be at least `window_seconds + maximum_lock_duration_seconds` |
 
-Configuration is global in 2.3b, following the existing integer environment-backed
-package config. Per-tenant tuning is deferred: tenant is a counter dimension now, not
-a second configuration resolver and storage system in this phase.
+Configuration is global in 2.3b, following the existing environment-backed package
+config; every enabled numeric limit is an integer, while tenant and global thresholds
+may be `null` to remain disabled. Per-tenant tuning is deferred: tenant is a counter
+dimension now, not a second configuration resolver and storage system in this phase.
 
 Validation is relational and fail-loud. In addition to positive integer/type checks:
 `backoff_after < lock_after`, `backoff_cap_seconds <= window_seconds`, and throttle
-prune retention must be at least `window_seconds + lock_duration_seconds`. Lock
-duration also needs an enforced v1 upper bound measured in minutes; its exact maximum,
-the prune-retention default, and the IP/tuple/tenant/global thresholds remain open and
-must be decided before the implementation plan. Longer operator-managed locks require
-2.4's audited administrative unlock rather than a large 2.3b config value.
+prune retention must be at least `window_seconds +
+maximum_lock_duration_seconds`. Lock duration greater than 3600 seconds fails at boot
+and names 2.4's audited administrative-unlock dependency. Tenant and global limits
+accept `null` as disabled rather than inventing a dangerously broad default. The
+identifier-plus-IP, IPv6-`/64`, and IPv4 numeric thresholds remain open and must be
+decided before the implementation plan.
+
+Blast radius and aggressiveness are inversely proportional. Identifier state affects
+one account and may progress from backoff to lock. Tuple state requires both subjects
+to collide and may refuse work. IPv6 `/64` and especially shared IPv4 buckets receive
+only short backoff, with the IPv4 threshold higher. Tenant and global controls can
+refuse work only when an operator explicitly enables their high thresholds. No shared
+dimension may write lock state or present a populated `lockedUntil`.
+
+Equalized increments intentionally let an attacker grow the table and drive shared
+dimensions using submitted identifiers that do not exist. That is the accepted cost
+of closing the counter-state account-existence channel. Dedicated pruning bounds the
+storage consequence; disabled-by-default widest buckets, generous shared thresholds,
+short backoff caps, and the prohibition on shared lock authority bound the collateral
+denial consequence.
 
 ## Inherited mutation re-ruling
 
