@@ -224,6 +224,94 @@ it('lets a shared dimension back off without fabricating identifier lock state',
         ->and($result->screen->retry?->retryAfter)->toBe($retryAfter);
 });
 
+it('returns the first measured shared failure backoff when identifier state remains permitted', function (): void {
+    $first = new DateTimeImmutable('2026-08-16T12:00:05Z');
+    $later = new DateTimeImmutable('2026-08-16T12:00:10Z');
+    $store = new RecordingAuthThrottleStore();
+    $store->recordSharedResults = [
+        SharedThrottle::backedOff($first),
+        SharedThrottle::backedOff($later),
+    ];
+    $flow = authThrottleFlow($store);
+    $handle = authThrottleIdentified($flow, 'ada@acme.example', 'shared-order', null);
+    $result = authThrottleSubmit(
+        $flow,
+        $handle,
+        ['password' => 'wrong'],
+        'shared-order',
+        ip: null,
+    );
+    assert($result instanceof Continuing);
+
+    expect($result->screen->retry?->retryAfter)->toBe($first)
+        ->and(array_column($store->calls, 'operation'))->toBe([
+            'preflightIdentifier',
+            'preflightShared',
+            'preflightShared',
+            'recordIdentifierFailure',
+            'recordSharedFailure',
+            'recordSharedFailure',
+        ]);
+});
+
+it('gives recovery backoff precedence over later advisory shared state', function (): void {
+    app(\Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor::class)->enroll(7, []);
+    $recoveryDeadline = new DateTimeImmutable('2026-08-16T12:00:05Z');
+    $sharedDeadline = new DateTimeImmutable('2026-08-16T12:00:10Z');
+    $store = new RecordingAuthThrottleStore();
+    $store->recordRecoveryResult = SharedThrottle::backedOff($recoveryDeadline);
+    $store->recordIpResult = SharedThrottle::backedOff($sharedDeadline);
+    $store->recordSharedResult = SharedThrottle::backedOff($sharedDeadline);
+    $flow = authThrottleFlow($store);
+    $handle = authThrottleIdentified($flow, 'ada@acme.example', 'recovery-order');
+    $result = authThrottleSubmit(
+        $flow,
+        $handle,
+        ['code' => 'not-a-code'],
+        'recovery-order',
+        'recover',
+    );
+    assert($result instanceof Continuing);
+
+    expect($result->screen->retry?->retryAfter)->toBe($recoveryDeadline);
+});
+
+it('stops at recovery preflight backoff before any other dimension or verification', function (): void {
+    $retryAfter = new DateTimeImmutable('2026-08-16T12:00:05Z');
+    $store = new RecordingAuthThrottleStore();
+    $store->preflightSharedResult = SharedThrottle::backedOff($retryAfter);
+    $flow = authThrottleFlow($store);
+    $handle = authThrottleIdentified($flow, 'ada@acme.example', 'recovery-preflight');
+    $result = authThrottleSubmit(
+        $flow,
+        $handle,
+        ['code' => 'not-a-code'],
+        'recovery-preflight',
+        'recover',
+    );
+    assert($result instanceof Continuing);
+
+    expect(array_column($store->calls, 'operation'))->toBe(['preflightShared'])
+        ->and($result->screen->retry?->retryAfter)->toBe($retryAfter);
+});
+
+it('fails closed when a pending attempt has lost its submitted identifier', function (): void {
+    $store = new RecordingAuthThrottleStore();
+    $flow = authThrottleFlow($store);
+    $handle = authThrottleIdentified($flow, 'ada@acme.example', 'lost-identifier');
+    AuthAttempt::query()->where('handle', $handle)->update(['identifier' => null]);
+
+    $result = authThrottleSubmit(
+        $flow,
+        $handle,
+        ['password' => 'a-real-password'],
+        'lost-identifier',
+    );
+
+    expect($result)->toBeInstanceOf(Continuing::class)
+        ->and(array_column($store->calls, 'operation'))->toBe([]);
+});
+
 it('couples the no-credential equalizer branch to identifier recording', function (): void {
     AuthPolicy::query()->update(['document' => ['any_of' => ['totp']]]);
     AuthCredential::create([

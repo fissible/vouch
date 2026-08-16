@@ -9,6 +9,7 @@ use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Persistence\ChallengeTargetViolation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -53,6 +54,40 @@ function makeChallenge(array $overrides = []): AuthChallenge
         'expires_at' => now()->addMinutes(2),
     ], $overrides));
 }
+
+it('uses the explicit non-target sentinel while equalizing a decoy lookup', function (): void {
+    $attempt = targetAttempt();
+    targetCredential();
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    try {
+        makeChallenge([
+            'attempt_id' => $attempt->id,
+            'credential_id' => null,
+            'is_decoy' => true,
+        ]);
+        $queries = DB::getQueryLog();
+    } finally {
+        DB::disableQueryLog();
+    }
+
+    $credentialLookups = array_values(array_filter(
+        $queries,
+        static fn (array $query): bool => str_contains($query['query'], 'auth_credentials')
+            && str_starts_with(strtolower(ltrim($query['query'])), 'select'),
+    ));
+    $attemptLookups = array_values(array_filter(
+        $queries,
+        static fn (array $query): bool => str_contains($query['query'], 'auth_attempts')
+            && str_starts_with(strtolower(ltrim($query['query'])), 'select'),
+    ));
+
+    expect($credentialLookups)->toHaveCount(1)
+        ->and($credentialLookups[0]['bindings'])->toContain(0)
+        ->and($attemptLookups)->toHaveCount(1)
+        ->and($attemptLookups[0]['bindings'])->toContain($attempt->id);
+});
 
 it('records the credential an otp challenge was delivered against', function (): void {
     $attempt = targetAttempt();

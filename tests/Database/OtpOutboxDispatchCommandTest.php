@@ -8,8 +8,14 @@ use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Models\AuthChallenge;
 use Fissible\Vouch\Models\AuthChallengeOutbox;
 use Fissible\Vouch\Notifications\OtpOutboxStatus;
+use Fissible\Vouch\Notifications\OtpQueueDispatcher;
+use Fissible\Vouch\Support\DatabaseTime;
+use Illuminate\Contracts\Queue\Factory;
+use Illuminate\Contracts\Queue\Queue as QueueContract;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Queue\SyncQueue;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Carbon;
 
@@ -64,4 +70,51 @@ it('redispatches stale live rows by database time and skips expired rows', funct
     Queue::assertPushedTimes(DeliverOtpChallenge::class, 1);
     Queue::assertPushed(DeliverOtpChallenge::class, fn (DeliverOtpChallenge $job): bool =>
         $job->outboxId === $live->opaque_id);
+});
+
+it('redispatches exactly at the stale deadline but not one second before it', function (): void {
+    $stale = dispatchableOutbox();
+    $fresh = dispatchableOutbox();
+    $time = app(DatabaseTime::class);
+
+    DB::update(
+        'UPDATE auth_challenge_outbox SET dispatched_at = '
+        . $time->deadlineSqlHere()
+        . ' WHERE id = ?',
+        [-60, $stale->id],
+    );
+    DB::update(
+        'UPDATE auth_challenge_outbox SET dispatched_at = '
+        . $time->deadlineSqlHere()
+        . ' WHERE id = ?',
+        [-59, $fresh->id],
+    );
+    Queue::fake();
+
+    expect(Artisan::call('vouch:otp-outbox:dispatch'))->toBe(0)
+        ->and(Artisan::output())->toContain('Dispatched 1 pending OTP outbox row(s).');
+
+    Queue::assertPushed(DeliverOtpChallenge::class, fn (DeliverOtpChallenge $job): bool =>
+        $job->outboxId === $stale->opaque_id);
+    Queue::assertNotPushed(DeliverOtpChallenge::class, fn (DeliverOtpChallenge $job): bool =>
+        $job->outboxId === $fresh->opaque_id);
+});
+
+it('rejects a synchronous queue even when there is no pending work', function (): void {
+    $queues = new class implements Factory
+    {
+        public function connection($name = null): QueueContract
+        {
+            return new SyncQueue();
+        }
+    };
+    app()->instance(OtpQueueDispatcher::class, new OtpQueueDispatcher(
+        $queues,
+        app(DatabaseTime::class),
+        'inline',
+        'vouch-otp',
+    ));
+
+    expect(fn (): int => Artisan::call('vouch:otp-outbox:dispatch'))
+        ->toThrow(InvalidArgumentException::class, 'durable asynchronous queue');
 });

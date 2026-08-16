@@ -154,16 +154,26 @@ it('commits a verifiable challenge and encrypted outbox without delivering inlin
 
     $challenge = $factor->challenge(new ChallengeRequest($attempt));
     $outbox = AuthChallengeOutbox::query()->firstOrFail();
+    $identifier = AuthIdentifier::query()->sole();
     $payload = requiredOutboxPayload($outbox);
     $rawPayload = requiredRawOutboxPayload();
+    $verifiedAt = $identifier->verified_at?->toISOString();
 
-    expect($challenge)->toBeInstanceOf(AuthChallenge::class)
+    expect($verifiedAt)->toBeString()
+        ->and($challenge)->toBeInstanceOf(AuthChallenge::class)
         ->and($delivery->sent)->toBe([])
         ->and($outbox->opaque_id)->toHaveLength(64)
         ->and($outbox->opaque_id)->toMatch('/^[a-f0-9]{64}$/')
         ->and($outbox->dispatched_at)->not->toBeNull()
         ->and($outbox->expires_at->getTimestamp())->toBe($challenge?->expires_at->getTimestamp())
-        ->and($payload['code'])->toBeString()->toHaveLength(6);
+        ->and($payload['code'])->toBeString()->toHaveLength(6)
+        ->and($payload['target'])->toBe([
+            'id' => $identifier->id,
+            'user_id' => 7,
+            'type' => 'email',
+            'value' => 'outbox@acme.example',
+            'verified_at' => $verifiedAt,
+        ]);
 
     expect($rawPayload)->not->toContain($payload['code'])
         ->and($rawPayload)->not->toContain('outbox@acme.example');
@@ -264,7 +274,11 @@ it('delivers the stored code once and immediately redacts the terminal row', fun
         'updated_at' => $before,
     ]);
 
-    app(OtpOutboxDelivery::class)->deliver($outbox->opaque_id);
+    $job = new DeliverOtpChallenge($outbox->opaque_id);
+
+    expect($job->tries)->toBe(5);
+
+    $job->handle(app(OtpOutboxDelivery::class));
 
     $terminal = $outbox->refresh();
 
@@ -274,6 +288,25 @@ it('delivers the stored code once and immediately redacts the terminal row', fun
         ->and($terminal->payload)->toBeNull()
         ->and($terminal->delivered_at)->not->toBeNull()
         ->and($terminal->updated_at->greaterThan($before))->toBeTrue();
+});
+
+it('terminalizes a non-decoy payload whose immutable target is absent', function (): void {
+    [$factor, $attempt, $delivery] = outboxFixture();
+    $factor->challenge(new ChallengeRequest($attempt));
+    $outbox = AuthChallengeOutbox::query()->firstOrFail();
+    $payload = requiredOutboxPayload($outbox);
+    $outbox->update(['payload' => [
+        'target' => null,
+        'code' => $payload['code'],
+        'decoy' => false,
+    ]]);
+
+    app(OtpOutboxDelivery::class)->deliver($outbox->opaque_id);
+
+    expect($outbox->refresh()->status)->toBe(OtpOutboxStatus::Undeliverable->value)
+        ->and($outbox->payload)->toBeNull()
+        ->and($outbox->undeliverable_at)->not->toBeNull()
+        ->and($delivery->sent)->toBe([]);
 });
 
 it('retries the exact stored code without extending expiry or charging issuance again', function (): void {

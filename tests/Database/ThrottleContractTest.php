@@ -98,6 +98,15 @@ it('refuses a negative remaining-attempt count', function (string $factory): voi
     expect($call)->toThrow(InvalidArgumentException::class, 'cannot be negative');
 })->with(['permitted', 'backedOff']);
 
+it('permits exactly zero remaining attempts without fabricating a lock', function (): void {
+    $state = IdentifierThrottle::permitted(0);
+
+    expect($state->decision)->toBe(ThrottleDecision::Permitted)
+        ->and($state->attemptsRemaining)->toBe(0)
+        ->and($state->lockedUntil)->toBeNull()
+        ->and($state->retryAfter)->toBeNull();
+});
+
 it('makes shared state structurally incapable of carrying a lock or attempts', function (): void {
     $retryAfter = new DateTimeImmutable('2026-08-16 12:00:05');
     $states = [

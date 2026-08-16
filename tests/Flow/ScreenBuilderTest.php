@@ -40,9 +40,19 @@ it('offers an identifier field on the identify screen', function (): void {
 
 it('offers every registered factor on a challenge screen', function (): void {
     $screen = screenBuilder()->challenge('password', EnumerationPosture::Friendly);
+    $factors = array_map(
+        static fn (FactorOption $option): string => $option->factorId,
+        $screen->offeredFactors,
+    );
 
     expect($screen->step)->toBe(AuthStep::Challenge)
-        ->and($screen->offeredFactors)->not->toBeEmpty()
+        ->and($factors)->toBe([
+            'password',
+            'totp',
+            'email_otp',
+            'sms_otp',
+            'recovery_code',
+        ])
         ->and($screen->offeredFactors[0])->toBeInstanceOf(FactorOption::class);
 });
 
@@ -161,3 +171,18 @@ it('refuses to present shared throttle state as an identifier lock', function ()
         throttle: SharedThrottle::backedOff(new DateTimeImmutable('2026-08-16T12:00:05Z')),
     );
 })->throws(LogicException::class);
+
+it('refuses shared state that did not measure an active backoff', function (
+    SharedThrottle $throttle,
+): void {
+    expect(fn () => screenBuilder()->refused(
+        AuthStep::Challenge,
+        Outcome::CredentialRejected,
+        EnumerationPosture::Strict,
+        throttle: $throttle,
+    ))->toThrow(LogicException::class, 'only when that dimension measured an active backoff');
+})->with([
+    'observed' => [SharedThrottle::observed()],
+    'permitted' => [SharedThrottle::permitted()],
+    'skipped' => [SharedThrottle::skipped()],
+]);

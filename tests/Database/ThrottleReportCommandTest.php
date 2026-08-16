@@ -203,7 +203,16 @@ it('emits the same aggregate shape as JSON and human output', function (): void 
     $output = Artisan::output();
 
     expect($status)->toBe(0)
+        ->and($output)->toContain('Dimension')
+        ->and($output)->toContain('Active buckets')
+        ->and($output)->toContain('Thresholds')
+        ->and($output)->toContain('Distribution')
         ->and($output)->toContain('identifier')
+        ->and($output)->toContain('8')
+        ->and($output)->toContain('backoff=5 (5 crossed), lock=10 (4 crossed)')
+        ->and($output)->toContain('"zero":1')
+        ->and($output)->toContain('tenant')
+        ->and($output)->toContain('none')
         ->and($output)->toContain('OTP outbox: 1 pending, 1 overdue, 1 delivered, 1 undeliverable.');
 });
 

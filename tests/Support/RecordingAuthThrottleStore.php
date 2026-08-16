@@ -29,6 +29,9 @@ final class RecordingAuthThrottleStore implements AuthThrottleStore
 
     public ?SharedThrottle $recordSharedResult = null;
 
+    /** @var list<SharedThrottle> */
+    public array $recordSharedResults = [];
+
     public ?string $throwOnOperation = null;
 
     public function preflightIdentifier(ThrottleSubject $identifier): IdentifierThrottle
@@ -71,6 +74,10 @@ final class RecordingAuthThrottleStore implements AuthThrottleStore
     public function recordSharedFailure(ThrottleSubject $subject): SharedThrottle
     {
         $this->record(__FUNCTION__, $subject);
+
+        if ($this->recordSharedResults !== []) {
+            return array_shift($this->recordSharedResults);
+        }
 
         return $this->recordSharedResult ?? SharedThrottle::observed();
     }

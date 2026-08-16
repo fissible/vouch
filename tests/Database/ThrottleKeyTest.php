@@ -50,6 +50,13 @@ it('distinguishes an absent tenant from an empty tenant', function (): void {
         ->not->toBe(throttleDigest($keys->identifier('person@example.test', '')));
 });
 
+it('keeps each present tenant in a distinct throttle subject', function (): void {
+    $keys = throttleKey();
+
+    expect(throttleDigest($keys->identifier('person@example.test', 'tenant-a')))
+        ->not->toBe(throttleDigest($keys->identifier('person@example.test', 'tenant-b')));
+});
+
 it('frames segments so separator-looking values cannot collide', function (): void {
     expect(SessionBinding::forSegments(
         BindingDomain::ThrottleTenant,

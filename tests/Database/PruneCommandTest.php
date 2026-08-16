@@ -97,6 +97,19 @@ it('deletes revoked sessions past the retention window and keeps recent ones', f
         ->and(AuthSession::firstOrFail()->session_binding)->toBe(SessionBinding::for('recent', BindingDomain::Session));
 });
 
+it('accepts the minimum session retention and refuses zero', function (): void {
+    config(['vouch.sessions.revocation_retention_days' => 1]);
+
+    expect(Artisan::call('vouch:prune'))->toBe(0);
+
+    config(['vouch.sessions.revocation_retention_days' => 0]);
+
+    expect(Artisan::call('vouch:prune'))->toBe(1)
+        ->and(Artisan::output())->toContain(
+            'Configuration "vouch.sessions.revocation_retention_days" must be at least 1.',
+        );
+});
+
 it('never deletes a live session', function (): void {
     AuthSession::create([
         'session_binding' => SessionBinding::for('live', BindingDomain::Session), 'user_id' => 1, 'amr' => ['password'],

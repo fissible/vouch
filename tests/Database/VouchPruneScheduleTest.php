@@ -5,6 +5,17 @@ declare(strict_types=1);
 use Fissible\Vouch\Console\CommandExit;
 use Fissible\Vouch\Console\VouchPruneSchedule;
 
+it('pins the three-way command exit protocol', function (): void {
+    expect(array_map(
+        static fn (CommandExit $exit): array => [$exit->name, $exit->value],
+        CommandExit::cases(),
+    ))->toBe([
+        ['Success', 0],
+        ['Failure', 1],
+        ['DeliveryHealth', 2],
+    ]);
+});
+
 it('completes normally for a clean prune without sending a worker alert', function (): void {
     $alerts = [];
 
