@@ -649,6 +649,14 @@ controls, write and approve the narrow delivery-lifecycle amendment required bel
 - [ ] Set outbox expiry to the challenge's database-clock `expires_at`—120 seconds by
   default. Workers refuse expired payloads, retries cannot extend it, and cleanup does
   not inherit throttle retention. Encryption failure has no plaintext fallback.
+- [ ] Model redacted `pending`, `delivered`, and `undeliverable` states. Provider
+  acceptance clears encrypted payload immediately and marks delivered. Permanent
+  failure or expiry clears it and records undeliverable without retaining target
+  or credential data.
+- [ ] Treat a missing opaque outbox id as idempotent success with no retry. For a
+  present expired row, atomically clear payload, mark undeliverable, and return
+  success. Prove a backlog beyond 120 seconds produces neither failed-job rows nor a
+  retry loop.
 - [ ] Preserve the driver's no-silent-target rule. If multiple active delivery targets
   cannot be represented safely by the current ScreenSpec/request shape, stop this task
   and write the narrow design amendment; do not choose the first target, send to all,
@@ -701,13 +709,24 @@ controls, write and approve the narrow delivery-lifecycle amendment required bel
 - [ ] Prune tuple markers as soon as their own database-clock window completes. Do not
   inherit scalar retention and never prune persistent enrollment-lock rows.
 - [ ] Prune expired challenge-outbox payloads at their own `expires_at`. Prove the
-  encrypted credential is gone at the exact challenge deadline (120 seconds with the
-  current default) and no scalar/throttle retention setting can extend it.
+  credential is unusable at the exact challenge deadline (120 seconds with the current
+  default), ciphertext is gone by the next scheduled sweep, and no scalar/throttle
+  retention setting can extend either boundary.
+- [ ] Classify outbox rows before deletion. Report delivered-expired and
+  expired-undelivered separately, with every expired row not marked delivered in the
+  latter class; warn with the aggregate undelivered count and return non-zero when it
+  is positive. A sweep that silently deletes both classes fails.
+- [ ] Register and document a cleanup cadence of at most one minute. Prove delivery is
+  forbidden at the exact database deadline and physical ciphertext retention is
+  bounded by TTL plus one sweep interval. Name the host scheduler/worker requirement;
+  enqueue success is not worker-health evidence.
 - [ ] Extend prune output with exact counts for each security-record category. A silent
   deletion is not an operator record.
 - [ ] Add `vouch:throttle:report` with human and `--json` output containing only
   dimension, active bucket totals, histogram/distribution bands, and threshold-crossing
-  counts.
+  counts, plus aggregate current pending, overdue, delivered, and undeliverable
+  outbox health. It does not claim historical delivery telemetry after prune removes a
+  row; prune output/exit carries that event.
 - [ ] The command and underlying contract accept no identifier, IP, tenant, digest,
   generic subject, or arbitrary where/filter input. They emit no per-bucket row.
 - [ ] Test candidate-lookup absence structurally and behaviorally. Adding `--ip` or

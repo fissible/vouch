@@ -103,17 +103,51 @@ serialization, and tests read the raw database value to prove plaintext is absen
 
 Outbox expiry is the challenge's own `expires_at` (120 seconds with current OTP
 defaults), never the throttle table's 86400-second retention. Workers refuse expired
-rows and cleanup removes them at that deadline; retry/backoff cannot extend a code's
-validity or retain its recoverable payload. Rotation or loss of the encryption key
+rows at that exact deadline and cleanup removes them on the next scheduled sweep;
+retry/backoff cannot extend a code's validity. Rotation or loss of the encryption key
 fails closed—there is no plaintext fallback—and the row expires normally.
+
+The redacted row state distinguishes `pending`, `delivered`, and `undeliverable`;
+status and timestamps contain no target or credential material. On successful
+provider acceptance the worker clears the encrypted payload immediately and marks
+`delivered`. A transient failure may retain the payload only while `database_now <
+expires_at`. A permanent failure, or a worker observing expiry, clears the payload and
+marks `undeliverable` without retry. The redacted row remains until cleanup so the
+operational signal is not erased by the component that first notices it.
+
+An opaque job id that no longer resolves is a normal idempotent terminal outcome. The
+row may already have been delivered and swept, expired and swept, or finalized by
+another worker. The handler returns success and schedules no retry; it must not create
+failed-job noise or a retry storm from an ordinary queue backlog. A present but
+expired row takes the same no-retry path after clearing its payload and recording
+`undeliverable`.
+
+Cleanup classifies before deletion. It reports delivered-expired and
+expired-undelivered counts separately, placing every expired row not marked delivered
+in the latter class. It emits a warning containing that aggregate undelivered count
+and returns a non-zero command status when the count is positive. That is the
+package's available dead-worker signal before 2.4 supplies an auditable sink. Deleting
+both classes silently is forbidden. `vouch:throttle:report` also exposes aggregate
+current pending, overdue, delivered, and undeliverable outbox health, with no subject
+rows or candidate-lookup input. The prune command's own output/exit is the durable
+operational signal for rows it removes; the report does not invent historical
+delivery telemetry after deletion.
+
+The package must register/document the cleanup cadence and require the host scheduler
+to run it at least once per minute. Enforcement remains exact at `expires_at`: workers
+cannot deliver or decrypt for transport after the deadline. Physical deletion occurs
+on the next sweep, so maximum retained ciphertext is the 120-second OTP TTL plus one
+documented sweep interval—not the 24-hour throttle retention. A missing scheduler is
+still host infrastructure the request cannot observe; the installation/health
+documentation must name that dependency rather than implying outbox insertion proves
+delivery is healthy.
 
 Task 14 must still add a narrow amendment before source work settles the remaining
 lifecycle choices: how a durable worker is dispatched/recovered; when a challenge
-becomes verifiable; the exact pending/delivered/permanent-failure meanings; how an
-already pending issuance coalesces explicit resends; and how unconfigured delivery
-fails visibly to the host without becoming a public existence signal. The amendment
-must state the unavoidable at-least-once duplicate-delivery risk rather than claiming
-exactly-once provider behavior.
+becomes verifiable; how an already pending issuance coalesces explicit resends; and
+how unconfigured delivery fails visibly to the host without becoming a public
+existence signal. The amendment must state the unavoidable at-least-once
+duplicate-delivery risk rather than claiming exactly-once provider behavior.
 
 Two constraints survive every choice. The authentication issuance-volume charge is
 target-independent and is never refunded/skipped based on resolution or provider

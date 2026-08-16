@@ -953,6 +953,18 @@ failure behavior, and resend coalescing. Authentication-volume accounting may no
 refunded or skipped based on target or provider outcome, because that would recreate
 the state oracle it exists to close.
 
+Outbox terminal behavior is not an exception path. Successful delivery clears the
+encrypted payload immediately and retains only redacted `delivered` state until the
+expiry sweep. A transient failure remains pending only inside the OTP deadline; a
+permanent failure or an expired row clears the payload and becomes redacted
+`undeliverable`. At cleanup, every expired row that was never delivered is classified
+as expired-undelivered. A delayed job whose opaque id no longer resolves returns
+successfully without retry—cleanup winning the race is normal. `vouch:prune` counts
+expired-undelivered rows separately before deletion, emits the aggregate, and exits
+non-zero when the count is positive so a dead worker cannot look healthy. The
+aggregate report exposes pending, overdue, delivered, and undeliverable health only,
+never subjects or candidate lookup.
+
 ---
 
 ## Phase 2.3b planning record — 2026-08-15
