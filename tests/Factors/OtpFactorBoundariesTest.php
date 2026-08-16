@@ -12,6 +12,7 @@ use Fissible\Vouch\Kernel\Attempt\AttemptState;
 use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Notifications\OtpChallengeOutbox;
+use Fissible\Vouch\Support\DatabaseTime;
 use Fissible\Vouch\Tests\Support\ArrayOtpDelivery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Psr\Clock\ClockInterface;
@@ -113,15 +114,23 @@ it('issues codes of its documented default length and lifetime', function (): vo
     );
 
     $factor->enroll(7, ['identifier_id' => otpIdentifierFor()->id]);
-    $before = time();
+    /*
+     * Issuance writes a database-clock deadline, so bound it with two expected
+     * 120-second deadlines from that same authority. A PHP-clock upper bound
+     * sampled before the insert was one second behind PostgreSQL at a real
+     * matrix boundary; adding 120 to DatabaseTime::current() still missed that
+     * PostgreSQL rounds CURRENT_TIMESTAMP(0), so the expected deadline must use
+     * the same portable interval expression as the production deadline.
+     */
+    $before = app(DatabaseTime::class)->deadline(120)->getTimestamp();
     $challenge = $factor->challenge(new ChallengeRequest(otpAttemptFor()));
-    $after = time();
+    $after = app(DatabaseTime::class)->deadline(120)->getTimestamp();
     $expiry = $challenge?->expires_at->getTimestamp();
     $delivery->deliverLatestPending();
 
     expect(strlen($delivery->lastCode()))->toBe(6)
-        ->and($expiry)->toBeGreaterThanOrEqual($before + 120)
-        ->and($expiry)->toBeLessThanOrEqual($after + 120);
+        ->and($expiry)->toBeGreaterThanOrEqual($before)
+        ->and($expiry)->toBeLessThanOrEqual($after);
 });
 
 it('treats a code as expired at its expiry instant, not one second after', function (): void {
