@@ -19,19 +19,36 @@ information the current `OtpDelivery` contract does not carry — country, spend
 provider outcome, and a cost authority — so it must not be smuggled into
 authentication throttling as an unexamined counter.
 
-## Frozen 2.3 contract that 2.3b consumes
+## Declared kernel amendment; one disclosure authority
 
-`RetryPolicy` and `ErrorShaper` are Phase 1 kernel code and remain unchanged. Their
-contract already decides disclosure: `Outcome::Locked` is shaped in full in every
-posture, including strict, and is safe only if known and unknown submitted
-identifiers are throttled identically. 2.3b populates that existing shape; it does
-not redesign it or modify `src/Kernel`.
+`RetryPolicy` and `ErrorShaper` are Phase 1 kernel code and remain the sole disclosure
+authority, but 2.3b deliberately amends their public surface. `RetryPolicy` gains a
+nullable `DateTimeImmutable $retryAfter`. Overloading `lockedUntil` for ordinary
+backoff is forbidden: it would describe an IP, tuple, tenant, or global refusal as an
+account lock and violate the single identifier-lock writer.
+
+`ErrorShaper` already decides that `Outcome::Locked` is shaped in full in every
+posture, including strict. The amendment adds the corresponding ordinary-backoff
+rule: under strict posture it continues to null `attemptsRemaining`, preserves a
+measured `retryAfter`, and never exposes `lockedUntil` except through the identifier
+lock path. Friendly posture may receive all posture-permitted fields.
+
+This intentionally retires the blanket `src/Kernel` empty-diff property after 2.3.
+Implementation must update `docs/kernel-api-surface.md`, regenerate its snapshot,
+record the amendment, and mutation-test both disclosure branches. Task 14's empty
+diff remains a true historical claim about completed Phase 2.3, not a promise that
+later phases can never use the documented amendment process.
 
 2.3's explicit `retry: null` is therefore not a placeholder to delete. It records
 that no retry state has yet been measured. 2.3b must replace the endpoint and
 strict-posture assertions with proof that a populated policy is safe for both known
 and unknown identifiers. `LockoutBoundaryTest` must be rewritten at least as
 strictly as its current fully-qualified-name-aware scan; it must not be removed.
+
+A strict-posture `retryAfter` is safe only because known and nonexistent submitted
+identifiers advance failure state identically. The shaper amendment and the two
+equalized increment paths are one coupled invariant: changing either requires the
+other's tests to fail.
 
 ## CAPTCHA ladder
 
@@ -150,11 +167,11 @@ owner: 2.3c never re-counts volume, and 2.3b never prices delivery.
 
 Only the submitted-identifier dimension may write identifier lock state or reach
 `Outcome::Locked`. IP, `(IP, identifier)`, tenant, and global dimensions may add
-backoff or refuse work, but their responses carry no populated `lockedUntil` or
-identifier `RetryPolicy`; presenting a load-shedding refusal as an account lockout
-would make both the client and the audit record lie about the cause. Architecture
-tests must enforce exactly one identifier-lock writer and forbid populated
-`lockedUntil` construction on every non-identifier path.
+backoff or refuse work. They may construct only a retry policy whose measured
+`retryAfter` is populated and whose `lockedUntil` is null; presenting a load-shedding
+refusal as an account lockout would make both the client and the audit record lie
+about the cause. Architecture tests must enforce exactly one identifier-lock writer
+and forbid populated `lockedUntil` construction on every non-identifier path.
 
 ## Failure lifecycle, window, and unlock
 
@@ -183,6 +200,12 @@ requires real three-engine contention tests.
 Locks are duration-bounded. Time expiry is 2.3b's documented sufficient unlock path;
 there is no administrative unlock before 2.4 can make that security-relevant action
 auditable. Expiry must be enforced on the request path, never by `vouch:prune`.
+
+While a derived backoff or stored lock is active, preflight refuses before credential
+verification. That refusal does not increment a counter or extend any deadline;
+otherwise an attacker could maintain another user's lock indefinitely and time expiry
+would not be a sufficient unlock path. The response carries the posture-shaped,
+measured `retryAfter` or identifier `lockedUntil` as appropriate.
 
 Identifier lockout does not block the explicit `action === 'recover'` path. Recovery
 uses its own domain and counter, may receive bounded backoff, and remains unable to

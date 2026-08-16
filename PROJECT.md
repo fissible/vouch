@@ -886,6 +886,12 @@ contention tests, which correctly require file-backed SQLite or a server engine)
 PHPStan level 9 was clean. `git diff --stat main -- src/Kernel` was empty, keeping
 the Phase 1 kernel boundary unchanged.
 
+That empty diff is the completed Phase 2.3 result. Phase 2.3b later authorizes one
+declared kernel API amendment: `RetryPolicy::$retryAfter`, shaped by `ErrorShaper` so
+ordinary backoff remains inside the kernel's single disclosure authority. That future
+change must update the generated API surface and does not retroactively change this
+verification record.
+
 Containers used non-default host ports to avoid local conflicts:
 
 ```bash
