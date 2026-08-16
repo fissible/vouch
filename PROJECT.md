@@ -146,7 +146,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Complete 2026-08-15** |
-| 2.3b | Authentication throttling (§7.4) — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | Scope decided; not planned |
+| 2.3b | Authentication throttling (§7.4) — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Design complete; implementation planned** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -904,3 +904,59 @@ docker run -d --name vouch-phase23-pg -e POSTGRES_PASSWORD=password \
 Commands used inline environment variables; in zsh an unquoted variable holding
 several `K=V` pairs does not word-split, so `env $VARS pest` silently misconfigures
 the run and reports mass failures with zero assertions.
+
+---
+
+## Phase 2.3b planning record — 2026-08-15
+
+**Design complete; implementation not started.** Authority:
+
+- Scope amendment:
+  `docs/superpowers/specs/2026-08-15-vouch-phase-2-3b-scope-amendment.md`
+- Dependency-ordered plan:
+  `docs/superpowers/plans/2026-08-15-vouch-phase-2-3b-auth-throttling.md`
+
+The critical chain joins the restoring database lock-wait primitive with the
+auth-specific store prerequisites, then continues through the distinct-subject IP
+parent/marker protocol → six-cell three-engine race matrix → flow integration →
+production challenge issuance → final mutation and engine reconciliation. Binding
+domains/canonicalization, the declared
+`RetryPolicy::$retryAfter` kernel amendment, configuration validation, and the four
+migrations are independent leaves and may proceed in parallel without weakening that
+gate.
+
+The plan carries the settled security boundaries rather than reopening them:
+
+- Submitted identifiers, including nonexistent ones, advance identifier state
+  identically. Only that dimension may lock.
+- The current six-digit OTP/TOTP fixed-boundary online-guess target is at most
+  `10^-4` per submitted identifier.
+- IP counts distinct submitted identifiers, deduplicated by `(IP, identifier)` tuple;
+  it never counts repeated failures from one subject as new breadth.
+- IPv6 `/64` and IPv4 observe at 30/300 distinct subjects initially. Shared dimensions
+  default to observe, tenant/global enforcement defaults null, and no shared dimension
+  can emit lockedUntil.
+- Identifier state commits before advisory state. A crash can under-count shared
+  evidence but cannot erase the authoritative failure, and no arithmetic invariant
+  may reconcile counters that measure different units in separate transactions.
+- Shared lock wait is fixed at one second and restores the host connection's prior
+  setting. Verified contention skips only that advisory dimension; unrelated database
+  errors stay loud.
+- Scalar retention defaults to 86400 seconds; tuple markers live for one database-clock
+  window. `vouch:prune` never touches persistent enrollment locks.
+- Observe-mode reporting is aggregate-only on both sides: no subject output and no
+  candidate-lookup input.
+
+**Code-grounded planning finding.** Production `AuthFlow` currently never calls
+`Factor::challenge()`; its similarly named calls only build `ScreenSpec`, and every
+real OTP issuance call is in driver tests. The issuance-cap task therefore owns the
+first production issuance hook as well as its limit. A counter around screen
+construction is vacuous. The task must preserve the driver's no-silent-target rule and
+the parent spec's unknown-identifier decoy/no-delivery posture; if current request and
+screen types cannot express a safe target, the implementer stops for a narrow design
+amendment rather than choosing a credential or turning ambiguity into a public 500.
+
+**Inherited evidence that must change, not disappear.** The lockout/retry architecture
+tests, strict retry-null HTTP tests, EnrollmentGuard wait-bound test, kernel API
+snapshot, and `AuthChallenge:39` mutation ruling each describe the pre-2.3b boundary.
+The plan assigns their replacements explicitly. Deleting any of them is not completion.

@@ -1,7 +1,8 @@
 # Phase 2.3b/2.3c — §7.4 Scope Amendment
 
-**Status:** Decided 2026-08-15. No implementation or new runtime contract lands in
-this amendment.
+**Status:** Design complete 2026-08-15. No implementation or new runtime contract
+lands in this amendment. Dependency-ordered implementation plan:
+[`../plans/2026-08-15-vouch-phase-2-3b-auth-throttling.md`](../plans/2026-08-15-vouch-phase-2-3b-auth-throttling.md).
 
 ## Split
 
@@ -255,6 +256,15 @@ separately, so it cannot drift from the fact that produced it. Identifier lock s
 is a separate record containing `locked_until`, written only by the one authorized
 writer when the identifier count crosses its configured threshold.
 
+The backoff deadline is cumulative from the fixed-window start. For count `c` at or
+above `backoff_after = A`, its offset is
+`sum(i = 0 .. c-A, min(initial * base^i, cap))`; `retryAfter` is the earlier of
+`window_started_at + offset` and the window deadline. Counts below `A` have no
+backoff. If database `now` has already passed that deadline, preflight permits work.
+With defaults this yields offsets 1, 3, 7, 15, and 31 seconds at counts 5–9; count 10
+locks instead. This is burst backoff rather than a stored “last failure + delay” clock:
+the latter would require another timestamp and contradict the decided row shape.
+
 The `(IP, identifier)` tuple is not a second failure counter and has no independent
 refusal threshold. A proposed threshold of 20 is unreachable: the identifier locks
 at 10, and active backoff or lock refusals do not increment either subject. Putting
@@ -329,6 +339,13 @@ IP bucket — so no arithmetic relationship between them is meaningful even with
 crash. Tests, migrations, and future integrity checks must not require their counts to
 reconcile. The identifier record is authoritative; shared records are independent,
 best-effort abuse signals.
+
+Identifier-first ordering also keeps the authoritative transaction off the contended
+path: it never remains open while a shared parent lock waits for up to one second. A
+process death between commits under-counts the advisory distinct-identifier signal,
+which can only reduce shared collateral backoff; it cannot erase the authoritative
+failure or create a lock. That is the intentional failure direction for a best-effort
+control.
 
 Windows are fixed, with their start stored and rollover performed atomically in SQL.
 The design accepts and documents a boundary burst of at most `2N`; thresholds must
