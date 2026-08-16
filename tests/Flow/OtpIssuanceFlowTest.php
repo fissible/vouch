@@ -104,6 +104,26 @@ function bindIssuanceDelivery(?ArrayOtpDelivery $delivery = null): ArrayOtpDeliv
     return $delivery;
 }
 
+/** @param array<string, mixed> $envelope */
+function issuanceDefaultFactor(array $envelope): ?string
+{
+    $options = data_get($envelope, 'screen.offeredFactors');
+
+    if (! is_array($options)) {
+        return null;
+    }
+
+    foreach ($options as $option) {
+        if (is_array($option)
+            && ($option['isDefault'] ?? null) === true
+            && is_string($option['factorId'] ?? null)) {
+            return $option['factorId'];
+        }
+    }
+
+    return null;
+}
+
 /** @return array{string, string} */
 function otpFactorIdentity(string $factor): array
 {
@@ -215,6 +235,7 @@ it('issues and verifies each OTP factor through the public endpoint', function (
         ->and($delivery->lastIdentifier()->value)->toBe($identifier->value)
         ->and(password_verify($code, $challenge->code_hash))->toBeTrue()
         ->and($done['result'])->toBe('authenticated')
+        ->and(issuanceDefaultFactor($done))->toBe($factor)
         ->and(AuthChallenge::query()->count())->toBe($challengeCount);
 })->with(['email OTP' => ['email_otp'], 'SMS OTP' => ['sms_otp']]);
 
@@ -258,6 +279,43 @@ it('issues the next OTP only after the first factor in an all-of policy succeeds
     ], $session);
 
     expect($done['result'])->toBe('authenticated');
+});
+
+it('offers the first unsatisfied OTP rather than recomputing the original default', function (): void {
+    $delivery = bindIssuanceDelivery();
+    AuthPolicy::create([
+        'tenant_id' => null,
+        'scope' => 'login',
+        'document' => ['all_of' => ['email_otp', 'sms_otp']],
+        'posture' => 'strict',
+    ]);
+    $email = AuthIdentifier::create([
+        'user_id' => 7, 'type' => 'email', 'value' => 'two-otp@acme.example', 'verified_at' => now(),
+    ]);
+    $phone = AuthIdentifier::create([
+        'user_id' => 7, 'type' => 'phone', 'value' => '+15550124567', 'verified_at' => now(),
+    ]);
+    app(EmailOtpFactor::class)->enroll(7, ['identifier_id' => $email->id]);
+    app(SmsOtpFactor::class)->enroll(7, ['identifier_id' => $phone->id]);
+    $session = issuanceSession();
+    $begin = issuanceEndpoint([], $session);
+    issuanceEndpoint([
+        'handle' => $begin['handle'],
+        'input' => ['identifier' => $email->value, 'factor' => 'email_otp'],
+    ], $session);
+    $emailOutbox = AuthChallengeOutbox::query()->sole();
+    app(OtpOutboxDelivery::class)->deliver($emailOutbox->opaque_id);
+
+    $next = issuanceEndpoint([
+        'handle' => $begin['handle'],
+        'input' => ['factor' => 'email_otp', 'code' => $delivery->lastCode()],
+    ], $session);
+    $latest = AuthChallenge::query()->latest('id')->firstOrFail();
+
+    expect($latest->factor_type)->toBe('sms_otp')
+        ->and(issuanceDefaultFactor($next))->toBe('sms_otp')
+        ->and(AuthChallenge::query()->count())->toBe(2)
+        ->and(AuthChallengeOutbox::query()->count())->toBe(2);
 });
 
 it('refuses the next factor when its issuance window is already exhausted', function (): void {
