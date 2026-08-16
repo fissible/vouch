@@ -1,8 +1,8 @@
 # Phase 2.3b/2.3c — §7.4 Scope Amendment
 
-**Status:** Core throttling design complete 2026-08-15; Task 14's transport lifecycle
-is an explicit pre-implementation design gate. No implementation or new runtime
-contract lands in this amendment. Dependency-ordered implementation plan:
+**Status:** Design complete 2026-08-16, including Task 14's transport lifecycle gate.
+No implementation or new runtime contract lands in this amendment.
+Dependency-ordered implementation plan:
 [`../plans/2026-08-15-vouch-phase-2-3b-auth-throttling.md`](../plans/2026-08-15-vouch-phase-2-3b-auth-throttling.md).
 
 ## Split
@@ -190,12 +190,71 @@ replace it with the host's delivery-health integration—to page the worker owne
 status-`2` alert consumes only the aggregate output defined above. It may not add
 subject-level lookup or payload data while adapting the signal.
 
-Task 14 must still add a narrow amendment before source work settles the remaining
-lifecycle choices: how a durable worker is dispatched/recovered; when a challenge
-becomes verifiable; how an already pending issuance coalesces explicit resends; and
-how unconfigured delivery fails visibly to the host without becoming a public
-existence signal. The amendment must state the unavoidable at-least-once
-duplicate-delivery risk rather than claiming exactly-once provider behavior.
+### Task 14 delivery lifecycle — decided 2026-08-16
+
+The remaining lifecycle choices are closed as follows.
+
+**Queue and dispatch.** Vouch uses one named Laravel queue connection and rejects
+`sync`, `null`, or another recognized inline/discarding implementation before it
+charges issuance volume. The check is target-independent, so a queue
+misconfiguration cannot become an existence signal. Challenge and outbox commit in
+one transaction; only after commit is a job containing the opaque outbox id pushed.
+The outbox row is therefore the durable authority, not successful enqueue. A
+scheduled redispatch command requeues live pending rows whose dispatch marker is
+absent or stale, closing the commit-before-push crash gap. A crash after push but
+before marking dispatch may enqueue twice; the lifecycle is explicitly at-least-once,
+not exactly-once.
+
+**Verifiability.** A real challenge is verifiable from the transaction commit, not
+from provider acceptance. Gating verification on a later `delivered` write would
+make a provider success followed by worker death produce a code the user received
+but the package refuses. The code remains unknowable until transport sends it, and
+the existing consume mutation plus the challenge-attempt cap remain the terminal
+authorities. Decoy challenges carry no credential target and are structurally unable
+to satisfy verification.
+
+**Resend coalescing.** An explicit resend is always a new target-independent issuance
+event and is charged before resolution. If the same attempt/factor/credential still
+has a live pending outbox row, resend requeues that opaque id and the same encrypted
+code rather than minting a replacement. It never resets `attempts`. Once the prior
+row is delivered or terminal, a permitted resend creates a new challenge and code.
+Two workers may therefore deliver the same code more than once; they may never mint
+two codes for one outbox row. This is the accepted at-least-once duplicate-delivery
+risk.
+
+**Provider outcomes.** `OtpDelivery` returning means provider acceptance: the worker
+atomically clears ciphertext and marks `delivered`. A dedicated permanent-delivery
+exception clears ciphertext and marks `undeliverable` without retry. Any other
+exception is transient while database time is before expiry and is rethrown for the
+queue's bounded retry policy. Exhausting job attempts runs the same redacted terminal
+write. Missing rows, decoys, and rows swept before a delayed job runs complete
+successfully without retry; decoy outbox rows are deleted rather than counted as
+delivery failures.
+
+**Unconfigured hosts.** The default `UnconfiguredOtpDelivery` remains fail-closed.
+`ChallengeIssuer` recognizes it before charge and throws the existing operator-facing
+configuration failure for every submitted identifier alike. It neither accepts work
+that can never be delivered nor exposes target resolution. A real transport and a
+non-inline queue worker are both named installation requirements; outbox insertion is
+never described as worker-health evidence.
+
+**Target ambiguity and posture-safe selection.** The identify screen presents the
+registered factor set with one fixed, target-independent default. A client that wants
+email or SMS carries that factor id alongside the submitted identifier, so the
+target-free issuance intent exists before user or credential resolution. The server
+honors only registered challenge-capable factors. Exactly one active credential of
+that type becomes the real target. Zero or more than one becomes the decoy path under
+strict posture: the package neither chooses the first credential, sends to all,
+echoes a database id, nor throws a public target-dependent error. Phase 3 may add an
+opaque target-choice surface; 2.3b does not invent one. After a factor has already
+been satisfied, the next server-selected factor may issue normally because account
+existence is no longer the secret being protected.
+
+**2.3c seam.** `ChallengeIssuer` owns the exact pipeline:
+target-free intent → volume permission → target/decoy resolution → the one named
+future economics boundary → factor challenge. No permissive economics binding ships
+in 2.3b. A future economics refusal therefore has one insertion point, reaches no
+factor, and cannot recount or refund authentication volume.
 
 Two constraints survive every choice. The authentication issuance-volume charge is
 target-independent and is never refunded/skipped based on resolution or provider

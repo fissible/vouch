@@ -1313,6 +1313,29 @@ reopens the cast ruling loudly. Focused gate: **9 passed / 67 assertions** on ea
 of file-backed SQLite, MySQL 8, and PostgreSQL 16. Ordinary gate: **913 passed /
 24 skipped / 3,091 assertions**; PHPStan level 9 clean.
 
+### Task 14 delivery-lifecycle gate — 2026-08-16
+
+The pre-implementation gate is closed. Vouch requires a non-inline Laravel queue,
+commits one encrypted TTL-bound outbox row with its challenge, dispatches only the
+opaque row id after commit, and recovers the commit-before-push gap through scheduled
+pending-row redispatch. Challenge verification begins at commit; provider acceptance
+clears ciphertext and records delivery, permanent failure records redacted
+undeliverable state, and transient failure retries the same code only until the
+database deadline. Missing or swept rows are successful no-ops.
+
+Explicit resend is charged as a new issuance event but coalesces a still-pending
+challenge onto the same code. The lifecycle is deliberately at-least-once: duplicate
+delivery of that same code is possible, regeneration for one outbox row is not.
+Unconfigured transport or a synchronous/discarding queue fails target-independently
+before charge.
+
+Factor choice on identify is carried before user resolution. Exactly one active
+credential becomes the server-owned target; zero or an ambiguous set takes a durable
+decoy path and contacts no provider. The package never chooses the first target,
+sends to all, or exposes a database id. The one future 2.3c economics boundary sits
+after authentication-volume permission and resolution but before the factor call;
+2.3b binds no fake permissive economics service.
+
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP
 parent/marker protocol → six-cell three-engine race matrix → flow integration →

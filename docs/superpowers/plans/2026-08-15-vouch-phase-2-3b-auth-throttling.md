@@ -817,7 +817,7 @@ controls, write and approve the narrow delivery-lifecycle amendment required bel
   barrier-controlled transport: assert the request cannot complete before release,
   then throw and assert the committed row remains. Do not substitute an elapsed-time
   threshold for either property.
-- [ ] Before implementation, amend the design to settle challenge verifiability/state
+- [x] Before implementation, amend the design to settle challenge verifiability/state
   meanings, durable worker dispatch/recovery, provider
   retry/permanent-failure behavior, resend coalescing, and unconfigured-host behavior.
   Request-path isolation and an encrypted TTL-bound outbox are requirements, not
