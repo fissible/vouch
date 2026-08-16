@@ -175,6 +175,30 @@ it('carries the derivation domain as a typed persistence dimension', function ()
         ->toBe(ThrottleDimension::Global);
 });
 
+it('pins the HMAC domain and tenant framing used by persisted throttle keys', function (): void {
+    $keys = throttleKey();
+
+    expect(throttleDigest($keys->identifier('person@example.test', 'tenant-a')))
+        ->toBe(SessionBinding::forSegments(
+            BindingDomain::ThrottleIdentifier,
+            'tenant.present',
+            'tenant-a',
+            'person@example.test',
+        ))
+        ->and(nullableThrottleDigest($keys->ip('192.0.2.10', null)))
+        ->toBe(SessionBinding::forSegments(
+            BindingDomain::ThrottleIpV4,
+            'tenant.absent',
+            '192.0.2.10',
+        ))
+        ->and(nullableThrottleDigest($keys->ip('2001:db8:abcd:1234::1', null)))
+        ->toBe(SessionBinding::forSegments(
+            BindingDomain::ThrottleIpV6,
+            'tenant.absent',
+            '2001:db8:abcd:1234::',
+        ));
+});
+
 it('derives all non-IP throttle dimensions without exposing their subjects', function (): void {
     $keys = throttleKey();
     $raw = 'raw-person@example.test';
