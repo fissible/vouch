@@ -135,3 +135,9 @@ as deliberate margin). Per-file rulings are in the dated `*-rulings.md` files.
   tests all entered `EnrollmentGuard::acquire()` with no lock row, where the
   insert serializes — so none of them could see `lockForUpdate` disappear, and
   the path they missed is the one production is almost always on.
+- **A survivor cluster on a class's primary entry point is an integration signal,
+  not only a list of row rulings.** `OtpFactor`'s message-heavy survivors were
+  correctly dispositioned as prose, but the concentration around `challenge()`
+  also reflected that production never called the method. After ruling rows
+  individually, step back and prove the class's main contract is reached from its
+  intended public entry point.

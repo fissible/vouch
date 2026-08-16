@@ -7,10 +7,10 @@
 **Status:** Dependency-ordered implementation plan, written 2026-08-15. No runtime
 code from this plan has landed.
 
-**Goal:** Add enumeration-safe authentication throttling, challenge-attempt and
-issuance caps, posture-safe retry disclosure, bounded identifier lockout, and
-aggregate observe-mode reporting without turning shared IP/tenant/global signals into
-account-lock authority.
+**Goal:** Complete the missing production email/SMS OTP issuance path, then add
+enumeration-safe authentication throttling, challenge-attempt and issuance caps,
+posture-safe retry disclosure, bounded identifier lockout, and aggregate observe-mode
+reporting without turning shared IP/tenant/global signals into account-lock authority.
 
 **Design authority:**
 [`docs/superpowers/specs/2026-08-15-vouch-phase-2-3b-scope-amendment.md`](../specs/2026-08-15-vouch-phase-2-3b-scope-amendment.md).
@@ -41,15 +41,15 @@ premise reopens the task that owns it rather than being absorbed into contingenc
 | 11. Error shaping, screens, and wire format | 6–9 h | 4, 7 | Yes |
 | 12. Flow preflight, failure counting, lockout, and reset | 14–20 h | 8, 10, 11 | No — critical path |
 | 13. Challenge-attempt cap and invalidation | 8–12 h | 7 | Yes |
-| 14. Challenge-issuance cap and production issuance seam | 12–18 h | 8, 11, 12, 13 | No |
+| 14. Corrective OTP issuance, cap, and 2.3c seam | 16–24 h | 8, 11, 12, 13 | No |
 | 15. Pruning and aggregate observe-mode report | 7–10 h | 6, 8, 9 | Yes |
 | 16. Container wiring and architecture boundaries | 6–9 h | 11–15 | No |
 | 17. Mutation reconciliation and completion matrix | 10–16 h plus runtime | all | No |
 
-Expected engineering effort: **136–200 hours**, with Tasks 2–6 parallelizable. The
+Expected engineering effort: **140–206 hours**, with Tasks 2–6 parallelizable. The
 critical chain has two prerequisite arms—**1 → 3** and **1 → 5 → 6 → 7**—that join
 at **9 → 10 → 12 → 14 → 16 → 17**. The store and real-engine matrix are the
-schedule risk; that chain is approximately 85–125 engineering hours before runtime.
+schedule risk; that chain is approximately 89–131 engineering hours before runtime.
 Do not make it cheaper by narrowing the tests.
 
 ## Non-negotiable constraints
@@ -91,7 +91,7 @@ These facts were read from the current tree before this plan was written.
 | `RetryPolicy` has exactly `attemptsRemaining` and `lockedUntil`; `FlowResultSerializer` hardcodes retry to null. | Tasks 4 and 11 make the declared kernel amendment and then carry the measured value to the wire. |
 | `AuthChallenge::$attempts` is cast but never read or written. | Task 13 gives it its first behavior and re-rules the prior equivalent mutation. |
 | `AuthFlow` has two timing-equalizer sites: the missing/unoffered/userless path and the driver's `NoCredential` path. | Task 12 couples each site to identifier state and probes either half independently. |
-| Production `AuthFlow` never calls `Factor::challenge()`. Its calls named `challenge()` only build `ScreenSpec`; all actual OTP issuance calls are in driver tests. | Task 14 introduces the first production issuance hook before it can claim to cap issuance. A cap around no event is vacuous. |
+| Production `AuthFlow` never calls `Factor::challenge()`. Its calls named `challenge()` only build `ScreenSpec`; all actual OTP issuance calls are in driver tests. | This is a post-certification Phase 2.3 correctness defect, not only a missing cap. Task 14 completes email/SMS OTP end to end before it can claim to cap issuance. A cap around no event is vacuous. |
 | `OtpFactor::challenge()` refuses ambiguous target selection and writes the challenge before synchronous delivery. Parent spec §7.1 also requires an unknown-identifier decoy that sends nothing and a posture-safe response. | Task 14 must preserve the no-silent-target rule and explicitly implement or amend the decoy/issuance seam. It may not choose a credential, send to all credentials, or turn ambiguity into a public 500 merely to reach the volume counter. |
 | CI's database matrix already runs the full suite on SQLite/MySQL/PostgreSQL. | Each database-sensitive task adds focused local commands, while Task 17 uses the existing full matrix as the completion gate. |
 
@@ -569,13 +569,15 @@ tests.
 
 **Commit:** `feat: cap OTP challenge attempts`
 
-## Task 14: Cap issuance and add the real production issuance hook
+## Task 14: Repair production OTP issuance, cap it, and establish the 2.3c seam
 
-**Estimate:** 12–18 h
+**Estimate:** 16–24 h
 
 **Dependencies:** Tasks 8, 11, 12, and 13
 
 **Files:**
+- Create: `src/Factors/ChallengeIssuer.php`
+- Create: `src/Factors/ChallengeIssuanceIntent.php`
 - Modify: `src/Flow/AuthFlow.php`
 - Modify: `src/Factors/ChallengeRequest.php` only if the existing shape cannot carry
   the selected server-owned target safely
@@ -583,9 +585,19 @@ tests.
 - Test: `tests/Flow/OtpIssuanceFlowTest.php`
 - Modify: `tests/Factors/OtpFactorTest.php`
 - Modify: `tests/Http/AuthEndpointTest.php`
+- Modify: `tests/Arch/ThrottleBoundaryTest.php`
 
 - [ ] Begin with a test proving current AuthFlow issues no actual challenge. Keep it as
-  the negative control; a volume counter increment alone must not satisfy the task.
+  the negative control and record the Phase 2.3 correction; a volume counter increment
+  alone must not satisfy the task.
+- [ ] Introduce `ChallengeIssuer` as the only production caller of
+  `Factor::challenge()`. Resolve the server-owned target and construct a typed,
+  immutable issuance intent before any code generation, row creation, or delivery.
+- [ ] Make the future 2.3c insertion point structural: volume permission first, then
+  one named delivery-economics boundary, then the factor call. Ship no fake/no-op
+  economics binding in 2.3b; 2.3c adds its required contract at that exact boundary.
+  Record the inherited 2.3c test obligation—an economics refusal reaches no factor
+  and never re-counts volume—without pretending an absent contract executed in 2.3b.
 - [ ] Before any driver call, charge one issuance event for identify+first challenge.
   Explicit resend or factor switch charges one more. Screen construction alone does not.
 - [ ] Enforce five issuances per submitted identifier per 900 seconds before delivery.
@@ -605,13 +617,21 @@ tests.
   fixed-boundary maximum still ≤ `10^-4` for six digits.
 - [ ] Prove delivery is never attempted after volume refusal and first issuance is not
   double-charged by identify plus FactorPending.
+- [ ] Drive both `email_otp` and `sms_otp` through the public endpoint with a recording
+  transport. For each, prove one challenge row is stored for the selected credential,
+  one code is delivered to the correct verified identifier, and that code advances the
+  same flow to authentication. The test must fail against the pre-fix source.
+- [ ] Add architecture tests forbidding direct `Factor::challenge()` calls outside
+  `ChallengeIssuer` and direct `OtpDelivery` calls outside the OTP driver. Keep the
+  future economics edit localized to the issuer rather than spread across AuthFlow.
 - [ ] Probe removing the permission check, charging screen construction, sending a
-  decoy, choosing an ambiguous target, and letting 2.3c-style economics leak into this
-  owner.
+  decoy, choosing an ambiguous target, bypassing the issuer, and letting 2.3c-style
+  economics leak into the volume owner. Order discrimination for the required
+  economics contract belongs to 2.3c when that contract exists.
 
 **Focused gate:** issuance flow, endpoint, OTP driver, strict posture, and budget tests.
 
-**Commit:** `feat: cap authentication challenge issuance`
+**Commit:** `fix: issue and cap authentication challenges`
 
 ## Task 15: Prune safely and report aggregates only
 
@@ -712,6 +732,9 @@ tests; PHPStan.
   connection restoration.
 - [ ] Confirm the ordinary suite still runs under its pinned 128M memory posture and the
   mutation-only memory scope remains isolated.
+- [ ] Do not restore Phase 2.3's unqualified “Complete” label until public-endpoint
+  tests prove both email and SMS OTP issue, deliver, persist, verify, and authenticate.
+  Passing throttle tests without that proof leaves the post-certification defect open.
 - [ ] Update PROJECT with final commits, test counts, engine evidence, mutation
   reconciliation, remaining residual risks, and merge status. The branch owner's merge
   decision remains separate.
@@ -737,7 +760,7 @@ Natural boundaries, in dependency order:
 10. `feat: disclose measured throttle retry state`
 11. `feat: throttle authentication failures`
 12. `feat: cap OTP challenge attempts`
-13. `feat: cap authentication challenge issuance`
+13. `fix: issue and cap authentication challenges`
 14. `feat: report and prune throttle state`
 15. `feat: enforce throttle architecture boundaries`
 16. `docs: certify phase 2.3b authentication throttling`

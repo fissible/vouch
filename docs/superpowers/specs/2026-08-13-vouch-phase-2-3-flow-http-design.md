@@ -1,11 +1,28 @@
 # Phase 2.3 — Flow and HTTP Surface: Design Specification
 
 **Date:** 2026-08-13
-**Status:** Approved design, not yet implemented
+**Status:** Implemented and cross-engine verified 2026-08-15; post-certification
+email/SMS OTP integration defect assigned to Phase 2.3b Task 14
 **Parent spec:** [`2026-08-11-vouch-design.md`](2026-08-11-vouch-design.md)
 **Depends on:** Phase 1 (`Vouch\Kernel`), Phase 2.1 (persistence), Phase 2.2 (factor drivers) — all merged
 
 ---
+
+## Post-certification correction — OTP issuance
+
+The completed gate did not establish end-to-end email/SMS OTP issuance. Nothing in
+`src/` calls `Factor::challenge()`: `AuthFlow`'s similarly named calls all target
+`ScreenBuilder`, while `OtpFactor::challenge()`—the method that creates the challenge
+row and calls `OtpDelivery`—is invoked only by tests. The shipped config still lists
+`email_otp` and `sms_otp` as challenge types requiring credentials, so this is a
+missing production integration, not a factor that was honestly absent from the
+surface.
+
+The flow/session/HTTP evidence and the password, TOTP, and recovery paths remain valid.
+The broad feature-completeness claim does not. Phase 2.3b Task 14 carries the
+corrective production issuance hook together with the volume cap that must precede
+delivery. Its scope amendment defines the sole issuer and the later Phase 2.3c
+economics insertion point.
 
 ## Scope
 
@@ -22,7 +39,7 @@ and one of them has a dependency running backwards.
 | Moved to | What | Why |
 |---|---|---|
 | **2.3b** | Authentication throttling from §7.4 | The flow-facing system: submitted-identifier/IP/tenant/global limits, exponential backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, and posture-safe retry disclosure. It replaces 2.3's explicit `retry: null` with measured state through the declared `RetryPolicy::$retryAfter` kernel amendment recorded in the 2.3b scope amendment. |
-| **2.3c** | OTP delivery economics from §7.4 | Per-tenant spend ceilings, country allow-lists, hard daily limits, and CAPTCHA are delivery/economic controls. They need delivery-facing metadata and their own adversarial tests; the orchestrator calls them rather than owning them. |
+| **2.3c** | OTP delivery economics from §7.4 | Per-tenant spend ceilings, country allow-lists, hard daily limits, and CAPTCHA are delivery/economic controls. They need delivery-facing metadata and their own adversarial tests; the dedicated challenge issuer calls them rather than the flow owning them. |
 | **2.4** | `RequireAssurance` non-interactive mode (RFC 9470) | It is default-deny against `auth_token_assurances`, and nothing writes those records until 2.4's `Vouch::issueToken()`. Building the enforcement half first means testing it only against hand-written fixture rows, and shaping enforcement to fit fixtures rather than to fit what issuance produces. |
 | **A post-2.4 slice** | Remember-me (§7.5 device-bound persistent login) | A persistent bearer credential is a separate authentication system: rotation, reuse/theft detection, revocation, device lifecycle. Its ceiling — never above `knowledge` strength — must be expressed against 2.4's token-assurance machinery rather than invented alongside it. |
 

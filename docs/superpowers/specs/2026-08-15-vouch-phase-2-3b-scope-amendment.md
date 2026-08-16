@@ -11,7 +11,7 @@ authorities and inputs:
 
 | Slice | Owns | Does not own |
 |---|---|---|
-| **2.3b** | Authentication throttling: limits over the submitted authentication request, exponential backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, and the measured `RetryPolicy` presented by the existing flow | OTP delivery economics and CAPTCHA |
+| **2.3b** | Corrective production issuance integration for email/SMS OTP, plus authentication throttling: limits over the submitted authentication request, exponential backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, and the measured `RetryPolicy` presented by the existing flow | OTP delivery economics and CAPTCHA |
 | **2.3c** | OTP delivery economics: per-tenant spend ceilings, SMS country allow-lists, daily limits, and the CAPTCHA contract | Login lockout, challenge volume, and its response disclosure |
 
 The split keeps the strict-posture enumeration boundary with the flow that consumes
@@ -19,6 +19,38 @@ it. Challenge-issuance volume belongs beside that flow; delivery economics needs
 information the current `OtpDelivery` contract does not carry — country, spend,
 provider outcome, and a cost authority — so it must not be smuggled into
 authentication throttling as an unexamined counter.
+
+## Cross-phase correctness repair and delivery-economics seam
+
+2.3b is not controls-only. A post-certification source trace found that nothing in
+`src/` calls `Factor::challenge()`. `AuthFlow`'s four similarly named calls all target
+`ScreenBuilder`; `OtpFactor::challenge()` is the only path that creates an
+`auth_challenges` row and calls `OtpDelivery::deliver()`, and all of its callers are
+tests. Email/SMS OTP is therefore not end-to-end functional through the shipped flow,
+despite both drivers being registered and `config/vouch.php` advertising them in
+`challenges.require_credential`.
+
+Task 14 is a Phase 2.3 correctness repair and a Phase 2.3b control boundary. It
+introduces a dedicated `ChallengeIssuer`, enforced as the only production caller of
+`Factor::challenge()`. `AuthFlow`, controllers, and future delivery policy never call a
+factor or `OtpDelivery` directly. The issuer's pipeline is fixed:
+
+1. Resolve the server-owned factor and credential target, then construct an immutable
+   issuance intent. This step creates no code, challenge row, or delivery side effect.
+2. Ask the 2.3b authentication-volume authority to permit the event.
+3. Cross the single named insertion point where 2.3c will later require its delivery-
+   economics authority.
+4. Only after every installed authority permits may the issuer invoke
+   `Factor::challenge()` and let the driver create and deliver the challenge.
+
+2.3b does not bind a fake or permissive economics implementation: that would make an
+absent 2.3c control look installed. Instead, the typed issuance intent and the single
+issuer make the future insertion structural and local; 2.3c adds its required contract
+at step 3. A volume refusal reaches neither that future authority nor the driver. When
+2.3c exists, an economics refusal likewise reaches no driver, and 2.3c never recounts
+volume. Architecture tests must keep `ChallengeIssuer` as the sole production call
+site, and end-to-end tests must prove both email and SMS produce a stored challenge,
+invoke the configured transport, and can complete verification through the HTTP flow.
 
 ## Declared kernel amendment; one disclosure authority
 

@@ -145,8 +145,8 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.1 | Persistence foundation — ten tables, ten models, three contracts, CAS attempt store | **Complete** |
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
-| 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Complete 2026-08-15** |
-| 2.3b | Authentication throttling (§7.4) — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Design complete; implementation planned** |
+| 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance defect open in 2.3b Task 14** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Design complete; implementation planned** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -856,8 +856,10 @@ distinct from OtpDelivery, verified-identifiers-only audience, non-disclosure in
 the response, and the instruction that the unbound-sink test is UPDATED rather than
 deleted when the drivers land.
 
-No `src/` change. Phase 2.3 scope is closed; Task 14's completed verification
-record follows.
+No `src/` change. Phase 2.3's recovery-notification disposition and verification
+scope are closed; Task 14's verification record follows. The broader feature-
+completeness claim is corrected after that record for the missing email/SMS OTP
+issuance integration.
 
 ## Task 14 verification record — 2026-08-15
 
@@ -886,11 +888,12 @@ contention tests, which correctly require file-backed SQLite or a server engine)
 PHPStan level 9 was clean. `git diff --stat main -- src/Kernel` was empty, keeping
 the Phase 1 kernel boundary unchanged.
 
-That empty diff is the completed Phase 2.3 result. Phase 2.3b later authorizes one
-declared kernel API amendment: `RetryPolicy::$retryAfter`, shaped by `ErrorShaper` so
-ordinary backoff remains inside the kernel's single disclosure authority. That future
-change must update the generated API surface and does not retroactively change this
-verification record.
+That empty diff is the completed Phase 2.3 **kernel-boundary** result. Phase 2.3b later
+authorizes one declared kernel API amendment: `RetryPolicy::$retryAfter`, shaped by
+`ErrorShaper` so ordinary backoff remains inside the kernel's single disclosure
+authority. That future change must update the generated API surface and does not
+retroactively change this verification record. The feature-completeness correction
+below is independent of that kernel evidence.
 
 Containers used non-default host ports to avoid local conflicts:
 
@@ -904,6 +907,29 @@ docker run -d --name vouch-phase23-pg -e POSTGRES_PASSWORD=password \
 Commands used inline environment variables; in zsh an unquoted variable holding
 several `K=V` pairs does not word-split, so `env $VARS pest` silently misconfigures
 the run and reports mass failures with zero assertions.
+
+### Post-certification correction — email/SMS OTP issuance is not integrated
+
+The Phase 2.3 gate proved the implemented flow, HTTP, session, grace, and middleware
+properties, but it did not prove every registered factor could complete end to end.
+Nothing in `src/` calls `Factor::challenge()`: all four `AuthFlow::challenge()`-named
+calls target `ScreenBuilder` and construct UI specs. `OtpFactor::challenge()` is the
+only code that creates an `auth_challenges` row and invokes `OtpDelivery::deliver()`,
+and its callers are tests. The default config nevertheless advertises
+`challenges.require_credential => ['email_otp', 'sms_otp']`.
+
+Email and SMS OTP therefore cannot issue, persist, or deliver a code through the
+production flow. Password, TOTP, and recovery flow evidence remains valid; the broad
+Phase 2.3 completeness claim does not. This is a correctness defect assigned to Phase
+2.3b Task 14 alongside issuance-volume enforcement, not a retroactive claim that OTP
+issuance was always out of scope.
+
+Task 14 must introduce one `ChallengeIssuer` as the only production caller of
+`Factor::challenge()`. Its order is fixed: resolve the server-owned target and typed
+intent, obtain 2.3b volume permission, pass the named 2.3c economics insertion point,
+then invoke the driver. 2.3b ships no fake/no-op economics binding; 2.3c adds its
+required contract at that boundary. Architecture and end-to-end tests must prove the
+order and both email/SMS paths.
 
 ---
 
@@ -947,14 +973,16 @@ The plan carries the settled security boundaries rather than reopening them:
 - Observe-mode reporting is aggregate-only on both sides: no subject output and no
   candidate-lookup input.
 
-**Code-grounded planning finding.** Production `AuthFlow` currently never calls
-`Factor::challenge()`; its similarly named calls only build `ScreenSpec`, and every
-real OTP issuance call is in driver tests. The issuance-cap task therefore owns the
-first production issuance hook as well as its limit. A counter around screen
-construction is vacuous. The task must preserve the driver's no-silent-target rule and
-the parent spec's unknown-identifier decoy/no-delivery posture; if current request and
-screen types cannot express a safe target, the implementer stops for a narrow design
-amendment rather than choosing a credential or turning ambiguity into a public 500.
+**Code-grounded planning finding and Phase 2.3 correction.** Production `AuthFlow`
+currently never calls `Factor::challenge()`; its similarly named calls only build
+`ScreenSpec`, and every real OTP issuance call is in driver tests. Email/SMS OTP is
+therefore not end-to-end functional despite being registered and advertised by config.
+The issuance-cap task owns the corrective production hook as well as its limit. A
+counter around screen construction is vacuous. The task must preserve the driver's
+no-silent-target rule and the parent spec's unknown-identifier decoy/no-delivery
+posture; if current request and screen types cannot express a safe target, the
+implementer stops for a narrow design amendment rather than choosing a credential or
+turning ambiguity into a public 500.
 
 **Inherited evidence that must change, not disappear.** The lockout/retry architecture
 tests, strict retry-null HTTP tests, EnrollmentGuard wait-bound test, kernel API
