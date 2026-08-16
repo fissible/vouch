@@ -146,7 +146,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance defect open in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–9 implemented, Task 10 adversarial matrix next** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–10 implemented, Task 11 retry disclosure next** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -1214,6 +1214,29 @@ held-parent gate on file-backed SQLite, MySQL 8, and PostgreSQL 16: **11 passed 
 assertions per engine**. Ordinary gate: **888 passed / 14 skipped / 2,971 assertions**;
 PHPStan level 9 clean. Task 10 retains the six-cell simultaneous matrix and the
 PostgreSQL `lockForUpdate` destructive proof before flow integration is allowed.
+
+### Task 10 three-engine IP contention matrix — 2026-08-16
+
+The matrix crosses same/distinct tuples with absent, committed-active, and
+committed-expired parents on file-backed SQLite, MySQL 8, and PostgreSQL 16. Each
+child opens its own connection before the shared barrier. For committed parents a
+third connection holds the parent until both child store calls have started, proving
+the result cannot come from accidental serial scheduling.
+
+This gate found a MySQL-only stale-snapshot defect: reading parent existence inside
+the transaction established InnoDB's `REPEATABLE READ` snapshot before the writer
+waited on `FOR UPDATE`. After the lock was acquired, the marker count still read the
+old snapshot and admitted both distinct subjects. Existence hints now come from
+autocommit before the transaction; the locked read and every decision remain inside.
+The same correction applies to scalar counter creation, whose two creation paths
+share the mechanism.
+
+Removing only the IP parent `lockForUpdate()` fails PostgreSQL's distinct
+committed-parent proof while the unique-insert absent-parent mechanism remains
+independent. Verified one-second contention skips only IP state after authoritative
+identifier state commits. Missing tables and malformed columns propagate rather than
+being swallowed as contention. Focused gate: **10 passed / 59 assertions on each of
+the three engines**.
 
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP

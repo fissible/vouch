@@ -532,7 +532,7 @@ duplicate-insert, and read-first mechanisms independently.
   lifetime is independent of identifier reset.
 - [x] Add exact-boundary database-clock tests: old markers stop counting at rollover,
   one new generation wins, and a prune cannot remove a marker from the active window.
-- [ ] Probe removing `lockForUpdate`, widening wait, using raw failure count, deleting
+- [x] Probe removing `lockForUpdate`, widening wait, using raw failure count, deleting
   the unique marker rule, counting old generations, and treating contention as refusal.
 
 **Focused gate:** IP store tests on each engine.
@@ -569,27 +569,47 @@ non-vacuous place to kill `lockForUpdate` on PostgreSQL.
 - Modify: `.github/workflows/ci.yml` only if the existing full matrix does not select
   every new test
 
-- [ ] Cross `{same tuple, distinct tuple}` with `{parent absent, parent committed and
+- [x] Cross `{same tuple, distinct tuple}` with `{parent absent, parent committed and
   active, parent committed and expired}` on file-backed SQLite, MySQL 8, PostgreSQL 16.
   These are six cells per engine, not one parameterized assertion whose fixture always
   creates the row the same way.
-- [ ] Hold the parent lock from one real connection and execute the store from another.
+- [x] Hold the parent lock from one real connection and execute the store from another.
   Prove bounded return, verified contention classification, no shared write, and prior
   connection-setting restoration.
-- [ ] End-to-end, commit identifier state first, then force shared timeout. Assert the
+- [x] End-to-end, commit identifier state first, then force shared timeout. Assert the
   identifier reaches lock at 10 while tuple/IP state remains absent and no shared
   lockedUntil/retry is fabricated.
-- [ ] Kill `lockForUpdate` and prove PostgreSQL's committed-parent cases fail while
+- [x] Kill `lockForUpdate` and prove PostgreSQL's committed-parent cases fail while
   first-parent cases may continue to pass. Record the engine asymmetry rather than
   weakening the expectation to the MySQL result.
-- [ ] Force a missing table and bad column and prove neither is swallowed as advisory
+- [x] Force a missing table and bad column and prove neither is swallowed as advisory
   contention.
-- [ ] Verify non-vacuity: both processes cross a ready/release barrier after opening
+- [x] Verify non-vacuity: both processes cross a ready/release barrier after opening
   their connections, every test makes assertions, and `set -o pipefail` preserves
   child failures in any shell harness.
 
 **Gate:** all six cells and fail-open proof on all three engines. Task 12 may not begin
 against an unproven store.
+
+**Recorded 2026-08-16:** all six cells pass on file-backed SQLite, MySQL 8,
+and PostgreSQL 16: same/distinct tuple crossed with absent, committed-active,
+and committed-expired parent. Both child processes open their connections before
+the ready/release barrier; committed parents are held by a third connection and
+neither child returns before release.
+
+The matrix found a real MySQL snapshot defect in the first implementation. Reading
+parent existence inside an InnoDB `REPEATABLE READ` transaction fixed the snapshot
+before `FOR UPDATE`; the waiting writer acquired the lock after the first committed,
+but still counted the old snapshot and admitted both distinct subjects. Existence
+hints now come from autocommit before the transaction, while all decisions remain
+under the locked read. Removing only the parent `lockForUpdate()` makes PostgreSQL's
+distinct committed-parent case return two `Permitted` decisions instead of one
+`BackedOff`; the absent-parent insert path continues to serialize independently.
+
+Verified contention is advisory-only: identifier count and lock commit first, the
+subsequent IP timeout returns `Skipped`, and no tuple is written. Missing table and
+renamed-column faults propagate as `QueryException` rather than being misclassified
+as contention. Focused gate: **10 passed / 59 assertions per engine**.
 
 **Commit:** `test: prove throttle serialization across engines`
 

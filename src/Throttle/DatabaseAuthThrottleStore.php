@@ -13,8 +13,8 @@ use Fissible\Vouch\Support\DatabaseTime;
 use Fissible\Vouch\Support\LockContention;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Builder;
-use InvalidArgumentException;
 use Illuminate\Database\QueryException;
+use InvalidArgumentException;
 use RuntimeException;
 
 /**
@@ -99,9 +99,13 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
     public function recordIdentifierFailure(ThrottleSubject $identifier): IdentifierThrottle
     {
         $this->requireDimension($identifier, ThrottleDimension::Identifier);
+        // Read before opening the transaction. On InnoDB's default REPEATABLE
+        // READ isolation, doing this read inside the transaction fixes a stale
+        // snapshot before a concurrent writer releases the row lock.
+        $counterExists = $this->counter($identifier) !== null;
 
-        return $this->connection->transaction(function () use ($identifier): IdentifierThrottle {
-            $this->ensureCounter($identifier);
+        return $this->connection->transaction(function () use ($identifier, $counterExists): IdentifierThrottle {
+            $this->ensureCounter($identifier, $counterExists);
             $counter = $this->counter($identifier, lock: true);
 
             if ($counter === null) {
@@ -158,12 +162,16 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
     ): SharedThrottle {
         $this->requireDimension($ip, ThrottleDimension::IpV4, ThrottleDimension::IpV6);
         $this->requireDimension($ipIdentifier, ThrottleDimension::IpIdentifier);
+        // This hint must come from autocommit. A transactional existence read
+        // would make the marker count after FOR UPDATE use InnoDB's earlier
+        // snapshot and admit two distinct subjects at the threshold.
+        $parentExists = $this->ipParent($ip) !== null;
 
         try {
             return $this->boundedLockWait->shared(
                 fn (): SharedThrottle => $this->connection->transaction(
-                    function () use ($ip, $ipIdentifier): SharedThrottle {
-                        $this->ensureIpParent($ip);
+                    function () use ($ip, $ipIdentifier, $parentExists): SharedThrottle {
+                        $this->ensureIpParent($ip, $parentExists);
                         $parent = $this->ipParent($ip, lock: true);
 
                         if ($parent === null) {
@@ -253,8 +261,12 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
 
     private function recordScalarFailure(ThrottleSubject $subject): SharedThrottle
     {
-        return $this->connection->transaction(function () use ($subject): SharedThrottle {
-            $this->ensureCounter($subject);
+        // Keep the existence hint outside the transaction for the same InnoDB
+        // snapshot reason as the authoritative identifier counter.
+        $counterExists = $this->counter($subject) !== null;
+
+        return $this->connection->transaction(function () use ($subject, $counterExists): SharedThrottle {
+            $this->ensureCounter($subject, $counterExists);
             $counter = $this->counter($subject, lock: true);
 
             if ($counter === null) {
@@ -276,7 +288,7 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
         });
     }
 
-    private function ensureIpParent(ThrottleSubject $ip): void
+    private function ensureIpParent(ThrottleSubject $ip, bool $existedBeforeTransaction): void
     {
         if ($this->connection->getDriverName() === 'sqlite') {
             $this->insertIpParentIfMissing($ip);
@@ -284,7 +296,7 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
             return;
         }
 
-        if ($this->ipParent($ip) !== null) {
+        if ($existedBeforeTransaction) {
             return;
         }
 
@@ -503,7 +515,7 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
         return $windowStartedAt->modify('+' . min($offset, $this->configuration->windowSeconds) . ' seconds');
     }
 
-    private function ensureCounter(ThrottleSubject $subject): void
+    private function ensureCounter(ThrottleSubject $subject, bool $existedBeforeTransaction): void
     {
         if ($this->connection->getDriverName() === 'sqlite') {
             // SQLite's FOR UPDATE is a bare SELECT. Make the unique insert the
@@ -519,7 +531,7 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
         // MySQL that duplicate-key path takes a shared record lock; two writers
         // can then deadlock when both try to upgrade it through FOR UPDATE.
         // The absent-row path still uses the unique insert as its serializer.
-        if ($this->counter($subject) !== null) {
+        if ($existedBeforeTransaction) {
             return;
         }
 
