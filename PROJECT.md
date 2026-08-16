@@ -1014,6 +1014,29 @@ plugin patch has SHA-256
 is a starting point only. Task 17 regenerates and reconciles the manifest because
 2.3b necessarily adds expressions.
 
+### Task 2 canonical throttle subjects — 2026-08-16
+
+`symfony/string` is now a direct production dependency across the Laravel-supported
+Symfony 7.4/8 range; a `php -n` probe proves Unicode lowercase plus post-lowercase NFC
+does not depend on this machine's native `intl` extension. `BindingDomain` carries
+seven required throttle domains, and the existing Session/Attempt HMAC inputs remain
+byte-identical. New multi-segment derivation uses explicit count/byte-length framing;
+null tenant and empty tenant are different protocol values, and only `ThrottleKey`
+may invoke it from package source.
+
+Identifiers receive no provider-specific alias rewriting. IPv4 is parsed and rendered
+canonically; IPv4-mapped IPv6 is treated as the underlying IPv4 subject; native IPv6
+is normalized and masked to `/64`. Null IP skips both advisory dimensions, while an
+invalid non-null IP fails loudly. Every derived value is a 64-character HMAC digest;
+raw identifiers, tenants, and IPs are absent. APP_KEY rotation changes the keys and
+therefore deliberately resets counters and lockouts.
+
+The five destructive probes each fail their discriminating assertion: reuse the
+identifier domain for recovery; remove post-lowercase NFC; remove the IPv6 `/64`
+mask; flatten absent tenant to present-empty; or replace segment framing with naïve
+NUL joining. Focused gate: **47 passed / 120 assertions**. Full gate: **739 passed / 9
+skipped / 2,476 assertions**, PHPStan level 9 clean, Composer strict validation clean.
+
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP
 parent/marker protocol → six-cell three-engine race matrix → flow integration →

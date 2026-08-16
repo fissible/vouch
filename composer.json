@@ -10,7 +10,8 @@
         "illuminate/hashing": "^13.0",
         "illuminate/support": "^13.0",
         "psr/clock": "^1.0",
-        "spomky-labs/otphp": "^11.5"
+        "spomky-labs/otphp": "^11.5",
+        "symfony/string": "^7.4.6 || ^8.0.6"
     },
     "require-dev": {
         "cweagans/composer-patches": "^1.7",

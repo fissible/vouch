@@ -161,5 +161,10 @@ it('derives a distinct binding per session and per domain', function (): void {
             'sha256',
             BindingDomain::Session->value . "\0" . 'host-a',
             $key,
+        ))
+        ->and($attempt)->toBe(hash_hmac(
+            'sha256',
+            BindingDomain::Attempt->value . "\0" . 'host-a',
+            $key,
         ));
 });

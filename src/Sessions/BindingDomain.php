@@ -23,4 +23,25 @@ enum BindingDomain: string
 
     /** auth_attempts.bound_context — an in-progress authentication attempt. */
     case Attempt = 'attempt';
+
+    /** Submitted-identifier authentication failure state. */
+    case ThrottleIdentifier = 'throttle.identifier';
+
+    /** Recovery-path failure state, separate from ordinary authentication. */
+    case ThrottleRecovery = 'throttle.recovery';
+
+    /** Advisory IPv4 breadth state. */
+    case ThrottleIpV4 = 'throttle.ipv4';
+
+    /** Advisory IPv6 state bucketed to the network's first 64 bits. */
+    case ThrottleIpV6 = 'throttle.ipv6-prefix-64';
+
+    /** Deduplication marker for one canonical IP and submitted identifier. */
+    case ThrottleIpIdentifier = 'throttle.ip-identifier';
+
+    /** Tenant-wide advisory state. */
+    case ThrottleTenant = 'throttle.tenant';
+
+    /** Package-wide advisory state. */
+    case ThrottleGlobal = 'throttle.global';
 }

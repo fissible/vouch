@@ -40,7 +40,17 @@ it('still refuses to derive a binding with no APP_KEY', function (): void {
 })->throws(RuntimeException::class);
 
 it('lists every binding domain exactly once', function (): void {
-    // Pins the enum so a third domain cannot be added without a decision.
+    // Pins the enum so a domain cannot be added without a protocol decision.
     expect(array_map(fn (BindingDomain $d): string => $d->value, BindingDomain::cases()))
-        ->toBe(['session', 'attempt']);
+        ->toBe([
+            'session',
+            'attempt',
+            'throttle.identifier',
+            'throttle.recovery',
+            'throttle.ipv4',
+            'throttle.ipv6-prefix-64',
+            'throttle.ip-identifier',
+            'throttle.tenant',
+            'throttle.global',
+        ]);
 });

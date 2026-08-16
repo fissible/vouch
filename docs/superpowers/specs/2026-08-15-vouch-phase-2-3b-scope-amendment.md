@@ -368,6 +368,8 @@ does not apply provider-specific rewriting such as Gmail dot stripping. IPv4 is
 canonicalized before derivation; IPv6 is canonicalized through `inet_pton`/
 `inet_ntop` and bucketed by `/64`, so textual spellings do not create separate
 buckets and privacy-address rotation cannot evade the IP dimension by construction.
+An IPv4-mapped IPv6 value canonicalizes to its underlying IPv4 subject; treating it
+as native IPv6 would collapse every mapped IPv4 client into the same `::/64` bucket.
 
 `APP_KEY` rotation deliberately resets throttle counters and lockouts. This is an
 operator-controlled, rare bypass of the throttle, unlike session rotation where

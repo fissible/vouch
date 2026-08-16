@@ -4,9 +4,9 @@
 > first, run the named focused gate, probe the exact control, then commit only the
 > listed paths. Never infer cross-engine behavior from SQLite.
 
-**Status:** Dependency-ordered implementation plan, written 2026-08-15. No runtime
-code from this plan has landed. Task 14 stops at a delivery-lifecycle design gate
-before implementation.
+**Status:** Dependency-ordered implementation plan, written 2026-08-15. Tasks 1–2
+completed 2026-08-16; later runtime tasks remain open. Task 14 stops at a
+delivery-lifecycle design gate before implementation.
 
 **Goal:** Complete the missing production email/SMS OTP issuance path, then add
 enumeration-safe authentication throttling, challenge-attempt and issuance caps,
@@ -159,28 +159,33 @@ manifest is the patched 2026-08-15 1,314-mutation run, keyed by its SHA-256 in
 - Test: `tests/Database/ThrottleKeyTest.php`
 - Test: `tests/Arch/ThrottleKeyBoundaryTest.php`
 
-- [ ] Promote `symfony/string` to an explicit production dependency compatible with
+- [x] Promote `symfony/string` to an explicit production dependency compatible with
   the supported Laravel/Symfony range. Do not rely on the current transitive package
   or local `ext-intl`.
-- [ ] Add required, non-defaulted domains: identifier, recovery, IPv4, IPv6 `/64`,
+- [x] Add required, non-defaulted domains: identifier, recovery, IPv4, IPv6 `/64`,
   IP+identifier tuple, tenant, and global. Preserve byte-identical outputs for the
   existing Session and Attempt domains.
-- [ ] Extend HMAC derivation for explicit, unambiguous segments. Tests must distinguish
+- [x] Extend HMAC derivation for explicit, unambiguous segments. Tests must distinguish
   absent tenant from empty tenant and separator-looking inputs; local string
   concatenation outside the derivation class is forbidden.
-- [ ] Canonicalize identifiers with Unicode lowercase plus NFC. Prove composed and
+- [x] Canonicalize identifiers with Unicode lowercase plus NFC. Prove composed and
   decomposed forms derive identically, case variants derive identically, and
   provider-specific aliases such as Gmail dots remain distinct.
-- [ ] Canonicalize IPv4 through binary parsing/round-trip. Canonicalize IPv6 through
+- [x] Canonicalize IPv4 through binary parsing/round-trip. Canonicalize IPv6 through
   `inet_pton`/`inet_ntop`, zero the host half, and derive one bucket per `/64`.
   Equivalent textual forms and privacy addresses inside one `/64` must match;
   neighboring `/64`s must not.
-- [ ] Model invalid and null IP separately. Invalid IP fails loudly at the boundary;
+- [x] Model invalid and null IP separately. Invalid IP fails loudly at the boundary;
   null skips the IP dimension and never derives a shared “unknown” key.
-- [ ] Prove APP_KEY rotation changes throttle keys and document that it resets counters
+- [x] Prove APP_KEY rotation changes throttle keys and document that it resets counters
   and locks. Prove no raw subject or candidate appears in the derived value.
-- [ ] Probe removal of the domain, NFC normalization, `/64` mask, absent-tenant marker,
+- [x] Probe removal of the domain, NFC normalization, `/64` mask, absent-tenant marker,
   and NUL/segment separation individually.
+
+**Recorded 2026-08-16:** 47 focused tests / 120 assertions; full suite 739 passed /
+9 skipped / 2,476 assertions; PHPStan level 9 and Composer strict validation clean.
+`php -n` proves the Symfony polyfill path. Each of the five named probes fails, and
+IPv4-mapped IPv6 is additionally pinned to its underlying IPv4 bucket.
 
 **Focused gate:** throttle-key tests, session-binding tests, API/architecture tests,
 PHPStan.
