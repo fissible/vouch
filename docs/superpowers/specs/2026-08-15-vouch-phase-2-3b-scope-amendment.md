@@ -84,6 +84,37 @@ assurance, nor become a lockout authority. Its operational strength depends on t
 host's proxy configuration; 2.3b documents and tests that boundary rather than
 pretending IP trust was introduced by throttling.
 
+## Counter keys, canonicalization, and operability
+
+Throttle rows store keyed digests, never raw identifiers or IP addresses. 2.3b
+extends the existing `BindingDomain` / `SessionBinding` primitive rather than
+inventing a second HMAC scheme: every throttle dimension has a required, distinct
+domain (`ThrottleIdentifier`, `ThrottleIp`, `ThrottleIpIdentifier`,
+`ThrottleTenant`, and `ThrottleGlobal`). A caller cannot silently derive a throttle
+key under a session or attempt domain.
+
+Tenant-scoped keys require an extension of `SessionBinding` that accepts explicit,
+unambiguous NUL-separated segments under one required domain. It must represent
+tenant absence with a marker distinct from any present tenant value; `null` must not
+flatten into the same segment as an empty-string tenant. No caller may assemble those
+segments with local concatenation.
+
+Identifiers are lowercased and normalized to Unicode NFC before derivation. Vouch
+does not apply provider-specific rewriting such as Gmail dot stripping. IPv4 is
+canonicalized before derivation; IPv6 is canonicalized through `inet_pton`/
+`inet_ntop` and bucketed by `/64`, so textual spellings do not create separate
+buckets and privacy-address rotation cannot evade the IP dimension by construction.
+
+`APP_KEY` rotation deliberately resets throttle counters and lockouts. This is an
+operator-controlled, rare bypass of the throttle, unlike session rotation where
+invalidating every session is safe; it must be documented as a consequence rather
+than silently inherited from `SessionBinding`'s session rationale.
+
+Digests trade away direct operational lookup. 2.3b must not add plaintext debug or
+support columns to regain it. Readable lockout/account evidence belongs in the 2.4
+audit chain after its required redaction pass, not in a high-volume throttle table,
+backups, replicas, or exports.
+
 ## Counter, lockout, and pruning are separate concerns
 
 Lockout state and counter state are separate records with separate disclosure rules.
