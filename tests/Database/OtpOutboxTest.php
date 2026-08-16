@@ -203,6 +203,17 @@ it('issues a first decoy resend when there is no pending challenge to reuse', fu
         ->and(AuthChallengeOutbox::query()->count())->toBe(1);
 });
 
+it('mints a fresh challenge unless the caller explicitly requests resend reuse', function (): void {
+    [$factor, $attempt] = outboxFixture();
+
+    $first = $factor->challenge(new ChallengeRequest($attempt));
+    $second = $factor->challenge(new ChallengeRequest($attempt));
+
+    expect($first?->id)->not->toBe($second?->id)
+        ->and(AuthChallenge::query()->count())->toBe(2)
+        ->and(AuthChallengeOutbox::query()->count())->toBe(2);
+});
+
 it('never verifies a decoy challenge even with its generated code', function (): void {
     [$factor, $attempt] = outboxFixture();
     $challenge = $factor->challenge(new ChallengeRequest(
