@@ -234,6 +234,26 @@ it('returns an empty measured state before any IP parent exists', function (bool
     );
 })->with(['observe' => [false], 'enforce' => [true]]);
 
+it('ignores markers from an expired enforced IP window during preflight', function (): void {
+    $ip = ipThrottleSubject(ThrottleDimension::IpV6, 1);
+    $store = ipThrottleStore(enforce: true);
+
+    $store->recordIpFailure($ip, ipThrottleSubject(ThrottleDimension::IpIdentifier, 2));
+    $store->recordIpFailure($ip, ipThrottleSubject(ThrottleDimension::IpIdentifier, 3));
+    DB::update(
+        'UPDATE auth_throttle_ip_windows SET window_started_at = '
+        . (new DatabaseTime(DB::connection()))->deadlineSqlHere()
+        . ' WHERE ip_digest = ?',
+        [-900, $ip->digest],
+    );
+    $parent = ipThrottleParent($ip);
+    DB::table('auth_throttle_tuples')
+        ->where('ip_window_id', $parent['id'])
+        ->update(['window_started_at' => $parent['windowStartedAt']]);
+
+    expect($store->preflightShared($ip))->toEqual(SharedThrottle::permitted());
+});
+
 it('caps an enforced IP backoff at the fixed-window deadline', function (): void {
     $ip = ipThrottleSubject(ThrottleDimension::IpV6, 1);
     $store = ipThrottleStore(enforce: true);

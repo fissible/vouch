@@ -222,17 +222,49 @@ it('locks exactly at the threshold without extending an active lock', function (
 
 it('uses lock expiry as a sufficient unlock and starts a fresh failure window', function (): void {
     $subject = scalarThrottleSubject();
-    seedScalarCounter($subject, 10);
+    seedScalarCounter($subject, 10, ageSeconds: 120);
     seedScalarLock($subject, 0);
+    $oldStart = DB::table('auth_throttle_counters')
+        ->where('subject_digest', $subject->digest)
+        ->value('window_started_at');
 
     $preflight = scalarThrottleStore()->preflightIdentifier($subject);
     $recorded = scalarThrottleStore()->recordIdentifierFailure($subject);
+    $newStart = DB::table('auth_throttle_counters')
+        ->where('subject_digest', $subject->digest)
+        ->value('window_started_at');
 
     expect($preflight)->toEqual(IdentifierThrottle::permitted(10))
         ->and($recorded)->toEqual(IdentifierThrottle::permitted(9))
         ->and(scalarCount($subject))->toBe(1)
+        ->and($newStart)->not->toBe($oldStart)
         ->and(DB::table('auth_throttle_locks')->where('subject_digest', $subject->digest)->exists())
         ->toBeFalse();
+});
+
+it('preserves the fixed-window epoch on an ordinary identifier increment', function (): void {
+    $subject = scalarThrottleSubject();
+    seedScalarCounter($subject, 1, ageSeconds: 120);
+    $oldStart = DB::table('auth_throttle_counters')
+        ->where('subject_digest', $subject->digest)
+        ->value('window_started_at');
+
+    $state = scalarThrottleStore()->recordIdentifierFailure($subject);
+    $newStart = DB::table('auth_throttle_counters')
+        ->where('subject_digest', $subject->digest)
+        ->value('window_started_at');
+
+    expect($state)->toEqual(IdentifierThrottle::permitted(8))
+        ->and(scalarCount($subject))->toBe(2)
+        ->and($newStart)->toBe($oldStart);
+});
+
+it('permits an expired threshold counter without fabricating a lock', function (): void {
+    $subject = scalarThrottleSubject();
+    seedScalarCounter($subject, 10, ageSeconds: 900);
+
+    expect(scalarThrottleStore()->preflightIdentifier($subject))
+        ->toEqual(IdentifierThrottle::permitted(10));
 });
 
 it('reports an active identifier lock directly from its own stored deadline', function (): void {
@@ -252,12 +284,61 @@ it('reports an active identifier lock directly from its own stored deadline', fu
         ->toBe(scalarTimestamp($stored)->getTimestamp());
 });
 
+it('queries both identifier lock boundaries at the database clock with zero offset', function (): void {
+    $subject = scalarThrottleSubject();
+    seedScalarCounter($subject, 4);
+    seedScalarLock($subject, 120);
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $preflight = scalarThrottleStore()->preflightIdentifier($subject);
+    $recorded = scalarThrottleStore()->recordIdentifierFailure($subject);
+    $queries = DB::getQueryLog();
+    DB::disableQueryLog();
+    DB::flushQueryLog();
+
+    $boundaryBindings = array_values(array_map(
+        static fn (array $query): mixed => $query['bindings'][1] ?? null,
+        array_filter(
+            $queries,
+            static fn (array $query): bool => str_contains($query['query'], 'auth_throttle_locks')
+                && str_contains($query['query'], 'locked_until >'),
+        ),
+    ));
+
+    expect($preflight->decision)->toBe(ThrottleDecision::Locked)
+        ->and($recorded->decision)->toBe(ThrottleDecision::Locked)
+        ->and($boundaryBindings)->toBe([0, 0]);
+});
+
 it('fails closed when a threshold counter has no lock record', function (): void {
     $subject = scalarThrottleSubject();
     seedScalarCounter($subject, 10);
 
     expect(fn (): IdentifierThrottle => scalarThrottleStore()->preflightIdentifier($subject))
         ->toThrow(RuntimeException::class, 'reached its lock threshold without a lock record');
+});
+
+it('fails closed on a persisted negative throttle count where the engine permits one', function (): void {
+    $subject = scalarThrottleSubject();
+
+    if (in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+        expect(fn (): bool => DB::table('auth_throttle_counters')->insert([
+            'dimension' => $subject->dimension->value,
+            'subject_digest' => $subject->digest,
+            'window_started_at' => now(),
+            'count' => -1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]))->toThrow(\Illuminate\Database\QueryException::class);
+
+        return;
+    }
+
+    seedScalarCounter($subject, -1);
+
+    expect(fn (): IdentifierThrottle => scalarThrottleStore()->preflightIdentifier($subject))
+        ->toThrow(RuntimeException::class, 'invalid throttle count');
 });
 
 it('rolls at the exact database-clock window boundary', function (): void {

@@ -88,3 +88,32 @@ it('receives a native integer from the driver and an integer from the model cast
         ->toBeInt()
         ->and(AuthChallenge::findOrFail($challengeId)->attempts)->toBeInt();
 });
+
+it('fails closed on a persisted negative attempt count where the engine permits one', function (): void {
+    if (in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+        $attempt = AuthAttempt::create([
+            'handle' => bin2hex(random_bytes(32)),
+            'state' => AttemptState::FactorPending,
+            'bound_context' => str_repeat('c', 64),
+            'expires_at' => now()->addMinutes(10),
+        ]);
+
+        expect(fn (): bool => DB::table('auth_challenges')->insert([
+            'attempt_id' => $attempt->id,
+            'factor_type' => 'email_otp',
+            'code_hash' => 'not-used-by-the-store',
+            'attempts' => -1,
+            'expires_at' => now()->addMinutes(5),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]))->toThrow(\Illuminate\Database\QueryException::class);
+
+        return;
+    }
+
+    $challengeId = challengeAttemptStoreRow(attempts: -1);
+
+    expect(fn (): ChallengeAttemptDecision => app(AuthThrottleStore::class)
+        ->recordChallengeFailure($challengeId))
+        ->toThrow(RuntimeException::class, 'invalid challenge-attempt count');
+});
