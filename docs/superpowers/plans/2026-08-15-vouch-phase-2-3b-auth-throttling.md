@@ -714,8 +714,15 @@ controls, write and approve the narrow delivery-lifecycle amendment required bel
   retention setting can extend either boundary.
 - [ ] Classify outbox rows before deletion. Report delivered-expired and
   expired-undelivered separately, with every expired row not marked delivered in the
-  latter class; warn with the aggregate undelivered count and return non-zero when it
-  is positive. A sweep that silently deletes both classes fails.
+  latter class; warn with the aggregate undelivered count and return status `2` when
+  it is positive. Reserve `0` for successful pruning with no undelivered finding and
+  `1` for failure of the prune operation itself. A sweep that silently deletes both
+  classes or overloads generic non-zero failure fails.
+- [ ] Prove all three exit meanings independently. Under `2`, assert expired attempts,
+  sessions, and outbox rows were actually deleted and exact counts were emitted; under
+  `1`, induce a prune failure and prove it cannot masquerade as a worker-health alert.
+  Document that monitoring routes `2` to delivery-worker health rather than declaring
+  the maintenance command broken.
 - [ ] Register and document a cleanup cadence of at most one minute. Prove delivery is
   forbidden at the exact database deadline and physical ciphertext retention is
   bounded by TTL plus one sweep interval. Name the host scheduler/worker requirement;

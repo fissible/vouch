@@ -961,9 +961,12 @@ permanent failure or an expired row clears the payload and becomes redacted
 as expired-undelivered. A delayed job whose opaque id no longer resolves returns
 successfully without retry—cleanup winning the race is normal. `vouch:prune` counts
 expired-undelivered rows separately before deletion, emits the aggregate, and exits
-non-zero when the count is positive so a dead worker cannot look healthy. The
-aggregate report exposes pending, overdue, delivered, and undeliverable health only,
-never subjects or candidate lookup.
+with status `2` when the count is positive so a dead worker cannot look healthy. Exit
+statuses are disjoint: `0` means pruning succeeded with no undelivered finding, `1`
+means pruning itself failed, and `2` means pruning succeeded and found expired
+undelivered work. Monitoring must alert on `2` as delivery-worker health, not report
+the maintenance sweep as failed. The aggregate report exposes pending, overdue,
+delivered, and undeliverable health only, never subjects or candidate lookup.
 
 ---
 

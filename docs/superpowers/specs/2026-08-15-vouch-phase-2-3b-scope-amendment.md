@@ -125,13 +125,20 @@ expired row takes the same no-retry path after clearing its payload and recordin
 Cleanup classifies before deletion. It reports delivered-expired and
 expired-undelivered counts separately, placing every expired row not marked delivered
 in the latter class. It emits a warning containing that aggregate undelivered count
-and returns a non-zero command status when the count is positive. That is the
-package's available dead-worker signal before 2.4 supplies an auditable sink. Deleting
-both classes silently is forbidden. `vouch:throttle:report` also exposes aggregate
-current pending, overdue, delivered, and undeliverable outbox health, with no subject
-rows or candidate-lookup input. The prune command's own output/exit is the durable
-operational signal for rows it removes; the report does not invent historical
-delivery telemetry after deletion.
+and returns status `2` when the count is positive. Exit statuses have exactly one
+meaning each: `0` means the sweep succeeded with no undelivered finding, `1` means the
+sweep itself failed, and `2` means the sweep succeeded and found expired undelivered
+work. In particular, status `2` does not imply any attempt/session/outbox deletion was
+rolled back or skipped. Monitoring must route `2` to delivery-worker health while
+reserving `1` for the prune operation and its owner. Collapsing either condition into
+generic non-zero failure is forbidden; it recreates the ambiguous-success failure the
+mutation gate already records for a child process whose exit `0` meant both "tests
+passed" and "no tests ran." This is the package's available dead-worker signal before
+2.4 supplies an auditable sink. Deleting both classes silently is forbidden.
+`vouch:throttle:report` also exposes aggregate current pending, overdue, delivered,
+and undeliverable outbox health, with no subject rows or candidate-lookup input. The
+prune command's own output/status is the durable operational signal for rows it
+removes; the report does not invent historical delivery telemetry after deletion.
 
 The package must register/document the cleanup cadence and require the host scheduler
 to run it at least once per minute. Enforcement remains exact at `expires_at`: workers
