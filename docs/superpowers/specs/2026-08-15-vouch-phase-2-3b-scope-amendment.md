@@ -220,6 +220,51 @@ successful authentication may reset identifier-specific and `(IP, identifier)`
 state for that subject; it never resets shared IP, tenant, global, or issuance-volume
 state, because one successful account must not erase aggregate abuse.
 
+## Security budgets and provisional defaults
+
+The constraints below are normative; the numbers are starting defaults for
+adversarial review.
+
+OTP guessing has a multiplicative budget. With a six-digit code, challenge-attempt
+cap `N = 5`, and issuance cap `M = 5`, the nominal budget is `M × N = 25` guesses
+per issuance window: `25 / 10^6 = 2.5 × 10^-5`. A fixed-window boundary permits at
+most twice that budget, `5 × 10^-5`. The existing 120-second OTP TTL further bounds
+when each challenge can be exercised. Neither cap may be reviewed or changed without
+recomputing their product and recording the target probability.
+
+TOTP has no `auth_challenges` row and therefore no challenge-attempt backstop. With
+six digits and drift window `1`, three codes are valid per 30-second step. The
+identifier threshold is its sole online-guess control: ten nominal guesses give an
+upper bound of `3 × 10^-5`, or `6 × 10^-5` across a fixed-window boundary before
+derived backoff reduces the practical rate. The identifier threshold must never be
+justified by an OTP-only challenge cap.
+
+| Setting | Proposed global default | Constraint |
+|---|---:|---|
+| Identifier window | 900 seconds | Fixed window; worst-case boundary budget is `2N` |
+| Backoff after | 5 failures | Must be below `lock_after` |
+| Lock after | 10 failures | Only submitted-identifier dimension may lock |
+| Backoff base | 2 | Exponential, derived rather than stored |
+| Initial backoff | 1 second | First penalty at `backoff_after` |
+| Backoff cap | 60 seconds | Must be less than or equal to the counter window |
+| Lock duration | 900 seconds | Wait-out-able; administrative unlock waits for 2.4 audit |
+| Challenge attempts | 5 | Per challenge; exhaustion invalidates that challenge |
+| Issuances per identifier | 5 per 900 seconds | Multiplies with challenge attempts; first identify/issuance counts once |
+| IP / tuple | Unresolved, higher and backoff-only | Must tolerate NAT/CGNAT; never locks an identifier |
+| Tenant / global | Unresolved, high and refusal-only | Operational load shedding; never reported as account lockout |
+
+Configuration is global in 2.3b, following the existing integer environment-backed
+package config. Per-tenant tuning is deferred: tenant is a counter dimension now, not
+a second configuration resolver and storage system in this phase.
+
+Validation is relational and fail-loud. In addition to positive integer/type checks:
+`backoff_after < lock_after`, `backoff_cap_seconds <= window_seconds`, and throttle
+prune retention must be at least `window_seconds + lock_duration_seconds`. Lock
+duration also needs an enforced v1 upper bound measured in minutes; its exact maximum,
+the prune-retention default, and the IP/tuple/tenant/global thresholds remain open and
+must be decided before the implementation plan. Longer operator-managed locks require
+2.4's audited administrative unlock rather than a large 2.3b config value.
+
 ## Inherited mutation re-ruling
 
 `AuthChallenge::$attempts` currently has no consumer. Its integer cast was
