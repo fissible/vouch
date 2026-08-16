@@ -4,7 +4,7 @@
 > first, run the named focused gate, probe the exact control, then commit only the
 > listed paths. Never infer cross-engine behavior from SQLite.
 
-**Status:** Dependency-ordered implementation plan, written 2026-08-15. Tasks 1–3
+**Status:** Dependency-ordered implementation plan, written 2026-08-15. Tasks 1–4
 completed 2026-08-16; later runtime tasks remain open. Task 14's delivery-lifecycle
 design gate is resolved in the scope amendment.
 
@@ -257,22 +257,30 @@ PHPStan level 9 clean.
 - Regenerate: `docs/kernel-api-surface.md`
 - Modify: `PROJECT.md`
 
-- [ ] Append `?DateTimeImmutable $retryAfter = null` as the third constructor
+- [x] Append `?DateTimeImmutable $retryAfter = null` as the third constructor
   parameter so existing named and positional calls remain source-compatible.
-- [ ] Update the docblock: retryAfter is posture-shaped measured backoff; lockedUntil
+- [x] Update the docblock: retryAfter is posture-shaped measured backoff; lockedUntil
   remains identifier-lock state only.
-- [ ] Under strict posture, null attemptsRemaining while preserving measured
+- [x] Under strict posture, null attemptsRemaining while preserving measured
   retryAfter for ordinary refusals. Preserve full lock state for `Outcome::Locked`.
   Friendly posture keeps permitted fields.
-- [ ] Couple strict retryAfter tests to identical known/nonexistent state progression;
-  a test of the shaper alone is necessary but insufficient.
-- [ ] Run `php bin/kernel-api-surface.php`, review its output, update the snapshot with
+- [x] Prove strict shaping is identical for known/nonexistent outcomes when handed the
+  same measured state. The stronger state-progression proof requires the Task 12 store
+  and remains explicitly assigned there; a shaper-only test is not substituted for it.
+- [x] Run `php bin/kernel-api-surface.php`, review its output, update the snapshot with
   `apply_patch`, and verify a second generator run is byte-identical. Record the
   intentional post-2.3 amendment in PROJECT.
-- [ ] Mutation-probe each nullable field independently and probe dropping the strict
+- [x] Mutation-probe each nullable field independently and probe dropping the strict
   attemptsRemaining redaction.
 
 **Focused gate:** all kernel tests, API surface, PHPStan, kernel mutation gate.
+
+**Recorded 2026-08-16:** 132 kernel/API tests / 366 assertions; generated surface
+byte-identical on the verification run; PHPStan level 9 clean. Four independent
+disclosure probes fail. Kernel mutation gates: 86.96% overall (230 mutations) and
+97.54% covered-only (203 mutations), retaining the frozen 80/95 floors. Ordinary
+suite: 753 passed / 10 skipped / 2,516 assertions. Actual known/nonexistent counter
+progression remains a Task 12 obligation.
 
 **Commit:** `feat: add measured retry deadline to kernel`
 

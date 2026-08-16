@@ -45,9 +45,13 @@ final class ErrorShaper
 
         if ($posture === EnumerationPosture::Strict) {
             // One message, one shape, regardless of what actually happened.
-            // Retry state is withheld because a differing attempt counter is
-            // itself an oracle for whether the account exists.
-            return $this->withErrors($spec, [self::UNIFORM], null);
+            // Counter and lock state are withheld because either can become an
+            // account-existence oracle. A measured ordinary retry deadline may
+            // survive only under the precondition documented on RetryPolicy:
+            // known and nonexistent identifiers advance identically. A policy
+            // with no measured deadline remains null rather than fabricating an
+            // empty retry object.
+            return $this->withErrors($spec, [self::UNIFORM], $this->strictRetry($spec->retry));
         }
 
         // Deliberately non-exhaustive: Outcome::Locked is omitted because the
@@ -61,6 +65,19 @@ final class ErrorShaper
         };
 
         return $this->withErrors($spec, $errors, $spec->retry);
+    }
+
+    private function strictRetry(?RetryPolicy $retry): ?RetryPolicy
+    {
+        if ($retry?->retryAfter === null) {
+            return null;
+        }
+
+        return new RetryPolicy(
+            attemptsRemaining: null,
+            lockedUntil: null,
+            retryAfter: $retry->retryAfter,
+        );
     }
 
     /**

@@ -146,7 +146,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance defect open in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–3 complete** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–4 complete** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -888,12 +888,12 @@ contention tests, which correctly require file-backed SQLite or a server engine)
 PHPStan level 9 was clean. `git diff --stat main -- src/Kernel` was empty, keeping
 the Phase 1 kernel boundary unchanged.
 
-That empty diff is the completed Phase 2.3 **kernel-boundary** result. Phase 2.3b later
-authorizes one declared kernel API amendment: `RetryPolicy::$retryAfter`, shaped by
-`ErrorShaper` so ordinary backoff remains inside the kernel's single disclosure
-authority. That future change must update the generated API surface and does not
-retroactively change this verification record. The feature-completeness correction
-below is independent of that kernel evidence.
+That empty diff is the completed Phase 2.3 **kernel-boundary** result. Phase 2.3b
+subsequently made its one declared kernel API amendment: `RetryPolicy::$retryAfter`,
+shaped by `ErrorShaper` so ordinary backoff remains inside the kernel's single
+disclosure authority. Task 4 updates the generated API surface and records the
+amendment below; it does not retroactively change this Phase 2.3 verification record.
+The feature-completeness correction below is independent of that kernel evidence.
 
 Containers used non-default host ports to avoid local conflicts:
 
@@ -1067,6 +1067,31 @@ default instead of the captured prior; widen SQLite contention to include an unr
 driver error; or bypass the primitive in `EnrollmentGuard`. The last probe waited for
 the parked seven-second host timeout and violated the five-second liveness ceiling,
 proving the integration rather than only the helper.
+
+### Task 4 measured retry deadline — 2026-08-16
+
+The declared kernel amendment is now live: `RetryPolicy` appends nullable
+`retryAfter` as its third constructor parameter, preserving existing two-argument and
+named calls. `lockedUntil` remains submitted-identifier lock state only;
+`retryAfter` is a measured ordinary-backoff deadline. `ErrorShaper` remains the sole
+disclosure authority: ordinary strict responses null attempts remaining and lock state
+while preserving a measured retry deadline; friendly responses retain all permitted
+fields; identifier lockouts retain their full policy under every posture. A policy
+with no measured deadline still shapes to `retry: null` rather than fabricating an
+empty object.
+
+The generated kernel surface adds exactly
+`Fissible\Vouch\Kernel\Screen\RetryPolicy::$retryAfter`; a second generator run is
+byte-identical. Strict known/unknown shaping is identical when handed identical
+measured state. The stronger proof that both real flow paths *produce* identical state
+remains assigned to Task 12, where the counter exists.
+
+Four manual probes fail independently: leak attempts remaining under strict posture,
+leak lock state as ordinary backoff, drop retryAfter, or redact a real lock policy as
+ordinary backoff. The focused kernel/API gate is **132 passed / 366 assertions**;
+kernel mutation gates remain above their frozen floors at **86.96% overall (230
+mutations)** and **97.54% covered-only (203 mutations)**. The ordinary suite reports
+**753 passed / 10 skipped / 2,516 assertions**, and PHPStan level 9 is clean.
 
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP

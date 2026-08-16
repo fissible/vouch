@@ -70,8 +70,20 @@ it('supports a screen with no challenge and no retry disclosure', function (): v
 
 it('discloses retry limits with lock expiry', function (): void {
     $lockedUntil = new DateTimeImmutable('2026-08-12T15:30:45Z');
-    $retry = new RetryPolicy(attemptsRemaining: 2, lockedUntil: $lockedUntil);
+    $retryAfter = new DateTimeImmutable('2026-08-12T15:15:30Z');
+    $retry = new RetryPolicy(
+        attemptsRemaining: 2,
+        lockedUntil: $lockedUntil,
+        retryAfter: $retryAfter,
+    );
 
     expect($retry->attemptsRemaining)->toBe(2)
-        ->and($retry->lockedUntil)->toBe($lockedUntil);
+        ->and($retry->lockedUntil)->toBe($lockedUntil)
+        ->and($retry->retryAfter)->toBe($retryAfter);
+});
+
+it('keeps the measured retry deadline optional for existing callers', function (): void {
+    $retry = new RetryPolicy(attemptsRemaining: 2, lockedUntil: null);
+
+    expect($retry->retryAfter)->toBeNull();
 });

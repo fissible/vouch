@@ -41,6 +41,56 @@ it('withholds retry state under strict posture', function (): void {
     expect($shaped->retry)->toBeNull();
 });
 
+it('preserves a measured retry deadline while redacting ordinary strict state', function (): void {
+    $retryAfter = new DateTimeImmutable('2026-08-16T12:00:30Z');
+    $lockedUntil = new DateTimeImmutable('2026-08-16T12:15:00Z');
+    $screen = identifyScreen();
+    $screen = new ScreenSpec(
+        step: $screen->step,
+        offeredFactors: $screen->offeredFactors,
+        fields: $screen->fields,
+        challengePayload: $screen->challengePayload,
+        errors: $screen->errors,
+        retry: new RetryPolicy(
+            attemptsRemaining: 3,
+            lockedUntil: $lockedUntil,
+            retryAfter: $retryAfter,
+        ),
+    );
+
+    $shaped = (new ErrorShaper())->shape(
+        $screen,
+        Outcome::IdentifierUnknown,
+        EnumerationPosture::Strict,
+    );
+
+    expect($shaped->retry)->not->toBeNull()
+        ->and($shaped->retry?->attemptsRemaining)->toBeNull()
+        ->and($shaped->retry?->lockedUntil)->toBeNull()
+        ->and($shaped->retry?->retryAfter)->toBe($retryAfter);
+});
+
+it('shapes identical measured retry deadlines for known and unknown identifiers', function (): void {
+    $retryAfter = new DateTimeImmutable('2026-08-16T12:00:30Z');
+    $retry = new RetryPolicy(attemptsRemaining: 2, lockedUntil: null, retryAfter: $retryAfter);
+    $base = identifyScreen();
+    $screen = new ScreenSpec(
+        step: $base->step,
+        offeredFactors: $base->offeredFactors,
+        fields: $base->fields,
+        challengePayload: $base->challengePayload,
+        errors: $base->errors,
+        retry: $retry,
+    );
+    $shaper = new ErrorShaper();
+
+    $known = $shaper->shape($screen, Outcome::IdentifierKnown, EnumerationPosture::Strict);
+    $unknown = $shaper->shape($screen, Outcome::IdentifierUnknown, EnumerationPosture::Strict);
+
+    expect($known)->toEqual($unknown)
+        ->and($known->retry?->retryAfter)->toBe($retryAfter);
+});
+
 it('discloses that an account does not exist under friendly posture', function (): void {
     $shaped = (new ErrorShaper())->shape(
         identifyScreen(),
@@ -59,6 +109,30 @@ it('keeps retry state under friendly posture', function (): void {
     );
 
     expect($shaped->retry?->attemptsRemaining)->toBe(3);
+});
+
+it('keeps every posture-permitted retry field under friendly posture', function (): void {
+    $lockedUntil = new DateTimeImmutable('2026-08-16T12:15:00Z');
+    $retryAfter = new DateTimeImmutable('2026-08-16T12:00:30Z');
+    $base = identifyScreen();
+    $screen = new ScreenSpec(
+        step: $base->step,
+        offeredFactors: $base->offeredFactors,
+        fields: $base->fields,
+        challengePayload: $base->challengePayload,
+        errors: $base->errors,
+        retry: new RetryPolicy(2, $lockedUntil, $retryAfter),
+    );
+
+    $shaped = (new ErrorShaper())->shape(
+        $screen,
+        Outcome::CredentialRejected,
+        EnumerationPosture::Friendly,
+    );
+
+    expect($shaped->retry?->attemptsRemaining)->toBe(2)
+        ->and($shaped->retry?->lockedUntil)->toBe($lockedUntil)
+        ->and($shaped->retry?->retryAfter)->toBe($retryAfter);
 });
 
 it('gives the same message for a bad credential and an unknown identifier under strict posture', function (): void {
@@ -95,6 +169,26 @@ it('preserves retry state on a lockout even under strict posture', function (): 
 
     expect($shaped->retry)->not->toBeNull()
         ->and($shaped->retry?->attemptsRemaining)->toBe(3);
+});
+
+it('preserves the complete measured lock policy under strict posture', function (): void {
+    $lockedUntil = new DateTimeImmutable('2026-08-16T12:15:00Z');
+    $retryAfter = new DateTimeImmutable('2026-08-16T12:00:30Z');
+    $base = identifyScreen();
+    $screen = new ScreenSpec(
+        step: $base->step,
+        offeredFactors: $base->offeredFactors,
+        fields: $base->fields,
+        challengePayload: $base->challengePayload,
+        errors: $base->errors,
+        retry: new RetryPolicy(0, $lockedUntil, $retryAfter),
+    );
+
+    $shaped = (new ErrorShaper())->shape($screen, Outcome::Locked, EnumerationPosture::Strict);
+
+    expect($shaped->retry?->attemptsRemaining)->toBe(0)
+        ->and($shaped->retry?->lockedUntil)->toBe($lockedUntil)
+        ->and($shaped->retry?->retryAfter)->toBe($retryAfter);
 });
 
 it('discloses the uniform message under strict posture', function (): void {

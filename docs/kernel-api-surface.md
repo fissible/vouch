@@ -141,6 +141,7 @@ Fissible\Vouch\Kernel\Screen\FieldSpec::__construct()
 Fissible\Vouch\Kernel\Screen\RetryPolicy (class)
 Fissible\Vouch\Kernel\Screen\RetryPolicy::$attemptsRemaining
 Fissible\Vouch\Kernel\Screen\RetryPolicy::$lockedUntil
+Fissible\Vouch\Kernel\Screen\RetryPolicy::$retryAfter
 Fissible\Vouch\Kernel\Screen\RetryPolicy::__construct()
 Fissible\Vouch\Kernel\Screen\ScreenSpec (class)
 Fissible\Vouch\Kernel\Screen\ScreenSpec::$challengePayload
