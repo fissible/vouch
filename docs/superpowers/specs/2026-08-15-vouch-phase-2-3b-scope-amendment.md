@@ -476,6 +476,14 @@ One address failing twenty times against one identifier contributes one distinct
 subject, while one address probing twenty identifiers contributes twenty. The active
 IP value is an indexed `COUNT` of those markers, not a denormalized integer.
 
+When explicitly enabled, IP backoff is anchored to the database `created_at` of the
+distinct tuple marker that crosses the family threshold. `retryAfter` is that time
+plus the configured seconds, capped by the parent window deadline. The store admits no
+new marker while this deadline is active, so an attacker cannot extend it; repeated
+failures for an existing tuple do not create a marker and therefore cannot manufacture
+a breadth penalty. This timestamp is part of the evidence row, not a separately stored
+retry deadline that could drift from it.
+
 The derived count still needs serialization. The transaction ensures an IP-window
 parent row exists, locks that row, atomically rolls its database-clock window when
 needed, creates the marker if absent, and then counts the markers for that exact parent

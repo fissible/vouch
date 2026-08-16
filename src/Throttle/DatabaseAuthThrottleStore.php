@@ -8,9 +8,13 @@ use BadMethodCallException;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Fissible\Vouch\Contracts\AuthThrottleStore;
+use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Support\LockContention;
 use Illuminate\Database\Connection;
+use Illuminate\Database\Query\Builder;
 use InvalidArgumentException;
+use Illuminate\Database\QueryException;
 use RuntimeException;
 
 /**
@@ -23,11 +27,20 @@ use RuntimeException;
  */
 final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
 {
+    private BoundedLockWait $boundedLockWait;
+
+    private LockContention $lockContention;
+
     public function __construct(
         private Connection $connection,
         private DatabaseTime $time,
         private ThrottleConfiguration $configuration,
-    ) {}
+        ?BoundedLockWait $boundedLockWait = null,
+        ?LockContention $lockContention = null,
+    ) {
+        $this->boundedLockWait = $boundedLockWait ?? new BoundedLockWait($connection);
+        $this->lockContention = $lockContention ?? new LockContention();
+    }
 
     public function preflightIdentifier(ThrottleSubject $identifier): IdentifierThrottle
     {
@@ -54,6 +67,17 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
 
     public function preflightShared(ThrottleSubject $subject): SharedThrottle
     {
+        if (in_array($subject->dimension, [
+            ThrottleDimension::IpV4,
+            ThrottleDimension::IpV6,
+        ], true)) {
+            $parent = $this->ipParent($subject);
+
+            return $parent === null
+                ? $this->emptyIpState($subject)
+                : $this->ipState($subject, $parent);
+        }
+
         $this->requireDimension(
             $subject,
             ThrottleDimension::Recovery,
@@ -132,7 +156,62 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
         ThrottleSubject $ip,
         ThrottleSubject $ipIdentifier,
     ): SharedThrottle {
-        throw new BadMethodCallException('Distinct-subject IP observation is implemented in Task 9.');
+        $this->requireDimension($ip, ThrottleDimension::IpV4, ThrottleDimension::IpV6);
+        $this->requireDimension($ipIdentifier, ThrottleDimension::IpIdentifier);
+
+        try {
+            return $this->boundedLockWait->shared(
+                fn (): SharedThrottle => $this->connection->transaction(
+                    function () use ($ip, $ipIdentifier): SharedThrottle {
+                        $this->ensureIpParent($ip);
+                        $parent = $this->ipParent($ip, lock: true);
+
+                        if ($parent === null) {
+                            throw new RuntimeException('The IP throttle parent vanished after creation.');
+                        }
+
+                        if ($this->ipWindowExpired($ip)) {
+                            $this->connection->table('auth_throttle_ip_windows')
+                                ->where('id', $parent['id'])
+                                ->update([
+                                    'window_started_at' => $this->time->now(),
+                                    'updated_at' => $this->time->now(),
+                                ]);
+
+                            $parent = $this->ipParent($ip, lock: true);
+
+                            if ($parent === null) {
+                                throw new RuntimeException('The IP throttle parent vanished after rollover.');
+                            }
+                        }
+
+                        $current = $this->ipState($ip, $parent);
+
+                        if ($current->decision === ThrottleDecision::BackedOff) {
+                            return $current;
+                        }
+
+                        $now = $this->time->now();
+
+                        $this->connection->table('auth_throttle_tuples')->insertOrIgnore([[
+                            'ip_window_id' => $parent['id'],
+                            'window_started_at' => $parent['windowStartedAt'],
+                            'tuple_digest' => $ipIdentifier->digest,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ]]);
+
+                        return $this->ipState($ip, $parent);
+                    },
+                ),
+            );
+        } catch (QueryException $exception) {
+            if ($this->lockContention->isVerified($this->connection, $exception)) {
+                return SharedThrottle::skipped();
+            }
+
+            throw $exception;
+        }
     }
 
     public function recordSharedFailure(ThrottleSubject $subject): SharedThrottle
@@ -195,6 +274,141 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
 
             return $this->sharedState($subject, $this->incrementCounter($subject));
         });
+    }
+
+    private function ensureIpParent(ThrottleSubject $ip): void
+    {
+        if ($this->connection->getDriverName() === 'sqlite') {
+            $this->insertIpParentIfMissing($ip);
+
+            return;
+        }
+
+        if ($this->ipParent($ip) !== null) {
+            return;
+        }
+
+        $this->insertIpParentIfMissing($ip);
+    }
+
+    private function insertIpParentIfMissing(ThrottleSubject $ip): void
+    {
+        $now = $this->time->now();
+
+        $this->connection->table('auth_throttle_ip_windows')->insertOrIgnore([[
+            'dimension' => $ip->dimension->value,
+            'ip_digest' => $ip->digest,
+            'window_started_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]]);
+    }
+
+    /** @return array{id: int, windowStartedAt: DateTimeImmutable}|null */
+    private function ipParent(ThrottleSubject $ip, bool $lock = false): ?array
+    {
+        $query = $this->ipParentQuery($ip);
+
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        $raw = $query->first(['id', 'window_started_at']);
+
+        if ($raw === null) {
+            return null;
+        }
+
+        $row = (array) $raw;
+        $id = $row['id'] ?? null;
+
+        if (! is_int($id) || $id < 1) {
+            throw new RuntimeException('The database returned an invalid IP throttle parent id.');
+        }
+
+        return [
+            'id' => $id,
+            'windowStartedAt' => $this->date($row['window_started_at'] ?? null),
+        ];
+    }
+
+    private function ipParentQuery(ThrottleSubject $ip): Builder
+    {
+        return $this->connection->table('auth_throttle_ip_windows')
+            ->where('dimension', $ip->dimension->value)
+            ->where('ip_digest', $ip->digest);
+    }
+
+    private function ipWindowExpired(ThrottleSubject $ip): bool
+    {
+        return $this->ipParentQuery($ip)
+            ->whereRaw(
+                $this->time->windowStartedAtAtOrBeforeDeadlineSql(),
+                [-$this->configuration->windowSeconds],
+            )
+            ->exists();
+    }
+
+    /**
+     * @param array{id: int, windowStartedAt: DateTimeImmutable} $parent
+     */
+    private function ipState(ThrottleSubject $ip, array $parent): SharedThrottle
+    {
+        if ($this->ipWindowExpired($ip)) {
+            return $this->emptyIpState($ip);
+        }
+
+        if ($this->configuration->ipMode === 'observe') {
+            return SharedThrottle::observed();
+        }
+
+        $threshold = $ip->dimension === ThrottleDimension::IpV4
+            ? $this->configuration->ipv4EnforceAt
+            : $this->configuration->ipv6EnforceAt;
+        $backoff = $this->configuration->ipBackoffSeconds;
+
+        if ($threshold === null || $backoff === null) {
+            throw new RuntimeException('Validated IP enforcement configuration is incomplete.');
+        }
+
+        $markers = $this->tupleQuery($parent)->count();
+
+        if ($markers < $threshold) {
+            return SharedThrottle::permitted();
+        }
+
+        $latest = $this->tupleQuery($parent)
+            ->whereRaw($this->time->createdAtAfterDeadlineSql(), [-$backoff])
+            ->max('created_at');
+
+        if ($latest === null) {
+            return SharedThrottle::permitted();
+        }
+
+        $retryAfter = $this->date($latest)->modify('+' . $backoff . ' seconds');
+        $windowDeadline = $parent['windowStartedAt']
+            ->modify('+' . $this->configuration->windowSeconds . ' seconds');
+
+        return SharedThrottle::backedOff(
+            $retryAfter > $windowDeadline ? $windowDeadline : $retryAfter,
+        );
+    }
+
+    private function emptyIpState(ThrottleSubject $ip): SharedThrottle
+    {
+        return $this->configuration->ipMode === 'observe'
+            ? SharedThrottle::observed()
+            : SharedThrottle::permitted();
+    }
+
+    /**
+     * @param array{id: int, windowStartedAt: DateTimeImmutable} $parent
+     */
+    private function tupleQuery(array $parent): Builder
+    {
+        return $this->connection->table('auth_throttle_tuples')
+            ->where('ip_window_id', $parent['id'])
+            ->where('window_started_at', $parent['windowStartedAt']);
     }
 
     /**

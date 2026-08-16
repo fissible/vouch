@@ -107,13 +107,22 @@ final readonly class DatabaseTime
         );
     }
 
+    /** @return literal-string */
+    public function createdAtAfterDeadlineSql(): string
+    {
+        return self::deadlinePredicateSql(
+            $this->connection->getDriverName(),
+            'created_at_after',
+        );
+    }
+
     /**
      * Whitelisted predicates retain PHPStan's literal-string guarantee while
      * still binding the interval. Constructing `column . deadlineSql()` at a
      * call site loses that guarantee and invites future dynamic SQL into a
      * security comparison.
      *
-     * @param 'window_started_at_at_or_before'|'window_started_at_after'|'locked_until_after' $predicate
+     * @param 'window_started_at_at_or_before'|'window_started_at_after'|'locked_until_after'|'created_at_after' $predicate
      * @return literal-string
      */
     private static function deadlinePredicateSql(string $driver, string $predicate): string
@@ -140,6 +149,13 @@ final readonly class DatabaseTime
                 "locked_until > CURRENT_TIMESTAMP(0) + (? * INTERVAL '1 second')",
             'locked_until_after:sqlite' =>
                 "locked_until > datetime('now', printf('%+d seconds', ?))",
+            'created_at_after:mysql',
+            'created_at_after:mariadb' =>
+                'created_at > DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)',
+            'created_at_after:pgsql' =>
+                "created_at > CURRENT_TIMESTAMP(0) + (? * INTERVAL '1 second')",
+            'created_at_after:sqlite' =>
+                "created_at > datetime('now', printf('%+d seconds', ?))",
             default => throw new InvalidArgumentException(
                 'Vouch cannot express database-clock predicate "' . $predicate
                 . '" for driver "' . $driver . '".',

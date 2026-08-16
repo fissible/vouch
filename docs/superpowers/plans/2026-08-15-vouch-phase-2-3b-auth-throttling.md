@@ -518,24 +518,42 @@ duplicate-insert, and read-first mechanisms independently.
 - Test: `tests/Database/IpThrottleStoreTest.php`
 - Test: `tests/Concurrency/IpThrottleContentionTest.php`
 
-- [ ] Ensure/lock the IP-window parent, roll an expired generation under the lock,
+- [x] Ensure/lock the IP-window parent, roll an expired generation under the lock,
   create one marker per canonical tuple, and derive the IP count using indexed
   `COUNT`. Do not denormalize via `insertOrIgnore()` affected-row results.
-- [ ] Count repeated failures for one tuple once and twenty distinct submitted
+- [x] Count repeated failures for one tuple once and twenty distinct submitted
   identifiers twenty times. Prove IPv4 and IPv6 domains cannot share a bucket.
-- [ ] Keep observation live at 30/300 while default enforcement is disabled. An
+- [x] Keep observation live at 30/300 while default enforcement is disabled. An
   observation threshold crossing changes no response.
-- [ ] Bound parent acquisition to one second using Task 3's primitive. On verified
+- [x] Bound parent acquisition to one second using Task 3's primitive. On verified
   contention, roll back shared state and return a skipped/advisory result; unrelated
   database errors propagate.
-- [ ] Preserve tuple markers through successful authentication. Their one-window
+- [x] Preserve tuple markers through successful authentication. Their one-window
   lifetime is independent of identifier reset.
-- [ ] Add exact-boundary database-clock tests: old markers stop counting at rollover,
+- [x] Add exact-boundary database-clock tests: old markers stop counting at rollover,
   one new generation wins, and a prune cannot remove a marker from the active window.
 - [ ] Probe removing `lockForUpdate`, widening wait, using raw failure count, deleting
   the unique marker rule, counting old generations, and treating contention as refusal.
 
 **Focused gate:** IP store tests on each engine.
+
+**Recorded 2026-08-16:** the store counts unique tuple markers for the exact parent
+generation; it never infers distinctness from affected-row values or a denormalized
+counter. Parent rollover retains old evidence while excluding it from the live count,
+and identifier reset does not touch markers. IPv4 and IPv6 stay separate by typed
+dimension.
+
+Observe mode remains inert at 30/300. Opt-in enforcement anchors its measured deadline
+to the threshold-crossing marker's database `created_at`, capped by the window
+deadline. While active, no marker is admitted and no deadline can extend; a repeated
+tuple cannot create breadth backoff at all. Verified one-second contention returns
+`Skipped` and writes nothing, while a missing tuple table propagates as a schema fault.
+
+Focused behavior plus held-parent gate on file-backed SQLite, MySQL 8, and PostgreSQL
+16: **11 passed / 33 assertions per engine**. Ordinary gate: **888 passed / 14 skipped
+/ 2,971 assertions**; PHPStan level 9 clean. The last destructive-probe item remains
+open deliberately: Task 10's simultaneous committed-parent cells are the only
+non-vacuous place to kill `lockForUpdate` on PostgreSQL.
 
 **Commit:** `feat: observe distinct subjects per IP`
 

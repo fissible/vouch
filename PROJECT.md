@@ -146,7 +146,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance defect open in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–8 complete** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–9 implemented, Task 10 adversarial matrix next** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -1191,6 +1191,29 @@ file-backed SQLite. PHPStan level 9 is clean. Destructive probes kill the atomic
 increment, exact-boundary predicate, lock threshold, lock deadline write,
 no-extension return, and reset; the real matrix also killed the unconditional
 duplicate-insert and SQLite read-first variants.
+
+### Task 9 distinct-subject IP observation — 2026-08-16
+
+IP breadth is an indexed count of unique tuple markers for one persistent parent and
+exact database-clock generation. Repeated failures against one submitted identifier
+contribute one; twenty distinct identifiers contribute twenty. IPv4 and IPv6 parents
+remain separate even for equal digest bytes, parent rollover retains but excludes old
+markers, and identifier reset cannot erase IP evidence.
+
+Observe mode stays response-inert at the shipped 30/300 thresholds. When a host opts
+into enforcement, the marker that crosses the distinct-subject threshold supplies the
+measured backoff origin; `retryAfter` is that marker's database `created_at` plus the
+configured seconds, capped by the fixed-window deadline. An active backoff admits no
+new marker and therefore cannot extend itself. Repeating the same tuple creates no
+new marker and cannot manufacture a breadth penalty.
+
+Parent acquisition runs under the restoring one-second bound. Verified lock timeout
+returns `SharedThrottle::skipped()` with no marker, lock state, or invented retry;
+dropping the tuple table propagates the real query error. Focused behavior plus
+held-parent gate on file-backed SQLite, MySQL 8, and PostgreSQL 16: **11 passed / 33
+assertions per engine**. Ordinary gate: **888 passed / 14 skipped / 2,971 assertions**;
+PHPStan level 9 clean. Task 10 retains the six-cell simultaneous matrix and the
+PostgreSQL `lockForUpdate` destructive proof before flow integration is allowed.
 
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP
