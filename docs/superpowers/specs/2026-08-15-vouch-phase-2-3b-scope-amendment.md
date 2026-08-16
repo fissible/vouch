@@ -67,7 +67,8 @@ portable database-clock window expiry — it must call `deadlineSqlHere()` rathe
 inventing interval SQL — and uses an atomic SQL increment rather than a PHP
 read-modify-write. Counting in PHP lets concurrent submissions observe the same value
 and all proceed, exactly the race `EnrollmentGuard` already demonstrates. The
-contention-suite pattern is the required proof for the new increment.
+contention-suite pattern is the required proof for the new increment and for the
+distinct-tuple accounting described below.
 
 If 2.3c needs delivery counters, it reuses those concurrency and portability
 mechanics, but supplies its own delivery-facing public contract. The retrofit cost is
@@ -114,9 +115,10 @@ pretending IP trust was introduced by throttling.
 Throttle rows store keyed digests, never raw identifiers or IP addresses. 2.3b
 extends the existing `BindingDomain` / `SessionBinding` primitive rather than
 inventing a second HMAC scheme: every throttle dimension has a required, distinct
-domain (`ThrottleIdentifier`, `ThrottleRecovery`, `ThrottleIp`,
-`ThrottleIpIdentifier`, `ThrottleTenant`, and `ThrottleGlobal`). A caller cannot
-silently derive a throttle key under a session or attempt domain.
+domain (`ThrottleIdentifier`, `ThrottleRecovery`, `ThrottleIpV4`,
+`ThrottleIpV6`, `ThrottleIpIdentifier`, `ThrottleTenant`, and `ThrottleGlobal`). A
+caller cannot silently derive a throttle key under a session or attempt domain, and
+the two IP families cannot accidentally consume one another's threshold.
 
 Tenant-scoped keys require an extension of `SessionBinding` that accepts explicit,
 unambiguous NUL-separated segments under one required domain. It must represent
@@ -199,6 +201,24 @@ that produced it. Identifier lock state is a separate record containing
 `locked_until`, written only by the one authorized writer when the identifier count
 crosses its configured threshold.
 
+The `(IP, identifier)` tuple is not a second failure counter and has no independent
+refusal threshold. A proposed threshold of 20 is unreachable: the identifier locks
+at 10, and active backoff or lock refusals do not increment either subject. Putting
+the tuple threshold at or below 10 would instead let a refusal-only dimension preempt
+the only writer authorized to lock. Storage without a reachable decision is not a
+control.
+
+The tuple therefore supplies the denominator the raw IP count lacks. For each IP
+window, the first failed verification for a canonical `(IP, submitted identifier)`
+atomically creates a tuple marker and increments that IP bucket; repeated failures
+for the same tuple do not increment the IP bucket again. One address failing twenty
+times against one identifier contributes one distinct subject, while one address
+probing twenty identifiers contributes twenty. Marker creation and the conditional IP
+increment are one transaction, with a uniqueness constraint and real-engine race tests
+proving that concurrent first failures count exactly once. A successful login does
+not delete this shared marker: doing so would let one valid account erase or repeatedly
+re-add IP-spread evidence.
+
 Windows are fixed, with their start stored and rollover performed atomically in SQL.
 The design accepts and documents a boundary burst of at most `2N`; thresholds must
 be chosen with that property rather than described as a sliding guarantee. Window
@@ -228,9 +248,10 @@ turning recovery into an unthrottled bypass.
 Failure state resets only after full authentication. Satisfying one factor of an
 `all_of` policy does not reset anything, and recovery-code acceptance starts grace
 rather than authenticating the host, so it does not reset anything either. A
-successful authentication may reset identifier-specific and `(IP, identifier)`
-state for that subject; it never resets shared IP, tenant, global, or issuance-volume
-state, because one successful account must not erase aggregate abuse.
+successful authentication may reset identifier-specific failure state. It never
+resets tuple markers or shared IP, tenant, global, or issuance-volume state, because
+one successful account must not erase aggregate abuse or make the same tuple look new
+again in the current window.
 
 ## Security budgets and defaults
 
@@ -264,11 +285,11 @@ justified by an OTP-only challenge cap.
 | Lock duration | 900 seconds; maximum 3600 | Wait-out-able; larger values fail at boot and require 2.4's audited unlock |
 | Challenge attempts | 5 | Per challenge; exhaustion invalidates that challenge |
 | Issuances per identifier | 5 per 900 seconds | Multiplies with challenge attempts; first identify/issuance counts once |
-| Identifier + IP tuple | Numeric limit unresolved; fairly tight and backoff/refusal-only | Collision requires both subjects; never locks an identifier |
-| IPv6 `/64` | Numeric limit unresolved; moderate and backoff-only | Usually one subscriber; cap remains seconds, never an account lock |
-| IPv4 address | Numeric limit unresolved; generous and backoff-only | Must tolerate NAT/CGNAT populations; threshold must exceed IPv6 `/64` |
-| Tenant | Disabled (`null`) | Opt-in, very-high refusal-only load shedding; never reported as account lockout |
-| Global | Disabled (`null`) | Opt-in circuit breaker with the widest blast radius; never reported as account lockout |
+| Identifier + IP tuple | No independent threshold | Per-window distinctness marker for the IP spread counter; never refuses work itself |
+| IPv6 `/64` | Observe at 30 distinct identifiers per 900 seconds | Usually one subscriber; enforcement disabled by default |
+| IPv4 address | Observe at 300 distinct identifiers per 900 seconds | Must tolerate NAT/CGNAT populations; enforcement disabled by default |
+| Tenant | Observe only; enforcement threshold `null` | Opt-in, very-high refusal-only load shedding; never reported as account lockout |
+| Global | Observe only; enforcement threshold `null` | Opt-in circuit breaker with the widest blast radius; never reported as account lockout |
 | Throttle prune retention | 86400 seconds | Must be at least `window_seconds + maximum_lock_duration_seconds` |
 
 Configuration is global in 2.3b, following the existing environment-backed package
@@ -276,14 +297,30 @@ config; every enabled numeric limit is an integer, while tenant and global thres
 may be `null` to remain disabled. Per-tenant tuning is deferred: tenant is a counter
 dimension now, not a second configuration resolver and storage system in this phase.
 
+Identifier, challenge-attempt, and challenge-issuance limits enforce their adopted
+defaults. Shared dimensions ship in **observe mode**. IPv6 `/64` and IPv4 counters use
+30 and 300 as observation thresholds but do not refuse or delay a request until an
+operator explicitly enables enforcement from measured traffic. Tenant and global
+counters likewise remain live for aggregate measurement while their enforcement
+thresholds are `null`. This makes the first production deployment incapable of
+creating shared-bucket collateral denial from an unmeasured default.
+
+Enabling a shared dimension is a fail-loud configuration transition, not the
+presence of a number that happens to be non-null. It requires an explicit enforcement
+mode, a threshold, and an explicitly configured seconds-scale backoff bound; the
+package supplies no fabricated shared-backoff duration. IP enforcement remains
+backoff-only, never lock authority, and the IPv4 threshold must remain greater than
+the IPv6 `/64` threshold. Tenant and global enforcement remains refusal-only and
+opt-in.
+
 Validation is relational and fail-loud. In addition to positive integer/type checks:
 `backoff_after < lock_after`, `backoff_cap_seconds <= window_seconds`, and throttle
 prune retention must be at least `window_seconds +
 maximum_lock_duration_seconds`. Lock duration greater than 3600 seconds fails at boot
 and names 2.4's audited administrative-unlock dependency. Tenant and global limits
 accept `null` as disabled rather than inventing a dangerously broad default. The
-identifier-plus-IP, IPv6-`/64`, and IPv4 numeric thresholds remain open and must be
-decided before the implementation plan.
+shared enforcement mode must reject a missing threshold or backoff bound rather than
+silently falling back to the observation values.
 
 Blast radius and aggressiveness are inversely proportional. Identifier state affects
 one account and may progress from backoff to lock. Tuple state requires both subjects
@@ -298,6 +335,16 @@ of closing the counter-state account-existence channel. Dedicated pruning bounds
 storage consequence; disabled-by-default widest buckets, generous shared thresholds,
 short backoff caps, and the prohibition on shared lock authority bound the collateral
 denial consequence.
+
+Observe mode is aggregate, not a reason to restore readable keys. 2.3b ships a
+read-only `vouch:throttle:report` surface with human-readable and `--json` output. It
+reports, per dimension, active bucket count, count distribution, and how many buckets
+crossed a configured observation threshold. It emits no digest, identifier, IP,
+tenant key, or per-bucket row. This is ephemeral operational measurement over the live
+retained window, not a security-event audit trail and not a substitute for 2.4's
+redacted `AuditSink`. Tests must prove the report cannot disclose or correlate a
+subject while still distinguishing the aggregate distributions needed to decide
+whether enforcement is safe.
 
 ## Inherited mutation re-ruling
 
