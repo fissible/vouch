@@ -10,13 +10,14 @@ authorities and inputs:
 
 | Slice | Owns | Does not own |
 |---|---|---|
-| **2.3b** | Authentication throttling: limits over the submitted authentication request, exponential backoff, lockout, challenge-attempt caps, and the measured `RetryPolicy` presented by the existing flow | OTP delivery economics and CAPTCHA |
-| **2.3c** | OTP pumping and delivery-fraud controls: send caps, per-tenant spend ceilings, SMS country allow-lists, daily limits, and the CAPTCHA contract | Login lockout and its response disclosure |
+| **2.3b** | Authentication throttling: limits over the submitted authentication request, exponential backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, and the measured `RetryPolicy` presented by the existing flow | OTP delivery economics and CAPTCHA |
+| **2.3c** | OTP delivery economics: per-tenant spend ceilings, SMS country allow-lists, daily limits, and the CAPTCHA contract | Login lockout, challenge volume, and its response disclosure |
 
 The split keeps the strict-posture enumeration boundary with the flow that consumes
-it. Delivery fraud needs information the current `OtpDelivery` contract does not
-carry — country, spend, provider outcome, and a cost authority — so it must not be
-smuggled into authentication throttling as an unexamined counter.
+it. Challenge-issuance volume belongs beside that flow; delivery economics needs
+information the current `OtpDelivery` contract does not carry — country, spend,
+provider outcome, and a cost authority — so it must not be smuggled into
+authentication throttling as an unexamined counter.
 
 ## Frozen 2.3 contract that 2.3b consumes
 
@@ -97,6 +98,32 @@ growth is a defect. This does **not** apply to enrollment locks: those rows inte
 persist because later PostgreSQL re-enrollment depends on `SELECT ... FOR UPDATE` after
 `insertOrIgnore()` becomes a no-op. Pruning them would remove the serialization row and
 break the concurrency control.
+
+## Event table and refusal ownership
+
+`auth_challenges.attempts` is per-challenge state. Exhausting its cap invalidates
+that challenge only; it never writes identifier lock state. The driver/store mutation
+that owns challenge consumption is the one writer for this transition, so no second
+throttle writer may race it.
+
+Identify and first challenge issuance are one current request: `AuthFlow` enters
+`Identified` and `FactorPending` together because offering a challenge is entering
+`FactorPending`. They incur one volume charge, not two. A re-issuance is distinct
+only when the caller explicitly resends or switches factor; each such action is one
+new issuance event.
+
+Challenge issuance crosses both slices in a fixed order. 2.3b first permits or
+refuses the event for volume, before delivery is attempted. Only after that permission
+may 2.3c permit or refuse delivery for economics. One event therefore has one refusal
+owner: 2.3c never re-counts volume, and 2.3b never prices delivery.
+
+Only the submitted-identifier dimension may write identifier lock state or reach
+`Outcome::Locked`. IP, `(IP, identifier)`, tenant, and global dimensions may add
+backoff or refuse work, but their responses carry no populated `lockedUntil` or
+identifier `RetryPolicy`; presenting a load-shedding refusal as an account lockout
+would make both the client and the audit record lie about the cause. Architecture
+tests must enforce exactly one identifier-lock writer and forbid populated
+`lockedUntil` construction on every non-identifier path.
 
 ## Inherited mutation re-ruling
 

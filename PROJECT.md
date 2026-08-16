@@ -146,8 +146,8 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Complete 2026-08-15** |
-| 2.3b | Authentication throttling (§7.4) — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, posture-safe retry disclosure | Scope decided; not planned |
-| 2.3c | OTP pumping and delivery-fraud controls (§7.4) — send caps, SMS country/spend/daily limits, CAPTCHA contract | Scope decided; not planned |
+| 2.3b | Authentication throttling (§7.4) — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | Scope decided; not planned |
+| 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
 | 2.5 | OIDC & federation — separate track, gated on the client evaluation (§6.4) | Not planned |
