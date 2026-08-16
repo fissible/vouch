@@ -55,10 +55,33 @@ If 2.3c needs delivery counters, it reuses those concurrency and portability
 mechanics, but supplies its own delivery-facing public contract. The retrofit cost is
 therefore at the surface rather than hidden in a second untested write protocol.
 
-Before code, the design must also settle what is counted and where. The
-enumeration-safe input is the **submitted identifier**, never a resolved user record:
-counting only found accounts makes both timing and lockout behaviour an
-account-existence oracle under strict posture.
+What is counted is decided: the enumeration-safe subject is the **submitted
+identifier**, never a resolved user record. Counting only found accounts makes both
+timing and lockout behaviour an account-existence oracle under strict posture.
+
+## IP trust boundary
+
+`AuthController` is the sole package entry point for client IP. It calls
+`Request::ip()` once and passes the nullable value through `FlowRequest`; no other
+package component may read forwarding headers or call `->ip()` again. Laravel's
+`TrustProxies` configuration remains the host's authority: without trusted proxies,
+`Request::ip()` is `REMOTE_ADDR`; with them, Laravel decides which forwarding headers
+are credible. Vouch must not second-guess either choice. An architecture test must
+enforce this single-entry rule, with the same namespace-qualified matching care as
+the former `LockoutBoundaryTest` scan.
+
+IP is advisory, never authentication authority. A non-null IP dimension may add
+backoff, but can never create or extend an identifier lockout on its own. This is the
+safe degradation under both proxy failures: under-trust collapses many users behind a
+load balancer into one bucket, while over-trust permits forged forwarding headers.
+When no IP is available, the IP dimension is skipped rather than sharing an
+`unknown` bucket that an attacker could use for a global lockout.
+
+This rule applies to the existing OTP challenge binding as well. `OtpFactor` may use
+the captured IP as an advisory mismatch check, but it must not grant identity or
+assurance, nor become a lockout authority. Its operational strength depends on the
+host's proxy configuration; 2.3b documents and tests that boundary rather than
+pretending IP trust was introduced by throttling.
 
 ## Counter, lockout, and pruning are separate concerns
 
