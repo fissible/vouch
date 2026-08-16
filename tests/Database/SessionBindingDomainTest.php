@@ -47,6 +47,7 @@ it('lists every binding domain exactly once', function (): void {
             'attempt',
             'throttle.identifier',
             'throttle.recovery',
+            'throttle.issuance',
             'throttle.ipv4',
             'throttle.ipv6-prefix-64',
             'throttle.ip-identifier',

@@ -146,7 +146,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance defect open in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–6 complete** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–7 complete** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -1019,7 +1019,7 @@ is a starting point only. Task 17 regenerates and reconciles the manifest becaus
 `symfony/string` is now a direct production dependency across the Laravel-supported
 Symfony 7.4/8 range; a `php -n` probe proves Unicode lowercase plus post-lowercase NFC
 does not depend on this machine's native `intl` extension. `BindingDomain` carries
-seven required throttle domains, and the existing Session/Attempt HMAC inputs remain
+eight required throttle domains, and the existing Session/Attempt HMAC inputs remain
 byte-identical. New multi-segment derivation uses explicit count/byte-length framing;
 null tenant and empty tenant are different protocol values, and only `ThrottleKey`
 may invoke it from package source.
@@ -1140,6 +1140,29 @@ parents persist. Four destructive probes each fail: remove scalar uniqueness, om
 window generation from tuple identity, remove cascade behavior, or make an operational
 timestamp nullable. The ordinary gate reports **851 passed / 10 skipped / 2,810
 assertions**, and PHPStan level 9 is clean.
+
+### Task 7 typed throttle contract — 2026-08-16
+
+Persistence now accepts `ThrottleSubject`, never a raw string. The value combines a
+closed `ThrottleDimension` with one validated lowercase HMAC-SHA256 digest, and an
+architecture test confines production construction to `ThrottleKey`. A dedicated
+issuance binding domain was added when issuance became its own persisted state sink;
+reusing the identifier HMAC under a different table label would have moved a
+type-level separation rule back into caller convention.
+
+`IdentifierThrottle` is the only result capable of carrying attempts remaining or
+`lockedUntil`. `SharedThrottle` exposes only its explicit decision and measured
+`retryAfter`, making IP/tenant/global/recovery lock authority structurally absent
+rather than null by convention. Challenge-attempt and issuance-permission decisions
+are separate enums, and the interface keeps identifier-first, advisory, recovery,
+IP-tuple, reset, challenge, and issuance operations individually visible.
+
+The recording implementation is retained for Task 12's real `AuthFlow` sequence
+proof. It is not bound as a no-op before the control exists. Focused contract/key/arch
+gate: **34 passed / 149 assertions**; PHPStan level 9 clean. Three destructive probes
+fail: domain reuse for issuance, malformed/raw subject admission, and loss of the
+backoff deadline. The ordinary gate reports **866 passed / 10 skipped / 2,900
+assertions**.
 
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP

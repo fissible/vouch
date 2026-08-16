@@ -162,9 +162,11 @@ manifest is the patched 2026-08-15 1,314-mutation run, keyed by its SHA-256 in
 - [x] Promote `symfony/string` to an explicit production dependency compatible with
   the supported Laravel/Symfony range. Do not rely on the current transitive package
   or local `ext-intl`.
-- [x] Add required, non-defaulted domains: identifier, recovery, IPv4, IPv6 `/64`,
-  IP+identifier tuple, tenant, and global. Preserve byte-identical outputs for the
-  existing Session and Attempt domains.
+- [x] Add required, non-defaulted domains: identifier, recovery, issuance, IPv4,
+  IPv6 `/64`, IP+identifier tuple, tenant, and global. Preserve byte-identical
+  outputs for the existing Session and Attempt domains. Issuance became a distinct
+  state sink in Task 7; reusing the identifier HMAC would make the table dimension,
+  rather than the derivation type, carry the separation rule.
 - [x] Extend HMAC derivation for explicit, unambiguous segments. Tests must distinguish
   absent tenant from empty tenant and separator-looking inputs; local string
   concatenation outside the derivation class is forbidden.
@@ -185,7 +187,9 @@ manifest is the patched 2026-08-15 1,314-mutation run, keyed by its SHA-256 in
 **Recorded 2026-08-16:** 47 focused tests / 120 assertions; full suite 739 passed /
 9 skipped / 2,476 assertions; PHPStan level 9 and Composer strict validation clean.
 `php -n` proves the Symfony polyfill path. Each of the five named probes fails, and
-IPv4-mapped IPv6 is additionally pinned to its underlying IPv4 bucket.
+IPv4-mapped IPv6 is additionally pinned to its underlying IPv4 bucket. Task 7 adds
+the issuance domain and a typed `ThrottleSubject` around every derived value before
+the persistence interface can consume one.
 
 **Focused gate:** throttle-key tests, session-binding tests, API/architecture tests,
 PHPStan.
@@ -409,23 +413,41 @@ assertions**; PHPStan level 9 clean.
 - Create: `src/Throttle/SharedThrottle.php`
 - Test: `tests/Database/ThrottleContractTest.php`
 
-- [ ] Keep the public contract auth-specific. It accepts canonical/HMAC subjects, not
+- [x] Keep the public contract auth-specific. It accepts canonical/HMAC subjects, not
   arbitrary keys and not resolved users.
-- [ ] Keep identifier results and shared results separate in the type system.
+- [x] Keep identifier results and shared results separate in the type system.
   Identifier results may carry attemptsRemaining and lockedUntil; shared results may
   carry retryAfter only.
-- [ ] Model observe, permitted, backed-off, and identifier-locked outcomes explicitly.
+- [x] Model observe, permitted, backed-off, and identifier-locked outcomes explicitly.
   Do not use null/boolean combinations whose invalid states callers can construct.
-- [ ] Separate preflight reads, post-failure identifier recording, post-failure shared
+- [x] Separate preflight reads, post-failure identifier recording, post-failure shared
   recording, full-auth reset, challenge failure, and issuance permission. The API must
   make identifier-first commit order implementable and reviewable.
-- [ ] No method accepts raw identifiers/IPs, returns a digest, or exposes a candidate
+- [x] No method accepts raw identifiers/IPs, returns a digest, or exposes a candidate
   lookup. Canonicalization/key derivation stays outside persistence but inside the one
   throttle service boundary.
-- [ ] Contract tests use a recording implementation to prove AuthFlow calls the right
-  operation, not database behavior.
+- [x] Contract tests provide a recording implementation and prove each operation stays
+  distinct without database behavior. Task 12 uses this exact fixture to prove
+  `AuthFlow` call choice and order; claiming that proof here would require integrating
+  the flow before the store exists or binding a misleading no-op control.
 
 **Focused gate:** contract tests, architecture tests, PHPStan.
+
+**Recorded 2026-08-16:** `ThrottleSubject` combines the closed dimension enum with one
+validated lowercase HMAC-SHA256 digest; production construction is architecture-bound
+to `ThrottleKey`. The store cannot accept raw strings, resolved users, or candidate
+lookup input. Issuance receives its own binding domain rather than reusing the
+identifier digest under a different table label.
+
+Identifier results alone may carry attempts remaining and `lockedUntil`; shared
+results expose only `retryAfter`, so a shared caller cannot become lock authority by
+reading the wrong nullable field. Named factories make permitted, backed-off, locked,
+observed, and contention-skipped states explicit. Challenge failures and issuance
+permission have separate enums and separate operations. Focused gate: **34 passed /
+149 assertions**; PHPStan level 9 clean. Three destructive probes fail independently:
+reuse the identifier HMAC domain for issuance, accept malformed/raw subjects, or drop
+the measured retry deadline from a backed-off identifier result. The ordinary gate
+reports **866 passed / 10 skipped / 2,900 assertions**.
 
 **Commit:** `feat: define authentication throttle contract`
 

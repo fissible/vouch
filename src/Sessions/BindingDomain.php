@@ -30,6 +30,9 @@ enum BindingDomain: string
     /** Recovery-path failure state, separate from ordinary authentication. */
     case ThrottleRecovery = 'throttle.recovery';
 
+    /** Challenge-issuance volume, charged before target resolution. */
+    case ThrottleIssuance = 'throttle.issuance';
+
     /** Advisory IPv4 breadth state. */
     case ThrottleIpV4 = 'throttle.ipv4';
 

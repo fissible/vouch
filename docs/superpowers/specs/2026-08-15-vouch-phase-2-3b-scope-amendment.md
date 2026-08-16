@@ -356,8 +356,9 @@ pretending IP trust was introduced by throttling.
 Throttle rows store keyed digests, never raw identifiers or IP addresses. 2.3b
 extends the existing `BindingDomain` / `SessionBinding` primitive rather than
 inventing a second HMAC scheme: every throttle dimension has a required, distinct
-domain (`ThrottleIdentifier`, `ThrottleRecovery`, `ThrottleIpV4`,
-`ThrottleIpV6`, `ThrottleIpIdentifier`, `ThrottleTenant`, and `ThrottleGlobal`). A
+domain (`ThrottleIdentifier`, `ThrottleRecovery`, `ThrottleIssuance`,
+`ThrottleIpV4`, `ThrottleIpV6`, `ThrottleIpIdentifier`, `ThrottleTenant`, and
+`ThrottleGlobal`). A
 caller cannot silently derive a throttle key under a session or attempt domain, and
 the two IP families cannot accidentally consume one another's threshold.
 

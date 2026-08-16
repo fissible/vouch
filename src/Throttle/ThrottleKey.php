@@ -19,23 +19,34 @@ final readonly class ThrottleKey
         private IpCanonicalizer $ips,
     ) {}
 
-    public function identifier(string $identifier, ?string $tenantId): string
+    public function identifier(string $identifier, ?string $tenantId): ThrottleSubject
     {
-        return SessionBinding::forSegments(
+        return $this->subject(
+            ThrottleDimension::Identifier,
             BindingDomain::ThrottleIdentifier,
-            ...$this->scoped($tenantId, $this->identifiers->canonicalize($identifier)),
+            $this->scoped($tenantId, $this->identifiers->canonicalize($identifier)),
         );
     }
 
-    public function recovery(string $identifier, ?string $tenantId): string
+    public function recovery(string $identifier, ?string $tenantId): ThrottleSubject
     {
-        return SessionBinding::forSegments(
+        return $this->subject(
+            ThrottleDimension::Recovery,
             BindingDomain::ThrottleRecovery,
-            ...$this->scoped($tenantId, $this->identifiers->canonicalize($identifier)),
+            $this->scoped($tenantId, $this->identifiers->canonicalize($identifier)),
         );
     }
 
-    public function ip(?string $ip, ?string $tenantId): ?string
+    public function issuance(string $identifier, ?string $tenantId): ThrottleSubject
+    {
+        return $this->subject(
+            ThrottleDimension::Issuance,
+            BindingDomain::ThrottleIssuance,
+            $this->scoped($tenantId, $this->identifiers->canonicalize($identifier)),
+        );
+    }
+
+    public function ip(?string $ip, ?string $tenantId): ?ThrottleSubject
     {
         $canonical = $this->ips->canonicalize($ip);
 
@@ -43,13 +54,12 @@ final readonly class ThrottleKey
             return null;
         }
 
-        $domain = filter_var($canonical, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false
-            ? BindingDomain::ThrottleIpV4
-            : BindingDomain::ThrottleIpV6;
+        $isIpv4 = filter_var($canonical, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
 
-        return SessionBinding::forSegments(
-            $domain,
-            ...$this->scoped($tenantId, $canonical),
+        return $this->subject(
+            $isIpv4 ? ThrottleDimension::IpV4 : ThrottleDimension::IpV6,
+            $isIpv4 ? BindingDomain::ThrottleIpV4 : BindingDomain::ThrottleIpV6,
+            $this->scoped($tenantId, $canonical),
         );
     }
 
@@ -57,16 +67,17 @@ final readonly class ThrottleKey
         ?string $ip,
         string $identifier,
         ?string $tenantId,
-    ): ?string {
+    ): ?ThrottleSubject {
         $canonicalIp = $this->ips->canonicalize($ip);
 
         if ($canonicalIp === null) {
             return null;
         }
 
-        return SessionBinding::forSegments(
+        return $this->subject(
+            ThrottleDimension::IpIdentifier,
             BindingDomain::ThrottleIpIdentifier,
-            ...$this->scoped(
+            $this->scoped(
                 $tenantId,
                 $canonicalIp,
                 $this->identifiers->canonicalize($identifier),
@@ -74,17 +85,34 @@ final readonly class ThrottleKey
         );
     }
 
-    public function tenant(?string $tenantId): string
+    public function tenant(?string $tenantId): ThrottleSubject
     {
-        return SessionBinding::forSegments(
+        return $this->subject(
+            ThrottleDimension::Tenant,
             BindingDomain::ThrottleTenant,
-            ...$this->tenantSegments($tenantId),
+            $this->tenantSegments($tenantId),
         );
     }
 
-    public function global(): string
+    public function global(): ThrottleSubject
     {
-        return SessionBinding::forSegments(BindingDomain::ThrottleGlobal, 'global');
+        return $this->subject(
+            ThrottleDimension::Global,
+            BindingDomain::ThrottleGlobal,
+            ['global'],
+        );
+    }
+
+    /** @param list<string> $segments */
+    private function subject(
+        ThrottleDimension $dimension,
+        BindingDomain $domain,
+        array $segments,
+    ): ThrottleSubject {
+        return new ThrottleSubject(
+            $dimension,
+            SessionBinding::forSegments($domain, ...$segments),
+        );
     }
 
     /** @return list<string> */
