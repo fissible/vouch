@@ -124,15 +124,22 @@ These facts were read from the current tree before this plan was written.
 - Modify: `PROJECT.md`
 - Modify: this plan only if current commands differ
 
-- [ ] Record `git status --short`, HEAD, branch, default Pest result, PHPStan result,
+- [x] Record `git status --short`, HEAD, branch, default Pest result, PHPStan result,
   and the current three-engine suite result before source changes.
-- [ ] Run the current lockout, strict retry, API surface, timing equalization,
+- [x] Run the current lockout, strict retry, API surface, timing equalization,
   enrollment contention, challenge, prune, and provider-wiring tests as a named
   baseline. A missing or skipped file is not green.
-- [ ] Record the current Phase 2 mutation manifest identity. 2.3b will add new
+- [x] Record the current Phase 2 mutation manifest identity. 2.3b will add new
   expressions, so final reconciliation is against a regenerated manifest rather than
   inherited counts.
-- [ ] Commit only tracking text if it changed.
+- [x] Commit only tracking text if it changed.
+
+**Recorded 2026-08-16:** clean `10ad1f1` on `feat/vouch-2-3-flow-http`; default
+720 passed / 9 skipped / 2,400 assertions; PHPStan level 9 clean; 109 named-control
+tests / 196 assertions on file-backed SQLite with no skips; and 729 tests / 2,419
+assertions on each of SQLite 3.53.4, MySQL 8.4.11, and PostgreSQL 16.14. The inherited
+manifest is the patched 2026-08-15 1,314-mutation run, keyed by its SHA-256 in
+`PROJECT.md`; it is not a substitute for Task 17 regeneration.
 
 **Gate:** default suite and PHPStan remain green before Task 2 begins.
 

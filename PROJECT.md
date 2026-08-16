@@ -987,6 +987,33 @@ explicit pre-implementation delivery-lifecycle design gate. Authority:
 - Dependency-ordered plan:
   `docs/superpowers/plans/2026-08-15-vouch-phase-2-3b-auth-throttling.md`
 
+### Task 1 baseline — 2026-08-16
+
+Runtime work starts from clean commit `10ad1f1d75aa08628ea8161715e3f9015d5017bd`
+on `feat/vouch-2-3-flow-http`. Before any source change, the ordinary 128M suite
+reported **720 passed / 9 skipped / 2,400 assertions**, and PHPStan level 9 reported
+no errors. The named inherited-control set—lockout, strict retry, API/kernel surface,
+payload, timing equalization, enrollment contention, challenge persistence/target,
+prune, provider wiring, and OTP factor—ran on file-backed SQLite with **109 passed /
+196 assertions / 0 skipped**.
+
+The current full suite then passed unchanged on every supported engine:
+
+| Engine | Resolved version | Result |
+|---|---|---|
+| SQLite | 3.53.4 | 729 passed / 2,419 assertions |
+| MySQL | 8.4.11 | 729 passed / 2,419 assertions |
+| PostgreSQL | 16.14 | 729 passed / 2,419 assertions |
+
+The inherited Phase 2 mutation identity is the 2026-08-15 patched authoritative run:
+**1,314 mutations / 60 files / 246 ruled rows / 4 documented timeouts / 81.28%**.
+`docs/superpowers/mutation/2026-08-15-survivor-manifest.md` has SHA-256
+`17b29cda3a96075ea6013986d2d9fc32287c10efe40073d59f9e169a99709912`; the pinned
+plugin patch has SHA-256
+`94fe6dca2546656dfc450675d0b0a5fcff6471ed9ed58a5ed2329d5656df7ad2`. This identity
+is a starting point only. Task 17 regenerates and reconciles the manifest because
+2.3b necessarily adds expressions.
+
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP
 parent/marker protocol → six-cell three-engine race matrix → flow integration →
