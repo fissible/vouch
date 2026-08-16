@@ -185,6 +185,80 @@ it('reports active aggregate distributions and configured threshold crossings wi
         ->and($encoded)->not->toContain('tuple_digest');
 });
 
+it('reports the complete top-level envelope and empty distributions', function (): void {
+    $report = app(ThrottleReporter::class)->report();
+
+    expect(array_keys($report))->toBe([
+        'generated_at',
+        'window_seconds',
+        'dimensions',
+        'outbox',
+    ])->and($report['generated_at'])->toBeString()
+        ->and($report['window_seconds'])->toBe(900)
+        ->and($report['outbox'])->toBe([
+            'pending' => 0,
+            'overdue' => 0,
+            'delivered' => 0,
+            'undeliverable' => 0,
+        ]);
+
+    foreach ($report['dimensions'] as $dimension) {
+        expect($dimension['active_buckets'])->toBe(0)
+            ->and($dimension['distribution'])->toBe([
+                'zero' => 0,
+                'one' => 0,
+                'two_to_four' => 0,
+                'five_to_nine' => 0,
+                'ten_to_twenty_nine' => 0,
+                'thirty_to_ninety_nine' => 0,
+                'one_hundred_to_two_hundred_ninety_nine' => 0,
+                'three_hundred_plus' => 0,
+            ]);
+    }
+});
+
+it('reports explicitly armed tenant and global thresholds', function (): void {
+    config()->set('vouch.throttle.tenant', [
+        'mode' => 'enforce',
+        'enforce_at' => 2,
+        'backoff_seconds' => 5,
+    ]);
+    config()->set('vouch.throttle.global', [
+        'mode' => 'enforce',
+        'enforce_at' => 3,
+        'backoff_seconds' => 5,
+    ]);
+    app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+    app()->forgetInstance(ThrottleReporter::class);
+    reportCounter('tenant', 2, 901);
+    reportCounter('global', 2, 902);
+    $dimensions = collect(app(ThrottleReporter::class)->report()['dimensions'])
+        ->keyBy('dimension');
+
+    expect(data_get($dimensions->get('tenant'), 'thresholds'))->toBe([
+        ['name' => 'enforce', 'value' => 2, 'buckets_at_or_above' => 1],
+    ])->and(data_get($dimensions->get('global'), 'thresholds'))->toBe([
+        ['name' => 'enforce', 'value' => 3, 'buckets_at_or_above' => 0],
+    ]);
+});
+
+it('pins native aggregate integer types on every supported PDO driver', function (): void {
+    reportCounter('identifier', 1, 950);
+    $row = DB::table('auth_throttle_counters')
+        ->selectRaw('COUNT(*) AS aggregate_count')
+        ->selectRaw('SUM(CASE WHEN count >= 0 THEN 1 ELSE 0 END) AS aggregate_sum')
+        ->first();
+
+    expect($row)->not->toBeNull();
+
+    if ($row === null) {
+        throw new RuntimeException('The aggregate type premise query returned no row.');
+    }
+
+    expect($row->aggregate_count)->toBeInt()
+        ->and($row->aggregate_sum)->toBeInt();
+});
+
 it('emits the same aggregate shape as JSON and human output', function (): void {
     seedAggregateReport();
 
