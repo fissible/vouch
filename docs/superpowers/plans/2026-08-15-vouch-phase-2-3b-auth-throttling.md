@@ -5,7 +5,8 @@
 > listed paths. Never infer cross-engine behavior from SQLite.
 
 **Status:** Dependency-ordered implementation plan, written 2026-08-15. No runtime
-code from this plan has landed.
+code from this plan has landed. Task 14 stops at a delivery-lifecycle design gate
+before implementation.
 
 **Goal:** Complete the missing production email/SMS OTP issuance path, then add
 enumeration-safe authentication throttling, challenge-attempt and issuance caps,
@@ -41,12 +42,14 @@ premise reopens the task that owns it rather than being absorbed into contingenc
 | 11. Error shaping, screens, and wire format | 6–9 h | 4, 7 | Yes |
 | 12. Flow preflight, failure counting, lockout, and reset | 14–20 h | 8, 10, 11 | No — critical path |
 | 13. Challenge-attempt cap and invalidation | 8–12 h | 7 | Yes |
-| 14. Corrective OTP issuance, cap, and 2.3c seam | 16–24 h | 8, 11, 12, 13 | No |
+| 14. Corrective OTP issuance, cap, and 2.3c seam | 16–24 h provisional; re-estimate after design gate | 8, 11, 12, 13 | No |
 | 15. Pruning and aggregate observe-mode report | 7–10 h | 6, 8, 9 | Yes |
 | 16. Container wiring and architecture boundaries | 6–9 h | 11–15 | No |
 | 17. Mutation reconciliation and completion matrix | 10–16 h plus runtime | all | No |
 
-Expected engineering effort: **140–206 hours**, with Tasks 2–6 parallelizable. The
+Expected engineering effort: **140–206 hours plus any delivery-lifecycle delta**, with
+Tasks 2–6 parallelizable. Task 14's range is provisional until its synchronous-
+transport/partial-issuance gate is decided. The
 critical chain has two prerequisite arms—**1 → 3** and **1 → 5 → 6 → 7**—that join
 at **9 → 10 → 12 → 14 → 16 → 17**. The store and real-engine matrix are the
 schedule risk; that chain is approximately 89–131 engineering hours before runtime.
@@ -92,7 +95,7 @@ These facts were read from the current tree before this plan was written.
 | `AuthChallenge::$attempts` is cast but never read or written. | Task 13 gives it its first behavior and re-rules the prior equivalent mutation. |
 | `AuthFlow` has two timing-equalizer sites: the missing/unoffered/userless path and the driver's `NoCredential` path. | Task 12 couples each site to identifier state and probes either half independently. |
 | Production `AuthFlow` never calls `Factor::challenge()`. Its calls named `challenge()` only build `ScreenSpec`; all actual OTP issuance calls are in driver tests. | This is a post-certification Phase 2.3 correctness defect, not only a missing cap. Task 14 completes email/SMS OTP end to end before it can claim to cap issuance. A cap around no event is vacuous. |
-| `OtpFactor::challenge()` refuses ambiguous target selection and writes the challenge before synchronous delivery. Parent spec §7.1 also requires an unknown-identifier decoy that sends nothing and a posture-safe response. | Task 14 must preserve the no-silent-target rule and explicitly implement or amend the decoy/issuance seam. It may not choose a credential, send to all credentials, or turn ambiguity into a public 500 merely to reach the volume counter. |
+| `OtpFactor::challenge()` refuses ambiguous target selection, commits a challenge row, then calls synchronous delivery on the request path. There is no queue or transaction around the pair. Parent spec §7.1 requires an unknown-identifier decoy that sends nothing and a posture-safe response. | Task 14 may not wire this method into the request unchanged: target-dependent volume state, provider latency, and partial issuance each violate a stated boundary. It must first settle the delivery lifecycle without choosing a credential, sending to all, or turning ambiguity into a public 500. |
 | CI's database matrix already runs the full suite on SQLite/MySQL/PostgreSQL. | Each database-sensitive task adds focused local commands, while Task 17 uses the existing full matrix as the completion gate. |
 
 ## Dependency graph
@@ -575,6 +578,9 @@ tests.
 
 **Dependencies:** Tasks 8, 11, 12, and 13
 
+**Design gate:** The estimate is provisional. Before source work beyond the negative
+controls, write and approve the narrow delivery-lifecycle amendment required below.
+
 **Files:**
 - Create: `src/Factors/ChallengeIssuer.php`
 - Create: `src/Factors/ChallengeIssuanceIntent.php`
@@ -582,6 +588,7 @@ tests.
 - Modify: `src/Factors/ChallengeRequest.php` only if the existing shape cannot carry
   the selected server-owned target safely
 - Modify: `src/Factors/Drivers/OtpFactor.php`
+- Create/modify: delivery lifecycle/outbox/queue files selected by the amendment
 - Test: `tests/Flow/OtpIssuanceFlowTest.php`
 - Modify: `tests/Factors/OtpFactorTest.php`
 - Modify: `tests/Http/AuthEndpointTest.php`
@@ -590,20 +597,42 @@ tests.
 - [ ] Begin with a test proving current AuthFlow issues no actual challenge. Keep it as
   the negative control and record the Phase 2.3 correction; a volume counter increment
   alone must not satisfy the task.
-- [ ] Introduce `ChallengeIssuer` as the only production caller of
-  `Factor::challenge()`. Resolve the server-owned target and construct a typed,
-  immutable issuance intent before any code generation, row creation, or delivery.
+- [ ] Prove the second negative control: current `OtpFactor::challenge()` commits a row
+  before synchronous delivery; a throwing transport leaves that row present. Use a
+  barrier-controlled transport: assert the request cannot complete before release,
+  then throw and assert the committed row remains. Do not substitute an elapsed-time
+  threshold for either property.
+- [ ] Before implementation, amend the design to choose request-path isolation,
+  durable queue/outbox requirements, synchronous-driver rejection, challenge
+  verifiability/state meanings, provider retry/failure behavior, resend coalescing,
+  and unconfigured-host behavior. A database transaction around a network call may
+  not be described as atomic.
+- [ ] Introduce `ChallengeIssuer` as the sole owner of production challenge issuance.
+  Construct a typed, immutable, target-free issuance-attempt intent from submitted
+  identifier, action, and the factor id carried by posture-safe flow state before user
+  or credential resolution.
+- [ ] Atomically charge/permit issuance volume before resolving a real target or decoy.
+  Known and nonexistent identifiers, on initial issue and explicit resend, must reach
+  the cap on the same request. Removing the charge from the no-target branch must fail.
+- [ ] After volume permission, resolve the server-owned target or decoy without
+  choosing silently among credentials. Only then construct any target-bearing delivery
+  intent.
 - [ ] Make the future 2.3c insertion point structural: volume permission first, then
   one named delivery-economics boundary, then the factor call. Ship no fake/no-op
   economics binding in 2.3b; 2.3c adds its required contract at that exact boundary.
   Record the inherited 2.3c test obligation—an economics refusal reaches no factor
   and never re-counts volume—without pretending an absent contract executed in 2.3b.
+  The future real-target-only economics work inherits the same request-path isolation.
 - [ ] Before any driver call, charge one issuance event for identify+first challenge.
   Explicit resend or factor switch charges one more. Screen construction alone does not.
 - [ ] Enforce five issuances per submitted identifier per 900 seconds before delivery.
-  2.3c may later refuse for economics only after this permission and never recounts it.
-- [ ] Invoke `Factor::challenge()` on the production path with captured IP/user-agent
-  after volume permission. Password/TOTP/recovery return null and incur no delivery.
+  Here “issuance” means an admitted issuance-attempt event, not provider success. 2.3c
+  may later refuse/account for economics only after this permission and never rewrites
+  or recounts it.
+- [ ] Invoke the selected challenge implementation only through the delivery lifecycle
+  chosen by the amendment, with captured IP/user-agent and no synchronous real-target
+  latency on the observable request path. Password/TOTP/recovery return null and incur
+  no delivery.
 - [ ] Preserve the driver's no-silent-target rule. If multiple active delivery targets
   cannot be represented safely by the current ScreenSpec/request shape, stop this task
   and write the narrow design amendment; do not choose the first target, send to all,
@@ -617,6 +646,9 @@ tests.
   fixed-boundary maximum still ≤ `10^-4` for six digits.
 - [ ] Prove delivery is never attempted after volume refusal and first issuance is not
   double-charged by identify plus FactorPending.
+- [ ] Prove provider retry of one accepted issuance does not charge authentication
+  volume again. Prove any refund/skip keyed to target resolution or delivery outcome is
+  impossible; outage mitigation belongs to retry/coalescing semantics instead.
 - [ ] Drive both `email_otp` and `sms_otp` through the public endpoint with a recording
   transport. For each, prove one challenge row is stored for the selected credential,
   one code is delivered to the correct verified identifier, and that code advances the
@@ -626,7 +658,8 @@ tests.
   future economics edit localized to the issuer rather than spread across AuthFlow.
 - [ ] Probe removing the permission check, charging screen construction, sending a
   decoy, choosing an ambiguous target, bypassing the issuer, and letting 2.3c-style
-  economics leak into the volume owner. Order discrimination for the required
+  economics leak into the volume owner. Probe target-dependent charge/refund and a
+  synchronous transport path separately. Order discrimination for the required
   economics contract belongs to 2.3c when that contract exists.
 
 **Focused gate:** issuance flow, endpoint, OTP driver, strict posture, and budget tests.

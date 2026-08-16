@@ -146,7 +146,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance defect open in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Design complete; implementation planned** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Core design complete; Task 14 delivery lifecycle gate open** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -924,18 +924,32 @@ Phase 2.3 completeness claim does not. This is a correctness defect assigned to 
 2.3b Task 14 alongside issuance-volume enforcement, not a retroactive claim that OTP
 issuance was always out of scope.
 
-Task 14 must introduce one `ChallengeIssuer` as the only production caller of
-`Factor::challenge()`. Its order is fixed: resolve the server-owned target and typed
-intent, obtain 2.3b volume permission, pass the named 2.3c economics insertion point,
-then invoke the driver. 2.3b ships no fake/no-op economics binding; 2.3c adds its
-required contract at that boundary. Architecture and end-to-end tests must prove the
-order and both email/SMS paths.
+Task 14 must introduce one `ChallengeIssuer` as the sole owner of production challenge
+issuance. Its first decision is target-independent: build an issuance-attempt intent
+from the canonical submitted identifier/factor/action and atomically charge 2.3b
+volume before resolving a real target or decoy. Known and nonexistent identifiers,
+including resend, must reach the same cap on the same request. Only then may it resolve
+the server-owned target, pass the named 2.3c economics insertion point for a real
+delivery, and invoke the driver. 2.3b ships no fake/no-op economics binding; 2.3c adds
+its required contract at that boundary.
+
+The transport lifecycle remains a named Task 14 design gate. Today
+`OtpFactor::challenge()` commits the challenge row, then performs synchronous network
+delivery on the request path, with no queue and no transaction spanning the pair.
+Calling that method inline reopens the timing channel; a provider failure leaves a
+committed unusable row after consuming volume. Merely wrapping the pair in a database
+transaction is not external atomicity—a send may succeed and the later commit fail.
+Before implementation, Task 14 must choose and document request-path isolation,
+challenge/outbox state, provider retry/failure behavior, and whether resends coalesce.
+Authentication-volume accounting may not be refunded or skipped based on target or
+provider outcome, because that would recreate the state oracle it exists to close.
 
 ---
 
 ## Phase 2.3b planning record — 2026-08-15
 
-**Design complete; implementation not started.** Authority:
+**Core throttling design complete; implementation not started.** Task 14 has an
+explicit pre-implementation delivery-lifecycle design gate. Authority:
 
 - Scope amendment:
   `docs/superpowers/specs/2026-08-15-vouch-phase-2-3b-scope-amendment.md`

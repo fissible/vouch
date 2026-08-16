@@ -1,7 +1,8 @@
 # Phase 2.3b/2.3c — §7.4 Scope Amendment
 
-**Status:** Design complete 2026-08-15. No implementation or new runtime contract
-lands in this amendment. Dependency-ordered implementation plan:
+**Status:** Core throttling design complete 2026-08-15; Task 14's transport lifecycle
+is an explicit pre-implementation design gate. No implementation or new runtime
+contract lands in this amendment. Dependency-ordered implementation plan:
 [`../plans/2026-08-15-vouch-phase-2-3b-auth-throttling.md`](../plans/2026-08-15-vouch-phase-2-3b-auth-throttling.md).
 
 ## Split
@@ -31,26 +32,71 @@ despite both drivers being registered and `config/vouch.php` advertising them in
 `challenges.require_credential`.
 
 Task 14 is a Phase 2.3 correctness repair and a Phase 2.3b control boundary. It
-introduces a dedicated `ChallengeIssuer`, enforced as the only production caller of
-`Factor::challenge()`. `AuthFlow`, controllers, and future delivery policy never call a
+introduces a dedicated `ChallengeIssuer`, enforced as the sole owner of production
+challenge issuance. `AuthFlow`, controllers, and future delivery policy never call a
 factor or `OtpDelivery` directly. The issuer's pipeline is fixed:
 
-1. Resolve the server-owned factor and credential target, then construct an immutable
-   issuance intent. This step creates no code, challenge row, or delivery side effect.
-2. Ask the 2.3b authentication-volume authority to permit the event.
-3. Cross the single named insertion point where 2.3c will later require its delivery-
-   economics authority.
-4. Only after every installed authority permits may the issuer invoke
-   `Factor::challenge()` and let the driver create and deliver the challenge.
+1. Construct an immutable, target-free issuance-attempt intent from the canonical
+   submitted identifier, action, and factor id carried by posture-safe flow state.
+   This resolves no user or credential and creates no code, challenge row, or delivery
+   side effect.
+2. Atomically charge/permit the 2.3b issuance-volume event. Known and nonexistent
+   identifiers—including explicit resend—advance the same state and reach refusal on
+   the same request. A missing target never skips or refunds this charge.
+3. Resolve the server-owned real target or construct the posture-safe decoy state.
+4. For a real delivery, cross the single named insertion point where 2.3c will later
+   require its delivery-economics authority.
+5. Only after every applicable authority permits may the issuer invoke the selected
+   challenge implementation.
 
 2.3b does not bind a fake or permissive economics implementation: that would make an
 absent 2.3c control look installed. Instead, the typed issuance intent and the single
 issuer make the future insertion structural and local; 2.3c adds its required contract
-at step 3. A volume refusal reaches neither that future authority nor the driver. When
+at step 4. A volume refusal reaches neither that future authority nor the driver. When
 2.3c exists, an economics refusal likewise reaches no driver, and 2.3c never recounts
 volume. Architecture tests must keep `ChallengeIssuer` as the sole production call
 site, and end-to-end tests must prove both email and SMS produce a stored challenge,
 invoke the configured transport, and can complete verification through the HTTP flow.
+
+### Open Task 14 design gate — request timing and partial issuance
+
+The current `OtpFactor::challenge()` is synchronous. It calls
+`AuthChallenge::create()` and then `OtpDelivery::deliver()` on the request path; there
+is no queue, outbox, or transaction around the pair. Wiring that method into
+`ChallengeIssuer` unchanged would introduce two failures:
+
+- Real SMTP/SMS latency would make a resolved target observably slower than an unknown
+  target whose decoy sends nothing. Uniform status/body and verification equalization
+  do not close that request-time channel.
+- A delivery exception occurs after the challenge row committed and after the
+  target-independent issuance charge. A provider outage can therefore leave an
+  unusable live challenge and consume a legitimate user's allowance.
+
+A local database transaction is not, by itself, a resolution. It can roll back the
+row when delivery throws, but it cannot atomically commit an external provider side
+effect: delivery can succeed and the database commit can then fail, producing a sent
+code with no verifiable row.
+
+Task 14 must add a narrow amendment before source work chooses among delivery
+lifecycle designs. It must settle at least: how transport leaves the observable
+request path; whether a durable outbox/queue is required and how a synchronous queue
+driver is rejected; when a challenge becomes verifiable; what committed row records
+mean before and after delivery; how transient/permanent provider failures retry; how
+explicit resends interact with an already pending issuance; and how unconfigured
+delivery fails visibly to the host without becoming a public existence signal.
+
+Two constraints survive every choice. The authentication issuance-volume charge is
+target-independent and is never refunded/skipped based on resolution or provider
+outcome; otherwise the counter becomes an existence oracle. Transport retries for one
+accepted issuance are not new authentication issuance events. Avoiding collateral
+budget burn during an outage must therefore come from the chosen delivery/retry/
+coalescing lifecycle, not from a target-dependent counter correction.
+
+“Issuance volume” therefore means admitted **issuance-attempt events**, not successful
+provider deliveries. 2.3c may separately account for actual delivery/spend, but it may
+not rewrite the authentication-volume record. Target resolution and the future
+economics decision also inherit the request-path timing constraint: work performed
+only for a real target cannot remain synchronously observable before the response.
 
 ## Declared kernel amendment; one disclosure authority
 

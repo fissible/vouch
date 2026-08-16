@@ -22,7 +22,8 @@ The flow/session/HTTP evidence and the password, TOTP, and recovery paths remain
 The broad feature-completeness claim does not. Phase 2.3b Task 14 carries the
 corrective production issuance hook together with the volume cap that must precede
 delivery. Its scope amendment defines the sole issuer and the later Phase 2.3c
-economics insertion point.
+economics insertion point. It also records why the current synchronous
+row-then-deliver method cannot simply be wired into the request and called complete.
 
 ## Scope
 
