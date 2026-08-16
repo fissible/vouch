@@ -146,7 +146,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance defect open in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–10 implemented, Task 11 retry disclosure next** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–11 implemented, Task 12 flow integration next** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -1237,6 +1237,25 @@ independent. Verified one-second contention skips only IP state after authoritat
 identifier state commits. Missing tables and malformed columns propagate rather than
 being swallowed as contention. Focused gate: **10 passed / 59 assertions on each of
 the three engines**.
+
+### Task 11 posture-safe retry disclosure — 2026-08-16
+
+Measured throttle state reaches the wire only through `ScreenBuilder` and the
+kernel `ErrorShaper`. The builder consumes typed identifier/shared results: only an
+identifier result can accompany `Outcome::Locked`, while shared results can carry
+only `retryAfter`. Strict posture redacts attempts remaining for both ordinary
+backoff and lockout but preserves the measured actionable deadline; friendly posture
+may retain permitted counter state.
+
+The JSON contract keeps `retry` present and null when nothing was measured. When a
+policy exists it has the exact ordered keys `attemptsRemaining`, `lockedUntil`, and
+`retryAfter`, with dates serialized in ATOM form. Destructive probes kill hardcoded
+null, dropped retry deadlines, strict counter leakage, and shared backoff mapped to a
+lock deadline. The shared-lock probe initially exposed only the strict shaper's
+compensating redaction; the final test also asserts friendly output so the builder's
+primary no-lock mapping is independently load-bearing. Focused gate: **48 passed /
+114 assertions**. Ordinary gate: **893 passed / 22 skipped / 2,991 assertions**;
+PHPStan level 9 clean.
 
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP

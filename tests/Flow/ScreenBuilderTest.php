@@ -8,6 +8,8 @@ use Fissible\Vouch\Kernel\Enumeration\Outcome;
 use Fissible\Vouch\Kernel\Screen\AuthStep;
 use Fissible\Vouch\Kernel\Screen\FactorOption;
 use Fissible\Vouch\Kernel\Screen\FieldSpec;
+use Fissible\Vouch\Throttle\IdentifierThrottle;
+use Fissible\Vouch\Throttle\SharedThrottle;
 
 function screenBuilder(): ScreenBuilder
 {
@@ -65,22 +67,86 @@ it('does distinguish them under friendly posture', function (): void {
     expect($unknown->errors)->not->toBe($rejected->errors);
 });
 
-it('never emits a retry policy in 2.3', function (): void {
-    // Rate limiting is 2.3b. A fabricated retry state would report something
-    // nobody measured.
+it('keeps retry null when no throttle state was measured', function (): void {
     foreach ([Outcome::IdentifierUnknown, Outcome::CredentialRejected] as $outcome) {
         expect(screenBuilder()->refused(AuthStep::Challenge, $outcome, EnumerationPosture::Strict)->retry)
             ->toBeNull();
     }
 });
 
-it('refuses to shape a locked outcome', function (): void {
-    /*
-     * ErrorShaper discloses Locked in full under every posture, which is safe
-     * only when rate limits apply identically to known and unknown identifiers.
-     * 2.3 has no rate limiting, so nothing can honestly be locked -- and a
-     * Locked screen with a null RetryPolicy would be a fabricated lockout.
-     * 2.3b removes this guard when it can satisfy the precondition.
-     */
+it('refuses to shape a lock without measured identifier lock state', function (): void {
     screenBuilder()->refused(AuthStep::Challenge, Outcome::Locked, EnumerationPosture::Strict);
+})->throws(LogicException::class);
+
+it('carries an ordinary identifier retry through posture shaping', function (): void {
+    $retryAfter = new DateTimeImmutable('2026-08-16T12:00:30Z');
+    $throttle = IdentifierThrottle::backedOff(4, $retryAfter);
+
+    $strict = screenBuilder()->refused(
+        AuthStep::Challenge,
+        Outcome::CredentialRejected,
+        EnumerationPosture::Strict,
+        throttle: $throttle,
+    );
+    $friendly = screenBuilder()->refused(
+        AuthStep::Challenge,
+        Outcome::CredentialRejected,
+        EnumerationPosture::Friendly,
+        throttle: $throttle,
+    );
+
+    expect($strict->retry?->attemptsRemaining)->toBeNull()
+        ->and($strict->retry?->lockedUntil)->toBeNull()
+        ->and($strict->retry?->retryAfter)->toBe($retryAfter)
+        ->and($friendly->retry?->attemptsRemaining)->toBe(4)
+        ->and($friendly->retry?->lockedUntil)->toBeNull()
+        ->and($friendly->retry?->retryAfter)->toBe($retryAfter);
+});
+
+it('discloses a measured identifier lock but redacts its counter under strict posture', function (): void {
+    $lockedUntil = new DateTimeImmutable('2026-08-16T12:15:00Z');
+    $screen = screenBuilder()->refused(
+        AuthStep::Challenge,
+        Outcome::Locked,
+        EnumerationPosture::Strict,
+        throttle: IdentifierThrottle::locked($lockedUntil),
+    );
+
+    expect($screen->errors)->toBe(['Too many attempts. Try again later.'])
+        ->and($screen->retry?->attemptsRemaining)->toBeNull()
+        ->and($screen->retry?->lockedUntil)->toBe($lockedUntil)
+        ->and($screen->retry?->retryAfter)->toBeNull();
+});
+
+it('can disclose shared backoff without constructing identifier lock state', function (): void {
+    $retryAfter = new DateTimeImmutable('2026-08-16T12:00:05Z');
+    $strict = screenBuilder()->refused(
+        AuthStep::Challenge,
+        Outcome::CredentialRejected,
+        EnumerationPosture::Strict,
+        throttle: SharedThrottle::backedOff($retryAfter),
+    );
+    $friendly = screenBuilder()->refused(
+        AuthStep::Challenge,
+        Outcome::CredentialRejected,
+        EnumerationPosture::Friendly,
+        throttle: SharedThrottle::backedOff($retryAfter),
+    );
+
+    expect($strict->retry?->attemptsRemaining)->toBeNull()
+        ->and($strict->retry?->lockedUntil)->toBeNull()
+        ->and($strict->retry?->retryAfter)->toBe($retryAfter)
+        // Assert the builder's primary mapping independently of strict shaping.
+        ->and($friendly->retry?->attemptsRemaining)->toBeNull()
+        ->and($friendly->retry?->lockedUntil)->toBeNull()
+        ->and($friendly->retry?->retryAfter)->toBe($retryAfter);
+});
+
+it('refuses to present shared throttle state as an identifier lock', function (): void {
+    screenBuilder()->refused(
+        AuthStep::Challenge,
+        Outcome::Locked,
+        EnumerationPosture::Strict,
+        throttle: SharedThrottle::backedOff(new DateTimeImmutable('2026-08-16T12:00:05Z')),
+    );
 })->throws(LogicException::class);

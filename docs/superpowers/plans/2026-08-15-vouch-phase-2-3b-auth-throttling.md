@@ -266,8 +266,9 @@ PHPStan level 9 clean.
 - [x] Update the docblock: retryAfter is posture-shaped measured backoff; lockedUntil
   remains identifier-lock state only.
 - [x] Under strict posture, null attemptsRemaining while preserving measured
-  retryAfter for ordinary refusals. Preserve full lock state for `Outcome::Locked`.
-  Friendly posture keeps permitted fields.
+  retryAfter for ordinary refusals. The initial Task 4 implementation preserved full
+  lock state; Task 11 completed the scope-amendment contract by retaining the lock
+  deadline while redacting its counter. Friendly posture keeps permitted fields.
 - [x] Prove strict shaping is identical for known/nonexistent outcomes when handed the
   same measured state. The stronger state-progression proof requires the Task 12 store
   and remains explicitly assigned there; a shaper-only test is not substituted for it.
@@ -627,24 +628,42 @@ as contention. Focused gate: **10 passed / 59 assertions per engine**.
 - Modify: `tests/Http/StrictPostureRetryTest.php`
 - Modify: `tests/Kernel/Enumeration/ErrorShaperTest.php`
 
-- [ ] Replace hardcoded retry null with serialization of
+- [x] Replace hardcoded retry null with serialization of
   `attemptsRemaining`, `lockedUntil`, and `retryAfter`, preserving the existing `retry`
   envelope key and explicit null when no policy exists.
-- [ ] Let ScreenBuilder construct measured ordinary refusal and identifier-lock
+- [x] Let ScreenBuilder construct measured ordinary refusal and identifier-lock
   policies, then pass them through ErrorShaper. Delete the 2.3 lockout prohibition only
   after its precondition is satisfied by tests.
-- [ ] Strict posture: known/nonexistent identifiers receive identical retryAfter and
+- [x] Strict posture: known/nonexistent identifiers receive identical retryAfter and
   lockedUntil schedules; attemptsRemaining is null. Friendly posture may show permitted
   attempts remaining. Shared state can populate retryAfter only.
-- [ ] `Outcome::Locked` comes only from identifier state and carries lockedUntil under
+- [x] `Outcome::Locked` comes only from identifier state and carries lockedUntil under
   every posture. No shared path may reuse it.
-- [ ] Rewrite the current retry-null tests to assert the new behavior from both sides.
+- [x] Rewrite the current retry-null tests to assert the new behavior from both sides.
   Keep cases proving null when nothing was measured.
-- [ ] Probe hardcoding retry null, leaking attemptsRemaining under strict, dropping
+- [x] Probe hardcoding retry null, leaking attemptsRemaining under strict, dropping
   retryAfter, and mapping shared backoff to lockedUntil.
 
 **Focused gate:** kernel shaping, ScreenBuilder, wire-contract, and strict-posture HTTP
 tests.
+
+**Recorded 2026-08-16:** `ScreenBuilder` accepts typed `IdentifierThrottle` or
+`SharedThrottle` state and is the only flow/HTTP component that constructs
+`RetryPolicy`. Identifier state may supply attempts remaining, ordinary retry, or a
+lock deadline. Shared state can supply only an active retry deadline; presenting a
+shared result as `Outcome::Locked` throws before shaping. `FlowResultSerializer`
+preserves the existing `retry` key and emits the complete ordered shape
+`attemptsRemaining`, `lockedUntil`, `retryAfter`, with database-derived deadlines in
+ATOM form and explicit null when nothing was measured.
+
+Strict posture redacts attempts remaining for ordinary backoff and lockout while
+preserving the actionable measured deadline. Friendly posture preserves permitted
+counter state. Four destructive probes fail: hardcoded retry null, omitted
+`retryAfter`, leaked strict counter state, and shared backoff mapped to
+`lockedUntil`. The last probe initially stayed green because strict shaping was a
+compensating control; adding a friendly-posture assertion made the builder's primary
+mapping independently observable. Focused gate: **48 passed / 114 assertions**.
+Ordinary gate: **893 passed / 22 skipped / 2,991 assertions**; PHPStan level 9 clean.
 
 **Commit:** `feat: disclose measured throttle retry state`
 

@@ -126,7 +126,7 @@ it('keeps every posture-permitted retry field under friendly posture', function 
 
     $shaped = (new ErrorShaper())->shape(
         $screen,
-        Outcome::CredentialRejected,
+        Outcome::Locked,
         EnumerationPosture::Friendly,
     );
 
@@ -154,21 +154,26 @@ it('always discloses a lockout, because withholding it is useless and hostile', 
     expect($shaped->errors)->toBe(['Too many attempts. Try again later.']);
 });
 
-it('preserves retry state on a lockout even under strict posture', function (): void {
-    // The other half of the Locked carve-out, previously unpinned: the retry
-    // policy survives Strict here, unlike every other outcome. This is the exact
-    // disclosure that becomes an account-existence oracle if Phase 2 throttles
-    // per existing-account record instead of per submitted identifier — see the
-    // precondition documented on ErrorShaper::shape() and the §7.7 residual-risk
-    // table. Pinned so the disclosure cannot widen or narrow unnoticed.
+it('preserves a lock deadline but redacts its counter under strict posture', function (): void {
+    $lockedUntil = new DateTimeImmutable('2026-08-16T12:15:00Z');
+    $base = identifyScreen();
+    $screen = new ScreenSpec(
+        step: $base->step,
+        offeredFactors: $base->offeredFactors,
+        fields: $base->fields,
+        challengePayload: $base->challengePayload,
+        errors: $base->errors,
+        retry: new RetryPolicy(0, $lockedUntil),
+    );
     $shaped = (new ErrorShaper())->shape(
-        identifyScreen(),
+        $screen,
         Outcome::Locked,
         EnumerationPosture::Strict,
     );
 
     expect($shaped->retry)->not->toBeNull()
-        ->and($shaped->retry?->attemptsRemaining)->toBe(3);
+        ->and($shaped->retry?->attemptsRemaining)->toBeNull()
+        ->and($shaped->retry?->lockedUntil)->toBe($lockedUntil);
 });
 
 it('preserves the complete measured lock policy under strict posture', function (): void {
@@ -186,7 +191,7 @@ it('preserves the complete measured lock policy under strict posture', function 
 
     $shaped = (new ErrorShaper())->shape($screen, Outcome::Locked, EnumerationPosture::Strict);
 
-    expect($shaped->retry?->attemptsRemaining)->toBe(0)
+    expect($shaped->retry?->attemptsRemaining)->toBeNull()
         ->and($shaped->retry?->lockedUntil)->toBe($lockedUntil)
         ->and($shaped->retry?->retryAfter)->toBe($retryAfter);
 });

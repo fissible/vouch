@@ -8,13 +8,9 @@ declare(strict_types=1);
  * precondition: that is safe only if rate limits apply identically to known and
  * unknown identifiers, including the length of the window.
  *
- * Phase 2.3 ships no rate limiting. So a known identifier would return a
- * populated retry state while an unknown one returned the uniform message with
- * retry: null — a complete account-existence oracle obtained UNDER STRICT
- * POSTURE, with every kernel test green.
- *
- * Until 2.3b can satisfy the precondition, no 2.3 path may reach that carve-out.
- * ScreenBuilder guards its own entry point; this makes the ban structural.
+ * Phase 2.3b satisfies that precondition with submitted-identifier state and
+ * keeps construction inside ScreenBuilder. A caller supplies typed throttle
+ * state; it cannot construct a RetryPolicy or reach Locked independently.
  */
 
 /** @return list<string> */
@@ -48,7 +44,7 @@ it('scans a non-empty set of 2.3-owned files', function (): void {
     expect(lockoutScannedFiles())->not->toBeEmpty();
 });
 
-it('never reaches a lockout path from 2.3-owned source', function (): void {
+it('keeps lockout and retry construction inside ScreenBuilder', function (): void {
     /*
      * Each pattern tolerates a namespace prefix. The first draft of the
      * RetryPolicy pattern matched only `new RetryPolicy(` and `new
@@ -72,12 +68,11 @@ it('never reaches a lockout path from 2.3-owned source', function (): void {
 
         foreach ($banned as $label => $pattern) {
             /*
-             * ScreenBuilder names Outcome::Locked in order to REFUSE it. That is
-             * the one legitimate mention, and it is a comparison rather than a
-             * construction — so it is excluded by name rather than by loosening
-             * the pattern for every file.
+             * ScreenBuilder is the disclosure boundary and the one legitimate
+             * construction site. Exclude it by name rather than loosening the
+             * patterns for every flow or HTTP file.
              */
-            if ($label === 'Outcome::Locked' && str_ends_with($file, 'ScreenBuilder.php')) {
+            if (str_ends_with($file, 'ScreenBuilder.php')) {
                 continue;
             }
 

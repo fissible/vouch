@@ -12,7 +12,11 @@ use Fissible\Vouch\Kernel\Enumeration\Outcome;
 use Fissible\Vouch\Kernel\Screen\AuthStep;
 use Fissible\Vouch\Kernel\Screen\FactorOption;
 use Fissible\Vouch\Kernel\Screen\FieldSpec;
+use Fissible\Vouch\Kernel\Screen\RetryPolicy;
 use Fissible\Vouch\Kernel\Screen\ScreenSpec;
+use Fissible\Vouch\Throttle\IdentifierThrottle;
+use Fissible\Vouch\Throttle\SharedThrottle;
+use Fissible\Vouch\Throttle\ThrottleDecision;
 use LogicException;
 
 /**
@@ -74,15 +78,25 @@ final readonly class ScreenBuilder
         Outcome $outcome,
         EnumerationPosture $posture,
         ?string $factorId = null,
+        IdentifierThrottle|SharedThrottle|null $throttle = null,
     ): ScreenSpec {
-        if ($outcome === Outcome::Locked) {
+        $measuredLock = $throttle instanceof IdentifierThrottle
+            && $throttle->decision === ThrottleDecision::Locked;
+
+        if (($outcome === Outcome::Locked) !== $measuredLock) {
             throw new LogicException(
-                'ScreenBuilder cannot shape Outcome::Locked in Phase 2.3. ErrorShaper '
-                . 'discloses Locked in full under every posture, which is safe only when '
-                . 'rate limits apply identically to known and unknown identifiers — and '
-                . '2.3 ships no rate limiting, so nothing can honestly be locked. Emitting '
-                . 'it with a null RetryPolicy would fabricate a lockout nobody measured. '
-                . 'Phase 2.3b removes this guard once it can satisfy the precondition.',
+                'ScreenBuilder requires Outcome::Locked and a measured identifier lock '
+                . 'to arrive together. A lock outcome without identifier state fabricates '
+                . 'a lockout, while hiding measured lock state would discard the only '
+                . 'deadline a legitimate user can act on.',
+            );
+        }
+
+        if ($throttle instanceof SharedThrottle
+            && $throttle->decision !== ThrottleDecision::BackedOff) {
+            throw new LogicException(
+                'ScreenBuilder can refuse from shared throttle state only when that '
+                . 'dimension measured an active backoff.',
             );
         }
 
@@ -94,10 +108,32 @@ final readonly class ScreenBuilder
                 : [new FieldSpec('code', 'text', 'one-time-code', 64)],
             challengePayload: null,
             errors: [],
-            retry: null,
+            retry: $this->retryPolicy($throttle),
         );
 
         return $this->shaper->shape($base, $outcome, $posture);
+    }
+
+    private function retryPolicy(
+        IdentifierThrottle|SharedThrottle|null $throttle,
+    ): ?RetryPolicy {
+        if ($throttle instanceof IdentifierThrottle) {
+            return new RetryPolicy(
+                attemptsRemaining: $throttle->attemptsRemaining,
+                lockedUntil: $throttle->lockedUntil,
+                retryAfter: $throttle->retryAfter,
+            );
+        }
+
+        if ($throttle instanceof SharedThrottle) {
+            return new RetryPolicy(
+                attemptsRemaining: null,
+                lockedUntil: null,
+                retryAfter: $throttle->retryAfter,
+            );
+        }
+
+        return null;
     }
 
     /**

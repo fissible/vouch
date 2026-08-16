@@ -17,10 +17,10 @@ final class ErrorShaper
         EnumerationPosture $posture,
     ): ScreenSpec {
         if ($outcome === Outcome::Locked) {
-            // Locked is disclosed in full under every posture, including Strict:
-            // the distinct message and the retry state both survive. Withholding
-            // them is useless (the lockout is observable from the failure to
-            // proceed) and hostile (a real user cannot tell why they are stuck).
+            // Locked is disclosed under every posture: the distinct message and
+            // measured deadline survive. Withholding them is useless (the lockout
+            // is observable from the failure to proceed) and hostile (a real user
+            // cannot tell why they are stuck). The counter remains posture-sensitive.
             //
             // PRECONDITION — this carve-out is safe ONLY under spec §7.1: rate
             // limits must be applied identically to known and unknown
@@ -40,7 +40,11 @@ final class ErrorShaper
             // decoy) are the same oracle at finer grain.
             //
             // Recorded as a Phase 2 constraint in the §7.7 residual-risk table.
-            return $this->withErrors($spec, ['Too many attempts. Try again later.'], $spec->retry);
+            $retry = $posture === EnumerationPosture::Strict
+                ? $this->strictLockRetry($spec->retry)
+                : $spec->retry;
+
+            return $this->withErrors($spec, ['Too many attempts. Try again later.'], $retry);
         }
 
         if ($posture === EnumerationPosture::Strict) {
@@ -76,6 +80,19 @@ final class ErrorShaper
         return new RetryPolicy(
             attemptsRemaining: null,
             lockedUntil: null,
+            retryAfter: $retry->retryAfter,
+        );
+    }
+
+    private function strictLockRetry(?RetryPolicy $retry): ?RetryPolicy
+    {
+        if ($retry === null) {
+            return null;
+        }
+
+        return new RetryPolicy(
+            attemptsRemaining: null,
+            lockedUntil: $retry->lockedUntil,
             retryAfter: $retry->retryAfter,
         );
     }

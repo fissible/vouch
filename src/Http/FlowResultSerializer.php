@@ -11,6 +11,7 @@ use Fissible\Vouch\Flow\RecoveryGraceStarted;
 use Fissible\Vouch\Flow\UnknownFlowResult;
 use Fissible\Vouch\Kernel\Screen\FactorOption;
 use Fissible\Vouch\Kernel\Screen\FieldSpec;
+use Fissible\Vouch\Kernel\Screen\RetryPolicy;
 use Fissible\Vouch\Kernel\Screen\ScreenSpec;
 
 /**
@@ -75,9 +76,23 @@ final readonly class FlowResultSerializer
             ], $screen->fields),
             'challengePayload' => $screen->challengePayload,
             'errors' => $screen->errors,
-            // Always null in 2.3. Rate limiting is 2.3b; a fabricated retry
-            // state would report something nobody measured.
-            'retry' => null,
+            'retry' => $this->retry($screen->retry),
+        ];
+    }
+
+    /**
+     * @return array{attemptsRemaining: int|null, lockedUntil: string|null, retryAfter: string|null}|null
+     */
+    private function retry(?RetryPolicy $retry): ?array
+    {
+        if ($retry === null) {
+            return null;
+        }
+
+        return [
+            'attemptsRemaining' => $retry->attemptsRemaining,
+            'lockedUntil' => $retry->lockedUntil?->format(DATE_ATOM),
+            'retryAfter' => $retry->retryAfter?->format(DATE_ATOM),
         ];
     }
 }

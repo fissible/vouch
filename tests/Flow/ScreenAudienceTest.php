@@ -21,12 +21,10 @@ uses(RefreshDatabase::class);
  * populated without any of the exception's text.
  */
 
-it('throws on a locked outcome rather than rendering it', function (): void {
+it('throws on a lock outcome without measured identifier state rather than rendering it', function (): void {
     /*
-     * The audience proof. Outcome::Locked cannot be shaped in 2.3 -- ErrorShaper
-     * discloses it in full under every posture, which is only safe once rate
-     * limits apply identically to known and unknown identifiers, and 2.3 ships
-     * no rate limiting.
+     * The audience proof. Outcome::Locked can be shaped only alongside the
+     * measured identifier state that makes the disclosure truthful.
      *
      * Because it THROWS, the message reaches a stack trace and never a response
      * body. That is what makes its 15 concatenation mutants developer-facing.
@@ -36,7 +34,7 @@ it('throws on a locked outcome rather than rendering it', function (): void {
         Outcome::Locked,
         EnumerationPosture::Friendly,
         'password',
-    ))->toThrow(LogicException::class, 'cannot shape Outcome::Locked');
+    ))->toThrow(LogicException::class, 'requires Outcome::Locked and a measured identifier lock');
 });
 
 it('sources what the user reads from the shaper, not from builder text', function (): void {
@@ -56,7 +54,7 @@ it('sources what the user reads from the shaper, not from builder text', functio
 
     foreach ($screen->errors as $error) {
         expect((string) $error)->not->toContain('ScreenBuilder')
-            ->and((string) $error)->not->toContain('Phase 2.3');
+            ->and((string) $error)->not->toContain('measured identifier lock');
     }
 });
 

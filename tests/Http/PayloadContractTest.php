@@ -11,6 +11,7 @@ use Fissible\Vouch\Http\FlowResultSerializer;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Kernel\Screen\FactorOption;
 use Fissible\Vouch\Kernel\Screen\FieldSpec;
+use Fissible\Vouch\Kernel\Screen\RetryPolicy;
 use Fissible\Vouch\Kernel\Screen\ScreenSpec;
 use Fissible\Vouch\Kernel\Screen\AuthStep;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -40,8 +41,7 @@ function contractScreen(): ScreenSpec
         fields: [new FieldSpec('password', 'password', 'current-password', 128)],
         challengePayload: null,
         errors: [],
-        // Null until 2.3b brings rate limiting. The serializer emits the key
-        // regardless, which is the subject of one of the tests below.
+        // Null remains a measured state: no retry policy applies.
         retry: null,
     );
 }
@@ -132,13 +132,34 @@ it('serializes each offered factor and field with its complete key set', functio
 
 it('reports retry as null rather than omitting it', function (): void {
     /*
-     * Rate limiting lands in 2.3b. Until then the key must still be present and
-     * null: a client that treats a missing key as "no retry state" and a null
-     * key as "no retry state" behaves identically today and diverges the moment
-     * the field becomes real. Present-and-null is the honest placeholder.
+     * A client distinguishes an absent contract key from measured no-retry
+     * state. Present-and-null remains the honest representation of the latter.
      */
     $screen = (array) contractSerializer()->toArray(new Continuing(contractScreen(), 'h'))['screen'];
 
     expect($screen)->toHaveKey('retry')
         ->and($screen['retry'])->toBeNull();
+});
+
+it('serializes every measured retry field with stable wire names and deadlines', function (): void {
+    $lockedUntil = new DateTimeImmutable('2026-08-16T12:15:00+00:00');
+    $retryAfter = new DateTimeImmutable('2026-08-16T12:00:30+00:00');
+    $base = contractScreen();
+    $screen = new ScreenSpec(
+        step: $base->step,
+        offeredFactors: $base->offeredFactors,
+        fields: $base->fields,
+        challengePayload: $base->challengePayload,
+        errors: $base->errors,
+        retry: new RetryPolicy(2, $lockedUntil, $retryAfter),
+    );
+    $payload = (array) contractSerializer()->toArray(new Continuing($screen, 'h'))['screen'];
+    $retry = (array) $payload['retry'];
+
+    expect(array_keys($retry))->toBe(['attemptsRemaining', 'lockedUntil', 'retryAfter'])
+        ->and($retry)->toBe([
+            'attemptsRemaining' => 2,
+            'lockedUntil' => '2026-08-16T12:15:00+00:00',
+            'retryAfter' => '2026-08-16T12:00:30+00:00',
+        ]);
 });
