@@ -146,7 +146,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance defect open in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–11 implemented, Task 12 flow integration next** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–12 implemented, Task 13 challenge-attempt cap next** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -1256,6 +1256,31 @@ compensating redaction; the final test also asserts friendly output so the build
 primary no-lock mapping is independently load-bearing. Focused gate: **48 passed /
 114 assertions**. Ordinary gate: **893 passed / 22 skipped / 2,991 assertions**;
 PHPStan level 9 clean.
+
+### Task 12 authentication-flow integration — 2026-08-16
+
+Throttle state is keyed by the submitted identifier stored on the attempt, never the
+resolved user. Known and nonexistent identifiers execute the same ordered store
+operations and receive identical strict-posture schedules. Tenant scope is persisted
+at attempt creation; null client IP skips that dimension instead of collapsing into a
+shared unknown bucket. Recovery bypasses identifier lock, advances its own scalar
+counter, and leaves login failure state untouched.
+
+Preflight happens before credential verification and never increments or extends an
+active deadline. On failure the identifier/recovery transaction commits first, then
+IP, tenant, and global observations run independently. A selective decorator over the
+real database store proves that a following advisory failure propagates while the
+identifier count stays committed. The original attempt to prove this by dropping a
+table was rejected: MySQL DDL implicitly committed the test transaction, so the
+observed missing-savepoint error said nothing about flow ordering.
+
+Only a successfully committed final `Authenticated` transition resets identifier
+state. First-factor satisfaction, recovery grace, and a lost compare-and-swap do not.
+Destructive probes kill resolved-user keying, reset after one factor, and active
+backoff fallthrough; transition and ordering assertions cover CAS-loss charging and
+shared-first writes. Focused gate: **66 passed / 170 assertions**. The 13-test flow
+integration file passes with **39 assertions** on SQLite, MySQL 8, and PostgreSQL 16;
+ordinary gate: **906 passed / 22 skipped / 3,035 assertions**; PHPStan level 9 clean.
 
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP

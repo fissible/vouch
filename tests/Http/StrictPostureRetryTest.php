@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use Fissible\Vouch\Http\AuthController;
+use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Models\AuthPolicy;
 use Fissible\Vouch\Tests\Support\RecordingGuard;
+use Fissible\Vouch\Throttle\ThrottleConfiguration;
 use Illuminate\Contracts\Auth\StatefulGuard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -53,6 +55,30 @@ function retryProbe(array $payload): array
     return $decoded;
 }
 
+function retryUseLongBackoff(): void
+{
+    $throttle = config()->array('vouch.throttle');
+    $identifier = $throttle['identifier'] ?? null;
+
+    if (! is_array($identifier)) {
+        throw new RuntimeException('The identifier throttle configuration is missing.');
+    }
+
+    $identifier['initial_backoff_seconds'] = 60;
+    $identifier['backoff_cap_seconds'] = 60;
+    $throttle['identifier'] = $identifier;
+
+    app()->instance(ThrottleConfiguration::class, ThrottleConfiguration::from(
+        $throttle,
+        config('vouch.otp.length'),
+        config('vouch.totp.digits'),
+        config('vouch.totp.window'),
+    ));
+    app()->forgetInstance(AuthThrottleStore::class);
+    app()->forgetInstance(\Fissible\Vouch\Flow\AuthFlow::class);
+    app()->forgetInstance(AuthController::class);
+}
+
 it('returns a null retry policy for known and unknown identifiers alike', function (): void {
     /*
      * The arch scan proves no lockout is CONSTRUCTED. This proves none reaches
@@ -80,14 +106,24 @@ it('keeps retry null through a rejected credential, for both', function (): void
     }
 });
 
-it('keeps retry null through repeated rejections', function (): void {
-    // Repetition is what would trigger a lockout once 2.3b lands. Until the
-    // precondition is satisfiable, repetition must change nothing.
+it('reports measured ordinary backoff without leaking the strict counter', function (): void {
+    retryUseLongBackoff();
     $begin = retryProbe([]);
     retryProbe(['handle' => $begin['handle'], 'input' => ['identifier' => 'ada@acme.example']]);
 
-    foreach (range(1, 5) as $attempt) {
+    foreach (range(1, 4) as $attempt) {
         expect(data_get(retryProbe(['handle' => $begin['handle'], 'input' => ['password' => 'wrong']]), 'screen.retry'))
             ->toBeNull();
     }
+
+    $retry = data_get(
+        retryProbe(['handle' => $begin['handle'], 'input' => ['password' => 'wrong']]),
+        'screen.retry',
+    );
+
+    expect($retry)->toBeArray()
+        ->and(array_keys((array) $retry))->toBe(['attemptsRemaining', 'lockedUntil', 'retryAfter'])
+        ->and(data_get($retry, 'attemptsRemaining'))->toBeNull()
+        ->and(data_get($retry, 'lockedUntil'))->toBeNull()
+        ->and(data_get($retry, 'retryAfter'))->toBeString();
 });

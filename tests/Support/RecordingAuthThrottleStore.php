@@ -17,32 +17,46 @@ final class RecordingAuthThrottleStore implements AuthThrottleStore
     /** @var list<array{operation: string, subjects: list<ThrottleSubject|int>}> */
     public array $calls = [];
 
+    public ?IdentifierThrottle $preflightIdentifierResult = null;
+
+    public ?SharedThrottle $preflightSharedResult = null;
+
+    public ?IdentifierThrottle $recordIdentifierResult = null;
+
+    public ?SharedThrottle $recordRecoveryResult = null;
+
+    public ?SharedThrottle $recordIpResult = null;
+
+    public ?SharedThrottle $recordSharedResult = null;
+
+    public ?string $throwOnOperation = null;
+
     public function preflightIdentifier(ThrottleSubject $identifier): IdentifierThrottle
     {
         $this->record(__FUNCTION__, $identifier);
 
-        return IdentifierThrottle::permitted(10);
+        return $this->preflightIdentifierResult ?? IdentifierThrottle::permitted(10);
     }
 
     public function preflightShared(ThrottleSubject $subject): SharedThrottle
     {
         $this->record(__FUNCTION__, $subject);
 
-        return SharedThrottle::permitted();
+        return $this->preflightSharedResult ?? SharedThrottle::permitted();
     }
 
     public function recordIdentifierFailure(ThrottleSubject $identifier): IdentifierThrottle
     {
         $this->record(__FUNCTION__, $identifier);
 
-        return IdentifierThrottle::permitted(9);
+        return $this->recordIdentifierResult ?? IdentifierThrottle::permitted(9);
     }
 
     public function recordRecoveryFailure(ThrottleSubject $recovery): SharedThrottle
     {
         $this->record(__FUNCTION__, $recovery);
 
-        return SharedThrottle::permitted();
+        return $this->recordRecoveryResult ?? SharedThrottle::permitted();
     }
 
     public function recordIpFailure(
@@ -51,14 +65,14 @@ final class RecordingAuthThrottleStore implements AuthThrottleStore
     ): SharedThrottle {
         $this->record(__FUNCTION__, $ip, $ipIdentifier);
 
-        return SharedThrottle::observed();
+        return $this->recordIpResult ?? SharedThrottle::observed();
     }
 
     public function recordSharedFailure(ThrottleSubject $subject): SharedThrottle
     {
         $this->record(__FUNCTION__, $subject);
 
-        return SharedThrottle::observed();
+        return $this->recordSharedResult ?? SharedThrottle::observed();
     }
 
     public function resetIdentifier(ThrottleSubject $identifier): void
@@ -87,5 +101,9 @@ final class RecordingAuthThrottleStore implements AuthThrottleStore
             'operation' => $operation,
             'subjects' => array_values($subjects),
         ];
+
+        if ($this->throwOnOperation === $operation) {
+            throw new \RuntimeException("Forced {$operation} failure.");
+        }
     }
 }

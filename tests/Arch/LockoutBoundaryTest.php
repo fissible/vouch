@@ -68,11 +68,13 @@ it('keeps lockout and retry construction inside ScreenBuilder', function (): voi
 
         foreach ($banned as $label => $pattern) {
             /*
-             * ScreenBuilder is the disclosure boundary and the one legitimate
-             * construction site. Exclude it by name rather than loosening the
-             * patterns for every flow or HTTP file.
+             * AuthFlow selects Locked only from typed IdentifierThrottle state;
+             * ScreenBuilder validates that pairing and is the sole RetryPolicy
+             * construction site. Exclude those exact expressions by file and
+             * label rather than loosening either pattern globally.
              */
-            if (str_ends_with($file, 'ScreenBuilder.php')) {
+            if (str_ends_with($file, 'ScreenBuilder.php')
+                || ($label === 'Outcome::Locked' && str_ends_with($file, 'AuthFlow.php'))) {
                 continue;
             }
 

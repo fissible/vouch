@@ -6,6 +6,7 @@ namespace Fissible\Vouch;
 
 use Fissible\Vouch\Attempts\DatabaseAttemptStore;
 use Fissible\Vouch\Contracts\AttemptStore;
+use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Console\VouchPruneCommand;
 use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Contracts\TenantResolver;
@@ -23,7 +24,9 @@ use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\LockContention;
 use Fissible\Vouch\Support\SystemClock;
 use Fissible\Vouch\Tenancy\NullTenantResolver;
+use Fissible\Vouch\Throttle\DatabaseAuthThrottleStore;
 use Fissible\Vouch\Throttle\ThrottleConfiguration;
+use Fissible\Vouch\Throttle\ThrottleKey;
 use Illuminate\Support\ServiceProvider;
 use Psr\Clock\ClockInterface;
 
@@ -69,6 +72,19 @@ final class VouchServiceProvider extends ServiceProvider
             ),
         );
 
+        $this->app->singleton(ThrottleKey::class);
+
+        $this->app->singleton(
+            AuthThrottleStore::class,
+            fn ($app): DatabaseAuthThrottleStore => new DatabaseAuthThrottleStore(
+                $app['db']->connection(),
+                new \Fissible\Vouch\Support\DatabaseTime($app['db']->connection()),
+                $app->make(ThrottleConfiguration::class),
+                $app->make(BoundedLockWait::class),
+                $app->make(LockContention::class),
+            ),
+        );
+
         $this->app->singleton(
             EnrollmentGuard::class,
             fn ($app): EnrollmentGuard => new EnrollmentGuard(
@@ -98,6 +114,9 @@ final class VouchServiceProvider extends ServiceProvider
             \Fissible\Vouch\Flow\AuthFlow::class,
             fn ($app): \Fissible\Vouch\Flow\AuthFlow => new \Fissible\Vouch\Flow\AuthFlow(
                 $app->make(\Fissible\Vouch\Contracts\AttemptStore::class),
+                $app->make(\Fissible\Vouch\Contracts\AuthThrottleStore::class),
+                $app->make(\Fissible\Vouch\Throttle\ThrottleKey::class),
+                $app->make(\Fissible\Vouch\Contracts\TenantResolver::class),
                 $app->make(\Fissible\Vouch\Factors\FactorRegistry::class),
                 $app->make(\Fissible\Vouch\Flow\ScreenBuilder::class),
                 new \Fissible\Vouch\Kernel\Satisfiability\SatisfiabilityEvaluator(),

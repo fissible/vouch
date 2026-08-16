@@ -83,7 +83,11 @@ it('refuses rather than authenticating when the satisfy transition loses', funct
         // No evidence written: the ledger must not record a factor whose
         // transition did not commit.
         ->and($attempt->satisfied_factors)->toBeNull()
-        ->and($attempt->state)->not->toBe(AttemptState::Authenticated);
+        ->and($attempt->state)->not->toBe(AttemptState::Authenticated)
+        // A compare-and-swap loss after successful verification is not a bad
+        // credential and must not charge the user for a concurrency race.
+        ->and(\Illuminate\Support\Facades\DB::table('auth_throttle_counters')->count())
+        ->toBe(0);
 });
 
 it('does not attempt the authenticate transition after the satisfy one loses', function (): void {

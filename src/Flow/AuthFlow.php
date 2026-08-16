@@ -8,6 +8,8 @@ use DateTimeImmutable;
 use Exception;
 use Fissible\Vouch\Attempts\TransitionOutcome;
 use Fissible\Vouch\Contracts\AttemptStore;
+use Fissible\Vouch\Contracts\AuthThrottleStore;
+use Fissible\Vouch\Contracts\TenantResolver;
 use Fissible\Vouch\Factors\FactorRegistry;
 use Fissible\Vouch\Factors\VerificationRequest;
 use Fissible\Vouch\Kernel\Assurance\AssuranceFacts;
@@ -26,6 +28,11 @@ use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Models\AuthPolicy;
+use Fissible\Vouch\Throttle\IdentifierThrottle;
+use Fissible\Vouch\Throttle\SharedThrottle;
+use Fissible\Vouch\Throttle\ThrottleDecision;
+use Fissible\Vouch\Throttle\ThrottleKey;
+use Fissible\Vouch\Throttle\ThrottleSubject;
 use Psr\Clock\ClockInterface;
 
 /**
@@ -48,6 +55,9 @@ final readonly class AuthFlow
 {
     public function __construct(
         private AttemptStore $store,
+        private AuthThrottleStore $throttles,
+        private ThrottleKey $throttleKey,
+        private TenantResolver $tenants,
         private FactorRegistry $registry,
         private ScreenBuilder $screens,
         private SatisfiabilityEvaluator $evaluator,
@@ -100,6 +110,7 @@ final readonly class AuthFlow
             'state' => AttemptState::Initiated,
             'version' => 1,
             'bound_context' => $request->boundContext,
+            'tenant_id' => $this->tenants->currentTenantId(),
             'expires_at' => $this->clock->now()->modify(sprintf('+%d seconds', $this->attemptTtlSeconds)),
         ]);
 
@@ -155,6 +166,22 @@ final readonly class AuthFlow
     private function verify(AuthAttempt $attempt, FlowRequest $request): FlowResult
     {
         $posture = $this->posture($attempt->tenant_id);
+        $submittedIdentifier = $attempt->identifier;
+
+        if (! is_string($submittedIdentifier) || $submittedIdentifier === '') {
+            $this->equalizer->equalize($posture);
+
+            return $this->refusal($attempt, $posture, 'password');
+        }
+
+        $preflight = $this->preflightThrottle($attempt, $request, $submittedIdentifier);
+
+        if ($preflight !== null) {
+            // Do not derive presentation from the resolved user on a preflight
+            // refusal. The retry state is target-independent, and the screen is too.
+            return $this->refusal($attempt, $posture, 'password', $preflight);
+        }
+
         $offered = $this->offeredFactorsFor($attempt);
         $factorId = $this->selectFactor($attempt, $request, $offered);
 
@@ -166,10 +193,8 @@ final readonly class AuthFlow
          */
         $presented = $offered[0] ?? 'password';
 
-        $refusal = fn (): FlowResult => new Continuing(
-            $this->screens->refused(AuthStep::Challenge, Outcome::CredentialRejected, $posture, $presented),
-            $attempt->handle,
-        );
+        $refusal = fn (IdentifierThrottle|SharedThrottle|null $throttle = null): FlowResult =>
+            $this->refusal($attempt, $posture, $presented, $throttle);
 
         $userId = $attempt->user_id;
 
@@ -181,7 +206,7 @@ final readonly class AuthFlow
              */
             $this->equalizer->equalize($posture);
 
-            return $refusal();
+            return $refusal($this->recordThrottleFailure($attempt, $request, $submittedIdentifier));
         }
 
         $result = $this->registry->get($factorId)->verify(new VerificationRequest(
@@ -200,7 +225,7 @@ final readonly class AuthFlow
                 $this->equalizer->equalize($posture);
             }
 
-            return $refusal();
+            return $refusal($this->recordThrottleFailure($attempt, $request, $submittedIdentifier));
         }
 
         $satisfied = [...$this->existingFactors($attempt), $result->factor];
@@ -243,6 +268,13 @@ final readonly class AuthFlow
             return $refusal();
         }
 
+        // A satisfied factor is not authentication. Reset only after the final
+        // compare-and-swap commits, or the first factor in an all_of policy would
+        // refill the budget for attacking the second.
+        $this->throttles->resetIdentifier(
+            $this->identifierSubject($attempt, $submittedIdentifier),
+        );
+
         $facts = AssuranceFacts::fromFactors($satisfied);
 
         return new Authenticated(
@@ -255,6 +287,150 @@ final readonly class AuthFlow
             ),
             $this->screens->challenge($this->defaultFactorFor($userId), $posture),
         );
+    }
+
+    private function refusal(
+        AuthAttempt $attempt,
+        EnumerationPosture $posture,
+        string $presented,
+        IdentifierThrottle|SharedThrottle|null $throttle = null,
+    ): FlowResult {
+        $outcome = $throttle instanceof IdentifierThrottle
+            && $throttle->decision === ThrottleDecision::Locked
+                ? Outcome::Locked
+                : Outcome::CredentialRejected;
+
+        return new Continuing(
+            $this->screens->refused(
+                AuthStep::Challenge,
+                $outcome,
+                $posture,
+                $presented,
+                $throttle,
+            ),
+            $attempt->handle,
+        );
+    }
+
+    private function preflightThrottle(
+        AuthAttempt $attempt,
+        FlowRequest $request,
+        string $submittedIdentifier,
+    ): IdentifierThrottle|SharedThrottle|null {
+        if ($request->action === 'recover') {
+            $recovery = $this->throttles->preflightShared(
+                $this->throttleKey->recovery($submittedIdentifier, $attempt->tenant_id),
+            );
+
+            if ($recovery->decision === ThrottleDecision::BackedOff) {
+                return $recovery;
+            }
+        } else {
+            $identifier = $this->throttles->preflightIdentifier(
+                $this->identifierSubject($attempt, $submittedIdentifier),
+            );
+
+            if (in_array($identifier->decision, [
+                ThrottleDecision::BackedOff,
+                ThrottleDecision::Locked,
+            ], true)) {
+                return $identifier;
+            }
+        }
+
+        foreach ($this->sharedSubjects($attempt, $request) as $subject) {
+            $shared = $this->throttles->preflightShared($subject);
+
+            if ($shared->decision === ThrottleDecision::BackedOff) {
+                return $shared;
+            }
+        }
+
+        return null;
+    }
+
+    private function recordThrottleFailure(
+        AuthAttempt $attempt,
+        FlowRequest $request,
+        string $submittedIdentifier,
+    ): IdentifierThrottle|SharedThrottle|null {
+        $identifier = null;
+        $recovery = null;
+
+        // The authoritative subject commits before any advisory shared work. A
+        // crash may under-count breadth, but can never erase this failure.
+        if ($request->action === 'recover') {
+            $recovery = $this->throttles->recordRecoveryFailure(
+                $this->throttleKey->recovery($submittedIdentifier, $attempt->tenant_id),
+            );
+        } else {
+            $identifier = $this->throttles->recordIdentifierFailure(
+                $this->identifierSubject($attempt, $submittedIdentifier),
+            );
+        }
+
+        $sharedBackoff = null;
+        $ip = $this->throttleKey->ip($request->clientIp, $attempt->tenant_id);
+        $ipIdentifier = $this->throttleKey->ipIdentifier(
+            $request->clientIp,
+            $submittedIdentifier,
+            $attempt->tenant_id,
+        );
+
+        if ($ip !== null && $ipIdentifier !== null) {
+            $state = $this->throttles->recordIpFailure($ip, $ipIdentifier);
+
+            if ($state->decision === ThrottleDecision::BackedOff) {
+                $sharedBackoff = $state;
+            }
+        }
+
+        foreach ([
+            $this->throttleKey->tenant($attempt->tenant_id),
+            $this->throttleKey->global(),
+        ] as $subject) {
+            $state = $this->throttles->recordSharedFailure($subject);
+
+            if ($sharedBackoff === null && $state->decision === ThrottleDecision::BackedOff) {
+                $sharedBackoff = $state;
+            }
+        }
+
+        if ($identifier !== null && in_array($identifier->decision, [
+            ThrottleDecision::BackedOff,
+            ThrottleDecision::Locked,
+        ], true)) {
+            return $identifier;
+        }
+
+        if ($recovery?->decision === ThrottleDecision::BackedOff) {
+            return $recovery;
+        }
+
+        return $sharedBackoff ?? $identifier;
+    }
+
+    /** @return list<ThrottleSubject> */
+    private function sharedSubjects(AuthAttempt $attempt, FlowRequest $request): array
+    {
+        $subjects = [];
+        $ip = $this->throttleKey->ip($request->clientIp, $attempt->tenant_id);
+
+        if ($ip !== null) {
+            $subjects[] = $ip;
+        }
+
+        $subjects[] = $this->throttleKey->tenant($attempt->tenant_id);
+        $subjects[] = $this->throttleKey->global();
+
+        return $subjects;
+    }
+
+    private function identifierSubject(
+        AuthAttempt $attempt,
+        string $submittedIdentifier,
+    ): ThrottleSubject {
+        return $this->throttleKey->identifier($submittedIdentifier, $attempt->tenant_id);
     }
 
     /**

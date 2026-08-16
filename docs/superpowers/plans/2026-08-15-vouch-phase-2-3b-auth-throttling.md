@@ -680,28 +680,54 @@ Ordinary gate: **893 passed / 22 skipped / 2,991 assertions**; PHPStan level 9 c
 - Modify: `tests/Flow/TimingEqualizationTest.php`
 - Modify: `tests/Http/StrictPostureRetryTest.php`
 
-- [ ] Preflight identifier lock/backoff and shared backoff before expensive credential
+- [x] Preflight identifier lock/backoff and shared backoff before expensive credential
   verification. Active refusal does not increment or extend any deadline.
-- [ ] On every credential failure, commit identifier state first. Then attempt IP tuple,
+- [x] On every credential failure, commit identifier state first. Then attempt IP tuple,
   tenant, and global observations in separate advisory transactions.
-- [ ] Couple both existing `VerificationEqualizer::equalize()` sites to the same
+- [x] Couple both existing `VerificationEqualizer::equalize()` sites to the same
   identifier increment. Removing either equalization or either increment must fail a
   distinct test.
-- [ ] Count ordinary mismatch, malformed/binding/no-credential paths according to the
+- [x] Count ordinary mismatch, malformed/binding/no-credential paths according to the
   one event table. Do not count successful-factor CAS loss as credential failure.
-- [ ] Use the submitted identifier stored on the attempt, never `user_id`. Known and
+- [x] Use the submitted identifier stored on the attempt, never `user_id`. Known and
   nonexistent attempts must hit identical keys/schedules after canonicalization.
-- [ ] Recovery bypasses identifier lock but uses its own digest/counter and bounded
+- [x] Recovery bypasses identifier lock but uses its own digest/counter and bounded
   backoff. It can never write identifier lock state or reset login failures.
-- [ ] Reset identifier state only after the final Authenticated transition succeeds.
+- [x] Reset identifier state only after the final Authenticated transition succeeds.
   First-factor satisfaction and RecoveryGraceStarted do not reset.
-- [ ] Prove identifier-first crash direction with a selective store double and real DB
+- [x] Prove identifier-first crash direction with a selective store double and real DB
   integration: authoritative count may exist without shared evidence; the reverse is
   not required and no count-reconciliation assertion is introduced.
-- [ ] Probe resolved-user keying, shared-first order, reset after one factor, increment
+- [x] Probe resolved-user keying, shared-first order, reset after one factor, increment
   during active backoff, increment on CAS loss, and swallowed shared schema errors.
 
 **Focused gate:** flow, timing, strict-posture, transition-failure, and full HTTP tests.
+
+**Recorded 2026-08-16:** `AuthFlow` derives state exclusively from the submitted
+identifier persisted on the attempt. Known and nonexistent identifiers traverse the
+same preflight and recording operations; a test with two identifiers owned by the
+same user kills resolved-user keying. The host tenant is persisted when the attempt
+is created, null IP skips that dimension rather than entering a global unknown
+bucket, and recovery uses its separate scalar subject while bypassing and preserving
+login lock state.
+
+Every verification failure commits identifier/recovery state before IP, tenant, and
+global work. A decorator delegates the authoritative write to the real database store
+and fails only the following IP call; the failure propagates while the identifier
+count remains committed. Store-level malformed-table/column propagation remains
+separately proven by Task 10. The first attempted fixture used DDL to break the tuple
+table; MySQL implicitly committed the test transaction and failed on a missing
+savepoint, so it was rejected as non-discriminating rather than normalized into a
+cross-engine assertion.
+
+Preflight refusals perform no verification or increment. Full authentication resets
+identifier state only after the final CAS succeeds; a first factor, recovery grace,
+and a lost satisfy CAS do not reset or increment it. Destructive probes kill
+resolved-user keying, reset-after-first-factor, active-backoff fallthrough, and the
+ordering/reset/CAS assertions cover shared-first, swallowed advisory failure, and
+CAS-loss charging. Focused gate: **66 passed / 170 assertions**. The 13-test flow
+integration file passes with **39 assertions** on SQLite, MySQL 8, and PostgreSQL 16;
+ordinary gate: **906 passed / 22 skipped / 3,035 assertions**; PHPStan level 9 clean.
 
 **Commit:** `feat: throttle authentication failures`
 
