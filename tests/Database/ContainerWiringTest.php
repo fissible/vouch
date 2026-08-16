@@ -73,6 +73,7 @@ it('resolves every singleton the provider registers as one shared instance', fun
     \Fissible\Vouch\Support\DatabaseTime::class,
     \Fissible\Vouch\Support\BoundedLockWait::class,
     \Fissible\Vouch\Support\LockContention::class,
+    \Fissible\Vouch\Throttle\ThrottleConfiguration::class,
     \Fissible\Vouch\Recovery\GraceGuard::class,
     // FlowResultHandler is NOT here: it needs a StatefulGuard, which the test
     // application does not bind. It has its own test below rather than being

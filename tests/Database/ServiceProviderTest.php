@@ -20,5 +20,9 @@ it('publishes the new config sections', function (): void {
         ->and(config('vouch.otp.ttl_seconds'))->toBeInt()
         ->and(config('vouch.recovery.count'))->toBe(10)
         ->and(config('vouch.enrollment.lock_wait_seconds'))->toBeInt()
+        ->and(config('vouch.throttle.window_seconds'))->toBe(900)
+        ->and(config('vouch.throttle.ip.mode'))->toBe('observe')
+        ->and(config('vouch.throttle.ip.ipv6_enforce_at'))->toBeNull()
+        ->and(config('vouch.throttle.global.enforce_at'))->toBeNull()
         ->and(config('vouch.challenges.require_credential'))->toBe(['email_otp', 'sms_otp']);
 });

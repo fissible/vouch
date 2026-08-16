@@ -23,6 +23,7 @@ use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\LockContention;
 use Fissible\Vouch\Support\SystemClock;
 use Fissible\Vouch\Tenancy\NullTenantResolver;
+use Fissible\Vouch\Throttle\ThrottleConfiguration;
 use Illuminate\Support\ServiceProvider;
 use Psr\Clock\ClockInterface;
 
@@ -57,6 +58,16 @@ final class VouchServiceProvider extends ServiceProvider
         );
 
         $this->app->singleton(LockContention::class);
+
+        $this->app->singleton(
+            ThrottleConfiguration::class,
+            static fn (): ThrottleConfiguration => ThrottleConfiguration::from(
+                config('vouch.throttle'),
+                config('vouch.otp.length'),
+                config('vouch.totp.digits'),
+                config('vouch.totp.window'),
+            ),
+        );
 
         $this->app->singleton(
             EnrollmentGuard::class,
@@ -234,6 +245,10 @@ final class VouchServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Validation is eager: an invalid security budget must fail package boot,
+        // not wait for the first attacker-controlled request to reach a store.
+        $this->app->make(ThrottleConfiguration::class);
+
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
         $this->loadRoutesFrom(__DIR__ . '/../routes/vouch.php');
 

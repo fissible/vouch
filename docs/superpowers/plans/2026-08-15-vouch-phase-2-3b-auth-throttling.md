@@ -297,29 +297,45 @@ progression remains a Task 12 obligation.
 - Test: `tests/Database/ThrottleConfigurationTest.php`
 - Test: `tests/Database/ProviderEffectTest.php`
 
-- [ ] Add the adopted defaults: 900-second window; identifier backoff after 5,
+- [x] Add the adopted defaults: 900-second window; identifier backoff after 5,
   lock after 10, base 2, initial 1 second, cap 60 seconds; 900-second lock default;
   3600-second hard maximum; five challenge attempts; five issuances per identifier
   per 900 seconds; 86400-second scalar retention.
-- [ ] Apply the same bounded backoff schedule to the recovery domain without granting
+- [x] Apply the same bounded backoff schedule to the recovery domain without granting
   it lock authority. Recovery remains reachable while identifier-locked.
-- [ ] Add IPv6 `/64` observation threshold 30 and IPv4 distinct-identifier threshold
+- [x] Add IPv6 `/64` observation threshold 30 and IPv4 distinct-identifier threshold
   300. Shared mode defaults to observe; tenant/global enforcement thresholds default
   null. Shared enforcement requires an explicit seconds-scale backoff bound and never
   silently uses observation values.
-- [ ] Validate types and relationships at provider boot: positive values,
+- [x] Validate types and relationships at provider boot: positive values,
   `backoff_after < lock_after`, backoff cap ≤ window, lock ≤ 3600, retention ≥ window
   + maximum lock, IPv4 threshold > IPv6 threshold, and complete shared-enforcement
   configuration.
-- [ ] Empty environment variables must fail loudly rather than become zero through an
+- [x] Empty environment variables must fail loudly rather than become zero through an
   `(int)` cast. Error messages name the exact key and violated relationship.
-- [ ] Prove defaults by leaving keys unset. Separate tests cover explicit values; a
+- [x] Prove defaults by leaving keys unset. Separate tests cover explicit values; a
   helper that passes the default is not evidence the default was read.
-- [ ] Probe every boundary from both sides and remove one shipped config key to prove
+- [x] Probe every boundary from both sides and remove one shipped config key to prove
   the provider does not fall back to a duplicate inline default.
 
 **Focused gate:** configuration and provider-effect tests, full default suite,
 PHPStan.
+
+**Recorded 2026-08-16:** one validated singleton owns the global schedule; recovery
+reuses that schedule but has no configuration surface granting lock authority. The
+provider resolves it before routes or migrations, so blank, missing, non-positive, or
+relationally-invalid security budgets abort boot with the exact key. The current OTP
+and TOTP code spaces and drift window participate in validation: the fixed-window
+worst case must remain at or below `10^-4`, rather than allowing two independently
+reasonable caps to multiply into an unreviewed guess budget.
+
+The focused contract passed **91 tests / 250 assertions**; the ordinary gate passed
+**803 tests / 10 skipped / 2,701 assertions**; and PHPStan level 9 is clean. The
+following independent probes fail as intended: change an unset default; widen
+`backoff_after < lock_after`; tighten the retention equality boundary; bypass both
+guess-budget calculations; bypass IP enforcement validation; delete
+`vouch.throttle.window_seconds` from the shipped config; or launch with that
+environment variable set to an empty string.
 
 **Commit:** `feat: define throttle configuration`
 

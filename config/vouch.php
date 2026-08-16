@@ -117,4 +117,60 @@ return [
         // Short by design: a six-digit code is only 20 bits.
         'ttl_seconds' => (int) env('VOUCH_OTP_TTL', 120),
     ],
+
+    /*
+     * Authentication throttling. These values deliberately are NOT cast here:
+     * `(int) env(...)` turns a set-but-blank variable into zero. The provider
+     * resolves ThrottleConfiguration during boot, where numeric strings become
+     * integers and blank, missing, or relationally-invalid values fail loudly.
+     */
+    'throttle' => [
+        'window_seconds' => env('VOUCH_THROTTLE_WINDOW_SECONDS', 900),
+        'retention_seconds' => env('VOUCH_THROTTLE_RETENTION_SECONDS', 86400),
+
+        'identifier' => [
+            'backoff_after' => env('VOUCH_THROTTLE_BACKOFF_AFTER', 5),
+            'lock_after' => env('VOUCH_THROTTLE_LOCK_AFTER', 10),
+            'backoff_base' => env('VOUCH_THROTTLE_BACKOFF_BASE', 2),
+            'initial_backoff_seconds' => env('VOUCH_THROTTLE_INITIAL_BACKOFF_SECONDS', 1),
+            'backoff_cap_seconds' => env('VOUCH_THROTTLE_BACKOFF_CAP_SECONDS', 60),
+            'lock_duration_seconds' => env('VOUCH_THROTTLE_LOCK_DURATION_SECONDS', 900),
+        ],
+
+        'challenge' => [
+            'attempts' => env('VOUCH_THROTTLE_CHALLENGE_ATTEMPTS', 5),
+            'issuances_per_identifier' => env('VOUCH_THROTTLE_ISSUANCES_PER_IDENTIFIER', 5),
+        ],
+
+        /*
+         * IP thresholds count distinct submitted identifiers per window, not
+         * raw requests. Observe mode records aggregate distributions only.
+         * Enforcement has no defaults: mode, both family thresholds, and a
+         * seconds-scale backoff must be supplied together.
+         */
+        'ip' => [
+            'mode' => env('VOUCH_THROTTLE_IP_MODE', 'observe'),
+            'ipv6_observe_at' => env('VOUCH_THROTTLE_IPV6_OBSERVE_AT', 30),
+            'ipv4_observe_at' => env('VOUCH_THROTTLE_IPV4_OBSERVE_AT', 300),
+            'ipv6_enforce_at' => env('VOUCH_THROTTLE_IPV6_ENFORCE_AT'),
+            'ipv4_enforce_at' => env('VOUCH_THROTTLE_IPV4_ENFORCE_AT'),
+            'backoff_seconds' => env('VOUCH_THROTTLE_IP_BACKOFF_SECONDS'),
+        ],
+
+        /*
+         * Tenant and global counters are observable but unarmed by default.
+         * Their blast radius makes opt-in enforcement the only safe default.
+         */
+        'tenant' => [
+            'mode' => env('VOUCH_THROTTLE_TENANT_MODE', 'observe'),
+            'enforce_at' => env('VOUCH_THROTTLE_TENANT_ENFORCE_AT'),
+            'backoff_seconds' => env('VOUCH_THROTTLE_TENANT_BACKOFF_SECONDS'),
+        ],
+
+        'global' => [
+            'mode' => env('VOUCH_THROTTLE_GLOBAL_MODE', 'observe'),
+            'enforce_at' => env('VOUCH_THROTTLE_GLOBAL_ENFORCE_AT'),
+            'backoff_seconds' => env('VOUCH_THROTTLE_GLOBAL_BACKOFF_SECONDS'),
+        ],
+    ],
 ];

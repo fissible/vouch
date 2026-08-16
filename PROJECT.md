@@ -146,7 +146,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance defect open in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–4 complete** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–5 complete** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -1092,6 +1092,28 @@ ordinary backoff. The focused kernel/API gate is **132 passed / 366 assertions**
 kernel mutation gates remain above their frozen floors at **86.96% overall (230
 mutations)** and **97.54% covered-only (203 mutations)**. The ordinary suite reports
 **753 passed / 10 skipped / 2,516 assertions**, and PHPStan level 9 is clean.
+
+### Task 5 validated throttle configuration — 2026-08-16
+
+`ThrottleConfiguration` is a provider-eager singleton rather than a collection of
+inline defaults. The shipped environment-backed values remain uncast until validation,
+so a set-but-blank value fails loudly instead of becoming zero. Missing keys have no
+call-site fallback; changing or deleting `config/vouch.php` therefore changes or
+breaks the contract in a test-visible way.
+
+The adopted 900-second window, bounded identifier/recovery backoff schedule,
+wait-out-able 900-second lock, 3600-second hard lock maximum, challenge attempt and
+issuance caps, 86400-second retention, IPv6 `/64` and IPv4 observation thresholds,
+and opt-in shared enforcement are all typed and relationally checked at boot. The
+validator also couples those caps to the actual OTP/TOTP code space and TOTP drift
+window: both fixed-window worst cases must stay at or below `10^-4`. Recovery may use
+the common schedule but has no lock-authority configuration.
+
+Focused configuration/provider gate: **91 passed / 250 assertions**; ordinary gate:
+**803 passed / 10 skipped / 2,701 assertions**; PHPStan level 9 clean. Seven
+destructive probes cover the no-argument default, backoff/lock ordering, retention
+equality, guess-budget call, shared-IP validation, missing shipped key, and blank
+environment value. Each fails at its discriminating assertion or at provider boot.
 
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP

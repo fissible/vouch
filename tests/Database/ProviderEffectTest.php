@@ -11,9 +11,11 @@ use Fissible\Vouch\Http\Middleware\ValidatesVouchSession;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
 use Fissible\Vouch\Support\SystemRandomSource;
 use Fissible\Vouch\Tenancy\NullTenantResolver;
+use Fissible\Vouch\Throttle\ThrottleConfiguration;
 use Fissible\Vouch\VouchServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Router;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Psr\Clock\ClockInterface;
@@ -39,6 +41,23 @@ it('merges package config from its own path', function (): void {
     expect(config('vouch.sessions.revocation_retention_days'))->toBe(30)
         ->and(config('vouch.otp.length'))->not->toBeNull();
 });
+
+it('validates throttle configuration eagerly during provider boot', function (): void {
+    // resolved() is checked before this test asks for the object. Without the
+    // boot-time make(), the singleton would remain dormant until the first
+    // attacker-controlled request reached throttling.
+    expect(app()->resolved(ThrottleConfiguration::class))->toBeTrue();
+});
+
+it('fails provider boot on a set-but-blank throttle value', function (): void {
+    Config::set('vouch.throttle.window_seconds', '');
+    app()->forgetInstance(ThrottleConfiguration::class);
+
+    (new VouchServiceProvider(app()))->boot();
+})->throws(
+    InvalidArgumentException::class,
+    'Configuration "vouch.throttle.window_seconds" must be a positive integer; got an empty string.',
+);
 
 it('loads migrations from its own path', function (): void {
     // RefreshDatabase runs whatever loadMigrationsFrom registered.
