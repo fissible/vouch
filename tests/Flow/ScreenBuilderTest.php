@@ -3,8 +3,15 @@
 declare(strict_types=1);
 
 use Fissible\Vouch\Flow\ScreenBuilder;
+use Fissible\Vouch\Contracts\Factor;
+use Fissible\Vouch\Factors\EnrollmentResult;
+use Fissible\Vouch\Factors\FactorFailure;
+use Fissible\Vouch\Factors\FactorRegistry;
+use Fissible\Vouch\Factors\FactorResult;
 use Fissible\Vouch\Kernel\Enumeration\EnumerationPosture;
 use Fissible\Vouch\Kernel\Enumeration\Outcome;
+use Fissible\Vouch\Kernel\Factor\FactorKind;
+use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Kernel\Screen\AuthStep;
 use Fissible\Vouch\Kernel\Screen\FactorOption;
 use Fissible\Vouch\Kernel\Screen\FieldSpec;
@@ -54,6 +61,55 @@ it('offers every registered factor on a challenge screen', function (): void {
             'recovery_code',
         ])
         ->and($screen->offeredFactors[0])->toBeInstanceOf(FactorOption::class);
+});
+
+it('keeps the filtered factor collection a JSON-list when a host appends a driver', function (): void {
+    app(FactorRegistry::class)->register(new class implements Factor
+    {
+        public function id(): string
+        {
+            return 'passkey';
+        }
+
+        public function kind(): FactorKind
+        {
+            return FactorKind::Possession;
+        }
+
+        public function strength(): FactorStrength
+        {
+            return FactorStrength::Possession;
+        }
+
+        public function maxActiveCredentials(): int
+        {
+            return 1;
+        }
+
+        public function enroll(int $userId, array $data): EnrollmentResult
+        {
+            return new EnrollmentResult([]);
+        }
+
+        public function challenge(\Fissible\Vouch\Factors\ChallengeRequest $request): ?\Fissible\Vouch\Models\AuthChallenge
+        {
+            return null;
+        }
+
+        public function verify(\Fissible\Vouch\Factors\VerificationRequest $request): FactorResult
+        {
+            return FactorResult::failed(FactorFailure::NoCredential);
+        }
+
+        public function revoke(\Fissible\Vouch\Models\AuthCredential $credential): void {}
+    });
+    app()->forgetInstance(ScreenBuilder::class);
+
+    $options = screenBuilder()->identify(EnumerationPosture::Friendly)->offeredFactors;
+
+    expect(array_keys($options))->toBe(range(0, count($options) - 1))
+        ->and(array_map(static fn (FactorOption $option): string => $option->factorId, $options))
+        ->toBe(['password', 'totp', 'email_otp', 'sms_otp', 'passkey']);
 });
 
 it('marks exactly one offered factor as the default', function (): void {
