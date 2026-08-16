@@ -101,6 +101,25 @@ it('performs exactly one verification for an unknown identifier too', function (
     expect(verificationsFor('nobody@acme.example'))->toBe(1);
 });
 
+it('fails closed and equalizes when a pending attempt lost its persisted identifier', function (): void {
+    $session = timingSession();
+    $session->start();
+    $begin = timingCall([], $session);
+    timingCall(['handle' => $begin['handle'], 'input' => ['identifier' => 'ada@acme.example']], $session);
+    \Fissible\Vouch\Models\AuthAttempt::query()
+        ->where('handle', $begin['handle'])
+        ->update(['identifier' => '']);
+
+    countingHasher()->checks = 0;
+    $result = timingCall([
+        'handle' => $begin['handle'],
+        'input' => ['password' => 'a-real-password'],
+    ], $session);
+
+    expect($result['result'])->toBe('continuing')
+        ->and(countingHasher()->checks)->toBe(1);
+});
+
 it('performs the same work for both, which is the property that matters', function (): void {
     expect(verificationsFor('ada@acme.example'))->toBe(verificationsFor('nobody@acme.example'));
 });

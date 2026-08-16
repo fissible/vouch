@@ -21,6 +21,7 @@ use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
 use Fissible\Vouch\Tests\Support\ArrayOtpDelivery;
 use Fissible\Vouch\Tests\Support\RecordingGuard;
 use Fissible\Vouch\Throttle\IssuancePermission;
+use Fissible\Vouch\Throttle\ThrottleKey;
 use Illuminate\Contracts\Auth\StatefulGuard;
 use Illuminate\Contracts\Queue\Factory;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
@@ -259,6 +260,44 @@ it('issues the next OTP only after the first factor in an all-of policy succeeds
     expect($done['result'])->toBe('authenticated');
 });
 
+it('refuses the next factor when its issuance window is already exhausted', function (): void {
+    bindIssuanceDelivery();
+    AuthPolicy::create([
+        'tenant_id' => null,
+        'scope' => 'login',
+        'document' => ['all_of' => ['password', 'email_otp']],
+        'posture' => 'strict',
+    ]);
+    $identifier = AuthIdentifier::create([
+        'user_id' => 7, 'type' => 'email', 'value' => 'capped-next@acme.example', 'verified_at' => now(),
+    ]);
+    app(Fissible\Vouch\Factors\Drivers\PasswordFactor::class)
+        ->enroll(7, ['password' => 'correct horse battery staple']);
+    app(EmailOtpFactor::class)->enroll(7, ['identifier_id' => $identifier->id]);
+
+    $issuance = app(ThrottleKey::class)->issuance($identifier->value, null);
+
+    for ($event = 1; $event <= 5; $event++) {
+        expect(app(Fissible\Vouch\Contracts\AuthThrottleStore::class)->permitIssuance($issuance))
+            ->toBe(IssuancePermission::Permitted);
+    }
+
+    $session = issuanceSession();
+    $begin = issuanceEndpoint([], $session);
+    issuanceEndpoint([
+        'handle' => $begin['handle'],
+        'input' => ['identifier' => $identifier->value],
+    ], $session);
+    $result = issuanceEndpoint([
+        'handle' => $begin['handle'],
+        'input' => ['factor' => 'password', 'password' => 'correct horse battery staple'],
+    ], $session);
+
+    expect(data_get($result, 'screen.errors'))->not->toBe([])
+        ->and(AuthChallenge::query()->count())->toBe(0)
+        ->and(AuthChallengeOutbox::query()->count())->toBe(0);
+});
+
 it('charges known and nonexistent identifiers identically before target resolution', function (): void {
     bindIssuanceDelivery();
     AuthPolicy::create([
@@ -293,6 +332,7 @@ it('charges known and nonexistent identifiers identically before target resoluti
     }
 
     expect($sixth[0])->toEqual($sixth[1])
+        ->and(data_get($sixth[0], 'errors'))->not->toBe([])
         ->and(DB::table('auth_throttle_counters')->where('dimension', 'issuance')->pluck('count')->all())
         ->toBe([5, 5])
         ->and(AuthChallenge::query()->count())->toBe(10);
@@ -321,7 +361,7 @@ it('charges resend once and reuses a still-pending challenge without resetting a
     $first = AuthChallenge::query()->sole();
     $first->update(['attempts' => 2]);
 
-    issuanceEndpoint([
+    $resent = issuanceEndpoint([
         'handle' => $begin['handle'],
         'action' => 'resend',
         'input' => ['factor' => 'email_otp'],
@@ -330,8 +370,76 @@ it('charges resend once and reuses a still-pending challenge without resetting a
     expect(AuthChallenge::query()->count())->toBe(1)
         ->and($first->refresh()->attempts)->toBe(2)
         ->and(AuthChallengeOutbox::query()->count())->toBe(1)
+        ->and(data_get($resent, 'screen.step'))->toBe('challenge')
+        ->and(data_get($resent, 'screen.errors'))->toBe([])
         ->and(DB::table('auth_throttle_counters')->where('dimension', 'issuance')->value('count'))
         ->toBe(2);
+});
+
+it('refuses a resend only after the issuance window is exhausted', function (): void {
+    bindIssuanceDelivery();
+    AuthPolicy::create([
+        'tenant_id' => null, 'scope' => 'login',
+        'document' => ['all_of' => ['email_otp']], 'posture' => 'strict',
+    ]);
+    $identifier = AuthIdentifier::create([
+        'user_id' => 7, 'type' => 'email', 'value' => 'capped-resend@acme.example', 'verified_at' => now(),
+    ]);
+    app(EmailOtpFactor::class)->enroll(7, ['identifier_id' => $identifier->id]);
+    $session = issuanceSession();
+    $begin = issuanceEndpoint([], $session);
+    issuanceEndpoint([
+        'handle' => $begin['handle'],
+        'input' => ['identifier' => $identifier->value, 'factor' => 'email_otp'],
+    ], $session);
+
+    for ($event = 2; $event <= 6; $event++) {
+        $result = issuanceEndpoint([
+            'handle' => $begin['handle'],
+            'action' => 'resend',
+            'input' => ['factor' => 'email_otp'],
+        ], $session);
+    }
+
+    expect(data_get($result, 'screen.errors'))->not->toBe([])
+        ->and(AuthChallenge::query()->count())->toBe(1)
+        ->and(AuthChallengeOutbox::query()->count())->toBe(1)
+        ->and(DB::table('auth_throttle_counters')->where('dimension', 'issuance')->value('count'))
+        ->toBe(5);
+});
+
+it('treats challenge as a fresh issuance action and safely rejects a missing factor', function (): void {
+    bindIssuanceDelivery();
+    AuthPolicy::create([
+        'tenant_id' => null, 'scope' => 'login',
+        'document' => ['all_of' => ['email_otp']], 'posture' => 'strict',
+    ]);
+    $identifier = AuthIdentifier::create([
+        'user_id' => 7, 'type' => 'email', 'value' => 'challenge-action@acme.example', 'verified_at' => now(),
+    ]);
+    app(EmailOtpFactor::class)->enroll(7, ['identifier_id' => $identifier->id]);
+    $session = issuanceSession();
+    $begin = issuanceEndpoint([], $session);
+    issuanceEndpoint([
+        'handle' => $begin['handle'],
+        'input' => ['identifier' => $identifier->value, 'factor' => 'email_otp'],
+    ], $session);
+
+    $challenged = issuanceEndpoint([
+        'handle' => $begin['handle'],
+        'action' => 'challenge',
+        'input' => ['factor' => 'email_otp'],
+    ], $session);
+    $missing = issuanceEndpoint([
+        'handle' => $begin['handle'],
+        'action' => 'challenge',
+        'input' => [],
+    ], $session);
+
+    expect(data_get($challenged, 'screen.errors'))->toBe([])
+        ->and(AuthChallenge::query()->count())->toBe(2)
+        ->and(AuthChallengeOutbox::query()->count())->toBe(2)
+        ->and(data_get($missing, 'screen.errors'))->not->toBe([]);
 });
 
 it('creates a fresh challenge only after the prior delivery is terminal', function (): void {

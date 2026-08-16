@@ -254,6 +254,45 @@ it('returns the first measured shared failure backoff when identifier state rema
         ]);
 });
 
+it('gives identifier backoff precedence over advisory shared backoff', function (): void {
+    $identifierDeadline = new DateTimeImmutable('2026-08-16T12:00:05Z');
+    $sharedDeadline = new DateTimeImmutable('2026-08-16T12:00:10Z');
+    $store = new RecordingAuthThrottleStore();
+    $store->recordIdentifierResult = IdentifierThrottle::backedOff(4, $identifierDeadline);
+    $store->recordIpResult = SharedThrottle::backedOff($sharedDeadline);
+    $flow = authThrottleFlow($store);
+    $handle = authThrottleIdentified($flow, 'ada@acme.example', 'identifier-backoff-order');
+    $result = authThrottleSubmit(
+        $flow,
+        $handle,
+        ['password' => 'wrong'],
+        'identifier-backoff-order',
+    );
+    assert($result instanceof Continuing);
+
+    expect($result->screen->retry?->retryAfter)->toBe($identifierDeadline);
+});
+
+it('gives identifier lock precedence over advisory shared backoff', function (): void {
+    $lockedUntil = new DateTimeImmutable('2026-08-16T12:15:00Z');
+    $sharedDeadline = new DateTimeImmutable('2026-08-16T12:00:10Z');
+    $store = new RecordingAuthThrottleStore();
+    $store->recordIdentifierResult = IdentifierThrottle::locked($lockedUntil);
+    $store->recordIpResult = SharedThrottle::backedOff($sharedDeadline);
+    $flow = authThrottleFlow($store);
+    $handle = authThrottleIdentified($flow, 'ada@acme.example', 'identifier-lock-order');
+    $result = authThrottleSubmit(
+        $flow,
+        $handle,
+        ['password' => 'wrong'],
+        'identifier-lock-order',
+    );
+    assert($result instanceof Continuing);
+
+    expect($result->screen->retry?->lockedUntil)->toBe($lockedUntil)
+        ->and($result->screen->retry?->retryAfter)->toBeNull();
+});
+
 it('gives recovery backoff precedence over later advisory shared state', function (): void {
     app(\Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor::class)->enroll(7, []);
     $recoveryDeadline = new DateTimeImmutable('2026-08-16T12:00:05Z');
