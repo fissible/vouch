@@ -309,6 +309,18 @@ it('terminalizes a non-decoy payload whose immutable target is absent', function
         ->and($delivery->sent)->toBe([]);
 });
 
+it('drops a pending row whose encrypted payload has already been redacted', function (): void {
+    [$factor, $attempt, $delivery] = outboxFixture();
+    $factor->challenge(new ChallengeRequest($attempt));
+    $outbox = AuthChallengeOutbox::query()->firstOrFail();
+    $outbox->update(['payload' => null]);
+
+    app(OtpOutboxDelivery::class)->deliver($outbox->opaque_id);
+
+    expect(AuthChallengeOutbox::query()->whereKey($outbox->id)->exists())->toBeFalse()
+        ->and($delivery->sent)->toBe([]);
+});
+
 it('retries the exact stored code without extending expiry or charging issuance again', function (): void {
     [$factor, $attempt] = outboxFixture();
     expect(app(Fissible\Vouch\Contracts\AuthThrottleStore::class)->permitIssuance(
