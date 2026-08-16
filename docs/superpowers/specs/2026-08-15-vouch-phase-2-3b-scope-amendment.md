@@ -68,7 +68,11 @@ inventing interval SQL — and uses an atomic SQL increment rather than a PHP
 read-modify-write. Counting in PHP lets concurrent submissions observe the same value
 and all proceed, exactly the race `EnrollmentGuard` already demonstrates. The
 contention-suite pattern is the required proof for the new increment and for the
-distinct-tuple accounting described below.
+distinct-tuple accounting described below. A denormalized distinct count based on
+`insertOrIgnore()`'s affected-row result is deliberately rejected: that result is an
+engine/driver contract, and this project has already disproved two similarly assumed
+cross-engine premises. Correctness must not depend on it without a separate
+three-engine measurement.
 
 If 2.3c needs delivery counters, it reuses those concurrency and portability
 mechanics, but supplies its own delivery-facing public contract. The retrofit cost is
@@ -150,12 +154,21 @@ but nulls `attemptsRemaining` under strict posture. Combining them into one shap
 would invite callers to read and disclose both together; separate models make that
 leak a deliberate violation rather than an incidental field access.
 
-Throttle rows are high-volume, unlike `auth_enrollment_locks`. A throttle table must
-be swept by `vouch:prune` under a dedicated, configured retention window; unbounded
-growth is a defect. This does **not** apply to enrollment locks: those rows intentionally
-persist because later PostgreSQL re-enrollment depends on `SELECT ... FOR UPDATE` after
-`insertOrIgnore()` becomes a no-op. Pruning them would remove the serialization row and
-break the concurrency control.
+Throttle rows are high-volume, unlike `auth_enrollment_locks`. Scalar counter and
+lock rows must be swept by `vouch:prune` under the dedicated, configured retention
+window; unbounded growth is a defect. This does **not** apply to enrollment locks:
+those rows intentionally persist because later PostgreSQL re-enrollment depends on
+`SELECT ... FOR UPDATE` after `insertOrIgnore()` becomes a no-op. Pruning them would
+remove the serialization row and break the concurrency control.
+
+Tuple markers have a shorter lifetime than scalar counters and lock records. They
+carry no lock state and exist only to define one IP window's distinct-identifier set,
+so `vouch:prune` removes them as soon as that database-clock window has completed.
+Their retention is derived from `window_seconds`, not copied into a second config key;
+derivation prevents the largest attacker-growable table from silently inheriting the
+86400-second scalar-row retention or drifting away from the window it serves. The
+active parent/window predicate, prune predicate, and exact-boundary behavior require
+the same three-engine `DatabaseTime` proof as counter rollover.
 
 ## Event table and refusal ownership
 
@@ -194,12 +207,11 @@ the state increment, or increment state while skipping the equalizer. Ordinary d
 refusals increment too. A compare-and-swap loss after the driver returned satisfied is
 not a credential failure and does not charge the user for a concurrency race.
 
-The counter row is the only stored increment: `(digest, dimension,
-window_started_at, count)`. Backoff is a pure function of count, window start, and
-the database clock; it is never stored separately, so it cannot drift from the fact
-that produced it. Identifier lock state is a separate record containing
-`locked_until`, written only by the one authorized writer when the identifier count
-crosses its configured threshold.
+Scalar counter rows store `(digest, dimension, window_started_at, count)`. Backoff is
+a pure function of count, window start, and the database clock; it is never stored
+separately, so it cannot drift from the fact that produced it. Identifier lock state
+is a separate record containing `locked_until`, written only by the one authorized
+writer when the identifier count crosses its configured threshold.
 
 The `(IP, identifier)` tuple is not a second failure counter and has no independent
 refusal threshold. A proposed threshold of 20 is unreachable: the identifier locks
@@ -210,14 +222,23 @@ control.
 
 The tuple therefore supplies the denominator the raw IP count lacks. For each IP
 window, the first failed verification for a canonical `(IP, submitted identifier)`
-atomically creates a tuple marker and increments that IP bucket; repeated failures
-for the same tuple do not increment the IP bucket again. One address failing twenty
-times against one identifier contributes one distinct subject, while one address
-probing twenty identifiers contributes twenty. Marker creation and the conditional IP
-increment are one transaction, with a uniqueness constraint and real-engine race tests
-proving that concurrent first failures count exactly once. A successful login does
-not delete this shared marker: doing so would let one valid account erase or repeatedly
-re-add IP-spread evidence.
+creates a unique tuple marker; repeated failures for the same tuple do not add another.
+One address failing twenty times against one identifier contributes one distinct
+subject, while one address probing twenty identifiers contributes twenty. The active
+IP value is an indexed `COUNT` of those markers, not a denormalized integer.
+
+The derived count still needs serialization. The transaction ensures an IP-window
+parent row exists, locks that row, atomically rolls its database-clock window when
+needed, creates the marker if absent, and then counts the markers for that exact parent
+and window. The parent lock makes concurrent first markers visible in one order rather
+than letting two transactions each decide against a partial set. PostgreSQL and MySQL
+must prove the row lock under real two-connection contention; SQLite must prove the
+same result under its global writer behavior. Tests must cover two concurrent failures
+for the same tuple counting once and two distinct tuples counting twice. No assertion
+may infer this from a query-builder return value.
+
+A successful login does not delete the marker: doing so would let one valid account
+erase or repeatedly re-add IP-spread evidence.
 
 Windows are fixed, with their start stored and rollover performed atomically in SQL.
 The design accepts and documents a boundary burst of at most `2N`; thresholds must
@@ -286,8 +307,8 @@ justified by an OTP-only challenge cap.
 | Challenge attempts | 5 | Per challenge; exhaustion invalidates that challenge |
 | Issuances per identifier | 5 per 900 seconds | Multiplies with challenge attempts; first identify/issuance counts once |
 | Identifier + IP tuple | No independent threshold | Per-window distinctness marker for the IP spread counter; never refuses work itself |
-| IPv6 `/64` | Observe at 30 distinct identifiers per 900 seconds | Usually one subscriber; enforcement disabled by default |
-| IPv4 address | Observe at 300 distinct identifiers per 900 seconds | Must tolerate NAT/CGNAT populations; enforcement disabled by default |
+| IPv6 `/64` | Observe at 30 distinct submitted identifiers per 900 seconds | Usually one subscriber; enforcement disabled by default |
+| IPv4 address | Observe at 300 distinct submitted identifiers per 900 seconds | Must tolerate NAT/CGNAT populations; enforcement disabled by default |
 | Tenant | Observe only; enforcement threshold `null` | Opt-in, very-high refusal-only load shedding; never reported as account lockout |
 | Global | Observe only; enforcement threshold `null` | Opt-in circuit breaker with the widest blast radius; never reported as account lockout |
 | Throttle prune retention | 86400 seconds | Must be at least `window_seconds + maximum_lock_duration_seconds` |
@@ -304,6 +325,15 @@ operator explicitly enables enforcement from measured traffic. Tenant and global
 counters likewise remain live for aggregate measurement while their enforcement
 thresholds are `null`. This makes the first production deployment incapable of
 creating shared-bucket collateral denial from an unmeasured default.
+
+The IP values now count distinct failing submitted identifiers, not raw failures.
+Thirty therefore means one IPv6 `/64` touched thirty identifier subjects in the
+window; three hundred means the equivalent for one IPv4 address. A legitimate user
+who repeatedly mistypes one credential contributes one, while automated breadth is
+what advances the bucket. The 30/300 values were originally proposed under raw-failure
+semantics and remain observation markers, not evidence-backed enforcement defaults;
+observe-mode distributions are expected to justify keeping or lowering them before
+either family is armed.
 
 Enabling a shared dimension is a fail-loud configuration transition, not the
 presence of a number that happens to be non-null. It requires an explicit enforcement
@@ -345,6 +375,15 @@ retained window, not a security-event audit trail and not a substitute for 2.4's
 redacted `AuditSink`. Tests must prove the report cannot disclose or correlate a
 subject while still distinguishing the aggregate distributions needed to decide
 whether enforcement is safe.
+
+The aggregate-only rule applies to inputs as well as outputs. The report and its
+underlying public contract accept no identifier, IP, tenant key, digest, or generic
+subject filter and expose no candidate-lookup operation. Because the application can
+derive the deterministic HMAC for a supplied candidate, a `--ip`, `--identifier`, or
+similar filter would be subject-level lookup even if neither the digest nor raw value
+were printed. Tests and the console signature must pin that absence. Subject-specific
+operability waits for 2.4's redacted, auditable path; it is not smuggled back as a
+reasonable-sounding debug option.
 
 ## Inherited mutation re-ruling
 
