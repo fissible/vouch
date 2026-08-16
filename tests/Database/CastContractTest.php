@@ -232,6 +232,13 @@ it('reads identifier, challenge and assurance timestamps back as dates', functio
         'attempts' => 0, 'expires_at' => now()->addMinutes(5), 'consumed_at' => now(),
         'created_at' => now(), 'updated_at' => now(),
     ]);
+    $outboxId = DB::table('auth_challenge_outbox')->insertGetId([
+        'opaque_id' => bin2hex(random_bytes(32)), 'challenge_id' => $challengeId,
+        'payload' => null, 'status' => 'undeliverable',
+        'expires_at' => now()->addMinutes(2), 'dispatched_at' => now(),
+        'delivered_at' => now(), 'undeliverable_at' => now(),
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
     $assuranceId = DB::table('auth_token_assurances')->insertGetId([
         /*
          * token_id is unsignedBigInteger. A string here passes on SQLite, whose
@@ -245,10 +252,15 @@ it('reads identifier, challenge and assurance timestamps back as dates', functio
         'created_at' => now(), 'updated_at' => now(),
     ]);
 
+    $outbox = \Fissible\Vouch\Models\AuthChallengeOutbox::findOrFail($outboxId);
+
     expect(\Fissible\Vouch\Models\AuthIdentifier::findOrFail($identifierId)->verified_at)
         ->toBeInstanceOf(\Illuminate\Support\Carbon::class)
         ->and(\Fissible\Vouch\Models\AuthChallenge::findOrFail($challengeId)->consumed_at)
         ->toBeInstanceOf(\Illuminate\Support\Carbon::class)
+        ->and($outbox->dispatched_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
+        ->and($outbox->delivered_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
+        ->and($outbox->undeliverable_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
         ->and(\Fissible\Vouch\Models\AuthTokenAssurance::findOrFail($assuranceId)->issued_at)
         ->toBeInstanceOf(\Illuminate\Support\Carbon::class);
 });
