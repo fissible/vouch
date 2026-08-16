@@ -4,8 +4,8 @@
 > first, run the named focused gate, probe the exact control, then commit only the
 > listed paths. Never infer cross-engine behavior from SQLite.
 
-**Status:** Dependency-ordered implementation plan, written 2026-08-15. Tasks 1–15
-completed 2026-08-16; Task 16 is next. Task 14's delivery-lifecycle design gate is
+**Status:** Dependency-ordered implementation plan, written 2026-08-15. Tasks 1–16
+completed 2026-08-16; Task 17 is next. Task 14's delivery-lifecycle design gate is
 resolved in the scope amendment.
 
 **Goal:** Complete the missing production email/SMS OTP issuance path, then add
@@ -992,27 +992,27 @@ rather than retroactively claiming otherwise.
 **Files:**
 - Modify: `src/VouchServiceProvider.php`
 - Rewrite: `tests/Arch/LockoutBoundaryTest.php`
-- Create: `tests/Arch/ThrottleBoundaryTest.php`
+- Modify: `tests/Arch/ThrottleBoundaryTest.php`
 - Modify: `tests/Database/ContainerWiringTest.php`
 - Modify: `tests/Database/ProviderEffectTest.php`
 - Modify: `tests/Http/AuthEndpointTest.php`
 - Modify: `PROJECT.md`
 
-- [ ] Bind every new service explicitly and assert the complete set, not three examples
+- [x] Bind every new service explicitly and assert the complete set, not three examples
   under a test named “all”. Provider boot/config paths must be observable by effect.
-- [ ] Replace the old blanket lockout ban with scans proving exactly one identifier-lock
+- [x] Replace the old blanket lockout ban with scans proving exactly one identifier-lock
   writer and zero populated lockedUntil constructions from shared dimensions. Match
   fully-qualified and imported names; keep a non-empty file-count guard.
-- [ ] Forbid `Request::ip()`/`->ip()` and forwarding-header reads outside
+- [x] Forbid `Request::ip()`/`->ip()` and forwarding-header reads outside
   `AuthController`. Prove FlowRequest is the only downstream IP source.
-- [ ] Forbid raw subjects in throttle migrations/models/log/report code and direct HMAC
+- [x] Forbid raw subjects in throttle migrations/models/log/report code and direct HMAC
   derivation outside the key service. Scan source and config, not only one namespace.
-- [ ] Assert retry remains null when no state was measured and populated only through
+- [x] Assert retry remains null when no state was measured and populated only through
   ErrorShaper when it was.
-- [ ] Update public docs: APP_KEY rotation resets throttles; TrustProxies owns IP trust;
+- [x] Update public docs: APP_KEY rotation resets throttles; TrustProxies owns IP trust;
   shared dimensions default observe; admin unlock waits for audited 2.4; tenant/global
   enforcement is opt-in; report is aggregate-only.
-- [ ] Probe each architecture scan with imported and fully-qualified violating forms.
+- [x] Probe each architecture scan with imported and fully-qualified violating forms.
 
 **Focused gate:** all architecture, provider, endpoint, and documentation contract
 tests; PHPStan.

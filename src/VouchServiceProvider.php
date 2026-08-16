@@ -31,6 +31,8 @@ use Fissible\Vouch\Support\LockContention;
 use Fissible\Vouch\Support\SystemClock;
 use Fissible\Vouch\Tenancy\NullTenantResolver;
 use Fissible\Vouch\Throttle\DatabaseAuthThrottleStore;
+use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
+use Fissible\Vouch\Throttle\IpCanonicalizer;
 use Fissible\Vouch\Throttle\ThrottleConfiguration;
 use Fissible\Vouch\Throttle\ThrottleKey;
 use Fissible\Vouch\Throttle\ThrottleReporter;
@@ -108,6 +110,8 @@ final class VouchServiceProvider extends ServiceProvider
             ),
         );
 
+        $this->app->singleton(IdentifierCanonicalizer::class);
+        $this->app->singleton(IpCanonicalizer::class);
         $this->app->singleton(ThrottleKey::class);
 
         $this->app->singleton(

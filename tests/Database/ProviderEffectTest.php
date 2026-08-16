@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Contracts\RandomSource;
 use Fissible\Vouch\Contracts\TenantResolver;
@@ -10,6 +11,7 @@ use Fissible\Vouch\Http\Middleware\ValidatesVouchSession;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
 use Fissible\Vouch\Support\SystemRandomSource;
 use Fissible\Vouch\Tenancy\NullTenantResolver;
+use Fissible\Vouch\Throttle\DatabaseAuthThrottleStore;
 use Fissible\Vouch\Throttle\ThrottleConfiguration;
 use Fissible\Vouch\VouchServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -135,15 +137,40 @@ it('binds every contract to its intended implementation', function (string $cont
 })->with([
     [TenantResolver::class, NullTenantResolver::class],
     [OtpDelivery::class, UnconfiguredOtpDelivery::class],
+    [AuthThrottleStore::class, DatabaseAuthThrottleStore::class],
     [RandomSource::class, SystemRandomSource::class],
     [ClockInterface::class, \Fissible\Vouch\Support\SystemClock::class],
 ]);
 
-it('puts both guards in the real web middleware group', function (): void {
+it('explicitly binds every 2.3b service even when Laravel could autowire it', function (string $service): void {
     /*
-     * Aliases are not enough: an alias only applies where a host chooses to use
-     * it, so a package that merely aliased these would leave every host route
-     * unguarded while looking protected. The group is what makes them mandatory.
+     * Resolving a concrete class is not evidence that the provider registered
+     * it: Laravel will autowire most of these after a dropped binding. bound()
+     * distinguishes the package contract from container convenience.
+     */
+    expect(app()->bound($service))->toBeTrue();
+})->with([
+    \Fissible\Vouch\Contracts\AuthThrottleStore::class,
+    \Fissible\Vouch\Factors\ChallengeIssuer::class,
+    \Fissible\Vouch\Notifications\OtpChallengeOutbox::class,
+    \Fissible\Vouch\Notifications\OtpOutboxDelivery::class,
+    \Fissible\Vouch\Notifications\OtpQueueDispatcher::class,
+    \Fissible\Vouch\Support\BoundedLockWait::class,
+    \Fissible\Vouch\Support\DatabaseTime::class,
+    \Fissible\Vouch\Support\LockContention::class,
+    \Fissible\Vouch\Throttle\IdentifierCanonicalizer::class,
+    \Fissible\Vouch\Throttle\IpCanonicalizer::class,
+    \Fissible\Vouch\Throttle\ThrottleConfiguration::class,
+    \Fissible\Vouch\Throttle\ThrottleKey::class,
+    \Fissible\Vouch\Throttle\ThrottleReporter::class,
+]);
+
+it('puts the session validator in the real web middleware group', function (): void {
+    /*
+     * An alias is not enough for session revocation: it would apply only where a
+     * host chose it, leaving authenticated routes unguarded. RequireAssurance is
+     * different and deliberately route-scoped because each use supplies its
+     * required assurance level; its exact alias is asserted separately below.
      */
     $web = app(Router::class)->getMiddlewareGroups()['web'] ?? [];
 

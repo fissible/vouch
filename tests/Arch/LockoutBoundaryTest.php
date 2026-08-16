@@ -2,87 +2,227 @@
 
 declare(strict_types=1);
 
-/*
- * ErrorShaper discloses Outcome::Locked in FULL under every posture, including
- * strict — message and RetryPolicy both survive. Its own docblock states the
- * precondition: that is safe only if rate limits apply identically to known and
- * unknown identifiers, including the length of the window.
- *
- * Phase 2.3b satisfies that precondition with submitted-identifier state and
- * keeps construction inside ScreenBuilder. A caller supplies typed throttle
- * state; it cannot construct a RetryPolicy or reach Locked independently.
- */
+use Fissible\Vouch\Throttle\DatabaseAuthThrottleStore;
+use Fissible\Vouch\Throttle\SharedThrottle;
 
 /** @return list<string> */
-function lockoutScannedFiles(): array
+function lockoutProductionFiles(): array
 {
-    $roots = ['src/Flow', 'src/Http', 'src/Sessions', 'src/Recovery'];
+    $root = realpath(__DIR__ . '/../../src');
+
+    if (! is_string($root)) {
+        throw new RuntimeException('The production source root does not exist.');
+    }
+
     $files = [];
+    /** @var iterable<SplFileInfo> $found */
+    $found = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+    );
 
-    foreach ($roots as $root) {
-        $path = __DIR__ . '/../../' . $root;
-
-        if (! is_dir($path)) {
-            continue;
-        }
-
-        /** @var iterable<SplFileInfo> $found */
-        $found = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path));
-
-        foreach ($found as $file) {
-            if ($file->isFile() && $file->getExtension() === 'php') {
-                $files[] = $file->getPathname();
-            }
+    foreach ($found as $file) {
+        if ($file->isFile() && $file->getExtension() === 'php') {
+            $files[] = $file->getPathname();
         }
     }
+
+    sort($files);
 
     return $files;
 }
 
-it('scans a non-empty set of 2.3-owned files', function (): void {
-    // Without this, a mistyped root would make the ban below vacuously green.
-    expect(lockoutScannedFiles())->not->toBeEmpty();
-});
+/** @return list<array{0: int, 1: string, 2: int}|string> */
+function lockoutTokens(string $source): array
+{
+    $tokens = [];
 
-it('keeps lockout and retry construction inside ScreenBuilder', function (): void {
-    /*
-     * Each pattern tolerates a namespace prefix. The first draft of the
-     * RetryPolicy pattern matched only `new RetryPolicy(` and `new
-     * \RetryPolicy(` — a fully-qualified `new \Fissible\Vouch\Kernel\Screen\
-     * RetryPolicy(` slipped straight through, which is the form someone would
-     * actually write. The probe caught it; the pattern now allows any leading
-     * namespace path.
-     */
-    $namespaced = '(?:\\\\?[A-Za-z_][A-Za-z0-9_]*\\\\)*';
+    foreach (token_get_all($source) as $token) {
+        if (is_array($token)
+            && in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+            continue;
+        }
 
-    $banned = [
-        'Outcome::Locked' => '/\b' . $namespaced . 'Outcome\s*::\s*Locked\b/',
-        'AttemptState::Locked' => '/\b' . $namespaced . 'AttemptState\s*::\s*Locked\b/',
-        'new RetryPolicy' => '/\bnew\s+' . $namespaced . 'RetryPolicy\s*\(/',
-    ];
+        $tokens[] = $token;
+    }
 
-    $offenders = [];
+    return $tokens;
+}
 
-    foreach (lockoutScannedFiles() as $file) {
-        $source = (string) file_get_contents($file);
+/** @param array{0: int, 1: string, 2: int}|string $token */
+function lockoutTokenText(array|string $token): string
+{
+    return is_array($token) ? $token[1] : $token;
+}
 
-        foreach ($banned as $label => $pattern) {
-            /*
-             * AuthFlow selects Locked only from typed IdentifierThrottle state;
-             * ScreenBuilder validates that pairing and is the sole RetryPolicy
-             * construction site. Exclude those exact expressions by file and
-             * label rather than loosening either pattern globally.
-             */
-            if (str_ends_with($file, 'ScreenBuilder.php')
-                || ($label === 'Outcome::Locked' && str_ends_with($file, 'AuthFlow.php'))) {
-                continue;
-            }
+function lockoutConstructionCount(string $source, string $shortClass): int
+{
+    $tokens = lockoutTokens($source);
+    $count = 0;
 
-            if (preg_match($pattern, $source) === 1) {
-                $offenders[] = basename($file) . ' :: ' . $label;
-            }
+    foreach ($tokens as $index => $token) {
+        if (! is_array($token) || $token[0] !== T_NEW) {
+            continue;
+        }
+
+        $name = lockoutTokenText($tokens[$index + 1] ?? '');
+
+        if ($name === $shortClass || str_ends_with($name, '\\' . $shortClass)) {
+            $count++;
         }
     }
 
-    expect($offenders)->toBeEmpty(implode("\n", $offenders));
+    return $count;
+}
+
+function lockoutMethodCallCount(string $source, string $method): int
+{
+    $tokens = lockoutTokens($source);
+    $count = 0;
+
+    foreach ($tokens as $index => $token) {
+        $operator = lockoutTokenText($token);
+
+        if (! in_array($operator, ['->', '?->', '::'], true)) {
+            continue;
+        }
+
+        if (lockoutTokenText($tokens[$index + 1] ?? '') === $method
+            && lockoutTokenText($tokens[$index + 2] ?? '') === '(') {
+            $count++;
+        }
+    }
+
+    return $count;
+}
+
+function lockoutMethodSource(ReflectionMethod $method): string
+{
+    $file = $method->getFileName();
+    $start = $method->getStartLine();
+    $end = $method->getEndLine();
+
+    if (! is_string($file) || ! is_int($start) || ! is_int($end)) {
+        throw new RuntimeException('Cannot locate the lock-writer method.');
+    }
+
+    $lines = file($file);
+
+    if (! is_array($lines)) {
+        throw new RuntimeException('Cannot read the lock-writer source.');
+    }
+
+    return implode('', array_slice($lines, $start - 1, ($end - $start) + 1));
+}
+
+it('scans a non-empty set of production files', function (): void {
+    expect(lockoutProductionFiles())->not->toBeEmpty();
+});
+
+it('keeps every RetryPolicy construction at the disclosure boundary', function (): void {
+    $root = realpath(__DIR__ . '/../../src');
+
+    if (! is_string($root)) {
+        throw new RuntimeException('The production source root does not exist.');
+    }
+
+    $owners = [];
+
+    foreach (lockoutProductionFiles() as $file) {
+        $count = lockoutConstructionCount((string) file_get_contents($file), 'RetryPolicy');
+
+        if ($count > 0) {
+            $owners[str_replace($root . '/', '', $file)] = $count;
+        }
+    }
+
+    expect($owners)->toBe([
+        'Flow/ScreenBuilder.php' => 2,
+        'Kernel/Enumeration/ErrorShaper.php' => 2,
+    ]);
+});
+
+it('has exactly one private identifier-lock write call site', function (): void {
+    $writer = new ReflectionMethod(DatabaseAuthThrottleStore::class, 'writeLock');
+    $writerSource = lockoutMethodSource($writer);
+    $recordSource = lockoutMethodSource(new ReflectionMethod(
+        DatabaseAuthThrottleStore::class,
+        'recordIdentifierFailure',
+    ));
+    $storeSource = (string) file_get_contents(
+        __DIR__ . '/../../src/Throttle/DatabaseAuthThrottleStore.php',
+    );
+
+    expect($writer->isPrivate())->toBeTrue()
+        ->and(substr_count($storeSource, '$this->writeLock('))->toBe(1)
+        ->and($recordSource)->toContain('$this->writeLock(')
+        ->and($writerSource)->toContain("'auth_throttle_locks'")
+        ->and($writerSource)->toContain("'locked_until'")
+        ->and($writerSource)->toContain('deadlineSqlHere()');
+});
+
+it('keeps every lock-table mutation in the identifier store except pruning deletes', function (): void {
+    $root = realpath(__DIR__ . '/../../src');
+
+    if (! is_string($root)) {
+        throw new RuntimeException('The production source root does not exist.');
+    }
+
+    $owners = [];
+
+    foreach (lockoutProductionFiles() as $file) {
+        $source = (string) file_get_contents($file);
+
+        if (str_contains($source, "'auth_throttle_locks'")) {
+            $owners[] = str_replace($root . '/', '', $file);
+        }
+    }
+
+    expect($owners)->toBe([
+        'Console/VouchPruneCommand.php',
+        'Throttle/DatabaseAuthThrottleStore.php',
+    ]);
+
+    $prune = (string) file_get_contents(__DIR__ . '/../../src/Console/VouchPruneCommand.php');
+
+    expect(lockoutMethodCallCount($prune, 'insert'))->toBe(0)
+        ->and(lockoutMethodCallCount($prune, 'insertOrIgnore'))->toBe(0)
+        ->and(lockoutMethodCallCount($prune, 'update'))->toBe(0);
+});
+
+it('makes populated lock state unrepresentable for shared dimensions', function (): void {
+    $properties = array_map(
+        static fn (ReflectionProperty $property): string => $property->getName(),
+        (new ReflectionClass(SharedThrottle::class))->getProperties(ReflectionProperty::IS_PUBLIC),
+    );
+    $sharedSource = (string) file_get_contents(__DIR__ . '/../../src/Throttle/SharedThrottle.php');
+    $sharedTokens = array_map(
+        static fn (array|string $token): string => lockoutTokenText($token),
+        lockoutTokens($sharedSource),
+    );
+    $retrySource = lockoutMethodSource(new ReflectionMethod(
+        \Fissible\Vouch\Flow\ScreenBuilder::class,
+        'retryPolicy',
+    ));
+
+    expect($properties)->toBe(['decision', 'retryAfter'])
+        ->and($sharedTokens)->not->toContain('lockedUntil')
+        ->and($retrySource)->toContain('if ($throttle instanceof SharedThrottle)')
+        ->and($retrySource)->toContain('lockedUntil: null');
+});
+
+it('recognizes imported and fully qualified retry construction without matching prose', function (): void {
+    expect(lockoutConstructionCount('<?php new RetryPolicy(null, null);', 'RetryPolicy'))
+        ->toBe(1)
+        ->and(lockoutConstructionCount(
+            '<?php new \\Fissible\\Vouch\\Kernel\\Screen\\RetryPolicy(null, null);',
+            'RetryPolicy',
+        ))->toBe(1)
+        ->and(lockoutConstructionCount(
+            '<?php // new RetryPolicy(null, null);',
+            'RetryPolicy',
+        ))->toBe(0)
+        ->and(lockoutConstructionCount(
+            '<?php $message = "new RetryPolicy(null, null)";',
+            'RetryPolicy',
+        ))->toBe(0);
 });

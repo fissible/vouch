@@ -146,7 +146,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance corrected in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–15 implemented, Task 16 package/architecture wiring next** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation complete through Task 16; Task 17 final mutation/engine reconciliation next** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -1469,3 +1469,48 @@ assertions**; PHPStan level 9 clean. Manual probes separately reject changing ex
 OTP or outbox expiry from `<=` to `<`, removing the prune transaction, and collapsing
 all expired outbox rows into the delivered class. Task 17 still owns the authoritative
 mutation regeneration and survivor disposition for expressions introduced here.
+
+### Task 16 package and architecture boundaries — 2026-08-16
+
+Every 2.3b service now has an explicit container binding, including the identifier and
+IP canonicalizers that Laravel previously autowired only as dependencies of
+`ThrottleKey`. The binding test uses `bound()` rather than successful resolution:
+removing a concrete-class registration still lets Laravel construct the class, so a
+resolution-only assertion would certify an implicit contract the provider never
+made. The singleton inventory includes every throttle, issuance, outbox, and
+canonicalization service.
+
+The temporary lockout convention is replaced by source-wide structural controls.
+Exactly four `RetryPolicy` constructions exist, owned only by `ScreenBuilder` and
+`ErrorShaper`. `DatabaseAuthThrottleStore::writeLock()` is private and has one call
+site inside `recordIdentifierFailure()`; shared state has no `lockedUntil` property,
+and its only screen branch writes `lockedUntil: null`. Lock-table access is limited to
+the identifier store plus deletion-only pruning.
+
+The HTTP trust boundary is exact: `AuthController` performs the one request IP read,
+downstream flow code consumes `FlowRequest::$clientIp`, and no production file reads a
+forwarding header. Throttle migrations reject raw identifier/IP/tenant/subject
+columns, HMAC and APP_KEY access are scanned across both source and config, and
+throttle/report code cannot log directly. Imported and fully-qualified scanner
+fixtures prevent the near-miss previously recorded on `RetryPolicy`.
+
+The public endpoint now proves the disclosure rule with the real store. Retry remains
+null before a deadline is measured; after cumulative backoff, known and nonexistent
+identifiers both emit the same strict error and the same retry field shape, with
+`attemptsRemaining` and `lockedUntil` redacted and only `retryAfter` populated. The
+test deliberately reads the sixth failure: the fifth failure's one-second deadline
+may already be spent by verification and the database's second-precision clock, and
+publishing an expired deadline would be fabricated state.
+
+One stale provider assertion was corrected rather than implemented: only
+`ValidatesVouchSession` belongs in the global web group. `RequireAssurance` is
+route-scoped because each route supplies the required level; its exact alias remains
+separately pinned. Public operations documentation now records APP_KEY rotation,
+TrustProxies ownership, observe-mode shared dimensions, opt-in tenant/global
+enforcement, aggregate-only reporting, and the Phase 2.4 audited-unlock dependency.
+
+Focused architecture/provider/endpoint gate: **107 passed / 214 assertions**.
+Ordinary gate: **1,000 passed / 25 skipped / 3,522 assertions**; PHPStan level 9
+clean. Source-level probes reject a fully-qualified retry construction, a downstream
+request-IP read, a forwarding-header read, a raw identifier throttle column, and
+removal of an explicit canonicalizer binding.

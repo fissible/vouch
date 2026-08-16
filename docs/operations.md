@@ -65,3 +65,29 @@ Use `--json` for machine-readable output.
 The report deliberately accepts no subject filter. It cannot look up an identifier,
 IP, tenant, digest, or arbitrary candidate and emits no per-bucket row. Subject-level
 operability waits for Phase 2.4's redacted, auditable path.
+
+## Authentication-throttle posture
+
+Throttle keys are HMAC digests derived from `APP_KEY`. Rotating that key deliberately
+resets every counter and identifier lock because old rows can no longer be addressed.
+Unlike session invalidation, that reset briefly restores an attacker's full budget;
+plan key rotation as a security-control reset rather than treating it as storage-only
+maintenance.
+
+Vouch reads client IP exactly once through Laravel's `Request::ip()` at the HTTP
+boundary. The host application's `TrustProxies` configuration therefore owns proxy
+trust. With too little trust, many clients may collapse onto one load-balancer or CGNAT
+address; with too much, an attacker may forge forwarding headers. IP is advisory:
+null skips the dimension, IPv6 is normalized to a /64, and no IP state can create or
+present an identifier lock.
+
+IP, tenant, and global dimensions ship in observe mode. Tenant and global enforcement
+remain opt-in because a mistaken shared threshold can refuse an entire population.
+Use `vouch:throttle:report` to measure aggregate distributions before enabling a shared
+limit; do not add candidate lookup or plaintext subject columns to make observation
+more convenient.
+
+Identifier locks expire by time and are capped at one hour. Vouch 2.3b deliberately
+has no administrative unlock: an unlock is a security-relevant action that requires
+Phase 2.4's redacted `AuditSink`. Do not delete lock rows manually or add an unaudited
+unlock endpoint; configure a wait-out-able duration until that audited path ships.

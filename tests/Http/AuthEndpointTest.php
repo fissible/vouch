@@ -170,8 +170,59 @@ it('echoes no handle back for an unknown one', function (): void {
     expect(callAuth(['handle' => str_repeat('f', 64), 'input' => []])['handle'])->toBeNull();
 });
 
-it('never returns a retry policy in 2.3', function (): void {
+it('keeps retry null when no throttle state was measured', function (): void {
     expect(data_get(callAuth([]), 'screen.retry'))->toBeNull();
+});
+
+it('publishes only posture-shaped measured retry for known and unknown identifiers', function (): void {
+    $refusals = [];
+
+    foreach (['ada@acme.example', 'nobody@acme.example'] as $identifier) {
+        $begun = callAuth([]);
+        callAuth([
+            'handle' => $begun['handle'],
+            'input' => ['identifier' => $identifier],
+        ]);
+
+        for ($failure = 1; $failure <= 6; $failure++) {
+            $refusal = callAuth([
+                'handle' => $begun['handle'],
+                'input' => ['password' => 'wrong'],
+            ]);
+
+            if ($failure < 5) {
+                expect(data_get($refusal, 'screen.retry'))->toBeNull();
+            }
+        }
+
+        $refusals[] = $refusal;
+    }
+
+    $knownRetry = data_get($refusals[0], 'screen.retry');
+    $unknownRetry = data_get($refusals[1], 'screen.retry');
+
+    if (! is_array($knownRetry) || ! is_array($unknownRetry)) {
+        throw new RuntimeException('The sixth failure did not expose measured retry state.');
+    }
+
+    expect(data_get($refusals[0], 'screen.errors'))
+        ->toBe(data_get($refusals[1], 'screen.errors'))
+        ->and(array_keys($knownRetry))->toBe([
+            'attemptsRemaining',
+            'lockedUntil',
+            'retryAfter',
+        ])
+        ->and(array_keys($unknownRetry))->toBe([
+            'attemptsRemaining',
+            'lockedUntil',
+            'retryAfter',
+        ])
+        ->and(data_get($knownRetry, 'attemptsRemaining'))->toBeNull()
+        ->and(data_get($unknownRetry, 'attemptsRemaining'))->toBeNull()
+        ->and(data_get($knownRetry, 'lockedUntil'))->toBeNull()
+        ->and(data_get($unknownRetry, 'lockedUntil'))->toBeNull()
+        ->and(data_get($knownRetry, 'retryAfter'))->toBeString()
+        ->and(data_get($unknownRetry, 'retryAfter'))->toBeString();
 });
 
 it('authenticates through the endpoint and logs in only after the record exists', function (): void {

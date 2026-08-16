@@ -80,27 +80,37 @@ it('declares every throttle HMAC domain explicitly', function (): void {
 });
 
 it('keeps HMAC and APP_KEY access inside SessionBinding', function (): void {
-    $root = (string) realpath(__DIR__ . '/../../src');
+    $project = realpath(__DIR__ . '/../..');
+
+    if (! is_string($project)) {
+        throw new RuntimeException('The project root does not exist.');
+    }
+
+    $roots = [$project . '/src', $project . '/config'];
     $offenders = [];
 
-    /** @var iterable<SplFileInfo> $files */
-    $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root));
+    foreach ($roots as $root) {
+        /** @var iterable<SplFileInfo> $files */
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+        );
 
-    foreach ($files as $file) {
-        if (! $file->isFile() || $file->getExtension() !== 'php') {
-            continue;
-        }
+        foreach ($files as $file) {
+            if (! $file->isFile() || $file->getExtension() !== 'php') {
+                continue;
+            }
 
-        $relative = str_replace($root . '/', '', $file->getPathname());
+            $relative = str_replace($project . '/', '', $file->getPathname());
 
-        if ($relative === 'Sessions/SessionBinding.php') {
-            continue;
-        }
+            if ($relative === 'src/Sessions/SessionBinding.php') {
+                continue;
+            }
 
-        $source = (string) file_get_contents($file->getPathname());
+            $source = (string) file_get_contents($file->getPathname());
 
-        if (preg_match('/\bhash_hmac\s*\(|config\s*\(\s*[\'\"]app\.key[\'\"]/', $source) === 1) {
-            $offenders[] = $relative;
+            if (preg_match('/\bhash_hmac\s*\(|config\s*\(\s*[\'\"]app\.key[\'\"]/', $source) === 1) {
+                $offenders[] = $relative;
+            }
         }
     }
 
