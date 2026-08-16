@@ -23,7 +23,8 @@ The broad feature-completeness claim does not. Phase 2.3b Task 14 carries the
 corrective production issuance hook together with the volume cap that must precede
 delivery. Its scope amendment defines the sole issuer and the later Phase 2.3c
 economics insertion point. It also records why the current synchronous
-row-then-deliver method cannot simply be wired into the request and called complete.
+row-then-deliver method cannot simply be wired into the request and called complete,
+and requires an encrypted, OTP-TTL-bound outbox before that path can ship.
 
 ## Scope
 

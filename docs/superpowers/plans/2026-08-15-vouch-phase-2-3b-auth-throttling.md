@@ -43,7 +43,7 @@ premise reopens the task that owns it rather than being absorbed into contingenc
 | 12. Flow preflight, failure counting, lockout, and reset | 14–20 h | 8, 10, 11 | No — critical path |
 | 13. Challenge-attempt cap and invalidation | 8–12 h | 7 | Yes |
 | 14. Corrective OTP issuance, cap, and 2.3c seam | 16–24 h provisional; re-estimate after design gate | 8, 11, 12, 13 | No |
-| 15. Pruning and aggregate observe-mode report | 7–10 h | 6, 8, 9 | Yes |
+| 15. Pruning and aggregate observe-mode report | 7–10 h | 6, 8, 9, 14 | No — outbox expiry |
 | 16. Container wiring and architecture boundaries | 6–9 h | 11–15 | No |
 | 17. Mutation reconciliation and completion matrix | 10–16 h plus runtime | all | No |
 
@@ -51,9 +51,10 @@ Expected engineering effort: **140–206 hours plus any delivery-lifecycle delta
 Tasks 2–6 parallelizable. Task 14's range is provisional until its synchronous-
 transport/partial-issuance gate is decided. The
 critical chain has two prerequisite arms—**1 → 3** and **1 → 5 → 6 → 7**—that join
-at **9 → 10 → 12 → 14 → 16 → 17**. The store and real-engine matrix are the
-schedule risk; that chain is approximately 89–131 engineering hours before runtime.
-Do not make it cheaper by narrowing the tests.
+at **9 → 10 → 12 → 14 → 15 → 16 → 17**. The store, real-engine matrix, and durable
+delivery boundary are the schedule risk. That chain is approximately 96–141
+engineering hours before the unresolved delivery-lifecycle delta and runtime. Do not
+make it cheaper by narrowing the tests.
 
 ## Non-negotiable constraints
 
@@ -109,7 +110,7 @@ These facts were read from the current tree before this plan was written.
 {8, 10, 11} -> 12 flow
 7 -> 13 challenge cap
 {8, 11, 12, 13} -> 14 issuance
-{6, 8, 9} -> 15 prune/report
+{6, 8, 9, 14} -> 15 prune/report
 {11, 12, 13, 14, 15} -> 16 wiring/architecture -> 17 mutation/full-engine gate
 ```
 
@@ -588,7 +589,8 @@ controls, write and approve the narrow delivery-lifecycle amendment required bel
 - Modify: `src/Factors/ChallengeRequest.php` only if the existing shape cannot carry
   the selected server-owned target safely
 - Modify: `src/Factors/Drivers/OtpFactor.php`
-- Create/modify: delivery lifecycle/outbox/queue files selected by the amendment
+- Create: an `auth_challenge_outbox` migration/model selected by the amendment
+- Create/modify: durable worker/queue files selected by the amendment
 - Test: `tests/Flow/OtpIssuanceFlowTest.php`
 - Modify: `tests/Factors/OtpFactorTest.php`
 - Modify: `tests/Http/AuthEndpointTest.php`
@@ -602,11 +604,11 @@ controls, write and approve the narrow delivery-lifecycle amendment required bel
   barrier-controlled transport: assert the request cannot complete before release,
   then throw and assert the committed row remains. Do not substitute an elapsed-time
   threshold for either property.
-- [ ] Before implementation, amend the design to choose request-path isolation,
-  durable queue/outbox requirements, synchronous-driver rejection, challenge
-  verifiability/state meanings, provider retry/failure behavior, resend coalescing,
-  and unconfigured-host behavior. A database transaction around a network call may
-  not be described as atomic.
+- [ ] Before implementation, amend the design to settle challenge verifiability/state
+  meanings, durable worker dispatch/recovery, provider
+  retry/permanent-failure behavior, resend coalescing, and unconfigured-host behavior.
+  Request-path isolation and an encrypted TTL-bound outbox are requirements, not
+  options. A database transaction around a network call may not be described as atomic.
 - [ ] Introduce `ChallengeIssuer` as the sole owner of production challenge issuance.
   Construct a typed, immutable, target-free issuance-attempt intent from submitted
   identifier, action, and the factor id carried by posture-safe flow state before user
@@ -633,6 +635,20 @@ controls, write and approve the narrow delivery-lifecycle amendment required bel
   chosen by the amendment, with captured IP/user-agent and no synchronous real-target
   latency on the observable request path. Password/TOTP/recovery return null and incur
   no delivery.
+- [ ] Create the challenge and outbox atomically in the database, then perform no
+  provider I/O before the response. Reject the Laravel `sync` queue driver or any
+  equivalent inline executor. Real and decoy paths must perform the same request-side
+  durable work shape; the decoy worker path contacts no provider.
+- [ ] Encrypt the exact issued code and target/message metadata in the outbox. Store
+  only its opaque id in queued jobs. Assert raw database, model array/JSON, serialized
+  queue payload, failed-job record, and representative logs contain no plaintext code
+  or target.
+- [ ] Retry by reloading and decrypting the same outbox payload; never re-invoke the
+  factor/code generator. Prove two delivery attempts carry the same code and still
+  match the single `auth_challenges.code_hash`.
+- [ ] Set outbox expiry to the challenge's database-clock `expires_at`—120 seconds by
+  default. Workers refuse expired payloads, retries cannot extend it, and cleanup does
+  not inherit throttle retention. Encryption failure has no plaintext fallback.
 - [ ] Preserve the driver's no-silent-target rule. If multiple active delivery targets
   cannot be represented safely by the current ScreenSpec/request shape, stop this task
   and write the narrow design amendment; do not choose the first target, send to all,
@@ -670,7 +686,7 @@ controls, write and approve the narrow delivery-lifecycle amendment required bel
 
 **Estimate:** 7–10 h
 
-**Dependencies:** Tasks 6, 8, and 9
+**Dependencies:** Tasks 6, 8, 9, and 14
 
 **Files:**
 - Modify: `src/Console/VouchPruneCommand.php`
@@ -684,6 +700,9 @@ controls, write and approve the narrow delivery-lifecycle amendment required bel
   an active subject.
 - [ ] Prune tuple markers as soon as their own database-clock window completes. Do not
   inherit scalar retention and never prune persistent enrollment-lock rows.
+- [ ] Prune expired challenge-outbox payloads at their own `expires_at`. Prove the
+  encrypted credential is gone at the exact challenge deadline (120 seconds with the
+  current default) and no scalar/throttle retention setting can extend it.
 - [ ] Extend prune output with exact counts for each security-record category. A silent
   deletion is not an operator record.
 - [ ] Add `vouch:throttle:report` with human and `--json` output containing only

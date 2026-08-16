@@ -933,16 +933,25 @@ the server-owned target, pass the named 2.3c economics insertion point for a rea
 delivery, and invoke the driver. 2.3b ships no fake/no-op economics binding; 2.3c adds
 its required contract at that boundary.
 
-The transport lifecycle remains a named Task 14 design gate. Today
+The transport lifecycle remains a named Task 14 design gate, but request-path
+isolation is no longer an option within it. Today
 `OtpFactor::challenge()` commits the challenge row, then performs synchronous network
 delivery on the request path, with no queue and no transaction spanning the pair.
 Calling that method inline reopens the timing channel; a provider failure leaves a
 committed unusable row after consuming volume. Merely wrapping the pair in a database
 transaction is not external atomicity—a send may succeed and the later commit fail.
-Before implementation, Task 14 must choose and document request-path isolation,
-challenge/outbox state, provider retry/failure behavior, and whether resends coalesce.
-Authentication-volume accounting may not be refunded or skipped based on target or
-provider outcome, because that would recreate the state oracle it exists to close.
+No safe decoy can repair the synchronous gap: sending nothing is faster, while sending
+something makes Vouch an attacker-driven mail/SMS amplifier.
+
+The adopted boundary is a durable package-owned outbox created with the challenge,
+with actual transport after the response. Its payload contains the exact issued code
+and target/message data, encrypted at rest, and expires with the OTP's 120-second TTL;
+a queue job may carry only the opaque outbox id. Retries resend that same payload and
+never re-invoke the driver to mint a replacement code. Before implementation, Task 14
+must still choose and document worker dispatch, challenge verifiability, permanent-
+failure behavior, and resend coalescing. Authentication-volume accounting may not be
+refunded or skipped based on target or provider outcome, because that would recreate
+the state oracle it exists to close.
 
 ---
 
@@ -959,7 +968,8 @@ explicit pre-implementation delivery-lifecycle design gate. Authority:
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP
 parent/marker protocol → six-cell three-engine race matrix → flow integration →
-production challenge issuance → final mutation and engine reconciliation. Binding
+production challenge issuance/outbox → expiry cleanup → final mutation and engine
+reconciliation. Binding
 domains/canonicalization, the declared
 `RetryPolicy::$retryAfter` kernel amendment, configuration validation, and the four
 migrations are independent leaves and may proceed in parallel without weakening that

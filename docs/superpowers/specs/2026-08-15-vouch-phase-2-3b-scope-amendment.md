@@ -72,18 +72,48 @@ is no queue, outbox, or transaction around the pair. Wiring that method into
   target-independent issuance charge. A provider outage can therefore leave an
   unusable live challenge and consume a legitimate user's allowance.
 
+A decoy cannot close the synchronous-send timing gap. It can reproduce target
+resolution and local persistence work, but the real branch then performs a network
+round trip that the decoy branch cannot safely copy. Skipping it preserves the timing
+signal; sending a dummy message to attacker-influenced input creates the mail/SMS
+amplifier §7.1 explicitly forbids. Durable request-path isolation is therefore a
+requirement, not one candidate to weigh against synchronous alternatives.
+
 A local database transaction is not, by itself, a resolution. It can roll back the
 row when delivery throws, but it cannot atomically commit an external provider side
 effect: delivery can succeed and the database commit can then fail, producing a sent
 code with no verifiable row.
 
-Task 14 must add a narrow amendment before source work chooses among delivery
-lifecycle designs. It must settle at least: how transport leaves the observable
-request path; whether a durable outbox/queue is required and how a synchronous queue
-driver is rejected; when a challenge becomes verifiable; what committed row records
-mean before and after delivery; how transient/permanent provider failures retry; how
-explicit resends interact with an already pending issuance; and how unconfigured
-delivery fails visibly to the host without becoming a public existence signal.
+The durable boundary is a package-owned delivery outbox. The request transaction may
+atomically create the challenge row and its outbox record, then return without making
+an external call; no database transaction is held across provider I/O. Real and decoy
+issuance must perform the same request-side durable work shape. A worker handles the
+real transport later, while a decoy is discarded without contacting a provider. A
+Laravel `sync` queue driver or equivalent inline executor must be rejected, not
+silently accepted as “queued.”
+
+At-least-once delivery makes the outbox payload live credential material. The worker
+must resend the exact code already hashed into `auth_challenges`; re-invoking the
+driver would mint a replacement and invalidate a code that may already have reached
+the user. The outbox therefore stores the code plus target/message metadata encrypted
+at rest. A queued job carries only an opaque outbox id—never the code, target, or
+serialized payload—so plaintext cannot migrate into queue tables, failed-job records,
+logs, or support exports. The model hides the encrypted attribute from array/JSON
+serialization, and tests read the raw database value to prove plaintext is absent.
+
+Outbox expiry is the challenge's own `expires_at` (120 seconds with current OTP
+defaults), never the throttle table's 86400-second retention. Workers refuse expired
+rows and cleanup removes them at that deadline; retry/backoff cannot extend a code's
+validity or retain its recoverable payload. Rotation or loss of the encryption key
+fails closed—there is no plaintext fallback—and the row expires normally.
+
+Task 14 must still add a narrow amendment before source work settles the remaining
+lifecycle choices: how a durable worker is dispatched/recovered; when a challenge
+becomes verifiable; the exact pending/delivered/permanent-failure meanings; how an
+already pending issuance coalesces explicit resends; and how unconfigured delivery
+fails visibly to the host without becoming a public existence signal. The amendment
+must state the unavoidable at-least-once duplicate-delivery risk rather than claiming
+exactly-once provider behavior.
 
 Two constraints survive every choice. The authentication issuance-volume charge is
 target-independent and is never refunded/skipped based on resolution or provider
