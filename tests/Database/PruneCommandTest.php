@@ -266,9 +266,14 @@ it('returns two only after committing every deletion and exact expired-undeliver
         ->and($output)->toContain('1 throttle counter(s)')
         ->and($output)->toContain('1 expired identifier lock(s)')
         ->and($output)->toContain('1 tuple marker(s)')
-        ->and($output)->toContain('1 delivered OTP outbox row(s)')
+        // The leading delimiter matters: "1 delivered" is also a substring of
+        // "-1 delivered", which let a post-increment-to-decrement mutant pass.
+        ->and($output)->toContain(', 1 delivered OTP outbox row(s)')
         ->and($output)->toContain('2 expired-undelivered OTP outbox row(s)')
-        ->and($output)->toContain('Found 2 expired undelivered OTP delivery row(s)')
+        ->and($output)->toContain(
+            'Found 2 expired undelivered OTP delivery row(s). Pruning succeeded; '
+            . 'route this alert to delivery-worker health.',
+        )
         ->and(AuthAttempt::query()->whereKey($expiredAttempt->id)->exists())->toBeFalse()
         ->and(AuthSession::query()->count())->toBe(0)
         ->and(DB::table('auth_throttle_counters')->count())->toBe(0)
