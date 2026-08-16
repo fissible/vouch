@@ -149,6 +149,47 @@ still host infrastructure the request cannot observe; the installation/health
 documentation must name that dependency rather than implying outbox insertion proves
 delivery is healthy.
 
+### Scheduling `vouch:prune`
+
+Laravel's scheduler treats every non-zero command exit as task failure, and
+`->onFailure()` therefore cannot distinguish status `1` from status `2`. Scheduling
+`Schedule::command('vouch:prune')->onFailure(...)` is forbidden for this contract: it
+routes a successful sweep with a delivery-health finding to the prune-failure owner,
+and repeated worker incidents train operators to ignore the same channel a real prune
+failure later needs.
+
+Hosts must preserve the distinction with a scheduled callback that reads the command
+status itself. The warning channel below is deliberately host-owned; configure or
+substitute the application's delivery-health integration:
+
+```php
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schedule;
+
+Schedule::call(function (): void {
+    $status = Artisan::call('vouch:prune');
+
+    if ($status === 2) {
+        Log::warning('Vouch found expired undelivered OTP work.', [
+            'aggregate' => Artisan::output(),
+        ]);
+
+        return;
+    }
+
+    if ($status !== 0) {
+        throw new \RuntimeException("vouch:prune failed with status {$status}");
+    }
+})->everyMinute()->name('vouch:prune');
+```
+
+The wrapper completes successfully for statuses `0` and `2`; only prune failure or an
+unknown contract value fails the scheduled task. Configure the warning channel—or
+replace it with the host's delivery-health integration—to page the worker owner. The
+status-`2` alert consumes only the aggregate output defined above. It may not add
+subject-level lookup or payload data while adapting the signal.
+
 Task 14 must still add a narrow amendment before source work settles the remaining
 lifecycle choices: how a durable worker is dispatched/recovered; when a challenge
 becomes verifiable; how an already pending issuance coalesces explicit resends; and

@@ -723,6 +723,12 @@ controls, write and approve the narrow delivery-lifecycle amendment required bel
   `1`, induce a prune failure and prove it cannot masquerade as a worker-health alert.
   Document that monitoring routes `2` to delivery-worker health rather than declaring
   the maintenance command broken.
+- [ ] Document and test the Laravel scheduler adapter. Direct
+  `Schedule::command('vouch:prune')->onFailure(...)` is forbidden because the scheduler
+  collapses statuses `1` and `2` into task failure. The supported scheduled callback
+  invokes `Artisan::call()`, alerts and completes normally for `2`, completes normally
+  for `0`, and throws for `1` or an unknown status. Prove all four branches; a callback
+  that merely uses `onFailure()` fails the contract.
 - [ ] Register and document a cleanup cadence of at most one minute. Prove delivery is
   forbidden at the exact database deadline and physical ciphertext retention is
   bounded by TTL plus one sweep interval. Name the host scheduler/worker requirement;

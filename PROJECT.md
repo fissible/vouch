@@ -968,6 +968,13 @@ undelivered work. Monitoring must alert on `2` as delivery-worker health, not re
 the maintenance sweep as failed. The aggregate report exposes pending, overdue,
 delivered, and undeliverable health only, never subjects or candidate lookup.
 
+Laravel's scheduler collapses every non-zero command result into task failure, so a
+host must not schedule this command directly with `->onFailure()`. The installation
+note uses a scheduled callback that invokes `Artisan::call('vouch:prune')`, alerts the
+delivery-health owner and returns normally for status `2`, and throws only for status
+`1` or an unknown value. That wrapper preserves the three-state contract through the
+last layer that consumes it.
+
 ---
 
 ## Phase 2.3b planning record — 2026-08-15
