@@ -174,7 +174,17 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
                         $parent = $this->ipParent($ip, lock: true);
 
                         if ($parent === null) {
-                            throw new RuntimeException('The IP throttle parent vanished after creation.');
+                            // Pruning may delete an expired parent after the
+                            // optimistic existence read but before this lock.
+                            // Recreate it in this transaction, matching the
+                            // counter paths rather than turning maintenance
+                            // concurrency into a request-triggerable 500.
+                            $this->insertIpParentIfMissing($ip);
+                            $parent = $this->ipParent($ip, lock: true);
+                        }
+
+                        if ($parent === null) {
+                            throw new RuntimeException('The IP throttle parent vanished after recreation.');
                         }
 
                         if ($this->ipWindowExpired($ip)) {

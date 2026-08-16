@@ -104,6 +104,35 @@ function scalarTimestamp(mixed $value): DateTimeImmutable
     throw new RuntimeException('The test database returned an invalid timestamp.');
 }
 
+function deleteScalarCounterAfterOptimisticRead(ThrottleSubject $subject): Closure
+{
+    $reads = 0;
+    $deleted = false;
+
+    DB::connection()->beforeExecuting(function (string $query) use ($subject, &$reads, &$deleted): void {
+        $sql = strtolower(ltrim($query));
+
+        if (! str_starts_with($sql, 'select') || ! str_contains($sql, 'auth_throttle_counters')) {
+            return;
+        }
+
+        $reads++;
+
+        if ($reads !== 2) {
+            return;
+        }
+
+        $deleted = DB::table('auth_throttle_counters')
+            ->where('dimension', $subject->dimension->value)
+            ->where('subject_digest', $subject->digest)
+            ->delete() === 1;
+    });
+
+    return static function () use (&$deleted): bool {
+        return $deleted;
+    };
+}
+
 it('derives the exact cumulative identifier backoff schedule', function (
     int $count,
     ThrottleDecision $decision,
@@ -147,7 +176,7 @@ it('stops incrementing during backoff and resumes only after its database deadli
         'UPDATE auth_throttle_counters SET window_started_at = '
         . (new DatabaseTime(DB::connection()))->deadlineSqlHere()
         . ' WHERE subject_digest = ?',
-        [-2, $subject->digest],
+        [-1, $subject->digest],
     );
 
     $resumed = scalarThrottleStore()->recordIdentifierFailure($subject);
@@ -206,6 +235,31 @@ it('uses lock expiry as a sufficient unlock and starts a fresh failure window', 
         ->toBeFalse();
 });
 
+it('reports an active identifier lock directly from its own stored deadline', function (): void {
+    $subject = scalarThrottleSubject();
+    seedScalarCounter($subject, 4);
+    seedScalarLock($subject, 120);
+
+    $stored = DB::table('auth_throttle_locks')
+        ->where('subject_digest', $subject->digest)
+        ->value('locked_until');
+    $state = scalarThrottleStore()->preflightIdentifier($subject);
+
+    expect($state->decision)->toBe(ThrottleDecision::Locked)
+        ->and($state->attemptsRemaining)->toBe(0)
+        ->and($state->retryAfter)->toBeNull()
+        ->and($state->lockedUntil?->getTimestamp())
+        ->toBe(scalarTimestamp($stored)->getTimestamp());
+});
+
+it('fails closed when a threshold counter has no lock record', function (): void {
+    $subject = scalarThrottleSubject();
+    seedScalarCounter($subject, 10);
+
+    expect(fn (): IdentifierThrottle => scalarThrottleStore()->preflightIdentifier($subject))
+        ->toThrow(RuntimeException::class, 'reached its lock threshold without a lock record');
+});
+
 it('rolls at the exact database-clock window boundary', function (): void {
     $subject = scalarThrottleSubject();
     seedScalarCounter($subject, 4, ageSeconds: 900);
@@ -230,6 +284,67 @@ it('caps cumulative recovery backoff at the fixed-window deadline', function ():
         ->and($state->retryAfter?->getTimestamp())
         ->toBe(scalarTimestamp($window)->modify('+900 seconds')->getTimestamp());
 });
+
+it('pins both sides of the recovery backoff threshold without charging during backoff', function (): void {
+    $before = scalarThrottleSubject(ThrottleDimension::Recovery, 1);
+    $at = scalarThrottleSubject(ThrottleDimension::Recovery, 2);
+    seedScalarCounter($before, 4);
+    seedScalarCounter($at, 5);
+
+    $store = scalarThrottleStore();
+    $beforeState = $store->preflightShared($before);
+    $atState = $store->recordRecoveryFailure($at);
+
+    expect($beforeState)->toEqual(SharedThrottle::permitted())
+        ->and($atState->decision)->toBe(ThrottleDecision::BackedOff)
+        ->and(scalarCount($at))->toBe(5);
+});
+
+it('treats absent and expired shared counters according to their dimension', function (
+    ThrottleDimension $dimension,
+    SharedThrottle $expected,
+): void {
+    $absent = scalarThrottleSubject($dimension, 11);
+    $expired = scalarThrottleSubject($dimension, 12);
+    seedScalarCounter($expired, 100, ageSeconds: 900);
+    $store = scalarThrottleStore();
+
+    expect($store->preflightShared($absent))->toEqual($expected)
+        ->and($store->preflightShared($expired))->toEqual($expected);
+})->with([
+    'recovery is permitted' => [ThrottleDimension::Recovery, SharedThrottle::permitted()],
+    'tenant is observed' => [ThrottleDimension::Tenant, SharedThrottle::observed()],
+    'global is observed' => [ThrottleDimension::Global, SharedThrottle::observed()],
+]);
+
+it('recreates a counter deleted after each optimistic existence read', function (
+    ThrottleDimension $dimension,
+): void {
+    $subject = scalarThrottleSubject($dimension, 31);
+    seedScalarCounter($subject, 2);
+    $wasDeleted = deleteScalarCounterAfterOptimisticRead($subject);
+    $store = scalarThrottleStore();
+
+    $state = match ($dimension) {
+        ThrottleDimension::Identifier => $store->recordIdentifierFailure($subject),
+        ThrottleDimension::Recovery => $store->recordRecoveryFailure($subject),
+        default => $store->recordSharedFailure($subject),
+    };
+
+    expect($wasDeleted())->toBeTrue()
+        ->and(scalarCount($subject))->toBe(1)
+        ->and($state->decision)->toBe(
+            $dimension === ThrottleDimension::Identifier
+                ? ThrottleDecision::Permitted
+                : ($dimension === ThrottleDimension::Recovery
+                    ? ThrottleDecision::Permitted
+                    : ThrottleDecision::Observed),
+        );
+})->with([
+    'identifier' => [ThrottleDimension::Identifier],
+    'recovery' => [ThrottleDimension::Recovery],
+    'tenant' => [ThrottleDimension::Tenant],
+]);
 
 it('observes unarmed tenant and global counters without fabricating backoff', function (
     ThrottleDimension $dimension,
@@ -277,9 +392,51 @@ it('treats arbitrary known-looking and unknown-looking subjects identically', fu
         ->and(scalarCount($unknownLooking))->toBe(1);
 });
 
-it('refuses a dimension at the wrong operation boundary', function (): void {
-    $recovery = scalarThrottleSubject(ThrottleDimension::Recovery);
-
-    expect(fn (): IdentifierThrottle => scalarThrottleStore()->preflightIdentifier($recovery))
-        ->toThrow(InvalidArgumentException::class, 'does not accept dimension "recovery"');
-});
+it('refuses a dimension at every wrong operation boundary', function (
+    Closure $operation,
+    string $dimension,
+): void {
+    expect($operation)->toThrow(
+        InvalidArgumentException::class,
+        'does not accept dimension "' . $dimension . '"',
+    );
+})->with([
+    'identifier preflight' => [
+        fn (): IdentifierThrottle => scalarThrottleStore()->preflightIdentifier(
+            scalarThrottleSubject(ThrottleDimension::Recovery),
+        ),
+        'recovery',
+    ],
+    'identifier write' => [
+        fn (): IdentifierThrottle => scalarThrottleStore()->recordIdentifierFailure(
+            scalarThrottleSubject(ThrottleDimension::Recovery),
+        ),
+        'recovery',
+    ],
+    'identifier reset' => [
+        function (): void {
+            scalarThrottleStore()->resetIdentifier(
+                scalarThrottleSubject(ThrottleDimension::Recovery),
+            );
+        },
+        'recovery',
+    ],
+    'recovery write' => [
+        fn (): SharedThrottle => scalarThrottleStore()->recordRecoveryFailure(
+            scalarThrottleSubject(ThrottleDimension::Identifier),
+        ),
+        'identifier',
+    ],
+    'shared preflight' => [
+        fn (): SharedThrottle => scalarThrottleStore()->preflightShared(
+            scalarThrottleSubject(ThrottleDimension::Identifier),
+        ),
+        'identifier',
+    ],
+    'shared write' => [
+        fn (): SharedThrottle => scalarThrottleStore()->recordSharedFailure(
+            scalarThrottleSubject(ThrottleDimension::Recovery),
+        ),
+        'recovery',
+    ],
+]);

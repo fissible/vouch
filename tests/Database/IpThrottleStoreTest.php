@@ -158,11 +158,15 @@ it('rolls an expired parent at the exact database boundary and excludes old mark
     DB::update(
         'UPDATE auth_throttle_ip_windows SET window_started_at = '
         . (new DatabaseTime(DB::connection()))->deadlineSqlHere()
+        . ', updated_at = '
+        . (new DatabaseTime(DB::connection()))->deadlineSqlHere()
         . ' WHERE id = ?',
-        [-900, $parentId],
+        [-900, -1200, $parentId],
     );
     $oldStart = DB::table('auth_throttle_ip_windows')->where('id', $parentId)
         ->value('window_started_at');
+    $oldUpdatedAt = DB::table('auth_throttle_ip_windows')->where('id', $parentId)
+        ->value('updated_at');
     DB::table('auth_throttle_tuples')->insert([
         'ip_window_id' => $parentId,
         'window_started_at' => $oldStart,
@@ -179,7 +183,80 @@ it('rolls an expired parent at the exact database boundary and excludes old mark
         ->not->toBe(ipThrottleTimestamp($oldStart)->getTimestamp())
         ->and(DB::table('auth_throttle_tuples')->where('ip_window_id', $parentId)->count())
         ->toBe(2)
+        ->and(currentIpMarkerCount($ip))->toBe(1)
+        ->and(DB::table('auth_throttle_ip_windows')->where('id', $parentId)->value('updated_at'))
+        ->not->toBe($oldUpdatedAt);
+});
+
+it('recreates an IP parent deleted after the optimistic existence read', function (): void {
+    $ip = ipThrottleSubject(ThrottleDimension::IpV6, 1);
+    $store = ipThrottleStore();
+    $store->recordIpFailure($ip, ipThrottleSubject(ThrottleDimension::IpIdentifier, 2));
+
+    $reads = 0;
+    $deleted = false;
+
+    DB::connection()->beforeExecuting(function (string $query) use ($ip, &$reads, &$deleted): void {
+        $sql = strtolower(ltrim($query));
+
+        if (! str_starts_with($sql, 'select') || ! str_contains($sql, 'auth_throttle_ip_windows')) {
+            return;
+        }
+
+        $reads++;
+
+        if ($reads !== 2) {
+            return;
+        }
+
+        $deleted = DB::table('auth_throttle_ip_windows')
+            ->where('dimension', $ip->dimension->value)
+            ->where('ip_digest', $ip->digest)
+            ->delete() === 1;
+    });
+
+    $state = $store->recordIpFailure(
+        $ip,
+        ipThrottleSubject(ThrottleDimension::IpIdentifier, 3),
+    );
+
+    expect($deleted)->toBeTrue()
+        ->and($state)->toEqual(SharedThrottle::observed())
+        ->and(DB::table('auth_throttle_ip_windows')->count())->toBe(1)
         ->and(currentIpMarkerCount($ip))->toBe(1);
+});
+
+it('returns an empty measured state before any IP parent exists', function (bool $enforce): void {
+    $ip = ipThrottleSubject(ThrottleDimension::IpV6, 1);
+
+    expect(ipThrottleStore($enforce)->preflightShared($ip))->toEqual(
+        $enforce ? SharedThrottle::permitted() : SharedThrottle::observed(),
+    );
+})->with(['observe' => [false], 'enforce' => [true]]);
+
+it('caps an enforced IP backoff at the fixed-window deadline', function (): void {
+    $ip = ipThrottleSubject(ThrottleDimension::IpV6, 1);
+    $store = ipThrottleStore(enforce: true);
+
+    $store->recordIpFailure($ip, ipThrottleSubject(ThrottleDimension::IpIdentifier, 2));
+    $store->recordIpFailure($ip, ipThrottleSubject(ThrottleDimension::IpIdentifier, 3));
+    DB::update(
+        'UPDATE auth_throttle_ip_windows SET window_started_at = '
+        . (new DatabaseTime(DB::connection()))->deadlineSqlHere()
+        . ' WHERE ip_digest = ?',
+        [-898, $ip->digest],
+    );
+
+    $parent = ipThrottleParent($ip);
+    DB::table('auth_throttle_tuples')
+        ->where('ip_window_id', $parent['id'])
+        ->update(['window_started_at' => $parent['windowStartedAt']]);
+    $state = $store->preflightShared($ip);
+
+    expect($state->decision)->toBe(ThrottleDecision::BackedOff)
+        ->and($state->retryAfter?->getTimestamp())->toBe(
+            $parent['windowStartedAt']->modify('+900 seconds')->getTimestamp(),
+        );
 });
 
 it('observes threshold crossings without refusing in the shipped mode', function (): void {
@@ -258,10 +335,17 @@ it('keeps IP markers when full authentication resets identifier state', function
     expect(currentIpMarkerCount($ip))->toBe(1);
 });
 
-it('rejects mismatched IP and tuple dimensions', function (): void {
-    $identifier = ipThrottleSubject(ThrottleDimension::Identifier, 1);
-    $tuple = ipThrottleSubject(ThrottleDimension::IpIdentifier, 2);
+it('rejects each mismatched IP and tuple dimension', function (
+    ThrottleDimension $ipDimension,
+    ThrottleDimension $tupleDimension,
+    string $rejected,
+): void {
+    $ip = ipThrottleSubject($ipDimension, 1);
+    $tuple = ipThrottleSubject($tupleDimension, 2);
 
-    expect(fn (): SharedThrottle => ipThrottleStore()->recordIpFailure($identifier, $tuple))
-        ->toThrow(InvalidArgumentException::class, 'dimension "identifier"');
-});
+    expect(fn (): SharedThrottle => ipThrottleStore()->recordIpFailure($ip, $tuple))
+        ->toThrow(InvalidArgumentException::class, 'dimension "' . $rejected . '"');
+})->with([
+    'IP position' => [ThrottleDimension::Identifier, ThrottleDimension::IpIdentifier, 'identifier'],
+    'tuple position' => [ThrottleDimension::IpV6, ThrottleDimension::Identifier, 'identifier'],
+]);
