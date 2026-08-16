@@ -90,6 +90,65 @@ it('accepts explicit numeric environment strings and returns typed values', func
         ->and($config->ipv4ObserveAt)->toBe(400);
 });
 
+it('accepts the smallest positive environment integer without tightening it', function (): void {
+    $config = configuredThrottle(['identifier.initial_backoff_seconds' => '1']);
+
+    expect($config->initialBackoffSeconds)->toBe(1);
+});
+
+it('rejects an overflowing numeric environment string as configuration rather than a type error', function (): void {
+    $overflow = str_repeat('9', 100);
+
+    expect(fn (): ThrottleConfiguration => configuredThrottle(['window_seconds' => $overflow]))
+        ->toThrow(
+            InvalidArgumentException::class,
+            'Configuration "vouch.throttle.window_seconds" must be a positive integer; got string',
+        );
+
+    expect(fn (): ThrottleConfiguration => ThrottleConfiguration::from(
+        throttleConfigArray(),
+        config('vouch.otp.length'),
+        config('vouch.totp.digits'),
+        $overflow,
+    ))->toThrow(
+        InvalidArgumentException::class,
+        'Configuration "vouch.totp.window" must be a non-negative integer; got string',
+    );
+});
+
+it('accepts zero for the TOTP window in both native and environment forms', function (int|string $value): void {
+    $config = ThrottleConfiguration::from(
+        throttleConfigArray(),
+        config('vouch.otp.length'),
+        config('vouch.totp.digits'),
+        $value,
+    );
+
+    expect($config)->toBeInstanceOf(ThrottleConfiguration::class);
+})->with(['native zero' => [0], 'environment zero' => ['0']]);
+
+it('rejects every non-negative TOTP-window lookalike with its value type', function (
+    mixed $value,
+    string $description,
+): void {
+    expect(fn (): ThrottleConfiguration => ThrottleConfiguration::from(
+        throttleConfigArray(),
+        config('vouch.otp.length'),
+        config('vouch.totp.digits'),
+        $value,
+    ))->toThrow(
+        InvalidArgumentException::class,
+        'Configuration "vouch.totp.window" must be a non-negative integer; got ' . $description,
+    );
+})->with([
+    'negative integer' => [-1, '-1'],
+    'blank environment value' => ['', 'an empty string'],
+    'signed string' => ['+1', 'string "+1"'],
+    'leading zero string' => ['01', 'string "01"'],
+    'boolean' => [true, 'bool'],
+    'null' => [null, 'null'],
+]);
+
 it('rejects zero and negative required values with the exact key', function (string $path): void {
     foreach ([0, -1] as $invalid) {
         expect(fn (): ThrottleConfiguration => configuredThrottle([$path => $invalid]))
@@ -262,10 +321,14 @@ it('bounds enforced IP delays and preserves the family ordering', function (): v
     ]))->toThrow(InvalidArgumentException::class, 'ipv4_enforce_at" must be greater than');
 });
 
-it('does not arm IP enforcement values while mode still says observe', function (): void {
-    expect(fn (): ThrottleConfiguration => configuredThrottle(['ip.backoff_seconds' => 5]))
+it('does not arm any IP enforcement value while mode still says observe', function (string $path): void {
+    expect(fn (): ThrottleConfiguration => configuredThrottle([$path => 5]))
         ->toThrow(InvalidArgumentException::class, 'until mode is explicitly "enforce"');
-});
+})->with([
+    'IPv6 threshold' => ['ip.ipv6_enforce_at'],
+    'IPv4 threshold' => ['ip.ipv4_enforce_at'],
+    'backoff' => ['ip.backoff_seconds'],
+]);
 
 it('requires complete tenant and global enforcement independently', function (string $dimension): void {
     if ($dimension !== 'tenant' && $dimension !== 'global') {
@@ -292,6 +355,43 @@ it('requires complete tenant and global enforcement independently', function (st
             '"vouch.throttle.' . $dimension . '.' . $missing . '" is required',
         );
     }
+})->with(['tenant', 'global']);
+
+it('does not arm tenant or global values while their mode still says observe', function (
+    string $dimension,
+    string $setting,
+): void {
+    expect(fn (): ThrottleConfiguration => configuredThrottle([
+        $dimension . '.' . $setting => 5,
+    ]))->toThrow(
+        InvalidArgumentException::class,
+        'until mode is explicitly "enforce"',
+    );
+})->with([
+    'tenant threshold' => ['tenant', 'enforce_at'],
+    'tenant backoff' => ['tenant', 'backoff_seconds'],
+    'global threshold' => ['global', 'enforce_at'],
+    'global backoff' => ['global', 'backoff_seconds'],
+]);
+
+it('bounds tenant and global delays by the identifier backoff cap', function (string $dimension): void {
+    $base = [
+        $dimension . '.mode' => 'enforce',
+        $dimension . '.enforce_at' => 10_000,
+    ];
+
+    expect(configuredThrottle([
+        ...$base,
+        $dimension . '.backoff_seconds' => 60,
+    ]))->toBeInstanceOf(ThrottleConfiguration::class);
+
+    expect(fn (): ThrottleConfiguration => configuredThrottle([
+        ...$base,
+        $dimension . '.backoff_seconds' => 61,
+    ]))->toThrow(
+        InvalidArgumentException::class,
+        'shared-bucket delays stay seconds-scale',
+    );
 })->with(['tenant', 'global']);
 
 it('rejects invalid or blank shared modes with the exact key', function (string $dimension): void {
