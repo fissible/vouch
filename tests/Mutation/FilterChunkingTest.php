@@ -62,11 +62,12 @@ it('still declares the patch that keeps derived filters compilable', function ()
         throw new RuntimeException('composer.json did not decode to an array.');
     }
 
+    $config = $decoded['config'] ?? null;
     $requireDev = $decoded['require-dev'] ?? null;
     $extra = $decoded['extra'] ?? null;
 
-    if (! is_array($requireDev) || ! is_array($extra)) {
-        throw new RuntimeException('composer.json is missing require-dev or extra.');
+    if (! is_array($config) || ! is_array($requireDev) || ! is_array($extra)) {
+        throw new RuntimeException('composer.json is missing config, require-dev, or extra.');
     }
 
     $byPackage = $extra['patches'] ?? null;
@@ -82,6 +83,10 @@ it('still declares the patch that keeps derived filters compilable', function ()
     }
 
     expect($patches)->not->toBeEmpty()
+        // A complete Phase 2 pass now takes about 51 minutes. Composer's
+        // default 300-second child timeout killed the real gate while a direct
+        // Pest invocation passed, so the CI-facing script needs its own bound.
+        ->and($config['process-timeout'] ?? null)->toBeGreaterThanOrEqual(3_600)
         ->and($requireDev['pestphp/pest-plugin-mutate'] ?? null)->toBe('3.0.5')
         ->and($extra['composer-exit-on-patch-failure'] ?? null)->toBeTrue();
 
