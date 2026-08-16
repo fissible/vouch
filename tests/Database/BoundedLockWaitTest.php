@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Fissible\Vouch\Support\BoundedLockWait;
+use Illuminate\Database\Connection;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -165,4 +166,16 @@ it('fixes the shared-dimension budget at one second with no duration input', fun
 
         expect(boundedWaitCurrentMs())->toBe(47_000);
     });
+});
+
+it('names the unsupported driver before opening a connection', function (): void {
+    $connection = new Connection(
+        static function (): PDO {
+            throw new RuntimeException('The unsupported-driver test must not open a PDO connection.');
+        },
+        config: ['driver' => 'oracle'],
+    );
+
+    expect(fn (): mixed => (new BoundedLockWait($connection))->shared(fn (): bool => true))
+        ->toThrow(InvalidArgumentException::class, 'driver "oracle"');
 });
