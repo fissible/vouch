@@ -146,7 +146,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance defect open in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–5 complete** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–6 complete** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -1114,6 +1114,32 @@ Focused configuration/provider gate: **91 passed / 250 assertions**; ordinary ga
 destructive probes cover the no-argument default, backoff/lock ordering, retention
 equality, guess-budget call, shared-IP validation, missing shipped key, and blank
 environment value. Each fails at its discriminating assertion or at provider boot.
+
+### Task 6 authentication throttle schema — 2026-08-16
+
+Four tables now separate mutable scalar counters, submitted-identifier locks,
+persistent IP-window serialization parents, and exact-generation tuple markers. They
+store only domain labels, domain-separated HMAC digests, database-clock state, counts,
+deadlines, and operational timestamps—never raw identifiers, IP addresses, tenant or
+user ids, or readable debug values. Tuple uniqueness is
+`(parent, window_started_at, tuple_digest)`, and its leftmost index prefix is the
+distinct-subject `COUNT` path.
+
+The focused migration/rollback gate passed **49 tests** on SQLite 3.53.4, MySQL
+8.4.11, and PostgreSQL 16.14 (123/127/127 assertions). It caught a real mismatch before
+the store existed: Laravel's `timestamps()` helper would have made every operational
+timestamp nullable, so the migrations now declare all eight timestamps non-null and
+without an engine default. Laravel 13 preserves `char(64)` length in MySQL/PostgreSQL
+metadata but compiles it to unconstrained `varchar` on SQLite; the schema tests record
+that portability boundary and retain Task 2's producer-side 64-byte HMAC proof rather
+than asserting enforcement SQLite does not provide.
+
+Named indexes cover scalar lookup/rollover/prune, active-lock lookup/prune, persistent
+parent lookup/lock, tuple count, and marker pruning. Markers prune independently while
+parents persist. Four destructive probes each fail: remove scalar uniqueness, omit the
+window generation from tuple identity, remove cascade behavior, or make an operational
+timestamp nullable. The ordinary gate reports **851 passed / 10 skipped / 2,810
+assertions**, and PHPStan level 9 is clean.
 
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP

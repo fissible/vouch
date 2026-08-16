@@ -353,24 +353,45 @@ environment variable set to an empty string.
 - Test: `tests/Database/ThrottleSchemaTest.php`
 - Modify: `tests/Database/AmendmentsRollbackTest.php`
 
-- [ ] Scalar counters store only domain/dimension, HMAC digest, database-clock window
+- [x] Scalar counters store only domain/dimension, HMAC digest, database-clock window
   start, count, and operational timestamps. Identifier lock rows store digest and
   locked_until separately.
-- [ ] IP-window parents store family/domain, IP digest, and current window start. Tuple
+- [x] IP-window parents store family/domain, IP digest, and current window start. Tuple
   markers reference the parent, carry tuple digest plus the exact window generation,
   and enforce one marker per `(parent, generation, tuple)`.
-- [ ] Choose indexes from actual queries: scalar subject lookup, active lock lookup,
+- [x] Choose indexes from actual queries: scalar subject lookup, active lock lookup,
   parent lookup/lock, indexed tuple `COUNT`, and prune deadlines. No raw identifier,
   IP, tenant, user id, or readable debug column exists.
-- [ ] Avoid enum/check assumptions that compile differently across engines unless the
+- [x] Avoid enum/check assumptions that compile differently across engines unless the
   compiled DDL is asserted for all three.
-- [ ] Test all unique/FK/cascade rules, four-table rollback order, digest length, null
+- [x] Test all unique/FK/cascade rules, four-table rollback order, digest length, null
   prohibition, and max values. Inspect compiled MySQL/PostgreSQL/SQLite DDL for every
   default the store relies on.
-- [ ] Prove tuple markers can be pruned without deleting the persistent parent needed
+- [x] Prove tuple markers can be pruned without deleting the persistent parent needed
   for the committed-row serialization path.
 
 **Focused gate:** schema and rollback tests on all engines, PHPStan.
+
+**Recorded 2026-08-16:** the four tables are narrow by construction and contain no
+raw identifier, IP, tenant, user id, or debug value. Scalar counters and identifier
+locks are independent; IP windows are persistent serialization parents; tuple markers
+are unique by `(parent, exact generation, tuple)` and may be pruned without removing
+that parent. Actual query prefixes own named indexes rather than relying on an
+incidental index Laravel might generate.
+
+The focused gate passed **49 tests** on SQLite 3.53.4, MySQL 8.4.11, and PostgreSQL
+16.14 (123/127/127 assertions). The test that forbids implicit store defaults caught
+that Laravel's ordinary `timestamps()` helper makes operational timestamps nullable;
+all four tables now declare them non-null explicitly. Laravel 13's SQLite grammar also
+compiles `char(64)` to unconstrained `varchar`, while MySQL/PostgreSQL preserve 64 in
+real metadata. Tests therefore pin the `char(64)` migration declaration everywhere,
+the actual length where the grammar retains it, and Task 2's producer-side 64-byte
+HMAC contract rather than inventing an unmeasured check constraint.
+
+Four destructive probes fail independently: remove scalar uniqueness; remove the
+fixed-window generation from tuple identity; remove tuple cascade behavior; or make an
+operational timestamp nullable. Ordinary gate: **851 passed / 10 skipped / 2,810
+assertions**; PHPStan level 9 clean.
 
 **Commit:** `feat: add authentication throttle schema`
 

@@ -18,25 +18,37 @@ use Illuminate\Support\Facades\Schema;
  * VouchServiceProvider, exactly as the real Pest suite does) exercises the
  * same down()/up() pairs Testbench would have, against the same driver.
  */
-it('rolls back and re-applies the four amendment migrations cleanly', function (): void {
+it('rolls back and re-applies all eight amendment migrations cleanly', function (): void {
     Artisan::call('migrate:fresh');
 
     expect(Schema::hasColumn('auth_credentials', 'identifier_id'))->toBeTrue()
         ->and(Schema::hasColumn('auth_credentials', 'last_used_timestep'))->toBeTrue()
         ->and(Schema::hasColumn('auth_challenges', 'credential_id'))->toBeTrue()
-        ->and(Schema::hasTable('auth_enrollment_locks'))->toBeTrue();
+        ->and(Schema::hasTable('auth_enrollment_locks'))->toBeTrue()
+        ->and(Schema::hasTable('auth_throttle_counters'))->toBeTrue()
+        ->and(Schema::hasTable('auth_throttle_locks'))->toBeTrue()
+        ->and(Schema::hasTable('auth_throttle_ip_windows'))->toBeTrue()
+        ->and(Schema::hasTable('auth_throttle_tuples'))->toBeTrue();
 
-    expect(Artisan::call('migrate:rollback', ['--step' => 4]))->toBe(0);
+    expect(Artisan::call('migrate:rollback', ['--step' => 8]))->toBe(0);
 
     expect(Schema::hasColumn('auth_credentials', 'identifier_id'))->toBeFalse()
         ->and(Schema::hasColumn('auth_credentials', 'last_used_timestep'))->toBeFalse()
         ->and(Schema::hasColumn('auth_challenges', 'credential_id'))->toBeFalse()
-        ->and(Schema::hasTable('auth_enrollment_locks'))->toBeFalse();
+        ->and(Schema::hasTable('auth_enrollment_locks'))->toBeFalse()
+        ->and(Schema::hasTable('auth_throttle_counters'))->toBeFalse()
+        ->and(Schema::hasTable('auth_throttle_locks'))->toBeFalse()
+        ->and(Schema::hasTable('auth_throttle_ip_windows'))->toBeFalse()
+        ->and(Schema::hasTable('auth_throttle_tuples'))->toBeFalse();
 
     expect(Artisan::call('migrate'))->toBe(0);
 
     expect(Schema::hasColumn('auth_credentials', 'identifier_id'))->toBeTrue()
         ->and(Schema::hasColumn('auth_credentials', 'last_used_timestep'))->toBeTrue()
         ->and(Schema::hasColumn('auth_challenges', 'credential_id'))->toBeTrue()
-        ->and(Schema::hasTable('auth_enrollment_locks'))->toBeTrue();
+        ->and(Schema::hasTable('auth_enrollment_locks'))->toBeTrue()
+        ->and(Schema::hasTable('auth_throttle_counters'))->toBeTrue()
+        ->and(Schema::hasTable('auth_throttle_locks'))->toBeTrue()
+        ->and(Schema::hasTable('auth_throttle_ip_windows'))->toBeTrue()
+        ->and(Schema::hasTable('auth_throttle_tuples'))->toBeTrue();
 });
