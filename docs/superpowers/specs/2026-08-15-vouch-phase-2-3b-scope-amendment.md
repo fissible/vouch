@@ -89,6 +89,33 @@ setting and restore it in `finally` on success, contention, and unrelated except
 paths. Long-lived-worker tests must prove that vouch leaves the host connection's
 setting unchanged.
 
+Adopting the primitive in `EnrollmentGuard` is a declared correction to Phase 2.1
+behavior, not an incidental refactor. The guard's current `KNOWN SIDE EFFECT` docblock
+documents a real leak: one enrollment lowers the lock tolerance for unrelated future
+queries on a pooled connection. 2.3b removes that leak, rewrites the docblock to state
+the restoring contract, and makes the guard use the same primitive as throttling.
+Keeping a restoring throttle helper beside a leaking enrollment implementation would
+create two meanings for the same database concern.
+
+The prior value is captured for every invocation and restored in `finally`; restoration
+never means resetting to an engine default. Per-call capture makes nesting compose:
+if the host value is `H`, an outer throttle scope sets `1`, and a nested enrollment
+scope sets `5`, enrollment restores `1` before throttle restores `H`. MySQL reads the
+prior value from `@@SESSION.innodb_lock_wait_timeout`, SQLite from bare
+`PRAGMA busy_timeout`, and PostgreSQL from its current `lock_timeout` setting. Tests
+must cover success, classified contention, unrelated exceptions, and nesting on every
+engine.
+
+The existing enrollment contention assertion must be split rather than weakened. Its
+post-contention MySQL/SQLite readback currently proves the bound was applied precisely
+because those settings leak; restoration will correctly make that assertion fail.
+The internal primitive therefore gets a direct test that reads the bounded value from
+inside its critical section and the prior value after exit, while
+`EnrollmentContentionTest` retains the real held-lock liveness/refusal assertion. The
+two proofs remain separate and both load-bearing: elapsed time alone is vacuous on
+SQLite, whose unbounded default is to fail immediately, while setting readback alone
+does not prove a contended request returns.
+
 If 2.3c needs delivery counters, it reuses those concurrency and portability
 mechanics, but supplies its own delivery-facing public contract. The retrofit cost is
 therefore at the surface rather than hidden in a second untested write protocol.
@@ -286,12 +313,22 @@ degradation; every other database error propagates unchanged.
 The advisory attempt and authoritative identifier update cannot share a transaction.
 PostgreSQL marks a transaction failed after `lock_timeout`; catching the exception
 inside that transaction and then trying to count the identifier would not preserve the
-control. The shared transaction rolls back first, its wait setting is restored, and
-the identifier update then runs in its own transaction. A held shared-parent lock must
-prove end to end on every engine that the request returns within the bound, no tuple
-marker or shared count is written, and the identifier count nevertheless advances to
-lock at the ordinary threshold. This assertion is the evidence for fail-open
-degradation; a returned response alone is not.
+control. After a failed credential verification, the authoritative identifier update
+commits first. The advisory shared update then runs in its own transaction; if its wait
+expires, that transaction rolls back and its connection setting is restored. A held
+shared-parent lock must prove end to end on every engine that the request returns
+within the bound, no tuple marker or shared count is written, and the identifier count
+nevertheless advances to lock at the ordinary threshold. This assertion is the
+evidence for fail-open degradation; a returned response alone is not.
+
+That transaction split deliberately rejects any cross-count consistency invariant.
+A process crash after the authoritative commit but before the shared transaction may
+leave an identifier failure without tuple/IP evidence. The records also measure
+different units — failures for the identifier, distinct submitted identifiers for the
+IP bucket — so no arithmetic relationship between them is meaningful even without a
+crash. Tests, migrations, and future integrity checks must not require their counts to
+reconcile. The identifier record is authoritative; shared records are independent,
+best-effort abuse signals.
 
 Windows are fixed, with their start stored and rollover performed atomically in SQL.
 The design accepts and documents a boundary burst of at most `2N`; thresholds must
