@@ -16,8 +16,8 @@ it('builds interval arithmetic for every supported driver, with a bound placehol
 })->with([
     'mysql' => ['mysql', 'DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)'],
     'mariadb' => ['mariadb', 'DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)'],
-    'pgsql' => ['pgsql', "CURRENT_TIMESTAMP + (? * INTERVAL '1 second')"],
-    'sqlite' => ['sqlite', "datetime('now', '+' || ? || ' seconds')"],
+    'pgsql' => ['pgsql', "CURRENT_TIMESTAMP(0) + (? * INTERVAL '1 second')"],
+    'sqlite' => ['sqlite', "datetime('now', printf('%+d seconds', ?))"],
 ]);
 
 it('refuses an unrecognised driver rather than falling back', function (): void {

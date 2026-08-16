@@ -54,8 +54,17 @@ final readonly class DatabaseTime
     {
         return match ($driver) {
             'mysql', 'mariadb' => 'DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)',
-            'pgsql' => "CURRENT_TIMESTAMP + (? * INTERVAL '1 second')",
-            'sqlite' => "datetime('now', '+' || ? || ' seconds')",
+            // The package's timestamp columns are declared at second
+            // precision. PostgreSQL otherwise compares a rounded stored value
+            // with a microsecond CURRENT_TIMESTAMP, making a deadline written
+            // as "now" briefly appear to be in the future.
+            'pgsql' => "CURRENT_TIMESTAMP(0) + (? * INTERVAL '1 second')",
+            // printf() keeps both signs valid. The throttle store compares a
+            // stored start with "database now minus N" at exact fixed-window
+            // boundaries; the former '+' || -N form produced the invalid
+            // SQLite modifier '+-N seconds'. Positive callers remain
+            // byte-for-byte equivalent at the value boundary.
+            'sqlite' => "datetime('now', printf('%+d seconds', ?))",
             default => throw new InvalidArgumentException(
                 'Vouch cannot express a database-clock deadline for driver "' . $driver . '". '
                 . 'Add the interval expression for it rather than falling back to an '
@@ -69,5 +78,72 @@ final readonly class DatabaseTime
     public function deadlineSqlHere(): string
     {
         return self::deadlineSql($this->connection->getDriverName());
+    }
+
+    /** @return literal-string */
+    public function windowStartedAtAtOrBeforeDeadlineSql(): string
+    {
+        return self::deadlinePredicateSql(
+            $this->connection->getDriverName(),
+            'window_started_at_at_or_before',
+        );
+    }
+
+    /** @return literal-string */
+    public function windowStartedAtAfterDeadlineSql(): string
+    {
+        return self::deadlinePredicateSql(
+            $this->connection->getDriverName(),
+            'window_started_at_after',
+        );
+    }
+
+    /** @return literal-string */
+    public function lockedUntilAfterDeadlineSql(): string
+    {
+        return self::deadlinePredicateSql(
+            $this->connection->getDriverName(),
+            'locked_until_after',
+        );
+    }
+
+    /**
+     * Whitelisted predicates retain PHPStan's literal-string guarantee while
+     * still binding the interval. Constructing `column . deadlineSql()` at a
+     * call site loses that guarantee and invites future dynamic SQL into a
+     * security comparison.
+     *
+     * @param 'window_started_at_at_or_before'|'window_started_at_after'|'locked_until_after' $predicate
+     * @return literal-string
+     */
+    private static function deadlinePredicateSql(string $driver, string $predicate): string
+    {
+        return match ($predicate . ':' . $driver) {
+            'window_started_at_at_or_before:mysql',
+            'window_started_at_at_or_before:mariadb' =>
+                'window_started_at <= DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)',
+            'window_started_at_at_or_before:pgsql' =>
+                "window_started_at <= CURRENT_TIMESTAMP(0) + (? * INTERVAL '1 second')",
+            'window_started_at_at_or_before:sqlite' =>
+                "window_started_at <= datetime('now', printf('%+d seconds', ?))",
+            'window_started_at_after:mysql',
+            'window_started_at_after:mariadb' =>
+                'window_started_at > DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)',
+            'window_started_at_after:pgsql' =>
+                "window_started_at > CURRENT_TIMESTAMP(0) + (? * INTERVAL '1 second')",
+            'window_started_at_after:sqlite' =>
+                "window_started_at > datetime('now', printf('%+d seconds', ?))",
+            'locked_until_after:mysql',
+            'locked_until_after:mariadb' =>
+                'locked_until > DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)',
+            'locked_until_after:pgsql' =>
+                "locked_until > CURRENT_TIMESTAMP(0) + (? * INTERVAL '1 second')",
+            'locked_until_after:sqlite' =>
+                "locked_until > datetime('now', printf('%+d seconds', ?))",
+            default => throw new InvalidArgumentException(
+                'Vouch cannot express database-clock predicate "' . $predicate
+                . '" for driver "' . $driver . '".',
+            ),
+        };
     }
 }

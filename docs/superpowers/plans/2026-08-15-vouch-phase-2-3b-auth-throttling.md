@@ -462,27 +462,48 @@ reports **866 passed / 10 skipped / 2,900 assertions**.
 - Test: `tests/Database/ScalarThrottleStoreTest.php`
 - Test: `tests/Concurrency/ScalarThrottleContentionTest.php`
 
-- [ ] Implement database-clock fixed-window increment/rollover atomically in SQL; no
+- [x] Implement database-clock fixed-window increment/rollover atomically in SQL; no
   PHP read-modify-write. Use `DatabaseTime::deadlineSqlHere()` for all comparisons.
-- [ ] Derive cumulative exponential backoff from count, window start, and database now;
+- [x] Derive cumulative exponential backoff from count, window start, and database now;
   store no separate retry deadline. For `c >= A`, offset is
   `sum(i = 0 .. c-A, min(initial * base^i, cap))`, capped at the window deadline.
   Defaults produce offsets 1/3/7/15/31 seconds at counts 5–9; count 10 locks. Assert
   counts 4/5/9/10, already-passed deadlines, and the exact window boundary.
-- [ ] Write lock state only when the submitted-identifier count crosses 10. Repeated
+- [x] Write lock state only when the submitted-identifier count crosses 10. Repeated
   requests during backoff/lock do not increment or extend deadlines.
-- [ ] Enforce 900-second default lock and 3600-second maximum from validated config.
+- [x] Enforce 900-second default lock and 3600-second maximum from validated config.
   Expiry on request is sufficient unlock; prune is never enforcement.
-- [ ] Make unknown and known identifiers byte-for-byte identical at this layer. No
+- [x] Make unknown and known identifiers byte-for-byte identical at this layer. No
   model lookup exists in the store.
-- [ ] Full authentication resets only identifier-specific failure state. Recovery grace
+- [x] Full authentication resets only identifier-specific failure state. Recovery grace
   and per-factor satisfaction do not reset.
-- [ ] Run same-subject and different-subject two-connection races on every engine. The
+- [x] Run same-subject and different-subject two-connection races on every engine. The
   resulting count equals committed failures exactly; no test passes by serial execution.
-- [ ] Probe the atomic increment, rollover predicate, threshold comparisons, lock write,
+- [x] Probe the atomic increment, rollover predicate, threshold comparisons, lock write,
   no-extension rule, reset boundary, and database clock independently.
 
 **Focused gate:** scalar database tests plus real-engine contention matrix.
+
+**Recorded 2026-08-16:** scalar creation, rollover, and increment stay in database
+time and one SQL update. Default identifier states are exact at counts 4/5/9/10;
+active deadlines do not move, an expired lock is a sufficient unlock, and reset owns
+only the identifier counter/lock. Recovery uses the same cumulative schedule without
+acquiring lock authority; tenant/global counters remain live observations under their
+default unarmed modes.
+
+The real race matrix found two engine-specific claim paths. SQLite has to issue its
+unique insert before any read because its `FOR UPDATE` is inert and a deferred
+read-to-write upgrade cannot wait. MySQL has to avoid `INSERT IGNORE` on a committed
+row because concurrent duplicate-key shared locks deadlock when both writers upgrade;
+MySQL/PostgreSQL go directly to the exclusive row lock there. Both children open
+their database connection before the release barrier and are shown blocked behind the
+parent's actual write/row locks, so exact count 2 cannot be a sequential fixture.
+
+Focused gate on file-backed SQLite, MySQL 8, and PostgreSQL 16: **21 passed / 60
+assertions per engine**. Ordinary gate: **879 passed / 12 skipped / 2,945
+assertions**; PHPStan level 9 clean. Six direct destructive probes and the two failed
+engine variants cover the update, rollover, threshold, deadline, no-extension, reset,
+duplicate-insert, and read-first mechanisms independently.
 
 **Commit:** `feat: persist identifier throttle state`
 

@@ -1,0 +1,285 @@
+<?php
+
+declare(strict_types=1);
+
+use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Throttle\DatabaseAuthThrottleStore;
+use Fissible\Vouch\Throttle\IdentifierThrottle;
+use Fissible\Vouch\Throttle\SharedThrottle;
+use Fissible\Vouch\Throttle\ThrottleConfiguration;
+use Fissible\Vouch\Throttle\ThrottleDecision;
+use Fissible\Vouch\Throttle\ThrottleDimension;
+use Fissible\Vouch\Throttle\ThrottleSubject;
+use Illuminate\Database\Connection;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+
+uses(RefreshDatabase::class);
+
+function scalarThrottleStore(?Connection $connection = null): DatabaseAuthThrottleStore
+{
+    $connection ??= DB::connection();
+
+    return new DatabaseAuthThrottleStore(
+        $connection,
+        new DatabaseTime($connection),
+        app(ThrottleConfiguration::class),
+    );
+}
+
+function scalarThrottleSubject(
+    ThrottleDimension $dimension = ThrottleDimension::Identifier,
+    int $identity = 1,
+): ThrottleSubject {
+    return new ThrottleSubject(
+        $dimension,
+        str_pad(dechex($identity), 64, '0', STR_PAD_LEFT),
+    );
+}
+
+function seedScalarCounter(ThrottleSubject $subject, int $count, int $ageSeconds = 0): void
+{
+    $connection = DB::connection();
+    $now = new \Illuminate\Database\Query\Expression('CURRENT_TIMESTAMP');
+
+    $connection->table('auth_throttle_counters')->insert([
+        'dimension' => $subject->dimension->value,
+        'subject_digest' => $subject->digest,
+        'window_started_at' => $now,
+        'count' => $count,
+        'created_at' => $now,
+        'updated_at' => $now,
+    ]);
+
+    if ($ageSeconds > 0) {
+        $connection->update(
+            'UPDATE auth_throttle_counters SET window_started_at = '
+            . (new DatabaseTime($connection))->deadlineSqlHere()
+            . ' WHERE dimension = ? AND subject_digest = ?',
+            [-$ageSeconds, $subject->dimension->value, $subject->digest],
+        );
+    }
+}
+
+function seedScalarLock(ThrottleSubject $subject, int $secondsFromNow): void
+{
+    $connection = DB::connection();
+    $now = new \Illuminate\Database\Query\Expression('CURRENT_TIMESTAMP');
+
+    $connection->table('auth_throttle_locks')->insert([
+        'subject_digest' => $subject->digest,
+        'locked_until' => $now,
+        'created_at' => $now,
+        'updated_at' => $now,
+    ]);
+
+    $connection->update(
+        'UPDATE auth_throttle_locks SET locked_until = '
+        . (new DatabaseTime($connection))->deadlineSqlHere()
+        . ' WHERE subject_digest = ?',
+        [$secondsFromNow, $subject->digest],
+    );
+}
+
+function scalarCount(ThrottleSubject $subject): ?int
+{
+    $value = DB::table('auth_throttle_counters')
+        ->where('dimension', $subject->dimension->value)
+        ->where('subject_digest', $subject->digest)
+        ->value('count');
+
+    return is_int($value) ? $value : null;
+}
+
+function scalarTimestamp(mixed $value): DateTimeImmutable
+{
+    if ($value instanceof DateTimeInterface) {
+        return DateTimeImmutable::createFromInterface($value);
+    }
+
+    if (is_string($value)) {
+        return new DateTimeImmutable($value);
+    }
+
+    throw new RuntimeException('The test database returned an invalid timestamp.');
+}
+
+it('derives the exact cumulative identifier backoff schedule', function (
+    int $count,
+    ThrottleDecision $decision,
+    int $remaining,
+    ?int $offset,
+): void {
+    $subject = scalarThrottleSubject();
+    seedScalarCounter($subject, $count);
+
+    $state = scalarThrottleStore()->preflightIdentifier($subject);
+    $window = DB::table('auth_throttle_counters')->value('window_started_at');
+
+    expect($state->decision)->toBe($decision)
+        ->and($state->attemptsRemaining)->toBe($remaining);
+
+    if ($offset === null) {
+        expect($state->retryAfter)->toBeNull();
+
+        return;
+    }
+
+    expect($state->retryAfter)->not->toBeNull()
+        ->and($state->retryAfter?->getTimestamp())
+        ->toBe(scalarTimestamp($window)->modify("+{$offset} seconds")->getTimestamp());
+})->with([
+    'count 4 has no backoff' => [4, ThrottleDecision::Permitted, 6, null],
+    'count 5 backs off to second 1' => [5, ThrottleDecision::BackedOff, 5, 1],
+    'count 9 backs off to second 31' => [9, ThrottleDecision::BackedOff, 1, 31],
+]);
+
+it('stops incrementing during backoff and resumes only after its database deadline', function (): void {
+    $subject = scalarThrottleSubject();
+    seedScalarCounter($subject, 5);
+
+    $blocked = scalarThrottleStore()->recordIdentifierFailure($subject);
+
+    expect($blocked->decision)->toBe(ThrottleDecision::BackedOff)
+        ->and(scalarCount($subject))->toBe(5);
+
+    DB::update(
+        'UPDATE auth_throttle_counters SET window_started_at = '
+        . (new DatabaseTime(DB::connection()))->deadlineSqlHere()
+        . ' WHERE subject_digest = ?',
+        [-2, $subject->digest],
+    );
+
+    $resumed = scalarThrottleStore()->recordIdentifierFailure($subject);
+
+    expect($resumed->decision)->toBe(ThrottleDecision::BackedOff)
+        ->and($resumed->attemptsRemaining)->toBe(4)
+        ->and(scalarCount($subject))->toBe(6);
+});
+
+it('locks exactly at the threshold without extending an active lock', function (): void {
+    $subject = scalarThrottleSubject();
+    seedScalarCounter($subject, 9, ageSeconds: 32);
+
+    $locked = scalarThrottleStore()->recordIdentifierFailure($subject);
+    $expectedDeadline = DB::scalar(
+        'SELECT ' . (new DatabaseTime(DB::connection()))->deadlineSqlHere(),
+        [900],
+    );
+
+    expect($locked->decision)->toBe(ThrottleDecision::Locked)
+        ->and($locked->lockedUntil)->not->toBeNull()
+        ->and($locked->lockedUntil?->getTimestamp())
+        ->toBe(scalarTimestamp($expectedDeadline)->getTimestamp())
+        ->and(scalarCount($subject))->toBe(10);
+
+    DB::update(
+        'UPDATE auth_throttle_locks SET locked_until = '
+        . (new DatabaseTime(DB::connection()))->deadlineSqlHere()
+        . ' WHERE subject_digest = ?',
+        [120, $subject->digest],
+    );
+    $before = DB::table('auth_throttle_locks')->where('subject_digest', $subject->digest)
+        ->value('locked_until');
+
+    $again = scalarThrottleStore()->recordIdentifierFailure($subject);
+    $after = DB::table('auth_throttle_locks')->where('subject_digest', $subject->digest)
+        ->value('locked_until');
+
+    expect($again->decision)->toBe(ThrottleDecision::Locked)
+        ->and($after)->toBe($before)
+        ->and(scalarCount($subject))->toBe(10);
+});
+
+it('uses lock expiry as a sufficient unlock and starts a fresh failure window', function (): void {
+    $subject = scalarThrottleSubject();
+    seedScalarCounter($subject, 10);
+    seedScalarLock($subject, 0);
+
+    $preflight = scalarThrottleStore()->preflightIdentifier($subject);
+    $recorded = scalarThrottleStore()->recordIdentifierFailure($subject);
+
+    expect($preflight)->toEqual(IdentifierThrottle::permitted(10))
+        ->and($recorded)->toEqual(IdentifierThrottle::permitted(9))
+        ->and(scalarCount($subject))->toBe(1)
+        ->and(DB::table('auth_throttle_locks')->where('subject_digest', $subject->digest)->exists())
+        ->toBeFalse();
+});
+
+it('rolls at the exact database-clock window boundary', function (): void {
+    $subject = scalarThrottleSubject();
+    seedScalarCounter($subject, 4, ageSeconds: 900);
+    $oldStart = DB::table('auth_throttle_counters')->value('window_started_at');
+
+    $state = scalarThrottleStore()->recordIdentifierFailure($subject);
+    $newStart = DB::table('auth_throttle_counters')->value('window_started_at');
+
+    expect($state)->toEqual(IdentifierThrottle::permitted(9))
+        ->and(scalarCount($subject))->toBe(1)
+        ->and($newStart)->not->toBe($oldStart);
+});
+
+it('caps cumulative recovery backoff at the fixed-window deadline', function (): void {
+    $subject = scalarThrottleSubject(ThrottleDimension::Recovery);
+    seedScalarCounter($subject, 100);
+
+    $state = scalarThrottleStore()->preflightShared($subject);
+    $window = DB::table('auth_throttle_counters')->value('window_started_at');
+
+    expect($state->decision)->toBe(ThrottleDecision::BackedOff)
+        ->and($state->retryAfter?->getTimestamp())
+        ->toBe(scalarTimestamp($window)->modify('+900 seconds')->getTimestamp());
+});
+
+it('observes unarmed tenant and global counters without fabricating backoff', function (
+    ThrottleDimension $dimension,
+): void {
+    $subject = scalarThrottleSubject($dimension);
+
+    $state = scalarThrottleStore()->recordSharedFailure($subject);
+
+    expect($state)->toEqual(SharedThrottle::observed())
+        ->and(scalarCount($subject))->toBe(1);
+})->with([
+    'tenant' => [ThrottleDimension::Tenant],
+    'global' => [ThrottleDimension::Global],
+]);
+
+it('resets only submitted-identifier failure state', function (): void {
+    $identifier = scalarThrottleSubject(ThrottleDimension::Identifier, 1);
+    $recovery = scalarThrottleSubject(ThrottleDimension::Recovery, 2);
+    $tenant = scalarThrottleSubject(ThrottleDimension::Tenant, 3);
+
+    seedScalarCounter($identifier, 10);
+    seedScalarLock($identifier, 600);
+    seedScalarCounter($recovery, 2);
+    seedScalarCounter($tenant, 3);
+
+    scalarThrottleStore()->resetIdentifier($identifier);
+
+    expect(scalarCount($identifier))->toBeNull()
+        ->and(DB::table('auth_throttle_locks')->where('subject_digest', $identifier->digest)->exists())
+        ->toBeFalse()
+        ->and(scalarCount($recovery))->toBe(2)
+        ->and(scalarCount($tenant))->toBe(3);
+});
+
+it('treats arbitrary known-looking and unknown-looking subjects identically', function (): void {
+    $knownLooking = scalarThrottleSubject(ThrottleDimension::Identifier, 7);
+    $unknownLooking = scalarThrottleSubject(ThrottleDimension::Identifier, 8);
+    $store = scalarThrottleStore();
+
+    $known = $store->recordIdentifierFailure($knownLooking);
+    $unknown = $store->recordIdentifierFailure($unknownLooking);
+
+    expect($known)->toEqual($unknown)
+        ->and(scalarCount($knownLooking))->toBe(1)
+        ->and(scalarCount($unknownLooking))->toBe(1);
+});
+
+it('refuses a dimension at the wrong operation boundary', function (): void {
+    $recovery = scalarThrottleSubject(ThrottleDimension::Recovery);
+
+    expect(fn (): IdentifierThrottle => scalarThrottleStore()->preflightIdentifier($recovery))
+        ->toThrow(InvalidArgumentException::class, 'does not accept dimension "recovery"');
+});

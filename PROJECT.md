@@ -146,7 +146,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance defect open in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–7 complete** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–8 complete** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -1163,6 +1163,34 @@ gate: **34 passed / 149 assertions**; PHPStan level 9 clean. Three destructive p
 fail: domain reuse for issuance, malformed/raw subject admission, and loss of the
 backoff deadline. The ordinary gate reports **866 passed / 10 skipped / 2,900
 assertions**.
+
+### Task 8 scalar counters and identifier locks — 2026-08-16
+
+`DatabaseAuthThrottleStore` now owns fixed-window scalar state. Counter creation,
+rollover, and increment use the database clock; the count is incremented by one SQL
+statement rather than a PHP read-modify-write. Identifier backoff is derived rather
+than stored: defaults yield cumulative deadlines at 1/3/7/15/31 seconds for counts
+5–9, then write one 900-second lock at count 10. Active backoff/lock state neither
+increments nor extends, an expired lock rebases the next failure to a fresh window,
+and full authentication can delete only the identifier counter and lock in the same
+record order every failure writer uses.
+
+The three-engine race exposed two opposite lock-acquisition requirements. SQLite
+must make the unique insert its first statement, because `FOR UPDATE` is a bare read
+and a later read-to-write upgrade cannot wait safely. MySQL must skip that duplicate
+insert for a committed row, because two `INSERT IGNORE` shared record locks deadlock
+when both upgrade to `FOR UPDATE`; MySQL/PostgreSQL therefore lock the existing row
+directly. The contention harness opens both child connections before a barrier,
+holds real parent locks, and proves neither child returns before release, so its exact
+counts cannot pass by serial scheduling.
+
+Focused gate on each of file-backed SQLite, MySQL 8, and PostgreSQL 16: **21 passed /
+60 assertions**. The ordinary gate reports **879 passed / 12 skipped / 2,945
+assertions**; the two additional default skips are the contention cells that require
+file-backed SQLite. PHPStan level 9 is clean. Destructive probes kill the atomic
+increment, exact-boundary predicate, lock threshold, lock deadline write,
+no-extension return, and reset; the real matrix also killed the unconditional
+duplicate-insert and SQLite read-first variants.
 
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP
