@@ -74,6 +74,21 @@ engine/driver contract, and this project has already disproved two similarly ass
 cross-engine premises. Correctness must not depend on it without a separate
 three-engine measurement.
 
+Lock-wait bounding and verified contention classification are shared database
+mechanics, not copied auth policy. 2.3b extracts the per-driver behavior already
+proved by `EnrollmentGuard` into one internal primitive, parameterized by the caller's
+wait budget and failure policy. The extraction must preserve EnrollmentGuard's
+fail-closed refusal while allowing the advisory shared-throttle path to fail open as
+defined below. Unknown drivers and unclassified query errors fail loudly.
+
+The extracted primitive also closes a side effect that is tolerable only because
+enrollment is rare: PostgreSQL's `SET LOCAL` is transaction-scoped, but MySQL's
+`innodb_lock_wait_timeout` and SQLite's `PRAGMA busy_timeout` persist on a reused
+connection. Throttling runs on every failed verification, so it must read the prior
+setting and restore it in `finally` on success, contention, and unrelated exception
+paths. Long-lived-worker tests must prove that vouch leaves the host connection's
+setting unchanged.
+
 If 2.3c needs delivery counters, it reuses those concurrency and portability
 mechanics, but supplies its own delivery-facing public contract. The retrofit cost is
 therefore at the surface rather than hidden in a second untested write protocol.
@@ -240,6 +255,44 @@ may infer this from a query-builder return value.
 A successful login does not delete the marker: doing so would let one valid account
 erase or repeatedly re-add IP-spread evidence.
 
+The contention matrix must distinguish the paths that serialize for different
+reasons. At minimum it crosses `{same tuple, distinct tuple}` with `{parent absent,
+parent already committed}` on SQLite, MySQL, and PostgreSQL. The absent-parent insert
+serializes on all three engines; it cannot prove the committed-parent path, where
+PostgreSQL's no-op `insertOrIgnore()` takes no lock and `lockForUpdate()` is the only
+serializer. Two further exact-boundary cases cross same/distinct tuples with a
+committed but expired parent, proving rollover creates one new window, excludes old
+markers, and does not double-count. A matrix that exercises only first insertion is
+vacuous for the production path, just as the original enrollment contention suite was.
+
+Parent-lock acquisition is bounded to one second, the smallest portable MySQL wait
+unit. It is not configurable upward in 2.3b: an advisory counter must not park a
+request thread behind the busiest CGNAT bucket long enough to become the denial it is
+meant to mitigate. PostgreSQL, MySQL, and SQLite must each prove the bound using the
+real held-lock path and the verified driver-specific contention code; wall-clock-only
+assertions are insufficient.
+
+If that wait expires, vouch skips the contended shared IP/tuple observation and
+enforcement for this request, then continues through the submitted-identifier
+dimension. The same policy applies to a verified contention timeout on tenant or
+global counter state: all non-identifier dimensions are shared and advisory. The
+failure is deliberately open only for that dimension; the identifier counter still
+advances identically for known and nonexistent subjects and remains the sole lock
+authority. The timeout emits no `lockedUntil`, no shared refusal, and no invented
+retry state. Swallowing every `QueryException` would turn a missing table or bad column
+into an invisible throttle bypass, so only measured lock/busy codes receive this
+degradation; every other database error propagates unchanged.
+
+The advisory attempt and authoritative identifier update cannot share a transaction.
+PostgreSQL marks a transaction failed after `lock_timeout`; catching the exception
+inside that transaction and then trying to count the identifier would not preserve the
+control. The shared transaction rolls back first, its wait setting is restored, and
+the identifier update then runs in its own transaction. A held shared-parent lock must
+prove end to end on every engine that the request returns within the bound, no tuple
+marker or shared count is written, and the identifier count nevertheless advances to
+lock at the ordinary threshold. This assertion is the evidence for fail-open
+degradation; a returned response alone is not.
+
 Windows are fixed, with their start stored and rollover performed atomically in SQL.
 The design accepts and documents a boundary burst of at most `2N`; thresholds must
 be chosen with that property rather than described as a sliding guarantee. Window
@@ -312,6 +365,7 @@ justified by an OTP-only challenge cap.
 | Tenant | Observe only; enforcement threshold `null` | Opt-in, very-high refusal-only load shedding; never reported as account lockout |
 | Global | Observe only; enforcement threshold `null` | Opt-in circuit breaker with the widest blast radius; never reported as account lockout |
 | Throttle prune retention | 86400 seconds | Must be at least `window_seconds + maximum_lock_duration_seconds` |
+| Shared-dimension lock wait | 1 second, fixed ceiling | Verified contention skips only that advisory dimension; host connection setting is restored |
 
 Configuration is global in 2.3b, following the existing environment-backed package
 config; every enabled numeric limit is an integer, while tenant and global thresholds
