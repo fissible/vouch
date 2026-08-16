@@ -55,3 +55,16 @@ it('lists every binding domain exactly once', function (): void {
             'throttle.global',
         ]);
 });
+
+it('pins the complete segmented HMAC protocol with a fixed vector', function (): void {
+    config(['app.key' => 'segmented-binding-test-key']);
+    $domain = BindingDomain::ThrottleTenant;
+    $segments = ['tenant.present', "a\0b"];
+    $input = $domain->value . "\0" . pack('N', 2)
+        . "\0" . pack('N', strlen($segments[0])) . $segments[0]
+        . "\0" . pack('N', strlen($segments[1])) . $segments[1];
+
+    expect(SessionBinding::forSegments($domain, ...$segments))->toBe(
+        hash_hmac('sha256', $input, 'segmented-binding-test-key'),
+    );
+});
