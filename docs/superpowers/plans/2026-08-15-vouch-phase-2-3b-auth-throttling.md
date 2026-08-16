@@ -4,8 +4,8 @@
 > first, run the named focused gate, probe the exact control, then commit only the
 > listed paths. Never infer cross-engine behavior from SQLite.
 
-**Status:** Dependency-ordered implementation plan, written 2026-08-15. Tasks 1–14
-completed 2026-08-16; Task 15 is next. Task 14's delivery-lifecycle design gate is
+**Status:** Dependency-ordered implementation plan, written 2026-08-15. Tasks 1–15
+completed 2026-08-16; Task 16 is next. Task 14's delivery-lifecycle design gate is
 resolved in the scope amendment.
 
 **Goal:** Complete the missing production email/SMS OTP issuance path, then add
@@ -920,53 +920,63 @@ rather than retroactively claiming otherwise.
 
 **Files:**
 - Modify: `src/Console/VouchPruneCommand.php`
+- Create: `src/Console/CommandExit.php`
+- Create: `src/Console/PruneResult.php`
+- Create: `src/Console/VouchPruneSchedule.php`
 - Create: `src/Console/VouchThrottleReportCommand.php`
+- Create: `src/Throttle/ThrottleReporter.php`
+- Modify: `src/Support/DatabaseTime.php`
 - Modify: `src/VouchServiceProvider.php`
+- Create: `docs/operations.md`
 - Modify: `tests/Database/PruneCommandTest.php`
 - Test: `tests/Database/ThrottleReportCommandTest.php`
+- Test: `tests/Database/VouchPruneScheduleTest.php`
+- Modify: `tests/Database/ContainerWiringTest.php`
+- Modify: `tests/Database/ProviderEffectTest.php`
+- Modify: `tests/Factors/OtpFactorTest.php`
 
-- [ ] Prune scalar counters/expired locks only beyond the 86400-second retention floor.
+- [x] Prune scalar counters/expired locks only beyond the 86400-second retention floor.
   Enforcement continues to use request-time database predicates; prune never unlocks
   an active subject.
-- [ ] Prune tuple markers as soon as their own database-clock window completes. Do not
+- [x] Prune tuple markers as soon as their own database-clock window completes. Do not
   inherit scalar retention and never prune persistent enrollment-lock rows.
-- [ ] Prune expired challenge-outbox payloads at their own `expires_at`. Prove the
+- [x] Prune expired challenge-outbox payloads at their own `expires_at`. Prove the
   credential is unusable at the exact challenge deadline (120 seconds with the current
   default), ciphertext is gone by the next scheduled sweep, and no scalar/throttle
   retention setting can extend either boundary.
-- [ ] Classify outbox rows before deletion. Report delivered-expired and
+- [x] Classify outbox rows before deletion. Report delivered-expired and
   expired-undelivered separately, with every expired row not marked delivered in the
   latter class; warn with the aggregate undelivered count and return status `2` when
   it is positive. Reserve `0` for successful pruning with no undelivered finding and
   `1` for failure of the prune operation itself. A sweep that silently deletes both
   classes or overloads generic non-zero failure fails.
-- [ ] Prove all three exit meanings independently. Under `2`, assert expired attempts,
+- [x] Prove all three exit meanings independently. Under `2`, assert expired attempts,
   sessions, and outbox rows were actually deleted and exact counts were emitted; under
   `1`, induce a prune failure and prove it cannot masquerade as a worker-health alert.
   Document that monitoring routes `2` to delivery-worker health rather than declaring
   the maintenance command broken.
-- [ ] Document and test the Laravel scheduler adapter. Direct
+- [x] Document and test the Laravel scheduler adapter. Direct
   `Schedule::command('vouch:prune')->onFailure(...)` is forbidden because the scheduler
   collapses statuses `1` and `2` into task failure. The supported scheduled callback
   invokes `Artisan::call()`, alerts and completes normally for `2`, completes normally
   for `0`, and throws for `1` or an unknown status. Prove all four branches; a callback
   that merely uses `onFailure()` fails the contract.
-- [ ] Register and document a cleanup cadence of at most one minute. Prove delivery is
+- [x] Register and document a cleanup cadence of at most one minute. Prove delivery is
   forbidden at the exact database deadline and physical ciphertext retention is
   bounded by TTL plus one sweep interval. Name the host scheduler/worker requirement;
   enqueue success is not worker-health evidence.
-- [ ] Extend prune output with exact counts for each security-record category. A silent
+- [x] Extend prune output with exact counts for each security-record category. A silent
   deletion is not an operator record.
-- [ ] Add `vouch:throttle:report` with human and `--json` output containing only
+- [x] Add `vouch:throttle:report` with human and `--json` output containing only
   dimension, active bucket totals, histogram/distribution bands, and threshold-crossing
   counts, plus aggregate current pending, overdue, delivered, and undeliverable
   outbox health. It does not claim historical delivery telemetry after prune removes a
   row; prune output/exit carries that event.
-- [ ] The command and underlying contract accept no identifier, IP, tenant, digest,
+- [x] The command and underlying contract accept no identifier, IP, tenant, digest,
   generic subject, or arbitrary where/filter input. They emit no per-bucket row.
-- [ ] Test candidate-lookup absence structurally and behaviorally. Adding `--ip` or
+- [x] Test candidate-lookup absence structurally and behaviorally. Adding `--ip` or
   `--identifier` and deriving a candidate digest must fail the control.
-- [ ] Prove report totals from known fixtures without asserting on any particular
+- [x] Prove report totals from known fixtures without asserting on any particular
   digest; prove prune changes expired aggregates and leaves active ones.
 
 **Focused gate:** prune/report/provider tests on all engines.

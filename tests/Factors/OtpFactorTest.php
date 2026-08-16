@@ -303,6 +303,21 @@ it('refuses an expired challenge', function (): void {
     ))->failure)->toBe(FactorFailure::Expired);
 });
 
+it('refuses a challenge at its exact expiry boundary', function (): void {
+    $credential = emailOtp()->enroll(7, ['identifier_id' => verifiedEmail()->id])->credentials[0];
+    $attempt = otpAttempt();
+    $challenge = requireChallenge(emailOtp()->challenge(new ChallengeRequest($attempt, $credential)));
+    $code = deliveredOtpCode();
+
+    Carbon::setTestNow($challenge->expires_at);
+
+    expect(emailOtp()->verify(new VerificationRequest(
+        attempt: $attempt,
+        input: ['code' => $code],
+        challenge: $challenge,
+    ))->failure)->toBe(FactorFailure::Expired);
+});
+
 it('refuses a challenge already consumed by the store', function (): void {
     $credential = emailOtp()->enroll(7, ['identifier_id' => verifiedEmail()->id])->credentials[0];
     $attempt = otpAttempt();

@@ -4,9 +4,17 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Console;
 
+use DateInterval;
+use Fissible\Vouch\Notifications\OtpOutboxStatus;
+use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Throttle\ThrottleConfiguration;
 use Illuminate\Console\Command;
+use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
+use RuntimeException;
+use Throwable;
 
 /**
  * Housekeeping only.
@@ -24,29 +32,153 @@ final class VouchPruneCommand extends Command
 {
     protected $signature = 'vouch:prune';
 
-    protected $description = 'Delete expired attempts and long-revoked sessions.';
+    protected $description = 'Prune expired Vouch security state and classify OTP delivery health.';
 
-    public function handle(): int
+    public function handle(DatabaseTime $time, ThrottleConfiguration $throttle): int
     {
-        /*
-         * Query-builder deletes rather than Eloquent's: Eloquent\Builder::delete()
-         * is declared mixed, and a sweep has no use for model events anyway.
-         * Challenges are removed by the cascadeOnDelete() on
-         * auth_challenges.attempt_id, so they need no separate pass.
-         */
-        $attempts = DB::table('auth_attempts')
-            ->where('expires_at', '<=', now())
-            ->delete();
+        try {
+            $result = $this->sweep(DB::connection(), $time, $throttle);
+        } catch (Throwable $exception) {
+            $this->components->error(sprintf(
+                'Vouch prune failed before delivery health could be classified: %s',
+                $exception->getMessage(),
+            ));
 
-        $retentionDays = Config::integer('vouch.sessions.revocation_retention_days', 30);
+            return CommandExit::Failure->value;
+        }
 
-        $sessions = DB::table('auth_sessions')
-            ->whereNotNull('revoked_at')
-            ->where('revoked_at', '<=', now()->subDays($retentionDays))
-            ->delete();
+        $this->components->info(sprintf(
+            'Pruned %d attempt(s), %d challenge(s), %d revoked session(s), '
+            . '%d throttle counter(s), %d expired identifier lock(s), '
+            . '%d tuple marker(s), %d delivered OTP outbox row(s), and '
+            . '%d expired-undelivered OTP outbox row(s).',
+            $result->attempts,
+            $result->challenges,
+            $result->revokedSessions,
+            $result->throttleCounters,
+            $result->expiredLocks,
+            $result->tupleMarkers,
+            $result->deliveredOutbox,
+            $result->undeliveredOutbox,
+        ));
 
-        $this->info(sprintf('Pruned %d attempt(s) and %d revoked session(s).', $attempts, $sessions));
+        if ($result->foundUndeliveredWork()) {
+            $this->components->warn(sprintf(
+                'Found %d expired undelivered OTP delivery row(s). Pruning succeeded; '
+                . 'route this alert to delivery-worker health.',
+                $result->undeliveredOutbox,
+            ));
 
-        return self::SUCCESS;
+            return CommandExit::DeliveryHealth->value;
+        }
+
+        return CommandExit::Success->value;
+    }
+
+    private function sweep(
+        Connection $connection,
+        DatabaseTime $time,
+        ThrottleConfiguration $throttle,
+    ): PruneResult {
+        $retentionDays = Config::integer('vouch.sessions.revocation_retention_days');
+
+        if ($retentionDays < 1) {
+            throw new InvalidArgumentException(
+                'Configuration "vouch.sessions.revocation_retention_days" must be at least 1.',
+            );
+        }
+
+        return $connection->transaction(function () use (
+            $connection,
+            $time,
+            $throttle,
+            $retentionDays,
+        ): PruneResult {
+            $now = $time->current();
+            $sessionCutoff = $now->sub(new DateInterval(sprintf('P%dD', $retentionDays)));
+            $scalarCutoff = $now->sub(new DateInterval(sprintf(
+                'PT%dS',
+                $throttle->retentionSeconds,
+            )));
+            $tupleCutoff = $now->sub(new DateInterval(sprintf(
+                'PT%dS',
+                $throttle->windowSeconds,
+            )));
+
+            /*
+             * Classify outbox rows before any attempt cascade can delete them.
+             * The concrete database timestamp is shared by every query in this
+             * sweep, so crossing the deadline mid-command cannot change which
+             * rows were counted versus removed.
+             */
+            $expiredOutboxes = $connection->table('auth_challenge_outbox')
+                ->where('expires_at', '<=', $now)
+                ->lockForUpdate()
+                ->get(['id', 'status']);
+            $outboxIds = [];
+            $deliveredOutbox = 0;
+            $undeliveredOutbox = 0;
+
+            foreach ($expiredOutboxes as $row) {
+                $attributes = (array) $row;
+                $id = $attributes['id'] ?? null;
+                $status = $attributes['status'] ?? null;
+
+                if (! is_int($id) || ! is_string($status)) {
+                    throw new RuntimeException('The database returned an invalid OTP outbox row.');
+                }
+
+                $outboxIds[] = $id;
+
+                if ($status === OtpOutboxStatus::Delivered->value) {
+                    $deliveredOutbox++;
+                } else {
+                    $undeliveredOutbox++;
+                }
+            }
+
+            if ($outboxIds !== []) {
+                $connection->table('auth_challenge_outbox')->whereIn('id', $outboxIds)->delete();
+            }
+
+            $challenges = $connection->table('auth_challenges')
+                ->join('auth_attempts', 'auth_attempts.id', '=', 'auth_challenges.attempt_id')
+                ->where('auth_attempts.expires_at', '<=', $now)
+                ->count();
+
+            /*
+             * Query-builder deletes rather than Eloquent's: model events are
+             * not part of housekeeping, and every count here is the actual
+             * affected-row result committed by this transaction.
+             */
+            $attempts = $connection->table('auth_attempts')
+                ->where('expires_at', '<=', $now)
+                ->delete();
+            $sessions = $connection->table('auth_sessions')
+                ->whereNotNull('revoked_at')
+                ->where('revoked_at', '<=', $sessionCutoff)
+                ->delete();
+            $counters = $connection->table('auth_throttle_counters')
+                ->where('updated_at', '<=', $scalarCutoff)
+                ->delete();
+            $locks = $connection->table('auth_throttle_locks')
+                ->where('locked_until', '<=', $now)
+                ->where('updated_at', '<=', $scalarCutoff)
+                ->delete();
+            $tuples = $connection->table('auth_throttle_tuples')
+                ->where('window_started_at', '<=', $tupleCutoff)
+                ->delete();
+
+            return new PruneResult(
+                attempts: $attempts,
+                challenges: $challenges,
+                revokedSessions: $sessions,
+                throttleCounters: $counters,
+                expiredLocks: $locks,
+                tupleMarkers: $tuples,
+                deliveredOutbox: $deliveredOutbox,
+                undeliveredOutbox: $undeliveredOutbox,
+            );
+        });
     }
 }

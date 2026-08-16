@@ -39,6 +39,17 @@ final readonly class DatabaseTime
         return new Expression('CURRENT_TIMESTAMP');
     }
 
+    /** Resolve the database clock once for a multi-query maintenance snapshot. */
+    public function current(): DateTimeImmutable
+    {
+        $raw = $this->connection->selectOne('SELECT CURRENT_TIMESTAMP AS vouch_current_time');
+
+        return $this->parse(
+            is_object($raw) ? ($raw->vouch_current_time ?? null) : null,
+            'current timestamp',
+        );
+    }
+
     /**
      * SQL for a deadline N seconds from the database's current time, with N as
      * a BOUND PARAMETER rather than interpolated.
@@ -93,8 +104,14 @@ final readonly class DatabaseTime
 
         $sql = 'SELECT ' . $this->deadlineSqlHere() . ' AS deadline';
         $raw = $this->connection->selectOne($sql, [$seconds]);
-        $value = is_object($raw) ? ($raw->deadline ?? null) : null;
+        return $this->parse(
+            is_object($raw) ? ($raw->deadline ?? null) : null,
+            'deadline',
+        );
+    }
 
+    private function parse(mixed $value, string $label): DateTimeImmutable
+    {
         if ($value instanceof DateTimeInterface) {
             return DateTimeImmutable::createFromInterface($value);
         }
@@ -107,7 +124,10 @@ final readonly class DatabaseTime
             }
         }
 
-        throw new RuntimeException('The database returned an invalid deadline value.');
+        throw new RuntimeException(sprintf(
+            'The database returned an invalid %s value.',
+            $label,
+        ));
     }
 
     /** @return literal-string */

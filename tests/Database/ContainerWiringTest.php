@@ -64,8 +64,12 @@ it('resolves every singleton the provider registers as one shared instance', fun
     FlowResultSerializer::class,
     AssuranceComparator::class,
     // Bound with explicit construction closures.
+    \Fissible\Vouch\Notifications\OtpQueueDispatcher::class,
+    \Fissible\Vouch\Notifications\OtpChallengeOutbox::class,
     \Fissible\Vouch\Contracts\AttemptStore::class,
+    \Fissible\Vouch\Contracts\AuthThrottleStore::class,
     \Fissible\Vouch\Enrollment\EnrollmentGuard::class,
+    \Fissible\Vouch\Factors\ChallengeIssuer::class,
     \Fissible\Vouch\Flow\ScreenBuilder::class,
     \Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class,
     \Fissible\Vouch\Flow\AuthFlow::class,
@@ -74,6 +78,8 @@ it('resolves every singleton the provider registers as one shared instance', fun
     \Fissible\Vouch\Support\BoundedLockWait::class,
     \Fissible\Vouch\Support\LockContention::class,
     \Fissible\Vouch\Throttle\ThrottleConfiguration::class,
+    \Fissible\Vouch\Throttle\ThrottleKey::class,
+    \Fissible\Vouch\Throttle\ThrottleReporter::class,
     \Fissible\Vouch\Recovery\GraceGuard::class,
     // FlowResultHandler is NOT here: it needs a StatefulGuard, which the test
     // application does not bind. It has its own test below rather than being
@@ -144,15 +150,10 @@ it('prunes revoked sessions on the documented retention window and not before', 
 
 it('ships a retention window in config, which is the value actually used', function (): void {
     /*
-     * VouchPruneCommand reads Config::integer(key, 30), and that inline 30 is
-     * UNREACHABLE: the package config always supplies the key via
-     * mergeConfigFrom, so the fallback never fires. Its mutants are therefore
-     * equivalent -- conditional on the config file continuing to ship the key,
-     * which is what this asserts.
-     *
-     * The live default is the one in config/vouch.php. Duplicating it at the call
-     * site is a second statement of the same invariant, and only one of the two
-     * is real; this test names which.
+     * VouchPruneCommand requires the merged key and carries no second fallback.
+     * The live default is stated once, in config/vouch.php; this test pins that
+     * source of truth so a missing published key fails rather than drifting from
+     * a duplicate call-site value.
      */
     expect(config('vouch.sessions.revocation_retention_days'))->toBe(30);
 });

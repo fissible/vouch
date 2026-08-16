@@ -146,7 +146,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance corrected in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–14 implemented, Task 15 pruning/reporting next** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation in progress; Tasks 1–15 implemented, Task 16 package/architecture wiring next** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -1425,3 +1425,47 @@ discriminating against the pre-fix source, while transaction rollback and
 request-path isolation are probed directly against the final boundary. Task 17 still
 owns authoritative mutation regeneration and disposition of any rows introduced by
 this task.
+
+### Task 15 pruning and aggregate reporting — 2026-08-16
+
+`vouch:prune` now takes one database-clock snapshot and commits one transaction over
+expired attempts and their challenges, retained revoked sessions, scalar throttle
+counters, expired identifier locks, tuple markers, and expired OTP outbox rows. Tuple
+markers use the 900-second window boundary; scalar state uses the configured
+86400-second retention floor; active locks, persistent IP-window parents, and
+enrollment-lock rows survive. Outbox ciphertext is classified and removed at its own
+deadline, independently of throttle retention.
+
+The command has three disjoint exit meanings. Status `0` is a successful sweep with
+no expired-undelivered work, `1` is a prune failure whose transaction rolled back, and
+`2` is a successful committed sweep that found expired-undelivered OTP work. Tests
+inject a failure after earlier deletes have executed and prove rollback, while the
+status-`2` case proves every deletion category committed and every emitted count is
+exact. `VouchPruneSchedule` preserves those meanings through Laravel scheduling:
+`0` and `2` complete normally, `2` alone routes the aggregate to delivery-worker
+health, and `1` or an unknown value throws. The operations note forbids direct
+`Schedule::command(...)->onFailure(...)`, which would collapse the last integration
+boundary back to binary success/failure.
+
+`vouch:throttle:report` exposes only aggregate active-bucket totals, fixed
+distribution bands, threshold-crossing counts, and current OTP outbox health in human
+or JSON form. Its command signature and underlying reporter accept no subject
+parameter, every candidate-style option is rejected behaviorally, and the rendered
+report contains no identifier, IP, tenant, digest, tuple, target, or credential.
+Expired rows disappear from current aggregates after prune; the prune output and exit
+status remain the event signal rather than fabricated historical telemetry.
+
+One cross-engine defect was caught before commit: `current_time` was not a portable
+column alias for the database-clock query on MySQL. `DatabaseTime::current()` now uses
+the package-specific `vouch_current_time` alias and the final report/prune gate passes
+unchanged on file-backed SQLite, MySQL 8, and PostgreSQL 16. A second fixture trap was
+removed: DDL used to induce prune failure implicitly committed MySQL's Testbench
+savepoint, so rollback is now probed with a portable query-boundary fault instead.
+
+Focused gate: **23 passed / 155 assertions** on each database engine for prune,
+scheduler adaptation, and aggregate reporting. Expanded provider/OTP gate:
+**95 passed / 272 assertions**. Ordinary gate: **973 passed / 25 skipped / 3,438
+assertions**; PHPStan level 9 clean. Manual probes separately reject changing exact
+OTP or outbox expiry from `<=` to `<`, removing the prune transaction, and collapsing
+all expired outbox rows into the delivered class. Task 17 still owns the authoritative
+mutation regeneration and survivor disposition for expressions introduced here.

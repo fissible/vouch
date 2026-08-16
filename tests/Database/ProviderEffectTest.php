@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use Fissible\Vouch\Console\VouchPruneCommand;
 use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Contracts\RandomSource;
 use Fissible\Vouch\Contracts\TenantResolver;
@@ -162,5 +161,7 @@ it('registers both middleware aliases as well', function (): void {
 
 it('registers its console command', function (): void {
     expect(array_keys(app(\Illuminate\Contracts\Console\Kernel::class)->all()))
-        ->toContain('vouch:prune');
+        ->toContain('vouch:prune')
+        ->toContain('vouch:otp-outbox:dispatch')
+        ->toContain('vouch:throttle:report');
 });

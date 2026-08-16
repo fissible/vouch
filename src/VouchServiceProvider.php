@@ -7,6 +7,7 @@ namespace Fissible\Vouch;
 use Fissible\Vouch\Attempts\DatabaseAttemptStore;
 use Fissible\Vouch\Console\VouchDispatchOtpOutboxCommand;
 use Fissible\Vouch\Console\VouchPruneCommand;
+use Fissible\Vouch\Console\VouchThrottleReportCommand;
 use Fissible\Vouch\Contracts\AttemptStore;
 use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Contracts\OtpDelivery;
@@ -32,6 +33,7 @@ use Fissible\Vouch\Tenancy\NullTenantResolver;
 use Fissible\Vouch\Throttle\DatabaseAuthThrottleStore;
 use Fissible\Vouch\Throttle\ThrottleConfiguration;
 use Fissible\Vouch\Throttle\ThrottleKey;
+use Fissible\Vouch\Throttle\ThrottleReporter;
 use Illuminate\Support\ServiceProvider;
 use Psr\Clock\ClockInterface;
 
@@ -107,6 +109,15 @@ final class VouchServiceProvider extends ServiceProvider
         );
 
         $this->app->singleton(ThrottleKey::class);
+
+        $this->app->singleton(
+            ThrottleReporter::class,
+            fn ($app): ThrottleReporter => new ThrottleReporter(
+                $app['db']->connection(),
+                $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
+                $app->make(ThrottleConfiguration::class),
+            ),
+        );
 
         $this->app->singleton(
             AuthThrottleStore::class,
@@ -355,6 +366,7 @@ final class VouchServiceProvider extends ServiceProvider
             $this->commands([
                 VouchPruneCommand::class,
                 VouchDispatchOtpOutboxCommand::class,
+                VouchThrottleReportCommand::class,
             ]);
         }
     }
