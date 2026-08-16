@@ -89,9 +89,9 @@ pretending IP trust was introduced by throttling.
 Throttle rows store keyed digests, never raw identifiers or IP addresses. 2.3b
 extends the existing `BindingDomain` / `SessionBinding` primitive rather than
 inventing a second HMAC scheme: every throttle dimension has a required, distinct
-domain (`ThrottleIdentifier`, `ThrottleIp`, `ThrottleIpIdentifier`,
-`ThrottleTenant`, and `ThrottleGlobal`). A caller cannot silently derive a throttle
-key under a session or attempt domain.
+domain (`ThrottleIdentifier`, `ThrottleRecovery`, `ThrottleIp`,
+`ThrottleIpIdentifier`, `ThrottleTenant`, and `ThrottleGlobal`). A caller cannot
+silently derive a throttle key under a session or attempt domain.
 
 Tenant-scoped keys require an extension of `SessionBinding` that accepts explicit,
 unambiguous NUL-separated segments under one required domain. It must represent
@@ -155,6 +155,47 @@ identifier `RetryPolicy`; presenting a load-shedding refusal as an account locko
 would make both the client and the audit record lie about the cause. Architecture
 tests must enforce exactly one identifier-lock writer and forbid populated
 `lockedUntil` construction on every non-identifier path.
+
+## Failure lifecycle, window, and unlock
+
+State must be equalized wherever timing is equalized. Every failed credential
+verification increments the submitted-identifier counter identically, including an
+unknown user/factor path and a driver's `NoCredential` result. The two existing
+`VerificationEqualizer::equalize()` call sites in `AuthFlow::verify()` are the
+minimum structural anchors: a future branch may not pay the dummy hash while skipping
+the state increment, or increment state while skipping the equalizer. Ordinary driver
+refusals increment too. A compare-and-swap loss after the driver returned satisfied is
+not a credential failure and does not charge the user for a concurrency race.
+
+The counter row is the only stored increment: `(digest, dimension,
+window_started_at, count)`. Backoff is a pure function of count, window start, and
+the database clock; it is never stored separately, so it cannot drift from the fact
+that produced it. Identifier lock state is a separate record containing
+`locked_until`, written only by the one authorized writer when the identifier count
+crosses its configured threshold.
+
+Windows are fixed, with their start stored and rollover performed atomically in SQL.
+The design accepts and documents a boundary burst of at most `2N`; thresholds must
+be chosen with that property rather than described as a sliding guarantee. Window
+and lock deadlines use `DatabaseTime`, and all increment/rollover/threshold behavior
+requires real three-engine contention tests.
+
+Locks are duration-bounded. Time expiry is 2.3b's documented sufficient unlock path;
+there is no administrative unlock before 2.4 can make that security-relevant action
+auditable. Expiry must be enforced on the request path, never by `vouch:prune`.
+
+Identifier lockout does not block the explicit `action === 'recover'` path. Recovery
+uses its own domain and counter, may receive bounded backoff, and remains unable to
+write identifier lock state. Challenge-attempt exhaustion can still invalidate the
+particular recovery challenge. This preserves a self-service escape hatch without
+turning recovery into an unthrottled bypass.
+
+Failure state resets only after full authentication. Satisfying one factor of an
+`all_of` policy does not reset anything, and recovery-code acceptance starts grace
+rather than authenticating the host, so it does not reset anything either. A
+successful authentication may reset identifier-specific and `(IP, identifier)`
+state for that subject; it never resets shared IP, tenant, global, or issuance-volume
+state, because one successful account must not erase aggregate abuse.
 
 ## Inherited mutation re-ruling
 
