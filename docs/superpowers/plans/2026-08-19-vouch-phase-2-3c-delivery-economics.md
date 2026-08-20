@@ -125,6 +125,21 @@ Shared matrix prose is not evidence: a row is matrix-required only when the
 specific engine behavior can discriminate that expression, and constructor or
 configuration rows get deterministic tests instead.
 
+The `insertOrIgnore`-then-`lockForUpdate` sequence is a named concurrency gate,
+not evidence by itself. It has two materially different paths: an absent row,
+where the insert serializes, and a committed row, where PostgreSQL's
+`insertOrIgnore` is a no-op and `lockForUpdate` is the only serializer. SQLite
+does not expose the latter lock. Delivery-spend code must use the shared
+lock/ensure primitive once extracted from the existing enrollment and throttle
+implementations, and its matrix must include both paths. A file-backed SQLite
+race is necessary for liveness but cannot certify that the row lock is
+load-bearing; the discriminating probe is the same mutation with the lock
+removed, failing on PostgreSQL while SQLite remains green.
+
+The CI database-matrix job installs `pcntl` because the two-process race must run
+there. The ordinary in-memory SQLite job may still skip it, but that skip is not
+evidence and cannot be the only execution of the test.
+
 ## Dependency order
 
 ### 1. Contracts and immutable intents
