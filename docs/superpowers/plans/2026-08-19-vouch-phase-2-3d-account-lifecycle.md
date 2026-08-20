@@ -148,6 +148,9 @@ Requirements:
   the checks completed but one or more prerequisites are missing; `2` means the
   diagnostic itself could not run. A missing prerequisite is therefore suitable
   for deploy gating without being conflated with a broken diagnostic command.
+  These codes are command-specific: unlike `vouch:prune`, where `2` means a
+  successful sweep found an undelivered condition, `vouch:doctor` uses `2` only
+  for failure to run its checks.
 
 Proofs: sets the column; creates no session; unknown/unverified/verified are
 indistinguishable; a verification code is rejected as a login factor **and** cannot
