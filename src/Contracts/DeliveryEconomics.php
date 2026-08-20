@@ -6,6 +6,7 @@ namespace Fissible\Vouch\Contracts;
 
 use Fissible\Vouch\Delivery\DeliveryEconomicsDecision;
 use Fissible\Vouch\Delivery\DeliveryEconomicsRequest;
+use Fissible\Vouch\Delivery\DeliveryReservationDecision;
 
 /**
  * Authorizes delivery economics in two deliberately different phases.
@@ -18,5 +19,5 @@ interface DeliveryEconomics
 {
     public function preflight(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision;
 
-    public function reserve(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision;
+    public function reserve(DeliveryEconomicsRequest $request): DeliveryReservationDecision;
 }

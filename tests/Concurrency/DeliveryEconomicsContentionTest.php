@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use Fissible\Vouch\Delivery\DatabaseDeliveryEconomics;
 use Fissible\Vouch\Delivery\DeliveryEconomicsConfiguration;
-use Fissible\Vouch\Delivery\DeliveryEconomicsDecision;
 use Fissible\Vouch\Delivery\DeliveryEconomicsRequest;
+use Fissible\Vouch\Delivery\DeliveryReservationDecision;
 use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\DatabaseTime;
 use Fissible\Vouch\Support\LockContention;
@@ -127,8 +127,8 @@ it('admits only one concurrent reservation at the daily ceiling', function (): v
         );
 
         expect($results)->toHaveCount(2)
-            ->and(array_count_values($results)[DeliveryEconomicsDecision::Permitted->name] ?? 0)->toBe(1)
-            ->and(array_count_values($results)[DeliveryEconomicsDecision::Refused->name] ?? 0)->toBe(1);
+            ->and(array_count_values($results)[DeliveryReservationDecision::Permitted->name] ?? 0)->toBe(1)
+            ->and(array_count_values($results)[DeliveryReservationDecision::RetryableContention->name] ?? 0)->toBe(1);
     } finally {
         foreach ($children as $pid) {
             pcntl_waitpid($pid, $status, WNOHANG);

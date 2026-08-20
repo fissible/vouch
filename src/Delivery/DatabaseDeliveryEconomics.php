@@ -47,45 +47,45 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
         return DeliveryEconomicsDecision::Permitted;
     }
 
-    public function reserve(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision
+    public function reserve(DeliveryEconomicsRequest $request): DeliveryReservationDecision
     {
         if ($request->decoy) {
-            return DeliveryEconomicsDecision::Permitted;
+            return DeliveryReservationDecision::Permitted;
         }
 
         if ($request->channel === 'sms'
             && ($request->country === null
                 || ! in_array($request->country, $this->configuration->smsAllowedCountries, true))) {
-            return DeliveryEconomicsDecision::Refused;
+            return DeliveryReservationDecision::CountryNotAllowed;
         }
 
         if ($request->costMinor === 0
             || ($this->configuration->dailyCeilingMinor === null
                 && $this->configuration->tenantCeilingMinor === null)) {
-            return DeliveryEconomicsDecision::Permitted;
+            return DeliveryReservationDecision::Permitted;
         }
 
         try {
             return $this->boundedLockWait->shared(
-                fn (): DeliveryEconomicsDecision => $this->connection->transaction(
-                    fn (): DeliveryEconomicsDecision => $this->reserveAtomically($request),
+                fn (): DeliveryReservationDecision => $this->connection->transaction(
+                    fn (): DeliveryReservationDecision => $this->reserveAtomically($request),
                 ),
             );
         } catch (DeliverySpendRefused) {
-            return DeliveryEconomicsDecision::Refused;
+            return DeliveryReservationDecision::SpendCeiling;
         } catch (QueryException $exception) {
             if ($this->lockContention->isVerified($this->connection, $exception)) {
                 // Economics is delivery-facing and not an authentication
                 // authority. Contention refuses this send rather than parking
                 // a worker or allowing an unbounded spend race.
-                return DeliveryEconomicsDecision::Refused;
+                return DeliveryReservationDecision::RetryableContention;
             }
 
             throw $exception;
         }
     }
 
-    private function reserveAtomically(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision
+    private function reserveAtomically(DeliveryEconomicsRequest $request): DeliveryReservationDecision
     {
         $scopes = [];
 
@@ -144,7 +144,7 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
             }
         }
 
-        return DeliveryEconomicsDecision::Permitted;
+        return DeliveryReservationDecision::Permitted;
     }
 
     /** @return array{id: int, window_started_at: string}|null */

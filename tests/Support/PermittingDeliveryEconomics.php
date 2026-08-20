@@ -7,6 +7,7 @@ namespace Fissible\Vouch\Tests\Support;
 use Fissible\Vouch\Contracts\DeliveryEconomics;
 use Fissible\Vouch\Delivery\DeliveryEconomicsDecision;
 use Fissible\Vouch\Delivery\DeliveryEconomicsRequest;
+use Fissible\Vouch\Delivery\DeliveryReservationDecision;
 
 final class PermittingDeliveryEconomics implements DeliveryEconomics
 {
@@ -22,8 +23,8 @@ final class PermittingDeliveryEconomics implements DeliveryEconomics
         return $this->preflightDecision;
     }
 
-    public function reserve(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision
+    public function reserve(DeliveryEconomicsRequest $request): DeliveryReservationDecision
     {
-        return DeliveryEconomicsDecision::Permitted;
+        return DeliveryReservationDecision::Permitted;
     }
 }
