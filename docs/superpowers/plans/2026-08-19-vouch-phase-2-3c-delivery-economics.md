@@ -161,8 +161,21 @@ Focused proofs:
   lookup inputs, or provider secrets.
 - Update prune retention for delivery-economic state separately from OTP payload
   retention and throttle state.
-- Re-run the three-engine suite, PHPStan, Pint if available, and the mutation
-  manifest for all new source expressions.
+- Re-run the three-engine suite, PHPStan, `git diff --check`, and the mutation
+  manifest for all new source expressions. Pint is not a package gate unless it
+  becomes an explicit dependency.
+
+## Validation labeling
+
+Every reported test count must name its execution configuration. The ordinary
+in-memory SQLite gate skips the 25 contention tests; file-backed SQLite runs
+those same tests. Therefore `1,088 passed / 25 skipped` and `1,113 passed / 0
+skipped` are the same 1,113-test collection, not competing regressions.
+
+Local concurrency evidence uses file-backed SQLite. Cross-engine evidence names
+the MySQL and PostgreSQL versions and ports. A bare test count is not a
+comparable metric and must not appear in a 2.3c report without its engine and
+SQLite mode.
 
 ## First implementation slice
 
