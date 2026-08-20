@@ -127,7 +127,14 @@ Requirements:
   is an oracle.
 - **Throttled** on the ceremony dimension (Task 3 rationale).
 - **Host guidance**: document that an unverified identifier is invisible to login
-  by design, because it is the first failure a new adopter will hit.
+  by design, because it is the first failure a new adopter will hit. The
+  adoption guidance must enumerate the complete prerequisite staircase: the
+  host must establish `verified_at`, bind a durable asynchronous `OtpDelivery`,
+  and bind a real `DeliveryEconomics` implementation. The latter is mandatory
+  because the default is fail-closed and `ChallengeIssuer` evaluates it before
+  every OTP challenge; `DatabaseDeliveryEconomics::preflight()` is currently a
+  target-independent permit, so actual spend enforcement remains in the worker
+  slice rather than being implied by this request-path hook.
 
 Proofs: sets the column; creates no session; unknown/unverified/verified are
 indistinguishable; a verification code is rejected as a login factor **and** cannot
