@@ -301,7 +301,7 @@ The ledger is generated from the exact extracted (file, mutator, expression) tup
 ## Caveats
 
 - behaviorally-covered is not a claim that the mutation tool reported a kill. It records a direct assertion/probe that observes the control, with the runner's untested/uncovered result retained as an instrumentation limitation. These rows remain visible rather than being relabeled killed.
-- matrix-required rows inherit the recorded MySQL/PostgreSQL/file-backed-SQLite contention evidence; this sandbox cannot refresh those containers. They are not silently converted to equivalent.
+- matrix-required rows are backed by fresh MySQL 8, PostgreSQL 16, and file-backed-SQLite runs. The IP-parent negative probe fails on PostgreSQL and passes on SQLite, so the `lockForUpdate()` rows are not silently converted to equivalent.
 - timeout rows remain the documented irreducible non-terminating mutants.
 
 The full default suite and PHPStan are the final local checks; Pint is unavailable in this checkout.

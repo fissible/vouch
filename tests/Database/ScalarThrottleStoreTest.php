@@ -372,6 +372,17 @@ it('pins both sides of the recovery backoff threshold without charging during ba
     seedScalarCounter($before, 4);
     seedScalarCounter($at, 5);
 
+    // Keep the one-second backoff deadline unambiguously live on slower
+    // engines. A test that relies on the insert and assertion sharing one
+    // second is a baseline that can pass while the deadline has already
+    // elapsed (or fail only because the engine is slower).
+    $connection = DB::connection();
+    $future = (new DatabaseTime($connection))->deadline(60);
+    $connection->table('auth_throttle_counters')
+        ->where('dimension', $at->dimension->value)
+        ->where('subject_digest', $at->digest)
+        ->update(['window_started_at' => $future]);
+
     $store = scalarThrottleStore();
     $beforeState = $store->preflightShared($before);
     $atState = $store->recordRecoveryFailure($at);

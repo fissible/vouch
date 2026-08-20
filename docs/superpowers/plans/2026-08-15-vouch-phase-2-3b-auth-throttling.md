@@ -1039,9 +1039,10 @@ tests; PHPStan.
 - [x] Re-rule `AuthChallenge:39` and every expression whose premise changed: retry
   fields, EnrollmentGuard wait handling, AuthFlow equalizer branches, challenge state,
   provider bindings, and pruning/reporting.
-- [x] Run the full engine matrix for the implementation boundary; the final local
-  rerun is file-backed SQLite, while the recorded MySQL 8/PostgreSQL 16 evidence is
-  unchanged by the final test-only ledger amendments.
+- [x] Run the full engine matrix for the implementation boundary: file-backed
+  SQLite (1,108 passed / 3,904 assertions), MySQL 8 (1,108 / 3,906), and
+  PostgreSQL 16 (1,108 / 3,908). The IP-parent lock-removal probe fails on
+  PostgreSQL and passes on file-backed SQLite.
 - [ ] Run exact negative probes: remove lockForUpdate; remove identifier increment from
   each equalizer path; key by resolved user; map shared timeout to refusal; omit
   challenge invalidation; bypass issuance cap; add subject lookup to report; omit
@@ -1055,9 +1056,8 @@ tests; PHPStan.
   reconciliation, remaining residual risks, and merge status. The branch owner's merge
   decision remains separate.
 
-**Completion gate:** met for the mutation and local test controls. Pint is not installed
-in this checkout; the cross-engine result is carried from the recorded matrix run and
-the final source changes are test-only. No mutation row is unassigned in
+**Completion gate:** met for the mutation and engine controls. Pint is not installed
+in this checkout, so style is unverified rather than clean. No mutation row is unassigned in
 `docs/superpowers/mutation/2026-08-19-task17-survivor-ledger.md`.
 
 **Commit:** `docs: certify phase 2.3b authentication throttling`

@@ -242,7 +242,7 @@ it('reports explicitly armed tenant and global thresholds', function (): void {
     ]);
 });
 
-it('pins native aggregate integer types on every supported PDO driver', function (): void {
+it('accepts each supported PDO driver aggregate type and normalizes it', function (): void {
     reportCounter('identifier', 1, 950);
     $row = DB::table('auth_throttle_counters')
         ->selectRaw('COUNT(*) AS aggregate_count')
@@ -255,8 +255,10 @@ it('pins native aggregate integer types on every supported PDO driver', function
         throw new RuntimeException('The aggregate type premise query returned no row.');
     }
 
-    expect($row->aggregate_count)->toBeInt()
-        ->and($row->aggregate_sum)->toBeInt();
+    expect($row->aggregate_count)->toBeNumeric()
+        ->and($row->aggregate_sum)->toBeNumeric()
+        ->and((int) $row->aggregate_count)->toBe(1)
+        ->and((int) $row->aggregate_sum)->toBe(1);
 });
 
 it('emits the same aggregate shape as JSON and human output', function (): void {

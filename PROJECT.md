@@ -1527,9 +1527,12 @@ the preceding authoritative run.
 
 The ledger keeps four timeout mutants separate, names the matrix-backed locking
 rows without relabelling them equivalent, and preserves direct behavioral probes
-when the mutation runner reports an attribution gap. The default suite is **1,108
-passed / 25 skipped / 3,902 assertions** on file-backed SQLite; PHPStan level 9
-is clean. The recorded MySQL 8/PostgreSQL 16 matrix remains green from the same
-implementation boundary; final local changes after that matrix run were tests and
-ledger documentation only. Pint is not installed in this checkout. The branch is
-clean and remains unmerged pending the branch owner's decision.
+when the mutation runner reports an attribution gap. The full suite is green on
+all three engines: file-backed SQLite **1,108 passed / 3,904 assertions**, MySQL 8
+**1,108 / 3,906**, and PostgreSQL 16 **1,108 / 3,908**. The IP contention suite is
+10 tests / 59 assertions on each engine. Removing the IP parent `lockForUpdate()`
+fails the committed-parent cell on PostgreSQL and passes on file-backed SQLite,
+proving that the lock is load-bearing on the engine where SQLite cannot observe
+it. PHPStan level 9 is clean. Pint is unavailable in this checkout, so style
+remains unverified rather than claimed clean. The branch is clean and remains
+unmerged pending the branch owner's decision.
