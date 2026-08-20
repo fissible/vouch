@@ -1,14 +1,16 @@
 # Phase 2.3 mutation gate — start here
 
-**Status: the gate is MET. Task 13's mutation control is complete.**
+**Status: the Phase 2.3b mutation gate is MET. Task 17's mutation control is complete.**
 
 Both blockers are resolved and the authoritative manifest
 (`2026-08-15-survivor-manifest.md`) passes all three closure checks on a patched
 install: run integrity, explicit ruling membership for every one of its 137
 groups, and no file having gained survivors.
 
-Final: 1314 mutations · 60 files · 0 fatals · 81.28%. 246 rows require a ruling
-and all 246 are ruled, across nine documents, with 0 unruled and 0 double-claimed.
+Task 17 final: 2,572 mutations · 81 files · 0 fatals · 84.76%. 396 emitted rows
+collapse to 266 explicit `(file, mutator, expression)` groups, all assigned in
+`2026-08-19-task17-survivor-ledger.md`; no row is unassigned or double-claimed.
+The preceding Phase 2.3 manifest remains historical and is not the current run.
 
 Merging remains a separate decision for the branch owner.
 

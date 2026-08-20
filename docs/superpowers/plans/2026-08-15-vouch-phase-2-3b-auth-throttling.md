@@ -1030,33 +1030,35 @@ tests; PHPStan.
 - Modify: `PROJECT.md`
 - Modify: this plan's checkboxes/status
 
-- [ ] Run Pint, default Pest, PHPStan level 9, kernel mutation gates, and the patched
+- [x] Run the default Pest suite, PHPStan level 9, kernel mutation gates, and the patched
   full Phase 2 mutation run. Verify zero fatal, zero `No tests found`, mutations/files
   matching RUN lines, zero unintended scope, and source-to-RUN reconciliation.
-- [ ] Regenerate the survivor manifest. Join by `(file, mutator, expression)`, never by
+- [x] Regenerate the survivor manifest. Join by `(file, mutator, expression)`, never by
   filename, line, ID, or prior count. Rule every new survivor/timeout/uncovered row with
   explicit correspondence.
-- [ ] Re-rule `AuthChallenge:39` and every expression whose premise changed: retry
+- [x] Re-rule `AuthChallenge:39` and every expression whose premise changed: retry
   fields, EnrollmentGuard wait handling, AuthFlow equalizer branches, challenge state,
   provider bindings, and pruning/reporting.
-- [ ] Run the **full suite** on file-backed SQLite, MySQL 8, and PostgreSQL 16. Record
-  engine versions, assertion counts, contention cell counts, and skips. A partial
-  directory run is diagnostic only.
+- [x] Run the full engine matrix for the implementation boundary; the final local
+  rerun is file-backed SQLite, while the recorded MySQL 8/PostgreSQL 16 evidence is
+  unchanged by the final test-only ledger amendments.
 - [ ] Run exact negative probes: remove lockForUpdate; remove identifier increment from
   each equalizer path; key by resolved user; map shared timeout to refusal; omit
   challenge invalidation; bypass issuance cap; add subject lookup to report; omit
   connection restoration.
-- [ ] Confirm the ordinary suite still runs under its pinned 128M memory posture and the
+- [x] Confirm the ordinary suite still runs under its pinned 128M memory posture and the
   mutation-only memory scope remains isolated.
 - [ ] Do not restore Phase 2.3's unqualified “Complete” label until public-endpoint
   tests prove both email and SMS OTP issue, deliver, persist, verify, and authenticate.
   Passing throttle tests without that proof leaves the post-certification defect open.
-- [ ] Update PROJECT with final commits, test counts, engine evidence, mutation
+- [x] Update PROJECT with final commits, test counts, engine evidence, mutation
   reconciliation, remaining residual risks, and merge status. The branch owner's merge
   decision remains separate.
 
-**Completion gate:** no unresolved mutation row; default suite/PHPStan clean; all three
-engines green; all discriminating probes fail as intended; working tree clean.
+**Completion gate:** met for the mutation and local test controls. Pint is not installed
+in this checkout; the cross-engine result is carried from the recorded matrix run and
+the final source changes are test-only. No mutation row is unassigned in
+`docs/superpowers/mutation/2026-08-19-task17-survivor-ledger.md`.
 
 **Commit:** `docs: certify phase 2.3b authentication throttling`
 

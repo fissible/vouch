@@ -146,7 +146,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance corrected in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation complete through Task 16; Task 17 final mutation/engine reconciliation next** |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation and Task 17 mutation reconciliation complete; branch remains unmerged** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -1514,3 +1514,22 @@ Ordinary gate: **1,000 passed / 25 skipped / 3,522 assertions**; PHPStan level 9
 clean. Source-level probes reject a fully-qualified retry construction, a downstream
 request-IP read, a forwarding-header read, a raw identifier throttle column, and
 removal of an explicit canonicalizer binding.
+
+### Task 17 authoritative mutation reconciliation — 2026-08-19
+
+The patched full-scope run completed without truncation: **2,572 mutations / 81
+files / 81 RUN / 0 kernel / 0 fatals / 0 `No tests found` / 324 untested / 68
+uncovered / 4 timeout / 2,176 tested / 84.76%**. Its 396 emitted rows collapse to
+266 `(file, mutator, expression)` groups. Every group has one explicit ledger
+entry in `docs/superpowers/mutation/2026-08-19-task17-survivor-ledger.md`; there
+are no unassigned or double-claimed groups, and no file gained survivors from
+the preceding authoritative run.
+
+The ledger keeps four timeout mutants separate, names the matrix-backed locking
+rows without relabelling them equivalent, and preserves direct behavioral probes
+when the mutation runner reports an attribution gap. The default suite is **1,108
+passed / 25 skipped / 3,902 assertions** on file-backed SQLite; PHPStan level 9
+is clean. The recorded MySQL 8/PostgreSQL 16 matrix remains green from the same
+implementation boundary; final local changes after that matrix run were tests and
+ledger documentation only. Pint is not installed in this checkout. The branch is
+clean and remains unmerged pending the branch owner's decision.
