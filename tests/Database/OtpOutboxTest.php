@@ -406,6 +406,7 @@ it('redacts permanent and exhausted failures without retrying a dead credential'
     expect($outbox->refresh()->status)->toBe(OtpOutboxStatus::Undeliverable->value)
         ->and($outbox->payload)->toBeNull()
         ->and($outbox->undeliverable_at)->not->toBeNull()
+        ->and($outbox->failure_reason)->toBe('provider_rejected')
         ->and($outbox->updated_at->greaterThan($before))->toBeTrue();
 
     $factor->challenge(new ChallengeRequest($attempt));
@@ -414,7 +415,8 @@ it('redacts permanent and exhausted failures without retrying a dead credential'
 
     expect($exhausted->refresh()->status)->toBe(OtpOutboxStatus::Undeliverable->value)
         ->and($exhausted->payload)->toBeNull()
-        ->and($exhausted->undeliverable_at)->not->toBeNull();
+        ->and($exhausted->undeliverable_at)->not->toBeNull()
+        ->and($exhausted->failure_reason)->toBe('provider_exhausted');
 });
 
 it('treats missing and expired rows as successful terminal outcomes', function (): void {
@@ -432,6 +434,7 @@ it('treats missing and expired rows as successful terminal outcomes', function (
     expect($outbox->refresh()->status)->toBe(OtpOutboxStatus::Undeliverable->value)
         ->and($outbox->payload)->toBeNull()
         ->and($outbox->undeliverable_at)->not->toBeNull()
+        ->and($outbox->failure_reason)->toBe('expired_undelivered')
         ->and($delivery->sent)->toBe([]);
 });
 
@@ -465,7 +468,8 @@ it('terminalizes a transient failure when the deadline crosses during provider I
 
     expect($outbox->refresh()->status)->toBe(OtpOutboxStatus::Undeliverable->value)
         ->and($outbox->payload)->toBeNull()
-        ->and($outbox->undeliverable_at)->not->toBeNull();
+        ->and($outbox->undeliverable_at)->not->toBeNull()
+        ->and($outbox->failure_reason)->toBe('expired_undelivered');
 });
 
 it('rolls the challenge back when its outbox cannot be persisted', function (): void {

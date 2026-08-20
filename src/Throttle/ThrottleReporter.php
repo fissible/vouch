@@ -31,7 +31,7 @@ final readonly class ThrottleReporter
      *     distribution: array{zero: int, one: int, two_to_four: int, five_to_nine: int, ten_to_twenty_nine: int, thirty_to_ninety_nine: int, one_hundred_to_two_hundred_ninety_nine: int, three_hundred_plus: int},
      *     thresholds: list<array{name: string, value: int, buckets_at_or_above: int}>
      *   }>,
-     *   outbox: array{pending: int, overdue: int, delivered: int, undeliverable: int}
+     *   outbox: array{pending: int, overdue: int, delivered: int, undeliverable: int, undeliverable_reasons: array<string, int>}
      * }
      */
     public function report(): array
@@ -191,10 +191,25 @@ final readonly class ThrottleReporter
         ];
     }
 
-    /** @return array{pending: int, overdue: int, delivered: int, undeliverable: int} */
+    /** @return array{pending: int, overdue: int, delivered: int, undeliverable: int, undeliverable_reasons: array<string, int>} */
     private function outbox(DateTimeImmutable $now): array
     {
         $outbox = $this->connection->table('auth_challenge_outbox');
+
+        $reasons = [];
+
+        foreach ((clone $outbox)
+            ->where('status', OtpOutboxStatus::Undeliverable->value)
+            ->selectRaw('failure_reason, COUNT(*) AS reason_count')
+            ->groupBy('failure_reason')
+            ->get() as $row) {
+            $reason = is_string($row->failure_reason) && $row->failure_reason !== ''
+                ? $row->failure_reason
+                : 'unknown';
+            $reasons[$reason] = $this->integer($row->reason_count ?? null);
+        }
+
+        ksort($reasons);
 
         return [
             'pending' => (clone $outbox)
@@ -211,6 +226,7 @@ final readonly class ThrottleReporter
             'undeliverable' => (clone $outbox)
                 ->where('status', OtpOutboxStatus::Undeliverable->value)
                 ->count(),
+            'undeliverable_reasons' => $reasons,
         ];
     }
 

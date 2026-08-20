@@ -58,6 +58,10 @@ final class VouchThrottleReportCommand extends Command
             $report['outbox']['delivered'],
             $report['outbox']['undeliverable'],
         ));
+        $this->components->info(sprintf(
+            'Undeliverable reasons: %s.',
+            json_encode($report['outbox']['undeliverable_reasons'], JSON_THROW_ON_ERROR),
+        ));
 
         return CommandExit::Success->value;
     }

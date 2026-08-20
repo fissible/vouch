@@ -32,7 +32,7 @@ final readonly class OtpOutboxDelivery
         }
 
         if ($this->expired($outbox)) {
-            $this->terminalize($opaqueId);
+            $this->terminalize($opaqueId, OtpOutboxFailureReason::ExpiredUndelivered);
 
             return;
         }
@@ -50,7 +50,7 @@ final readonly class OtpOutboxDelivery
         $identifier = $this->target($payload);
 
         if (! $identifier instanceof AuthIdentifier) {
-            $this->terminalize($opaqueId);
+            $this->terminalize($opaqueId, OtpOutboxFailureReason::TargetUnavailable);
 
             return;
         }
@@ -62,12 +62,12 @@ final readonly class OtpOutboxDelivery
                 $outbox->expires_at->toDateTimeImmutable(),
             );
         } catch (PermanentOtpDeliveryFailure) {
-            $this->terminalize($opaqueId);
+            $this->terminalize($opaqueId, OtpOutboxFailureReason::ProviderRejected);
 
             return;
         } catch (Throwable) {
             if ($this->expired($outbox)) {
-                $this->terminalize($opaqueId);
+                $this->terminalize($opaqueId, OtpOutboxFailureReason::ExpiredUndelivered);
 
                 return;
             }
@@ -87,7 +87,10 @@ final readonly class OtpOutboxDelivery
             ]);
     }
 
-    public function terminalize(string $opaqueId): void
+    public function terminalize(
+        string $opaqueId,
+        OtpOutboxFailureReason $reason = OtpOutboxFailureReason::ExpiredUndelivered,
+    ): void
     {
         AuthChallengeOutbox::query()
             ->where('opaque_id', $opaqueId)
@@ -96,6 +99,7 @@ final readonly class OtpOutboxDelivery
                 'payload' => null,
                 'status' => OtpOutboxStatus::Undeliverable->value,
                 'undeliverable_at' => $this->time->now(),
+                'failure_reason' => $reason->value,
             ]);
     }
 

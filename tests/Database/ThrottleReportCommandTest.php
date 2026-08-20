@@ -7,6 +7,7 @@ use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Models\AuthChallenge;
 use Fissible\Vouch\Models\AuthChallengeOutbox;
 use Fissible\Vouch\Notifications\OtpOutboxStatus;
+use Fissible\Vouch\Notifications\OtpOutboxFailureReason;
 use Fissible\Vouch\Support\DatabaseTime;
 use Fissible\Vouch\Throttle\ThrottleReporter;
 use Illuminate\Contracts\Console\Kernel;
@@ -79,6 +80,9 @@ function reportOutbox(string $status, DateTimeInterface $expiresAt, int $sequenc
         'expires_at' => $expiresAt,
         'delivered_at' => $status === OtpOutboxStatus::Delivered->value ? now() : null,
         'undeliverable_at' => $status === OtpOutboxStatus::Undeliverable->value ? now() : null,
+        'failure_reason' => $status === OtpOutboxStatus::Undeliverable->value
+            ? OtpOutboxFailureReason::ProviderRejected->value
+            : null,
     ]);
 }
 
@@ -166,6 +170,7 @@ it('reports active aggregate distributions and configured threshold crossings wi
             'overdue' => 1,
             'delivered' => 1,
             'undeliverable' => 1,
+            'undeliverable_reasons' => ['provider_rejected' => 1],
         ]);
 
     $encoded = json_encode($report, JSON_THROW_ON_ERROR);
@@ -200,6 +205,7 @@ it('reports the complete top-level envelope and empty distributions', function (
             'overdue' => 0,
             'delivered' => 0,
             'undeliverable' => 0,
+            'undeliverable_reasons' => [],
         ]);
 
     foreach ($report['dimensions'] as $dimension) {
@@ -272,6 +278,7 @@ it('emits the same aggregate shape as JSON and human output', function (): void 
         'overdue' => 1,
         'delivered' => 1,
         'undeliverable' => 1,
+        'undeliverable_reasons' => ['provider_rejected' => 1],
     ])
         ->and(data_get($json, 'dimensions.0.dimension'))->toBe('identifier');
 
@@ -289,7 +296,8 @@ it('emits the same aggregate shape as JSON and human output', function (): void 
         ->and($output)->toContain('"zero":1')
         ->and($output)->toContain('tenant')
         ->and($output)->toContain('none')
-        ->and($output)->toContain('OTP outbox: 1 pending, 1 overdue, 1 delivered, 1 undeliverable.');
+        ->and($output)->toContain('OTP outbox: 1 pending, 1 overdue, 1 delivered, 1 undeliverable.')
+        ->and($output)->toContain('Undeliverable reasons: {"provider_rejected":1}.');
 });
 
 it('exposes neither candidate lookup options nor an underlying subject parameter', function (): void {
@@ -329,5 +337,6 @@ it('removes expired aggregates from the report while leaving live rows visible',
         'overdue' => 0,
         'delivered' => 0,
         'undeliverable' => 1,
+        'undeliverable_reasons' => ['provider_rejected' => 1],
     ]);
 });

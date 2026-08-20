@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Jobs;
 
 use Fissible\Vouch\Notifications\OtpOutboxDelivery;
+use Fissible\Vouch\Notifications\OtpOutboxFailureReason;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Throwable;
 
@@ -24,6 +25,9 @@ final class DeliverOtpChallenge implements ShouldQueue
 
     public function failed(?Throwable $exception): void
     {
-        app(OtpOutboxDelivery::class)->terminalize($this->outboxId);
+        app(OtpOutboxDelivery::class)->terminalize(
+            $this->outboxId,
+            OtpOutboxFailureReason::ProviderExhausted,
+        );
     }
 }
