@@ -8,6 +8,7 @@ use Fissible\Vouch\Contracts\DeliveryEconomics;
 use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\DatabaseTime;
 use Fissible\Vouch\Support\LockContention;
+use Fissible\Vouch\Support\DatabaseRowLock;
 use Fissible\Vouch\Throttle\ThrottleKey;
 use Illuminate\Database\Connection;
 use Illuminate\Database\QueryException;
@@ -32,7 +33,12 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
         private DeliveryEconomicsConfiguration $configuration,
         private BoundedLockWait $boundedLockWait,
         private LockContention $lockContention,
-    ) {}
+        ?DatabaseRowLock $rowLock = null,
+    ) {
+        $this->rowLock = $rowLock ?? new DatabaseRowLock($connection);
+    }
+
+    private readonly DatabaseRowLock $rowLock;
 
     public function preflight(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision
     {
@@ -92,7 +98,18 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
         }
 
         foreach ($scopes as [$scope, $digest, $ceiling]) {
-            $this->ensureRow((string) $scope, (string) $digest);
+            $this->rowLock->ensureAndLock(
+                'auth_delivery_spend',
+                [
+                    'scope' => (string) $scope,
+                    'subject_digest' => (string) $digest,
+                    'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'),
+                    'spent_minor' => 0,
+                    'created_at' => $this->time->now(),
+                    'updated_at' => $this->time->now(),
+                ],
+                ['scope' => (string) $scope, 'subject_digest' => (string) $digest],
+            );
             $row = $this->row((string) $scope, (string) $digest, true);
 
             if ($row === null) {
@@ -128,19 +145,6 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
         }
 
         return DeliveryEconomicsDecision::Permitted;
-    }
-
-    private function ensureRow(string $scope, string $digest): void
-    {
-        $now = $this->time->now();
-        $this->connection->table('auth_delivery_spend')->insertOrIgnore([
-            'scope' => $scope,
-            'subject_digest' => $digest,
-            'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'),
-            'spent_minor' => 0,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
     }
 
     /** @return array{id: int, window_started_at: string}|null */

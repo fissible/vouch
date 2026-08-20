@@ -6,6 +6,7 @@ namespace Fissible\Vouch\Enrollment;
 
 use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\LockContention;
+use Fissible\Vouch\Support\DatabaseRowLock;
 use Illuminate\Database\Connection;
 use Illuminate\Database\QueryException;
 
@@ -35,14 +36,18 @@ final class EnrollmentGuard
 
     private readonly LockContention $lockContention;
 
+    private readonly DatabaseRowLock $rowLock;
+
     public function __construct(
         private readonly Connection $connection,
         private readonly int $lockWaitSeconds = 5,
         ?BoundedLockWait $boundedLockWait = null,
         ?LockContention $lockContention = null,
+        ?DatabaseRowLock $rowLock = null,
     ) {
         $this->boundedLockWait = $boundedLockWait ?? new BoundedLockWait($connection);
         $this->lockContention = $lockContention ?? new LockContention();
+        $this->rowLock = $rowLock ?? new DatabaseRowLock($connection);
     }
 
     /**
@@ -115,14 +120,11 @@ final class EnrollmentGuard
     {
         try {
             $this->boundedLockWait->enrollment(max(1, $this->lockWaitSeconds), function () use ($userId, $type): void {
-                $this->connection->table('auth_enrollment_locks')
-                    ->insertOrIgnore([['user_id' => $userId, 'type' => $type]]);
-
-                $this->connection->table('auth_enrollment_locks')
-                    ->where('user_id', $userId)
-                    ->where('type', $type)
-                    ->lockForUpdate()
-                    ->first();
+                $this->rowLock->ensureAndLock(
+                    'auth_enrollment_locks',
+                    ['user_id' => $userId, 'type' => $type],
+                    ['user_id' => $userId, 'type' => $type],
+                );
             });
         } catch (QueryException $exception) {
             /*
