@@ -22,10 +22,13 @@ identifiers with `whereNotNull('verified_at')` and nothing shipped sets that
 column, so a fresh install cannot log anyone in and the refusal is deliberately
 undiagnosable.
 
-Task 1 is more urgent than 2.3c but is not a dependency of it: 2.3c protects SMS
-spend, which only matters once SMS OTP is reachable, which requires Task 1.
-**Recommended order: 2.3d Task 1 → 2.3c → the rest of 2.3d.** A decision to take,
-not one already taken.
+Task 1 is not a dependency of 2.3c. The execution decision is the reverse of the
+original urgency-based recommendation: **finish 2.3c first, then build 2.3d Task 1,
+then the rest of 2.3d.** Verification codes are deliveries too; building Task 1
+against the completed `ChallengeIssuer` path means it inherits the outbox,
+2.3b throttling, and 2.3c economics instead of creating a second unmetered send
+path that needs retrofitting later. The install cliff costs nothing while the
+package has no users, while a half-wired delivery subsystem accrues drift.
 
 ## Effort and critical path
 
