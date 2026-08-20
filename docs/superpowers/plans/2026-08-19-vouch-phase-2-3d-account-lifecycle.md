@@ -144,6 +144,10 @@ Requirements:
   must never turn the production `verified_at` refusal into a more informative
   response. The command makes the silent, enumeration-safe prerequisite
   discoverable before a host exercises the login endpoint.
+  Its exit contract is explicit: `0` means every prerequisite passes; `1` means
+  the checks completed but one or more prerequisites are missing; `2` means the
+  diagnostic itself could not run. A missing prerequisite is therefore suitable
+  for deploy gating without being conflated with a broken diagnostic command.
 
 Proofs: sets the column; creates no session; unknown/unverified/verified are
 indistinguishable; a verification code is rejected as a login factor **and** cannot
