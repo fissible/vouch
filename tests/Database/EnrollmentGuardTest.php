@@ -6,6 +6,8 @@ use Fissible\Vouch\Enrollment\EnrollmentGuard;
 use Fissible\Vouch\Enrollment\EnrollmentRefusalReason;
 use Fissible\Vouch\Enrollment\EnrollmentRefused;
 use Fissible\Vouch\Models\AuthCredential;
+use Fissible\Vouch\Support\BoundedLockWait;
+use Fissible\Vouch\Support\LockContention;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 
@@ -25,6 +27,22 @@ function makePassword(): AuthCredential
         'strength' => 'knowledge',
     ]);
 }
+
+it('retains explicitly injected lock-wait and contention collaborators', function (): void {
+    $connection = DB::connection();
+    $boundedWait = new BoundedLockWait($connection);
+    $contention = new LockContention();
+    $guard = new EnrollmentGuard($connection, 5, $boundedWait, $contention);
+    $defaultGuard = new EnrollmentGuard($connection);
+
+    $boundedProperty = new ReflectionProperty(EnrollmentGuard::class, 'boundedLockWait');
+    $contentionProperty = new ReflectionProperty(EnrollmentGuard::class, 'lockContention');
+    $waitProperty = new ReflectionProperty(EnrollmentGuard::class, 'lockWaitSeconds');
+
+    expect($boundedProperty->getValue($guard))->toBe($boundedWait)
+        ->and($contentionProperty->getValue($guard))->toBe($contention)
+        ->and($waitProperty->getValue($defaultGuard))->toBe(5);
+});
 
 it('permits an enrollment within capacity and returns the write result', function (): void {
     $credential = guard()->serialize(7, 'password', 1, fn (): AuthCredential => makePassword());

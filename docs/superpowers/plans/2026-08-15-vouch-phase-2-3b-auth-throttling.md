@@ -1040,8 +1040,8 @@ tests; PHPStan.
   fields, EnrollmentGuard wait handling, AuthFlow equalizer branches, challenge state,
   provider bindings, and pruning/reporting.
 - [x] Run the full engine matrix for the implementation boundary: file-backed
-  SQLite (1,108 passed / 3,904 assertions), MySQL 8 (1,108 / 3,906), and
-  PostgreSQL 16 (1,108 / 3,908). The IP-parent lock-removal probe fails on
+  SQLite (1,110 passed / 3,909 assertions), MySQL 8 (1,110 / 3,911), and
+  PostgreSQL 16 (1,110 / 3,913). The IP-parent lock-removal probe fails on
   PostgreSQL and passes on file-backed SQLite.
 - [ ] Run exact negative probes: remove lockForUpdate; remove identifier increment from
   each equalizer path; key by resolved user; map shared timeout to refusal; omit

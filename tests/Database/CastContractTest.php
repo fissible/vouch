@@ -121,7 +121,7 @@ it('hands back a PHP int for an integer column with no cast involved', function 
      * The premise behind every `integer` cast ruling, pinned so it fails loudly
      * if it ever stops holding.
      *
-     * The three integer casts -- AuthAttempt.version, AuthChallenge.attempts and
+     * The column-read premise behind the three integer casts -- AuthAttempt.version, AuthChallenge.attempts and
      * AuthCredential.last_used_timestep -- were each recorded as needing MySQL
      * and Postgres to decide, on the stated grounds that those drivers return
      * numeric STRINGS where SQLite returns integers. Measured on PHP 8.4 with
@@ -175,7 +175,9 @@ it('reads the attempt version and expiry back as their own types', function (): 
      * therefore decide it. That was run on both engines rather than assumed, and
      * it does not hold -- the cast's removal leaves the whole Database,
      * Concurrency and Factors suite green on MySQL and Postgres alike. The row
-     * is equivalent under the premise pinned above, not matrix-decidable.
+     * is equivalent under the column-read premise pinned above, not matrix-decidable.
+     * This premise does not cover aggregates: SUM/NUMERIC expressions are
+     * separately normalized and tested by ThrottleReporter.
      */
     expect($attempt->version)->toBeInt()
         ->and($attempt->expires_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);

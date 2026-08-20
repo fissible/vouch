@@ -1528,11 +1528,17 @@ the preceding authoritative run.
 The ledger keeps four timeout mutants separate, names the matrix-backed locking
 rows without relabelling them equivalent, and preserves direct behavioral probes
 when the mutation runner reports an attribution gap. The full suite is green on
-all three engines: file-backed SQLite **1,108 passed / 3,904 assertions**, MySQL 8
-**1,108 / 3,906**, and PostgreSQL 16 **1,108 / 3,908**. The IP contention suite is
+all three engines: file-backed SQLite **1,110 passed / 3,909 assertions**, MySQL 8
+**1,110 / 3,911**, and PostgreSQL 16 **1,110 / 3,913**. The IP contention suite is
 10 tests / 59 assertions on each engine. Removing the IP parent `lockForUpdate()`
 fails the committed-parent cell on PostgreSQL and passes on file-backed SQLite,
 proving that the lock is load-bearing on the engine where SQLite cannot observe
 it. PHPStan level 9 is clean. Pint is unavailable in this checkout, so style
 remains unverified rather than claimed clean. The branch is clean and remains
 unmerged pending the branch owner's decision.
+
+The recovery-boundary test was made deterministic after the first MySQL run
+exposed a one-second wall-clock race; this was a flake detector, not an engine
+semantic difference. The aggregate report has a separate premise: column reads
+return native integers on the supported PDO drivers, while `SUM()` may return a
+numeric string and is normalized explicitly.

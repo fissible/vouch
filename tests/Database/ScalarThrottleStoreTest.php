@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Support\BoundedLockWait;
+use Fissible\Vouch\Support\LockContention;
 use Fissible\Vouch\Throttle\DatabaseAuthThrottleStore;
 use Fissible\Vouch\Throttle\IdentifierThrottle;
 use Fissible\Vouch\Throttle\SharedThrottle;
@@ -26,6 +28,25 @@ function scalarThrottleStore(?Connection $connection = null): DatabaseAuthThrott
         app(ThrottleConfiguration::class),
     );
 }
+
+it('retains explicitly injected lock-wait and contention collaborators', function (): void {
+    $connection = DB::connection();
+    $boundedWait = new BoundedLockWait($connection);
+    $contention = new LockContention();
+    $store = new DatabaseAuthThrottleStore(
+        $connection,
+        new DatabaseTime($connection),
+        app(ThrottleConfiguration::class),
+        $boundedWait,
+        $contention,
+    );
+
+    $boundedProperty = new ReflectionProperty(DatabaseAuthThrottleStore::class, 'boundedLockWait');
+    $contentionProperty = new ReflectionProperty(DatabaseAuthThrottleStore::class, 'lockContention');
+
+    expect($boundedProperty->getValue($store))->toBe($boundedWait)
+        ->and($contentionProperty->getValue($store))->toBe($contention);
+});
 
 function scalarThrottleSubject(
     ThrottleDimension $dimension = ThrottleDimension::Identifier,
