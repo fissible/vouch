@@ -83,6 +83,39 @@ that was never delivered is retained as `expired_undelivered` for queue-health
 reporting. Spend refusals are a separate terminal reason and must not be
 collapsed into that health signal.
 
+### Worker reservation contract
+
+The encrypted outbox payload remains exactly `{target, code, decoy}`. Tenant and
+factor are stable relational facts: a deliverable outbox row implies a live
+challenge and attempt through cascading foreign keys, so the worker joins
+`auth_challenges.factor_type` to `auth_attempts.tenant_id`. Country is derived
+from the snapshotted target with `SmsCountryNormalizer`; it is not persisted as
+a second copy of that fact. Delivery cost is live policy and is read from the
+bound economics configuration at reservation time, not frozen into queued work.
+
+`reserve()` needs a result richer than the advisory preflight's boolean-shaped
+decision. Its typed outcomes are: permitted, permanently refused because the
+country is not allowed, permanently refused because the ceiling is exhausted,
+and retryable contention. Only the first three terminalize an outbox row;
+contention leaves it pending and lets the queue retry. The existing
+`LegacyUnparseable` failure reason remains valid for legacy targets that fail
+worker-time normalization; it must be assigned by the worker or removed before
+the lifecycle ships, never left as an unreferenced enum case.
+
+Reservation is idempotent per `AuthChallengeOutbox::opaque_id`. The worker
+reserves before provider I/O, but a transient provider failure leaves the row
+pending and the next attempt must not increment spend again. A reservation
+ledger keyed by opaque id and spend scope records the successful reservation in
+the same transaction as the aggregate increment; retries detect the existing
+reservation and skip the increment. This is a charge-per-send decision, not a
+charge-per-provider-attempt decision.
+
+The configuration surface is part of this slice. `DeliveryEconomicsConfiguration`
+is container-bound and validates ceilings plus live cost policy: a per-channel
+cost is required, with optional per-country SMS overrides for providers whose
+pricing differs by destination. No cost is silently defaulted to zero for a
+real delivery.
+
 ### CAPTCHA communication and ordering
 
 CAPTCHA requirement is a kernel disclosure decision, not an ad hoc response
