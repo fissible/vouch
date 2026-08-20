@@ -55,14 +55,25 @@ it('keeps CAPTCHA verification provider-independent and fail-closed', function (
         ->toThrow('No CAPTCHA verifier is configured');
 });
 
-it('canonicalizes valid international SMS numbers and refuses ambiguous input', function (): void {
+it('canonicalizes a valid US SMS number to E.164 and its country', function (): void {
     $normalizer = SmsCountryNormalizer::defaults();
 
     expect($normalizer->normalize('+1 415 555 2671')->e164)->toBe('+14155552671')
         ->and($normalizer->normalize('+1 415 555 2671')->country)->toBe('US');
-
-    expect(fn () => $normalizer->normalize('4155552671'))
-        ->toThrow('not a parseable international phone number');
-    expect(fn () => $normalizer->normalize('+1415'))
-        ->toThrow('not a valid international phone number');
 });
+
+it('distinguishes the Canadian region within the shared +1 calling code', function (): void {
+    $normalized = SmsCountryNormalizer::defaults()->normalize('+1 416 555 2671');
+
+    expect($normalized->e164)->toBe('+14165552671')
+        ->and($normalized->country)->toBe('CA');
+});
+
+it('rejects SMS numbers that are unqualified, invalid, or from an unknown country', function (string $value, string $message): void {
+    expect(fn () => SmsCountryNormalizer::defaults()->normalize($value))
+        ->toThrow($message);
+})->with([
+    'unqualified' => ['4155552671', 'not a parseable international phone number'],
+    'invalid' => ['+1415', 'not a valid international phone number'],
+    'unknown country' => ['+999123456789', 'not a parseable international phone number'],
+]);

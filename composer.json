@@ -5,7 +5,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.4",
-        "giggsey/libphonenumber-for-php": "^9.0",
+        "giggsey/libphonenumber-for-php-lite": "^9.0",
         "illuminate/console": "^13.0",
         "illuminate/database": "^13.0",
         "illuminate/hashing": "^13.0",
