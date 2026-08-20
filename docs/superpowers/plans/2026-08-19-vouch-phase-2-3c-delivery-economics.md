@@ -137,7 +137,9 @@ Focused proofs:
 - Before changing enrollment or stored values, provide an aggregate
   `vouch:sms-identifiers:audit` report classifying canonical, needs-normalization,
   and invalid legacy rows. The report emits counts and country aggregates only;
-  it never rewrites rows or prints identifier values.
+  it never rewrites rows or prints identifier values. It accepts no subject
+  lookup input and exits `0` for a survey containing invalid rows; only an
+  audit execution error is a command failure.
 
 ### 3. Economic state and atomic decisions
 

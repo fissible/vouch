@@ -8,7 +8,11 @@ use Fissible\Vouch\Delivery\SmsIdentifierAudit;
 use Illuminate\Console\Command;
 use JsonException;
 
-/** Reports legacy SMS rows without mutating or printing identifier values. */
+/**
+ * Reports legacy SMS rows without mutating or printing identifier values.
+ * Invalid rows are survey results, not command failure; this command always
+ * exits successfully unless the audit itself throws.
+ */
 final class VouchSmsIdentifierAuditCommand extends Command
 {
     protected $signature = 'vouch:sms-identifiers:audit {--json : Emit machine-readable aggregate JSON}';
