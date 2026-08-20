@@ -49,10 +49,21 @@ unknown identifiers cannot pollute a tenant's spend ceiling. Authentication
 issuance volume is never refunded or rewritten; delivery-spend reservations are
 a separate ledger and may be released only under the provider outcome contract.
 
+The request-side check is advisory fast-fail only. The worker reservation is the
+authoritative check-and-act operation and must enforce the ceiling in its atomic
+SQL predicate; a burst that passes the advisory read cannot overspend merely
+because several workers arrive together.
+
 This deliberately means an economics refusal at worker time does not reach the
 factor's provider call, but the factor may still create the already-encrypted
 outbox record. The request-side preflight and the worker-side decision are two
 parts of one named boundary, not two independent policy owners.
+
+Worker economics refusal is a distinct redacted terminal state from
+expired-undelivered. The former means the delivery budget refused an otherwise
+live attempt; the latter is evidence of a stale or dead worker. Prune and
+aggregate reporting count them separately, and only the latter contributes to
+the delivery-health alert/exit signal.
 
 ### CAPTCHA communication and ordering
 
@@ -80,7 +91,9 @@ SMS numbers are parsed with `giggsey/libphonenumber-for-php`, not a prefix table
 Enrollment normalizes valid numbers to canonical E.164 and records the ISO
 country used by economics; unparseable or ambiguous numbers fail closed before
 an SMS credential can be enrolled or delivered. Existing non-canonical rows are
-not guessed at send time: they require re-enrollment or an explicit migration.
+not guessed at send time: they require re-enrollment or an explicit migration;
+legacy rows that remain unparseable fail closed at the worker boundary and never
+contact a provider.
 
 ### Style and reconciliation gates
 
