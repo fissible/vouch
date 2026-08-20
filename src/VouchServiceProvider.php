@@ -8,6 +8,7 @@ use Fissible\Vouch\Attempts\DatabaseAttemptStore;
 use Fissible\Vouch\Console\VouchDispatchOtpOutboxCommand;
 use Fissible\Vouch\Console\VouchPruneCommand;
 use Fissible\Vouch\Console\VouchThrottleReportCommand;
+use Fissible\Vouch\Console\VouchSmsIdentifierAuditCommand;
 use Fissible\Vouch\Contracts\AttemptStore;
 use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Contracts\OtpDelivery;
@@ -26,6 +27,8 @@ use Fissible\Vouch\Notifications\OtpChallengeOutbox;
 use Fissible\Vouch\Notifications\OtpOutboxDelivery;
 use Fissible\Vouch\Notifications\OtpQueueDispatcher;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
+use Fissible\Vouch\Delivery\SmsCountryNormalizer;
+use Fissible\Vouch\Delivery\SmsIdentifierAudit;
 use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\LockContention;
 use Fissible\Vouch\Support\SystemClock;
@@ -113,6 +116,11 @@ final class VouchServiceProvider extends ServiceProvider
         $this->app->singleton(IdentifierCanonicalizer::class);
         $this->app->singleton(IpCanonicalizer::class);
         $this->app->singleton(ThrottleKey::class);
+        $this->app->singleton(SmsCountryNormalizer::class, static fn (): SmsCountryNormalizer => SmsCountryNormalizer::defaults());
+        $this->app->singleton(
+            SmsIdentifierAudit::class,
+            static fn ($app): SmsIdentifierAudit => new SmsIdentifierAudit($app->make(SmsCountryNormalizer::class)),
+        );
 
         $this->app->singleton(
             ThrottleReporter::class,
@@ -371,6 +379,7 @@ final class VouchServiceProvider extends ServiceProvider
                 VouchPruneCommand::class,
                 VouchDispatchOtpOutboxCommand::class,
                 VouchThrottleReportCommand::class,
+                VouchSmsIdentifierAuditCommand::class,
             ]);
         }
     }
