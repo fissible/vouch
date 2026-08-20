@@ -19,6 +19,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('auth_challenge_outbox', function (Blueprint $table): void {
+            $table->dropIndex(['failure_reason']);
             $table->dropColumn('failure_reason');
         });
     }

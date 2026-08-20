@@ -65,6 +65,24 @@ live attempt; the latter is evidence of a stale or dead worker. Prune and
 aggregate reporting count them separately, and only the latter contributes to
 the delivery-health alert/exit signal.
 
+The outbox lifecycle remains deliberately small (`pending`, `delivered`,
+`undeliverable`); terminal causes are recorded beside it in `failure_reason`,
+not added as enum cases. Reasons distinguish legacy-unparseable targets,
+country policy refusal, spend-ceiling refusal, provider rejection/exhaustion,
+expired-undelivered work, and unavailable targets. This keeps lifecycle queries
+stable while making aggregate operations actionable: migration work, policy
+review, budget review, provider investigation, and queue-health alerting are
+separate counts. Worker-time terminalization is silent to the user, so the
+reason is retained and reported without exposing a target or code.
+
+The worker's encounter counts complement, rather than replace, the aggregate
+SMS audit. The audit measures the stored population; terminal reasons measure
+which legacy or policy conditions are actually encountered by users. Missing
+outbox rows after TTL are a no-op success for the worker, while an expired row
+that was never delivered is retained as `expired_undelivered` for queue-health
+reporting. Spend refusals are a separate terminal reason and must not be
+collapsed into that health signal.
+
 ### CAPTCHA communication and ordering
 
 CAPTCHA requirement is a kernel disclosure decision, not an ad hoc response

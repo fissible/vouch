@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
 
 /*
- * Step 9 verification, adapted.
+ * Amendment migration verification, adapted.
  *
  * The brief's plain `vendor/bin/testbench migrate:fresh|migrate:rollback|migrate`
  * commands boot Testbench's own skeleton application, which never registers
@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Schema;
  * VouchServiceProvider, exactly as the real Pest suite does) exercises the
  * same down()/up() pairs Testbench would have, against the same driver.
  */
-it('rolls back and re-applies all nine amendment migrations cleanly', function (): void {
+it('rolls back and re-applies all amendment migrations cleanly', function (): void {
     Artisan::call('migrate:fresh');
 
     expect(Schema::hasColumn('auth_credentials', 'identifier_id'))->toBeTrue()
@@ -32,7 +32,7 @@ it('rolls back and re-applies all nine amendment migrations cleanly', function (
         ->and(Schema::hasColumn('auth_challenges', 'is_decoy'))->toBeTrue()
         ->and(Schema::hasTable('auth_challenge_outbox'))->toBeTrue();
 
-    expect(Artisan::call('migrate:rollback', ['--step' => 9]))->toBe(0);
+    expect(Artisan::call('migrate:rollback', ['--step' => 10]))->toBe(0);
 
     expect(Schema::hasColumn('auth_credentials', 'identifier_id'))->toBeFalse()
         ->and(Schema::hasColumn('auth_credentials', 'last_used_timestep'))->toBeFalse()
