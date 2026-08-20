@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Delivery;
 
 use Fissible\Vouch\Contracts\DeliveryEconomics;
-use Fissible\Vouch\Delivery\DeliveryReservationDecision;
 use RuntimeException;
 
 /** Fail closed until the host binds a real 2.3c economics implementation. */

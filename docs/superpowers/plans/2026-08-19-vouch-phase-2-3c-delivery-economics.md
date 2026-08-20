@@ -102,6 +102,14 @@ contention leaves it pending and lets the queue retry. The existing
 worker-time normalization; it must be assigned by the worker or removed before
 the lifecycle ships, never left as an unreferenced enum case.
 
+Queue exhaustion must preserve that distinction too: a job exhausted by
+economics contention has not contacted a provider and must not be recorded as
+`provider_exhausted`. Contention retries also do not consume the provider
+delivery-attempt budget. The worker may retry the reservation in the same job
+attempt, or the queue integration must carry a separate contention budget;
+using one undifferentiated `$tries` counter is not evidence that either policy
+is correct.
+
 Reservation is idempotent per `AuthChallengeOutbox::opaque_id`. The worker
 reserves before provider I/O, but a transient provider failure leaves the row
 pending and the next attempt must not increment spend again. A reservation
