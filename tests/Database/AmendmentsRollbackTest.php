@@ -29,10 +29,11 @@ it('rolls back and re-applies all amendment migrations cleanly', function (): vo
         ->and(Schema::hasTable('auth_throttle_locks'))->toBeTrue()
         ->and(Schema::hasTable('auth_throttle_ip_windows'))->toBeTrue()
         ->and(Schema::hasTable('auth_throttle_tuples'))->toBeTrue()
+        ->and(Schema::hasTable('auth_delivery_spend'))->toBeTrue()
         ->and(Schema::hasColumn('auth_challenges', 'is_decoy'))->toBeTrue()
         ->and(Schema::hasTable('auth_challenge_outbox'))->toBeTrue();
 
-    expect(Artisan::call('migrate:rollback', ['--step' => 10]))->toBe(0);
+    expect(Artisan::call('migrate:rollback', ['--step' => 11]))->toBe(0);
 
     expect(Schema::hasColumn('auth_credentials', 'identifier_id'))->toBeFalse()
         ->and(Schema::hasColumn('auth_credentials', 'last_used_timestep'))->toBeFalse()
@@ -42,6 +43,7 @@ it('rolls back and re-applies all amendment migrations cleanly', function (): vo
         ->and(Schema::hasTable('auth_throttle_locks'))->toBeFalse()
         ->and(Schema::hasTable('auth_throttle_ip_windows'))->toBeFalse()
         ->and(Schema::hasTable('auth_throttle_tuples'))->toBeFalse()
+        ->and(Schema::hasTable('auth_delivery_spend'))->toBeFalse()
         ->and(Schema::hasColumn('auth_challenges', 'is_decoy'))->toBeFalse()
         ->and(Schema::hasTable('auth_challenge_outbox'))->toBeFalse();
 
@@ -55,6 +57,7 @@ it('rolls back and re-applies all amendment migrations cleanly', function (): vo
         ->and(Schema::hasTable('auth_throttle_locks'))->toBeTrue()
         ->and(Schema::hasTable('auth_throttle_ip_windows'))->toBeTrue()
         ->and(Schema::hasTable('auth_throttle_tuples'))->toBeTrue()
+        ->and(Schema::hasTable('auth_delivery_spend'))->toBeTrue()
         ->and(Schema::hasColumn('auth_challenges', 'is_decoy'))->toBeTrue()
         ->and(Schema::hasTable('auth_challenge_outbox'))->toBeTrue();
 });
