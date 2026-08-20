@@ -171,6 +171,7 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(AuthThrottleStore::class),
                 $app->make(ThrottleKey::class),
                 $app->make(FactorRegistry::class),
+                $app->make(DeliveryEconomics::class),
                 $app->make(OtpDelivery::class),
                 $app->make(OtpChallengeOutbox::class),
                 $this->challengeFactors(),
