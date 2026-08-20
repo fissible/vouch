@@ -134,6 +134,10 @@ Focused proofs:
 - Normalize SMS country through one canonical parser boundary; do not infer it
   from arbitrary request headers or a second IP/proxy lookup.
 - Keep tenant absence distinct from an empty tenant identifier.
+- Before changing enrollment or stored values, provide an aggregate
+  `vouch:sms-identifiers:audit` report classifying canonical, needs-normalization,
+  and invalid legacy rows. The report emits counts and country aggregates only;
+  it never rewrites rows or prints identifier values.
 
 ### 3. Economic state and atomic decisions
 
