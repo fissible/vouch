@@ -141,6 +141,22 @@ Focused proofs:
   lookup input and exits `0` for a survey containing invalid rows; only an
   audit execution error is a command failure.
 
+The migration decision is population-dependent and remains open until this
+command runs against a deployment dataset. Test fixtures are not evidence for
+that decision. The recorded rule is:
+
+| Audit result | Migration posture |
+| --- | --- |
+| `invalid = 0` | A normalization backfill is possible; verify matching/index effects before applying it. |
+| `invalid` is small | Handle the counted rows through explicit re-enrollment/contact; do not silently rewrite them. |
+| `invalid` is large | Do not ship a mass fail-closed send rule; use a staged re-enrollment plan. |
+| `needs_normalization` is small | Review whether a routine backfill preserves account matching, then apply with a report. |
+| `needs_normalization` is large | Treat the rewrite as a compatibility/communication change, not maintenance. |
+
+No production population has been measured in this repository. Until an
+operator supplies that aggregate report, legacy rows remain unchanged and the
+worker's fail-closed behavior is the safety boundary.
+
 ### 3. Economic state and atomic decisions
 
 - Add delivery-facing persistence for daily/tenant spend and country decisions.
