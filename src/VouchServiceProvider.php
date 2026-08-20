@@ -11,6 +11,7 @@ use Fissible\Vouch\Console\VouchThrottleReportCommand;
 use Fissible\Vouch\Console\VouchSmsIdentifierAuditCommand;
 use Fissible\Vouch\Contracts\AttemptStore;
 use Fissible\Vouch\Contracts\AuthThrottleStore;
+use Fissible\Vouch\Contracts\DeliveryEconomics;
 use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Contracts\RandomSource;
 use Fissible\Vouch\Contracts\TenantResolver;
@@ -29,6 +30,7 @@ use Fissible\Vouch\Notifications\OtpQueueDispatcher;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
 use Fissible\Vouch\Delivery\SmsCountryNormalizer;
 use Fissible\Vouch\Delivery\SmsIdentifierAudit;
+use Fissible\Vouch\Delivery\UnconfiguredDeliveryEconomics;
 use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\LockContention;
 use Fissible\Vouch\Support\SystemClock;
@@ -58,6 +60,7 @@ final class VouchServiceProvider extends ServiceProvider
          * would put a live authentication code into the one file everybody greps.
          */
         $this->app->bind(OtpDelivery::class, UnconfiguredOtpDelivery::class);
+        $this->app->bind(DeliveryEconomics::class, UnconfiguredDeliveryEconomics::class);
 
         $this->app->singleton(
             OtpQueueDispatcher::class,

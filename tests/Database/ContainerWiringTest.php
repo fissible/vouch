@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Fissible\Vouch\Factors\FactorRegistry;
+use Fissible\Vouch\Contracts\DeliveryEconomics;
+use Fissible\Vouch\Delivery\UnconfiguredDeliveryEconomics;
 use Fissible\Vouch\Http\AssuranceComparator;
 use Fissible\Vouch\Http\FlowResultSerializer;
 use Fissible\Vouch\Http\IntendedDestination;
@@ -37,6 +39,22 @@ it('registers every shipped factor driver', function (): void {
     sort($ids);
 
     expect($ids)->toBe(['email_otp', 'password', 'recovery_code', 'sms_otp', 'totp']);
+});
+
+it('binds delivery economics to the fail-closed implementation by default', function (): void {
+    $economics = app(DeliveryEconomics::class);
+
+    expect($economics)->toBeInstanceOf(UnconfiguredDeliveryEconomics::class)
+        ->and(fn () => $economics->preflight(
+            new Fissible\Vouch\Delivery\DeliveryEconomicsRequest(
+                'email_otp',
+                'email',
+                null,
+                null,
+                0,
+                true,
+            ),
+        ))->toThrow(RuntimeException::class, 'No OTP delivery economics is configured');
 });
 
 it('resolves every singleton the provider registers as one shared instance', function (string $class): void {
