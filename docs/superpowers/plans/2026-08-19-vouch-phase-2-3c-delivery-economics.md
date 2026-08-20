@@ -31,6 +31,69 @@ target has been selected and immediately before the factor challenge call.
    the existing encrypted outbox path and cannot make the request path contact
    a provider.
 
+## Resolutions added before source work
+
+### Decoys and spend
+
+The request path does **not** charge delivery spend. `ChallengeIssuer` performs
+only a read-only, target-independent economics preflight after 2.3b volume
+permission. It may reject a globally disabled delivery mode, but it cannot make
+country- or target-dependent spend decisions there.
+
+The encrypted outbox worker performs the delivery-facing decision for a real
+target: country allow-list, tenant/daily ceiling, and the atomic spend
+reservation immediately before provider work. A decoy outbox is deleted without
+provider contact and without spend accounting. Because the worker is after the
+response, real/decoy request timing and refusal shape remain identical, while
+unknown identifiers cannot pollute a tenant's spend ceiling. Authentication
+issuance volume is never refunded or rewritten; delivery-spend reservations are
+a separate ledger and may be released only under the provider outcome contract.
+
+This deliberately means an economics refusal at worker time does not reach the
+factor's provider call, but the factor may still create the already-encrypted
+outbox record. The request-side preflight and the worker-side decision are two
+parts of one named boundary, not two independent policy owners.
+
+### CAPTCHA communication and ordering
+
+CAPTCHA requirement is a kernel disclosure decision, not an ad hoc response
+field. 2.3c will amend `RetryPolicy`/`ScreenSpec` through the documented kernel
+API process and update the API snapshot. The challenge metadata is nullable and
+only populated from shared/volume state; identifier-specific state may never
+make one submitted identifier receive a CAPTCHA while another does not.
+
+The ordering is explicit:
+
+1. 2.3b volume preflight;
+2. hard economics eligibility that cannot be unlocked by CAPTCHA (for example,
+   a disallowed SMS country);
+3. CAPTCHA verification when the shared/volume policy requires it;
+4. final delivery-spend reservation and outbox/provider lifecycle.
+
+Thus a user is not asked to solve a CAPTCHA for a destination that is forbidden
+anyway, while a CAPTCHA can satisfy only the shared-volume gate it is designed
+to remedy. CAPTCHA never bypasses a country allow-list or a hard spend ceiling.
+
+### SMS country input
+
+SMS numbers are parsed with `giggsey/libphonenumber-for-php`, not a prefix table.
+Enrollment normalizes valid numbers to canonical E.164 and records the ISO
+country used by economics; unparseable or ambiguous numbers fail closed before
+an SMS credential can be enrolled or delivered. Existing non-canonical rows are
+not guessed at send time: they require re-enrollment or an explicit migration.
+
+### Style and reconciliation gates
+
+Pint is not currently a dependency of this package. The 2.3c gate therefore
+does not claim Pint cleanliness: PHPStan, `git diff --check`, and the three-engine
+tests are mandatory. If the package adopts Pint later, adding the dependency and
+running it becomes a separate explicit gate rather than an `if available` step.
+
+Every new locking or spend expression receives a row-level mutation ruling.
+Shared matrix prose is not evidence: a row is matrix-required only when the
+specific engine behavior can discriminate that expression, and constructor or
+configuration rows get deterministic tests instead.
+
 ## Dependency order
 
 ### 1. Contracts and immutable intents
