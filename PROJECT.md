@@ -148,8 +148,10 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance corrected in 2.3b Task 14** |
 | 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation and Task 17 mutation reconciliation complete; branch remains unmerged** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
+| 2.3d | Account lifecycle (Fortify parity) — identifier verification, credential recovery, first-credential enrolment, credential self-service, ability→assurance requirements | Planned; **Task 1 blocks adoption** |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
+| post-2.4 | Impersonation — two-principal sessions, actor-derived assurance, capability matrix, audited | Not planned; gated on 2.4's audit sink |
 | 2.5 | OIDC & federation — separate track, gated on the client evaluation (§6.4) | Not planned |
 | 2.6 | Sluice adoption — first dogfood | Not planned |
 
@@ -1542,3 +1544,150 @@ exposed a one-second wall-clock race; this was a flake detector, not an engine
 semantic difference. The aggregate report has a separate premise: column reads
 return native integers on the supported PDO drivers, while `SUM()` may return a
 numeric string and is normalized explicitly.
+
+---
+
+## 2.3d — planned: account lifecycle (Fortify parity)
+
+Plan: [`docs/superpowers/plans/2026-08-19-vouch-phase-2-3d-account-lifecycle.md`](docs/superpowers/plans/2026-08-19-vouch-phase-2-3d-account-lifecycle.md)
+
+**Why it exists.** The package people compare Vouch to is Fortify. Vouch already does
+login, two-factor and password confirmation better; it is missing the lifecycle around
+them. All four gaps are compositions of the OTP factor, the encrypted outbox, recovery
+grace, and driver `enroll()` — parity work, not a new phase of invention.
+
+**Task 1 is an install cliff, not a feature gap.** `AuthFlow` resolves identifiers with
+`whereNotNull('verified_at')` and nothing shipped sets that column, so a fresh install
+cannot log anyone in and the refusal is deliberately undiagnosable. Until it lands, the
+package is unusable by anyone who has not read the source.
+
+| # | Task | Effort | Deps | Issue | Status |
+|---|---|---|---|---|---|
+| 1 | Identifier verification subsystem | **L** | — | — | Planned |
+| 2 | Credential recovery (password reset) | M | 1 | — | Planned |
+| 3 | First-credential enrolment service | S | 1 | — | Planned |
+| 4 | Credential self-service | M | 2 | — | Planned |
+| 5a | Authorization integration survey | S | — | — | Planned |
+| 5b | Ability → assurance requirement map | M | 5a | — | Planned |
+| 6 | Suggest `spatie/laravel-permission` + composition recipe | XS | 5b | — | Planned |
+| 7 | Positioning: tagline and non-goals above the fold | XS | — | — | Planned |
+
+**Revised after review.** Task 1 is new machinery, not composition: the OTP outbox
+deliberately refuses unverified identifiers, and `auth_challenges.attempt_id` is a
+non-null foreign key, so a verification has no attempt to belong to. It needs its own
+attempt-independent store and type-level purpose separation, on the `BindingDomain`
+precedent, so a verification code cannot be redeemed as a login factor.
+
+**Sequencing decision to take.** Task 1 is more urgent than 2.3c but not a dependency of
+it: 2.3c protects SMS spend, which only matters once SMS OTP is in production use, which
+requires Task 1 first. Recommended order is 2.3d Task 1 → 2.3c → the rest of 2.3d.
+
+**Decisions recorded in this phase.**
+
+- *Authorization stays out of scope.* `spatie/laravel-permission` is suggested, never
+  required. A library requiring another library it does not itself call imposes an
+  architecture decision on every consumer, inherits its release cycle, and would double
+  the surface this package has to defend for near-zero differentiation.
+- *The composition is made safe instead.* An ability→assurance map keyed on ability names
+  works with Spatie, Bouncer or plain Gates, and closes the gap where a developer writes
+  `permission:invoices.approve` and forgets `vouch.assurance:aal2`. Enforced centrally so
+  route middleware is not the only covered path; deny-only so it can never become an
+  authorization bypass; and insufficient assurance sends the user to step up rather than
+  returning a bare 403.
+- *Credential change cannot be one transaction.* Revocation must survive a failed
+  mutation, and a rollback would undo both. Chosen order: commit revocation, then
+  mutate separately, then revoke again — the second pass is idempotent and closes the
+  window in which a login with the old credential creates a session the first pass
+  never saw. The residual, a session created inside that window when the second pass
+  also fails, is recorded rather than presented as impossible.
+- *Password reset defaults to honest reduced assurance.* Inbox control is one
+  possession factor and is recorded as such, so per-route step-up still guards
+  sensitive actions. Requiring the second factor during reset is configurable and
+  tested; full assurance from inbox control alone does not ship.
+- *Grace capability is a separate axis from the assurance ladder.* `AssuranceComparator`
+  returns false for any grace session, so "every self-service operation requires
+  step-up" would make recovery self-service impossible by construction. The operation
+  matrix in the plan states which operations grace may perform.
+- *The name implies authorization and the fix is a tagline, not a subsystem.* Vouching is
+  attestation — a referee vouches for you, they do not hire you — which is exactly what
+  the assurance record is. Renaming is cheapest now, while unreleased and undepended-on,
+  so the decision point is here if it is ever going to be taken.
+
+---
+
+## post-2.4 — planned: impersonation
+
+**Why it belongs in Vouch rather than an authorization package.** `auth_sessions`
+carries exactly one `user_id`, and assurance is derived from the session. Impersonation
+gives a session two principals — the actor and the subject — so bolting it on outside
+Vouch, the way the existing impersonation packages do (swap the guard's user, stash the
+original id), makes the assurance layer silently read the wrong principal.
+
+Four things break quietly under that approach:
+
+- `RequireAssurance` reads the subject's `acr`, so an impersonated session either blocks
+  a staff member who did do MFA, or inherits an assurance level the subject earned and
+  the actor did not.
+- `Vouch::stepUp()` challenges the subject's factors, which the actor does not possess —
+  step-up during impersonation becomes impossible rather than merely awkward.
+- Revoking the subject's sessions has no defined effect on an impersonation.
+- `AssuranceComparator` returns false for any grace session, so an impersonated grace
+  session has no meaning at all.
+
+**Boundary.** Vouch owns the mechanism and the invariants; the host owns whether this
+person may impersonate that person, including any role-hierarchy rule — Vouch does not
+know what a role is. Same seam as `TenantResolver`: the host checks, then calls, and
+Vouch enforces safety rather than permission. The authorization half is already
+anticipated by 2.3d Task 5b's example, `'users.impersonate' => 'aal3'`.
+
+**Gated on 2.4.** "Staff member X acted as customer Y between 14:02 and 14:19" is the
+highest-value audit event this package will produce, and `AuditSink` does not exist
+until 2.4. Shipping impersonation without an audit trail is worse than not shipping it —
+the same reasoning that deferred the recovery-code notification.
+
+**Vouch has no concept of hierarchy, and must not pretend otherwise.** It cannot answer
+"is this user below that one", because it does not know what a role is. That makes the
+safety of the whole feature rest on a predicate only the host can supply, so:
+
+- *The host predicate is required, not optional, and there is no permissive default.*
+  Impersonation is unavailable until the host binds something that answers "may A act as
+  B". `NullTenantResolver` returning null is a safe default; a null impersonation policy
+  returning true would be catastrophic. This follows `AuditSink`: unbound and throwing,
+  so absence fails loudly rather than silently permitting.
+- *The capability matrix is the mitigation for the blind spot.* Vouch cannot judge who
+  may impersonate whom, but it can bound what impersonation *is*. A read-only default —
+  may view, may not change credentials, may not mint tokens, may not impersonate further
+  — limits the blast radius even when a host predicate is wrong.
+
+**Role impersonation is out of scope.** "View this as if I were an Editor" changes no
+identity: `user_id` is unchanged, you are still yourself, only what `can()` returns
+differs. That is entirely the authorization layer's business and is a few lines in a host
+app. One rule regardless of who builds it: it must be **downgrade-only**, constrained to a
+subset of the actor's own effective permissions. "View as Admin" from a lesser role is a
+privilege-escalation feature with a friendly name.
+
+**Design questions to settle first.**
+
+1. *The two-principal session model.* How a session represents "acting as X, actually Y";
+   which principal assurance derives from (the actor, since they are the human who proved
+   something); how step-up targets the actor's factors while the session reads as the
+   subject; and what revoking either principal's sessions does.
+2. *The capability matrix*, on the recovery-grace precedent — a capability axis separate
+   from the assurance ladder. "The actor proved aal3" is not the same claim as "aal3-gated
+   actions are appropriate as this subject", and many deployments want impersonation to be
+   effectively read-only. Starting position: may view; may not change credentials; may not
+   mint tokens; may not impersonate further.
+3. *Non-recursion, bounded lifetime, and return-to-self* surviving deletion or revocation
+   of the subject.
+4. *Exposing both principals to the authorization layer.* During impersonation, whose
+   permissions apply — the subject's alone, or the intersection of actor and subject? The
+   subject's alone is what most implementations do and is the escalation footgun: a
+   support agent impersonating an admin acquires admin powers. The intersection is safer
+   but cannot always reproduce the user's experience, since a bug needing a permission the
+   actor lacks becomes unreproducible. Vouch cannot take that decision, having no view of
+   roles — but it must publish both principals as a read-only signal so the host can. The
+   deny-only rule on the 2.3d assurance map means no grant path, impersonation or
+   role-switching, can route around an ability's assurance requirement.
+
+This also replaces a package rather than adding one: existing impersonation packages do
+not touch assurance, so they cannot do step-up or honest audit.
