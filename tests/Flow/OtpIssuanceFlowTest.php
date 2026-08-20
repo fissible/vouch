@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Fissible\Vouch\Contracts\OtpDelivery;
+use Fissible\Vouch\Contracts\DeliveryEconomics;
 use Fissible\Vouch\Factors\ChallengeIssuanceIntent;
 use Fissible\Vouch\Factors\ChallengeIssuanceTicket;
 use Fissible\Vouch\Factors\ChallengeIssuer;
@@ -19,6 +20,7 @@ use Fissible\Vouch\Notifications\OtpOutboxDelivery;
 use Fissible\Vouch\Notifications\OtpOutboxStatus;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
 use Fissible\Vouch\Tests\Support\ArrayOtpDelivery;
+use Fissible\Vouch\Tests\Support\PermittingDeliveryEconomics;
 use Fissible\Vouch\Tests\Support\RecordingGuard;
 use Fissible\Vouch\Throttle\IssuancePermission;
 use Fissible\Vouch\Throttle\ThrottleKey;
@@ -90,6 +92,7 @@ function bindIssuanceDelivery(?ArrayOtpDelivery $delivery = null): ArrayOtpDeliv
 {
     $delivery ??= new ArrayOtpDelivery();
     app()->instance(OtpDelivery::class, $delivery);
+    app()->instance(DeliveryEconomics::class, new PermittingDeliveryEconomics());
 
     foreach ([
         ChallengeIssuer::class,
@@ -176,6 +179,38 @@ it('cannot complete a refused issuance ticket even if a caller presents it direc
         ->and(AuthChallengeOutbox::query()->count())->toBe(0);
 
     Queue::assertNothingPushed();
+});
+
+it('stops at the economics preflight before resolving a target or calling a factor', function (): void {
+    $delivery = bindIssuanceDelivery();
+    $economics = app(DeliveryEconomics::class);
+
+    if (! $economics instanceof PermittingDeliveryEconomics) {
+        throw new RuntimeException('The issuance test needs its economics probe.');
+    }
+
+    $economics->preflightDecision = Fissible\Vouch\Delivery\DeliveryEconomicsDecision::Refused;
+    $session = issuanceSession();
+    $begin = issuanceEndpoint([], $session);
+    $attempt = AuthAttempt::query()->where('handle', $begin['handle'])->sole();
+
+    $ticket = app(ChallengeIssuer::class)->permit(new ChallengeIssuanceIntent(
+        attemptId: $attempt->id,
+        submittedIdentifier: 'unknown@acme.example',
+        factorId: 'email_otp',
+        action: 'identify',
+        tenantId: null,
+        clientIp: '198.51.100.24',
+        clientUserAgent: 'Vouch OTP test',
+    ));
+
+    expect(app(ChallengeIssuer::class)->complete($ticket, $attempt))->toBeNull()
+        ->and($economics->preflights)->toHaveCount(1)
+        ->and($economics->preflights[0]->decoy)->toBeTrue()
+        ->and($economics->preflights[0]->country)->toBeNull()
+        ->and($delivery->sent)->toBe([])
+        ->and(AuthChallenge::query()->count())->toBe(0)
+        ->and(AuthChallengeOutbox::query()->count())->toBe(0);
 });
 
 it('issues and verifies each OTP factor through the public endpoint', function (string $factor): void {

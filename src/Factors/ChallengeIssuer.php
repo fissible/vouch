@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Factors;
 
 use Fissible\Vouch\Contracts\AuthThrottleStore;
+use Fissible\Vouch\Contracts\DeliveryEconomics;
 use Fissible\Vouch\Contracts\OtpDelivery;
+use Fissible\Vouch\Delivery\DeliveryEconomicsDecision;
+use Fissible\Vouch\Delivery\DeliveryEconomicsRequest;
 use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Models\AuthChallenge;
 use Fissible\Vouch\Models\AuthCredential;
@@ -24,6 +27,7 @@ final readonly class ChallengeIssuer
         private AuthThrottleStore $throttles,
         private ThrottleKey $keys,
         private FactorRegistry $factors,
+        private DeliveryEconomics $economics,
         private OtpDelivery $delivery,
         private OtpChallengeOutbox $outbox,
         private array $challengeFactors,
@@ -84,8 +88,23 @@ final readonly class ChallengeIssuer
 
         $credential = $candidates->count() === 1 ? $candidates->first() : null;
 
-        // Future 2.3c delivery-economics authorization belongs exactly here:
-        // after volume permission and target resolution, before the factor call.
+        $economics = $this->economics->preflight(new DeliveryEconomicsRequest(
+            factorId: $ticket->intent->factorId,
+            channel: $this->channel($ticket->intent->factorId),
+            tenantId: $ticket->intent->tenantId,
+            country: null,
+            // Request preflight never charges; the worker's target-bearing
+            // reservation will carry the configured delivery cost.
+            costMinor: 0,
+            decoy: ! $credential instanceof AuthCredential,
+        ));
+
+        if ($economics === DeliveryEconomicsDecision::Refused) {
+            return null;
+        }
+
+        // The delivery-economics boundary belongs exactly here: after volume
+        // permission and target resolution, before the factor call.
         return $this->issueAfterDeliveryEconomicsBoundary(
             $ticket,
             $attempt,
@@ -106,5 +125,17 @@ final readonly class ChallengeIssuer
             decoy: ! $credential instanceof AuthCredential,
             reusePending: $ticket->intent->action === 'resend',
         ));
+    }
+
+    private function channel(string $factorId): string
+    {
+        return match ($factorId) {
+            'email_otp' => 'email',
+            'sms_otp' => 'sms',
+            default => throw new InvalidArgumentException(sprintf(
+                'Factor "%s" has no delivery economics channel.',
+                $factorId,
+            )),
+        };
     }
 }
