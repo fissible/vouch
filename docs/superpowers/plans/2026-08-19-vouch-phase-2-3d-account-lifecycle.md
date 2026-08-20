@@ -136,6 +136,15 @@ Requirements:
   target-independent permit, so actual spend enforcement remains in the worker
   slice rather than being implied by this request-path hook.
 
+- **Adoption diagnostics**: add a `vouch:doctor` check as part of this task. It
+  reports the three prerequisites together — identifier verification is being
+  established by the host, a durable asynchronous `OtpDelivery` is bound, and
+  a real `DeliveryEconomics` implementation is bound — using aggregate status
+  only. It must not accept an identifier or inspect a candidate account, and it
+  must never turn the production `verified_at` refusal into a more informative
+  response. The command makes the silent, enumeration-safe prerequisite
+  discoverable before a host exercises the login endpoint.
+
 Proofs: sets the column; creates no session; unknown/unverified/verified are
 indistinguishable; a verification code is rejected as a login factor **and** cannot
 be redeemed against any `auth_challenges` row; sends are counted for decoys.
