@@ -99,8 +99,13 @@ country is not allowed, permanently refused because the ceiling is exhausted,
 and retryable contention. Only the first three terminalize an outbox row;
 contention leaves it pending and lets the queue retry. The existing
 `LegacyUnparseable` failure reason remains valid for legacy targets that fail
-worker-time normalization; it must be assigned by the worker or removed before
-the lifecycle ships, never left as an unreferenced enum case.
+worker-time normalization. The worker must take that branch before calling
+`reserve()`: a null country passed to `reserve()` is a policy input and must
+remain `CountryNotAllowed` only for a successfully parsed country that is absent
+from the allow-list. A parse failure is instead terminalized as
+`LegacyUnparseable`, so operators can distinguish data remediation from policy
+review. This is an acceptance item for the worker slice, not a mutation or
+static-analysis result.
 
 Queue exhaustion must preserve that distinction too: a job exhausted by
 economics contention has not contacted a provider and must not be recorded as
