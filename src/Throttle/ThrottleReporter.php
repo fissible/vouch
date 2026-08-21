@@ -31,7 +31,8 @@ final readonly class ThrottleReporter
      *     distribution: array{zero: int, one: int, two_to_four: int, five_to_nine: int, ten_to_twenty_nine: int, thirty_to_ninety_nine: int, one_hundred_to_two_hundred_ninety_nine: int, three_hundred_plus: int},
      *     thresholds: list<array{name: string, value: int, buckets_at_or_above: int}>
      *   }>,
-     *   outbox: array{pending: int, overdue: int, delivered: int, undeliverable: int, undeliverable_reasons: array<string, int>}
+     *   outbox: array{pending: int, overdue: int, delivered: int, undeliverable: int, undeliverable_reasons: array<string, int>},
+     *   economics: array{current_scopes: int, spent_minor: int, reservations: array{records: int, gross_minor: int, released_minor: int, outstanding_minor: int, delivered: int, attempted_failed: int, never_attempted_released: int, closed_window_released: int, missing_outbox: int}}
      * }
      */
     public function report(): array
@@ -86,6 +87,82 @@ final readonly class ThrottleReporter
                 ),
             ],
             'outbox' => $this->outbox($now),
+            'economics' => $this->economics($now),
+        ];
+    }
+
+    /** @return array{current_scopes: int, spent_minor: int, reservations: array{records: int, gross_minor: int, released_minor: int, outstanding_minor: int, delivered: int, attempted_failed: int, never_attempted_released: int, closed_window_released: int, missing_outbox: int}} */
+    private function economics(DateTimeImmutable $now): array
+    {
+        $today = $now->format('Y-m-d');
+        $spend = $this->connection->table('auth_delivery_spend')
+            ->where('window_started_at', '>=', $today . ' 00:00:00')
+            ->get(['spent_minor']);
+        $currentScopes = $spend->count();
+        $spentMinor = 0;
+
+        foreach ($spend as $row) {
+            $spentMinor += $this->integer($row->spent_minor ?? null);
+        }
+
+        $reservations = $this->connection->table('auth_delivery_spend_reservations AS reservations')
+            ->leftJoin('auth_challenge_outbox AS outbox', 'outbox.opaque_id', '=', 'reservations.reservation_key')
+            ->get([
+                'reservations.amount_minor',
+                'reservations.released_at',
+                'reservations.window_started_at',
+                'outbox.status AS outbox_status',
+                'outbox.provider_attempted_at',
+            ]);
+        $grossMinor = 0;
+        $releasedMinor = 0;
+        $delivered = 0;
+        $attemptedFailed = 0;
+        $neverAttemptedReleased = 0;
+        $closedWindowReleased = 0;
+        $missingOutbox = 0;
+
+        foreach ($reservations as $reservation) {
+            $amount = $this->integer($reservation->amount_minor ?? null);
+            $grossMinor += $amount;
+            $released = $reservation->released_at !== null;
+
+            if ($released) {
+                $releasedMinor += $amount;
+            }
+
+            if ($reservation->outbox_status === null) {
+                $missingOutbox++;
+            } elseif ($reservation->outbox_status === OtpOutboxStatus::Delivered->value) {
+                $delivered++;
+            } elseif (
+                $reservation->outbox_status === OtpOutboxStatus::Undeliverable->value
+                && $reservation->provider_attempted_at !== null
+            ) {
+                $attemptedFailed++;
+            } elseif ($released && $reservation->provider_attempted_at === null) {
+                $neverAttemptedReleased++;
+            }
+
+            if ($released && ! str_starts_with((string) $reservation->window_started_at, $today)) {
+                $closedWindowReleased++;
+            }
+        }
+
+        return [
+            'current_scopes' => $currentScopes,
+            'spent_minor' => $spentMinor,
+            'reservations' => [
+                'records' => $reservations->count(),
+                'gross_minor' => $grossMinor,
+                'released_minor' => $releasedMinor,
+                'outstanding_minor' => $grossMinor - $releasedMinor,
+                'delivered' => $delivered,
+                'attempted_failed' => $attemptedFailed,
+                'never_attempted_released' => $neverAttemptedReleased,
+                'closed_window_released' => $closedWindowReleased,
+                'missing_outbox' => $missingOutbox,
+            ],
         ];
     }
 

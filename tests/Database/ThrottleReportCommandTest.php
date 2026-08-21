@@ -21,6 +21,7 @@ uses(RefreshDatabase::class);
 function reportCounter(string $dimension, int $count, int $sequence, bool $active = true): void
 {
     $now = app(DatabaseTime::class)->current();
+    $old = $now->sub(new DateInterval('P1D'));
 
     DB::table('auth_throttle_counters')->insert([
         'dimension' => $dimension,
@@ -79,6 +80,7 @@ function reportOutbox(string $status, DateTimeInterface $expiresAt, int $sequenc
         'status' => $status,
         'expires_at' => $expiresAt,
         'delivered_at' => $status === OtpOutboxStatus::Delivered->value ? now() : null,
+        'provider_attempted_at' => $status === OtpOutboxStatus::Undeliverable->value ? now() : null,
         'undeliverable_at' => $status === OtpOutboxStatus::Undeliverable->value ? now() : null,
         'failure_reason' => $status === OtpOutboxStatus::Undeliverable->value
             ? OtpOutboxFailureReason::ProviderRejected->value
@@ -103,6 +105,18 @@ function seedAggregateReport(): void
     reportOutbox(OtpOutboxStatus::Pending->value, now()->subSecond(), 2);
     reportOutbox(OtpOutboxStatus::Delivered->value, now()->subSecond(), 3);
     reportOutbox(OtpOutboxStatus::Undeliverable->value, now()->addMinute(), 4);
+
+    $now = app(DatabaseTime::class)->current();
+    $old = $now->sub(new DateInterval('P1D'));
+    DB::table('auth_delivery_spend')->insert([
+        ['scope' => 'global', 'subject_digest' => str_pad('1', 64, 'd'), 'window_started_at' => $now->format('Y-m-d 00:00:00'), 'spent_minor' => 10, 'created_at' => $now, 'updated_at' => $now],
+        ['scope' => 'tenant', 'subject_digest' => str_pad('2', 64, 'd'), 'window_started_at' => $now->format('Y-m-d 00:00:00'), 'spent_minor' => 20, 'created_at' => $now, 'updated_at' => $now],
+    ]);
+    DB::table('auth_delivery_spend_reservations')->insert([
+        ['reservation_key' => str_pad(dechex(3), 64, 'c', STR_PAD_LEFT), 'scope' => 'global', 'amount_minor' => 10, 'window_started_at' => $now->format('Y-m-d 00:00:00'), 'created_at' => $now, 'released_at' => null],
+        ['reservation_key' => str_pad(dechex(4), 64, 'c', STR_PAD_LEFT), 'scope' => 'tenant', 'amount_minor' => 20, 'window_started_at' => $now->format('Y-m-d 00:00:00'), 'created_at' => $now, 'released_at' => $now],
+        ['reservation_key' => str_repeat('e', 64), 'scope' => 'tenant', 'amount_minor' => 30, 'window_started_at' => $old->format('Y-m-d 00:00:00'), 'created_at' => $old, 'released_at' => $now],
+    ]);
 }
 
 it('reports active aggregate distributions and configured threshold crossings without subjects', function (): void {
@@ -171,6 +185,21 @@ it('reports active aggregate distributions and configured threshold crossings wi
             'delivered' => 1,
             'undeliverable' => 1,
             'undeliverable_reasons' => ['provider_rejected' => 1],
+        ])
+        ->and($report['economics'])->toBe([
+            'current_scopes' => 2,
+            'spent_minor' => 30,
+            'reservations' => [
+                'records' => 3,
+                'gross_minor' => 60,
+                'released_minor' => 50,
+                'outstanding_minor' => 10,
+                'delivered' => 1,
+                'attempted_failed' => 1,
+                'never_attempted_released' => 0,
+                'closed_window_released' => 1,
+                'missing_outbox' => 1,
+            ],
         ]);
 
     $encoded = json_encode($report, JSON_THROW_ON_ERROR);
@@ -178,6 +207,7 @@ it('reports active aggregate distributions and configured threshold crossings wi
         DB::table('auth_throttle_counters')->pluck('subject_digest')->all(),
         DB::table('auth_throttle_ip_windows')->pluck('ip_digest')->all(),
         DB::table('auth_throttle_tuples')->pluck('tuple_digest')->all(),
+        DB::table('auth_delivery_spend')->pluck('subject_digest')->all(),
     );
 
     foreach ($digests as $digest) {
@@ -198,6 +228,7 @@ it('reports the complete top-level envelope and empty distributions', function (
         'window_seconds',
         'dimensions',
         'outbox',
+        'economics',
     ])->and($report['generated_at'])->toBeString()
         ->and($report['window_seconds'])->toBe(900)
         ->and($report['outbox'])->toBe([
@@ -206,6 +237,20 @@ it('reports the complete top-level envelope and empty distributions', function (
             'delivered' => 0,
             'undeliverable' => 0,
             'undeliverable_reasons' => [],
+        ])->and($report['economics'])->toBe([
+            'current_scopes' => 0,
+            'spent_minor' => 0,
+            'reservations' => [
+                'records' => 0,
+                'gross_minor' => 0,
+                'released_minor' => 0,
+                'outstanding_minor' => 0,
+                'delivered' => 0,
+                'attempted_failed' => 0,
+                'never_attempted_released' => 0,
+                'closed_window_released' => 0,
+                'missing_outbox' => 0,
+            ],
         ]);
 
     foreach ($report['dimensions'] as $dimension) {
@@ -280,6 +325,8 @@ it('emits the same aggregate shape as JSON and human output', function (): void 
         'undeliverable' => 1,
         'undeliverable_reasons' => ['provider_rejected' => 1],
     ])
+        ->and(data_get($json, 'economics.spent_minor'))->toBe(30)
+        ->and(data_get($json, 'economics.reservations.outstanding_minor'))->toBe(10)
         ->and(data_get($json, 'dimensions.0.dimension'))->toBe('identifier');
 
     $status = Artisan::call('vouch:throttle:report');
@@ -297,7 +344,8 @@ it('emits the same aggregate shape as JSON and human output', function (): void 
         ->and($output)->toContain('tenant')
         ->and($output)->toContain('none')
         ->and($output)->toContain('OTP outbox: 1 pending, 1 overdue, 1 delivered, 1 undeliverable.')
-        ->and($output)->toContain('Undeliverable reasons: {"provider_rejected":1}.');
+        ->and($output)->toContain('Undeliverable reasons: {"provider_rejected":1}.')
+        ->and($output)->toContain('Delivery spend: 2 current scope(s), 30 minor units spent; 3 reservation record(s), 10 minor units outstanding.');
 });
 
 it('exposes neither candidate lookup options nor an underlying subject parameter', function (): void {

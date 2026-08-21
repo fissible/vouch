@@ -62,6 +62,15 @@ final class VouchThrottleReportCommand extends Command
             'Undeliverable reasons: %s.',
             json_encode($report['outbox']['undeliverable_reasons'], JSON_THROW_ON_ERROR),
         ));
+        $economics = $report['economics'];
+        $reservations = $economics['reservations'];
+        $this->components->info(sprintf(
+            'Delivery spend: %d current scope(s), %d minor units spent; %d reservation record(s), %d minor units outstanding.',
+            $economics['current_scopes'],
+            $economics['spent_minor'],
+            $reservations['records'],
+            $reservations['outstanding_minor'],
+        ));
 
         return CommandExit::Success->value;
     }
