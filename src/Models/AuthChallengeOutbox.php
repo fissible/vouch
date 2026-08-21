@@ -15,6 +15,7 @@ use Illuminate\Support\Carbon;
  * @property string $status
  * @property Carbon $expires_at
  * @property Carbon|null $dispatched_at
+ * @property Carbon|null $provider_attempted_at
  * @property Carbon|null $delivered_at
  * @property Carbon|null $undeliverable_at
  * @property string|null $failure_reason
@@ -37,6 +38,7 @@ final class AuthChallengeOutbox extends Model
             'payload' => 'encrypted:array',
             'expires_at' => 'datetime',
             'dispatched_at' => 'datetime',
+            'provider_attempted_at' => 'datetime',
             'delivered_at' => 'datetime',
             'undeliverable_at' => 'datetime',
         ];

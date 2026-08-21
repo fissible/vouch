@@ -132,6 +132,11 @@ final readonly class OtpOutboxDelivery
         }
 
         try {
+            AuthChallengeOutbox::query()
+                ->whereKey($outbox->id)
+                ->where('status', OtpOutboxStatus::Pending->value)
+                ->update(['provider_attempted_at' => $this->time->now()]);
+
             $this->delivery->deliver(
                 $identifier,
                 $payload['code'],

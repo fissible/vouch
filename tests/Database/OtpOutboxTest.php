@@ -303,6 +303,7 @@ it('delivers the stored code once and immediately redacts the terminal row', fun
         ->and(password_verify($code, (string) $challenge?->code_hash))->toBeTrue()
         ->and($terminal->status)->toBe(OtpOutboxStatus::Delivered->value)
         ->and($terminal->payload)->toBeNull()
+        ->and($terminal->provider_attempted_at)->not->toBeNull()
         ->and($terminal->delivered_at)->not->toBeNull()
         ->and($terminal->updated_at->greaterThan($before))->toBeTrue();
 });
@@ -417,12 +418,25 @@ it('redacts permanent and exhausted failures without retrying a dead credential'
 
     $factor->challenge(new ChallengeRequest($attempt));
     $exhausted = AuthChallengeOutbox::query()->where('status', 'pending')->firstOrFail();
+    DB::table('auth_challenge_outbox')->where('id', $exhausted->id)->update([
+        'provider_attempted_at' => now(),
+    ]);
     (new DeliverOtpChallenge($exhausted->opaque_id))->failed(new RuntimeException('tries exhausted'));
 
     expect($exhausted->refresh()->status)->toBe(OtpOutboxStatus::Undeliverable->value)
         ->and($exhausted->payload)->toBeNull()
         ->and($exhausted->undeliverable_at)->not->toBeNull()
-        ->and($exhausted->failure_reason)->toBe('worker_failure');
+        ->and($exhausted->failure_reason)->toBe('provider_exhausted');
+});
+
+it('classifies queue exhaustion without provider evidence as a worker failure', function (): void {
+    [$factor, $attempt] = outboxFixture();
+    $factor->challenge(new ChallengeRequest($attempt));
+    $outbox = AuthChallengeOutbox::query()->where('status', 'pending')->firstOrFail();
+
+    (new DeliverOtpChallenge($outbox->opaque_id))->failed(new RuntimeException('tries exhausted'));
+
+    expect($outbox->refresh()->failure_reason)->toBe('worker_failure');
 });
 
 it('treats missing and expired rows as successful terminal outcomes', function (): void {

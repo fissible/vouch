@@ -9,7 +9,6 @@ use Fissible\Vouch\Notifications\OtpOutboxFailureReason;
 use Fissible\Vouch\Notifications\RetryableOtpDeliveryFailure;
 use Fissible\Vouch\Notifications\OtpQueueDispatcher;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\MaxAttemptsExceededException;
 use Throwable;
 
 /** Queue payload contains only an opaque outbox locator, never target or code. */
@@ -38,10 +37,13 @@ final class DeliverOtpChallenge implements ShouldQueue
 
     public function failed(?Throwable $exception): void
     {
+        $outbox = \Fissible\Vouch\Models\AuthChallengeOutbox::query()
+            ->where('opaque_id', $this->outboxId)
+            ->first();
+
         app(OtpOutboxDelivery::class)->terminalize(
             $this->outboxId,
-            $exception instanceof \Fissible\Vouch\Notifications\TransientOtpDeliveryFailure
-                || $exception instanceof MaxAttemptsExceededException
+            $outbox?->provider_attempted_at !== null
                 ? OtpOutboxFailureReason::ProviderExhausted
                 : OtpOutboxFailureReason::WorkerFailure,
         );
