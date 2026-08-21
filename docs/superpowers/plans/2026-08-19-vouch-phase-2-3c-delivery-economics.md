@@ -105,7 +105,10 @@ remain `CountryNotAllowed` only for a successfully parsed country that is absent
 from the allow-list. A parse failure is instead terminalized as
 `LegacyUnparseable`, so operators can distinguish data remediation from policy
 review. This is an acceptance item for the worker slice, not a mutation or
-static-analysis result.
+static-analysis result. Once the worker obligation is implemented, the
+`reserve()` null-country refusal is deliberately unreachable for production SMS
+and remains only as defense-in-depth for alternate callers or malformed
+integrations; email never enters the country check.
 
 Queue exhaustion must preserve that distinction too: a job exhausted by
 economics contention has not contacted a provider and must not be recorded as
