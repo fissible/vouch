@@ -27,4 +27,8 @@ final class PermittingDeliveryEconomics implements DeliveryEconomics
     {
         return DeliveryReservationDecision::Permitted;
     }
+
+    public function release(DeliveryEconomicsRequest $request): void
+    {
+    }
 }

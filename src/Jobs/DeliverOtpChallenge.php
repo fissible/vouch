@@ -30,7 +30,7 @@ final class DeliverOtpChallenge implements ShouldQueue
                 ->first();
 
             if ($outbox instanceof \Fissible\Vouch\Models\AuthChallengeOutbox) {
-                app(OtpQueueDispatcher::class)->dispatch($outbox);
+                app(OtpQueueDispatcher::class)->dispatchAfter($outbox, 1);
             }
         }
     }
@@ -39,7 +39,9 @@ final class DeliverOtpChallenge implements ShouldQueue
     {
         app(OtpOutboxDelivery::class)->terminalize(
             $this->outboxId,
-            OtpOutboxFailureReason::ProviderExhausted,
+            $exception instanceof \Fissible\Vouch\Notifications\TransientOtpDeliveryFailure
+                ? OtpOutboxFailureReason::ProviderExhausted
+                : OtpOutboxFailureReason::WorkerFailure,
         );
     }
 }

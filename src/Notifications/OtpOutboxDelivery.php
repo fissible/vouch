@@ -7,6 +7,7 @@ namespace Fissible\Vouch\Notifications;
 use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Contracts\DeliveryEconomics;
 use Fissible\Vouch\Delivery\DeliveryEconomicsRequest;
+use Fissible\Vouch\Delivery\DeliveryChannel;
 use Fissible\Vouch\Delivery\DeliveryReservationDecision;
 use Fissible\Vouch\Delivery\SmsCountryNormalizer;
 use Fissible\Vouch\Models\AuthAttempt;
@@ -76,13 +77,9 @@ final readonly class OtpOutboxDelivery
             return;
         }
 
-        $channel = match ($challenge->factor_type) {
-            'email_otp' => 'email',
-            'sms_otp' => 'sms',
-            default => null,
-        };
-
-        if ($channel === null) {
+        try {
+            $channel = DeliveryChannel::fromFactor($challenge->factor_type);
+        } catch (\InvalidArgumentException) {
             $this->terminalize($opaqueId, OtpOutboxFailureReason::TargetUnavailable);
 
             return;
@@ -103,8 +100,7 @@ final readonly class OtpOutboxDelivery
             $identifier->value = $normalized->e164;
         }
 
-        $decision = $this->reserve(
-            new DeliveryEconomicsRequest(
+        $reservationRequest = new DeliveryEconomicsRequest(
                 $challenge->factor_type,
                 $channel,
                 $attempt->tenant_id,
@@ -112,8 +108,8 @@ final readonly class OtpOutboxDelivery
                 $this->cost($channel),
                 false,
                 $outbox->opaque_id,
-            ),
-        );
+            );
+        $decision = $this->reserve($reservationRequest);
 
         if ($decision === DeliveryReservationDecision::CountryNotAllowed) {
             $this->terminalize($opaqueId, OtpOutboxFailureReason::CountryNotAllowed);
@@ -134,11 +130,13 @@ final readonly class OtpOutboxDelivery
                 $outbox->expires_at->toDateTimeImmutable(),
             );
         } catch (PermanentOtpDeliveryFailure) {
+            $this->economics->release($reservationRequest);
             $this->terminalize($opaqueId, OtpOutboxFailureReason::ProviderRejected);
 
             return;
         } catch (Throwable) {
             if ($this->expired($outbox)) {
+                $this->economics->release($reservationRequest);
                 $this->terminalize($opaqueId, OtpOutboxFailureReason::ExpiredUndelivered);
 
                 return;

@@ -14,4 +14,5 @@ enum OtpOutboxFailureReason: string
     case ProviderExhausted = 'provider_exhausted';
     case ExpiredUndelivered = 'expired_undelivered';
     case TargetUnavailable = 'target_unavailable';
+    case WorkerFailure = 'worker_failure';
 }

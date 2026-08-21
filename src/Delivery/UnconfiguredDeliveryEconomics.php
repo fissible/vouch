@@ -27,4 +27,9 @@ final readonly class UnconfiguredDeliveryEconomics implements DeliveryEconomics
     {
         throw self::exception();
     }
+
+    public function release(DeliveryEconomicsRequest $request): void
+    {
+        throw self::exception();
+    }
 }

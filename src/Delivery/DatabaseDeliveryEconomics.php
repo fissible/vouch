@@ -83,6 +83,56 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
         }
     }
 
+    public function release(DeliveryEconomicsRequest $request): void
+    {
+        if ($request->decoy || $request->costMinor === 0 || $request->reservationKey === null || $request->reservationKey === '') {
+            return;
+        }
+
+        $this->connection->transaction(function () use ($request): void {
+            foreach ([
+                [self::GLOBAL, $this->keys->global()->digest],
+                [self::TENANT, $this->keys->tenant($request->tenantId)->digest],
+            ] as [$scope, $digest]) {
+                $row = $this->row((string) $scope, (string) $digest, true);
+
+                if ($row === null) {
+                    throw new \RuntimeException('The delivery spend row vanished during release.');
+                }
+
+                $reservation = $this->connection->table('auth_delivery_spend_reservations')
+                    ->where('reservation_key', $request->reservationKey)
+                    ->where('scope', (string) $scope)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($reservation === null) {
+                    continue;
+                }
+
+                $value = $reservation->amount_minor;
+
+                if (! is_int($value) && ! is_string($value)) {
+                    throw new \RuntimeException('The delivery reservation amount has an invalid type.');
+                }
+
+                $amount = (int) $value;
+                $updated = $this->connection->table('auth_delivery_spend')
+                    ->where('id', $row['id'])
+                    ->where('spent_minor', '>=', $amount)
+                    ->decrement('spent_minor', $amount, ['updated_at' => $this->time->now()]);
+
+                if ($updated !== 1) {
+                    throw new \RuntimeException('The delivery spend row cannot release its reservation.');
+                }
+
+                $this->connection->table('auth_delivery_spend_reservations')
+                    ->where('id', $reservation->id)
+                    ->delete();
+            }
+        });
+    }
+
     private function reserveAtomically(DeliveryEconomicsRequest $request): DeliveryReservationDecision
     {
         if ($request->reservationKey === null || $request->reservationKey === '') {

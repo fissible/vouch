@@ -422,7 +422,7 @@ it('redacts permanent and exhausted failures without retrying a dead credential'
     expect($exhausted->refresh()->status)->toBe(OtpOutboxStatus::Undeliverable->value)
         ->and($exhausted->payload)->toBeNull()
         ->and($exhausted->undeliverable_at)->not->toBeNull()
-        ->and($exhausted->failure_reason)->toBe('provider_exhausted');
+        ->and($exhausted->failure_reason)->toBe('worker_failure');
 });
 
 it('treats missing and expired rows as successful terminal outcomes', function (): void {

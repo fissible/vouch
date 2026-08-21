@@ -6,6 +6,7 @@ namespace Fissible\Vouch\Factors;
 
 use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Contracts\DeliveryEconomics;
+use Fissible\Vouch\Delivery\DeliveryChannel;
 use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Delivery\DeliveryEconomicsDecision;
 use Fissible\Vouch\Delivery\DeliveryEconomicsRequest;
@@ -129,13 +130,6 @@ final readonly class ChallengeIssuer
 
     private function channel(string $factorId): string
     {
-        return match ($factorId) {
-            'email_otp' => 'email',
-            'sms_otp' => 'sms',
-            default => throw new InvalidArgumentException(sprintf(
-                'Factor "%s" has no delivery economics channel.',
-                $factorId,
-            )),
-        };
+        return DeliveryChannel::fromFactor($factorId);
     }
 }

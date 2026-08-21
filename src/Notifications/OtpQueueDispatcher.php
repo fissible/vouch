@@ -63,9 +63,25 @@ final readonly class OtpQueueDispatcher
         AuthChallengeOutbox::query()
             ->whereKey($outbox->id)
             ->where('status', OtpOutboxStatus::Pending->value)
+            ->whereNull('dispatched_at')
             ->update([
                 'dispatched_at' => $this->time->now(),
             ]);
+    }
+
+    public function dispatchAfter(AuthChallengeOutbox $outbox, int $delaySeconds): void
+    {
+        if ($delaySeconds < 1) {
+            throw new \InvalidArgumentException('A delayed OTP dispatch requires a positive delay.');
+        }
+
+        $this->assertAsynchronous();
+
+        $this->connection()->later(
+            $delaySeconds,
+            new DeliverOtpChallenge($outbox->opaque_id),
+            queue: $this->queue,
+        );
     }
 
     private function connection(): Queue

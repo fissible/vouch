@@ -136,3 +136,19 @@ it('does not charge a committed reservation twice', function (): void {
         ->and(DB::table('auth_delivery_spend')->where('scope', 'tenant')->value('spent_minor'))->toBe(10)
         ->and(DB::table('auth_delivery_spend_reservations')->count())->toBe(2);
 });
+
+it('releases a reservation when no provider delivery completed', function (): void {
+    $economics = deliveryEconomics();
+    $request = deliveryRequest(reservationKey: str_repeat('x', 64));
+
+    expect($economics->reserve($request))->toBe(DeliveryReservationDecision::Permitted);
+
+    $economics->release($request);
+
+    $globalSpent = DB::table('auth_delivery_spend')->where('scope', 'global')->value('spent_minor');
+    $tenantSpent = DB::table('auth_delivery_spend')->where('scope', 'tenant')->value('spent_minor');
+
+    expect($globalSpent)->toBeInt()->toBe(0)
+        ->and($tenantSpent)->toBeInt()->toBe(0)
+        ->and(DB::table('auth_delivery_spend_reservations')->count())->toBe(0);
+});

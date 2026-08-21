@@ -20,4 +20,7 @@ interface DeliveryEconomics
     public function preflight(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision;
 
     public function reserve(DeliveryEconomicsRequest $request): DeliveryReservationDecision;
+
+    /** Release a committed reservation when no delivery was completed. */
+    public function release(DeliveryEconomicsRequest $request): void;
 }
