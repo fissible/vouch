@@ -86,6 +86,7 @@ it('admits only one concurrent reservation at the daily ceiling', function (): v
                         null,
                         10,
                         false,
+                        str_repeat('r', 64),
                     ));
 
                     file_put_contents($output, $result->name);

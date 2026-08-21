@@ -41,8 +41,19 @@ function deliveryRequest(
     string $channel = 'email',
     ?string $country = null,
     bool $decoy = false,
+    ?string $reservationKey = null,
 ): DeliveryEconomicsRequest {
-    return new DeliveryEconomicsRequest('email_otp', $channel, $tenant, $country, $cost, $decoy);
+    static $sequence = 0;
+
+    return new DeliveryEconomicsRequest(
+        'email_otp',
+        $channel,
+        $tenant,
+        $country,
+        $cost,
+        $decoy,
+        $reservationKey ?? str_pad((string) ++$sequence, 64, '0', STR_PAD_LEFT),
+    );
 }
 
 it('permits a decoy without creating or charging spend state', function (): void {
@@ -112,4 +123,16 @@ it('records global and tenant spend even when both ceilings are observe-only', f
     expect($rows)->toHaveKeys(['global', 'tenant'])
         ->and((int) $global->spent_minor)->toBe(10)
         ->and((int) $tenant->spent_minor)->toBe(10);
+});
+
+it('does not charge a committed reservation twice', function (): void {
+    $economics = deliveryEconomics(['daily' => null, 'tenant' => null]);
+    $request = deliveryRequest(reservationKey: str_repeat('k', 64));
+
+    expect($economics->reserve($request))->toBe(DeliveryReservationDecision::Permitted)
+        ->and($economics->reserve($request))->toBe(DeliveryReservationDecision::Permitted);
+
+    expect(DB::table('auth_delivery_spend')->where('scope', 'global')->value('spent_minor'))->toBe(10)
+        ->and(DB::table('auth_delivery_spend')->where('scope', 'tenant')->value('spent_minor'))->toBe(10)
+        ->and(DB::table('auth_delivery_spend_reservations')->count())->toBe(2);
 });

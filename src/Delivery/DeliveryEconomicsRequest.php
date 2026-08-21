@@ -17,6 +17,7 @@ final readonly class DeliveryEconomicsRequest
         public ?string $country,
         public int $costMinor,
         public bool $decoy,
+        public ?string $reservationKey = null,
     ) {
         if ($this->costMinor < 0) {
             throw new \InvalidArgumentException('Delivery cost cannot be negative.');

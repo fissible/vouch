@@ -85,6 +85,12 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
 
     private function reserveAtomically(DeliveryEconomicsRequest $request): DeliveryReservationDecision
     {
+        if ($request->reservationKey === null || $request->reservationKey === '') {
+            throw new \InvalidArgumentException(
+                'A real delivery reservation requires its opaque outbox key.',
+            );
+        }
+
         $scopes = [
             [self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor],
             [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor],
@@ -109,6 +115,15 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
                 throw new \RuntimeException('The delivery spend row vanished after creation.');
             }
 
+            $reservation = $this->connection->table('auth_delivery_spend_reservations')
+                ->where('reservation_key', $request->reservationKey)
+                ->where('scope', (string) $scope)
+                ->exists();
+
+            if ($reservation) {
+                continue;
+            }
+
             $today = $this->time->current()->format('Y-m-d');
             $started = substr($row['window_started_at'], 0, 10);
 
@@ -126,6 +141,13 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
                     throw new \RuntimeException('The delivery spend row vanished after rollover.');
                 }
             }
+
+            $this->connection->table('auth_delivery_spend_reservations')->insert([
+                'reservation_key' => $request->reservationKey,
+                'scope' => (string) $scope,
+                'amount_minor' => $request->costMinor,
+                'created_at' => $this->time->now(),
+            ]);
 
             $update = $this->connection->table('auth_delivery_spend')
                 ->where('id', $row['id']);
@@ -147,6 +169,7 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
 
                 throw new \RuntimeException('The delivery spend row vanished during accounting.');
             }
+
         }
 
         return DeliveryReservationDecision::Permitted;
