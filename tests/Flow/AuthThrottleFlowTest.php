@@ -265,6 +265,38 @@ it('does not call CAPTCHA without a token and fails closed on provider errors', 
     app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
 });
 
+it('does not hide an unconfigured CAPTCHA verifier', function (): void {
+    Config::set('vouch.throttle.captcha.enabled', true);
+    Config::set('vouch.throttle.global.mode', 'enforce');
+    Config::set('vouch.throttle.global.enforce_at', 5);
+    Config::set('vouch.throttle.global.backoff_seconds', 1);
+    app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+    app()->instance(
+        \Fissible\Vouch\Contracts\CaptchaVerifier::class,
+        new \Fissible\Vouch\Delivery\UnconfiguredCaptchaVerifier(),
+    );
+
+    $store = new RecordingAuthThrottleStore();
+    $store->preflightSharedResult = SharedThrottle::backedOff(
+        new DateTimeImmutable('2026-08-16T12:00:05Z'),
+    );
+    $flow = authThrottleFlow($store);
+    $handle = authThrottleIdentified($flow, 'ada@acme.example', 'captcha-unconfigured');
+
+    expect(fn () => authThrottleSubmit(
+        $flow,
+        $handle,
+        ['password' => 'wrong', 'captcha' => 'present'],
+        'captcha-unconfigured',
+    ))->toThrow(RuntimeException::class, 'No CAPTCHA verifier is configured');
+
+    Config::set('vouch.throttle.captcha.enabled', false);
+    Config::set('vouch.throttle.global.mode', 'observe');
+    Config::set('vouch.throttle.global.enforce_at', null);
+    Config::set('vouch.throttle.global.backoff_seconds', null);
+    app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+});
+
 it('reaches the shared CAPTCHA threshold identically for known and unknown identifiers', function (): void {
     Config::set('vouch.throttle.captcha.enabled', true);
     Config::set('vouch.throttle.global.mode', 'enforce');

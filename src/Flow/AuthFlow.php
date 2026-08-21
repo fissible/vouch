@@ -14,6 +14,7 @@ use Fissible\Vouch\Contracts\CaptchaVerifier;
 use Fissible\Vouch\Contracts\TenantResolver;
 use Fissible\Vouch\Delivery\CaptchaDecision;
 use Fissible\Vouch\Delivery\CaptchaRequest;
+use Fissible\Vouch\Delivery\UnconfiguredCaptchaVerifier;
 use Fissible\Vouch\Factors\ChallengeIssuanceIntent;
 use Fissible\Vouch\Factors\ChallengeIssuanceTicket;
 use Fissible\Vouch\Factors\ChallengeIssuer;
@@ -235,7 +236,13 @@ final readonly class AuthFlow
                             $token,
                             $request->clientIp,
                         ));
-                    } catch (Throwable) {
+                    } catch (Throwable $exception) {
+                        if ($this->captcha instanceof UnconfiguredCaptchaVerifier) {
+                            throw $exception;
+                        }
+
+                        report($exception);
+
                         // A provider outage must not turn shared backoff into
                         // a 500; failure is the safe, target-independent result.
                     }
