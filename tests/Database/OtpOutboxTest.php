@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Fissible\Vouch\Contracts\AuthThrottleStore;
+use Fissible\Vouch\Contracts\DeliveryEconomics;
 use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Enrollment\EnrollmentGuard;
 use Fissible\Vouch\Factors\ChallengeRequest;
@@ -22,6 +23,7 @@ use Fissible\Vouch\Notifications\OtpQueueDispatcher;
 use Fissible\Vouch\Notifications\PermanentOtpDeliveryFailure;
 use Fissible\Vouch\Notifications\TransientOtpDeliveryFailure;
 use Fissible\Vouch\Tests\Support\ArrayOtpDelivery;
+use Fissible\Vouch\Tests\Support\PermittingDeliveryEconomics;
 use Fissible\Vouch\Throttle\IssuancePermission;
 use Fissible\Vouch\Throttle\ThrottleKey;
 use Illuminate\Contracts\Queue\Factory;
@@ -39,6 +41,10 @@ use Illuminate\Support\Facades\Queue;
 use Psr\Clock\ClockInterface;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function (): void {
+    app()->instance(DeliveryEconomics::class, new PermittingDeliveryEconomics());
+});
 
 final class RetryingOtpDelivery implements OtpDelivery
 {

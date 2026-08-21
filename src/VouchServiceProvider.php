@@ -87,7 +87,13 @@ final class VouchServiceProvider extends ServiceProvider
             OtpOutboxDelivery::class,
             fn ($app): OtpOutboxDelivery => new OtpOutboxDelivery(
                 $app->make(OtpDelivery::class),
+                $app->make(\Fissible\Vouch\Contracts\DeliveryEconomics::class),
+                $app->make(SmsCountryNormalizer::class),
                 $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
+                [
+                    'email' => config()->integer('vouch.delivery.economics.email_cost_minor'),
+                    'sms' => config()->integer('vouch.delivery.economics.sms_cost_minor'),
+                ],
             ),
         );
 

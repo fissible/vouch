@@ -132,7 +132,7 @@ function otpFactorIdentity(string $factor): array
 {
     return match ($factor) {
         'email_otp' => ['email', 'flow-otp@acme.example'],
-        'sms_otp' => ['phone', '+15550123456'],
+        'sms_otp' => ['phone', '+14155552671'],
         default => throw new InvalidArgumentException('Unknown OTP test factor.'),
     };
 }

@@ -6,10 +6,12 @@ namespace Fissible\Vouch\Tests\Support;
 
 use DateTimeImmutable;
 use Fissible\Vouch\Contracts\OtpDelivery;
+use Fissible\Vouch\Contracts\DeliveryEconomics;
 use Fissible\Vouch\Models\AuthChallengeOutbox;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Notifications\OtpOutboxDelivery;
 use Fissible\Vouch\Notifications\OtpOutboxStatus;
+use Fissible\Vouch\Tests\Support\PermittingDeliveryEconomics;
 
 /**
  * Captures delivered codes so tests can assert on what was actually sent.
@@ -59,6 +61,7 @@ final class ArrayOtpDelivery implements OtpDelivery
         }
 
         app()->instance(OtpDelivery::class, $this);
+        app()->instance(DeliveryEconomics::class, new PermittingDeliveryEconomics());
         app(OtpOutboxDelivery::class)->deliver($outbox->opaque_id);
     }
 }

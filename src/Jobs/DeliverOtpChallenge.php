@@ -6,6 +6,8 @@ namespace Fissible\Vouch\Jobs;
 
 use Fissible\Vouch\Notifications\OtpOutboxDelivery;
 use Fissible\Vouch\Notifications\OtpOutboxFailureReason;
+use Fissible\Vouch\Notifications\RetryableOtpDeliveryFailure;
+use Fissible\Vouch\Notifications\OtpQueueDispatcher;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Throwable;
 
@@ -20,7 +22,17 @@ final class DeliverOtpChallenge implements ShouldQueue
 
     public function handle(OtpOutboxDelivery $delivery): void
     {
-        $delivery->deliver($this->outboxId);
+        try {
+            $delivery->deliver($this->outboxId);
+        } catch (RetryableOtpDeliveryFailure) {
+            $outbox = \Fissible\Vouch\Models\AuthChallengeOutbox::query()
+                ->where('opaque_id', $this->outboxId)
+                ->first();
+
+            if ($outbox instanceof \Fissible\Vouch\Models\AuthChallengeOutbox) {
+                app(OtpQueueDispatcher::class)->dispatch($outbox);
+            }
+        }
     }
 
     public function failed(?Throwable $exception): void

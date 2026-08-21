@@ -5,6 +5,12 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Notifications;
 
 use Fissible\Vouch\Contracts\OtpDelivery;
+use Fissible\Vouch\Contracts\DeliveryEconomics;
+use Fissible\Vouch\Delivery\DeliveryEconomicsRequest;
+use Fissible\Vouch\Delivery\DeliveryReservationDecision;
+use Fissible\Vouch\Delivery\SmsCountryNormalizer;
+use Fissible\Vouch\Models\AuthAttempt;
+use Fissible\Vouch\Models\AuthChallenge;
 use Fissible\Vouch\Models\AuthChallengeOutbox;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Support\DatabaseTime;
@@ -15,7 +21,11 @@ final readonly class OtpOutboxDelivery
 {
     public function __construct(
         private OtpDelivery $delivery,
+        private DeliveryEconomics $economics,
+        private SmsCountryNormalizer $normalizer,
         private DatabaseTime $time,
+        /** @var array{email: int, sms: int} */
+        private array $costs,
     ) {}
 
     public function deliver(string $opaqueId): void
@@ -55,6 +65,68 @@ final readonly class OtpOutboxDelivery
             return;
         }
 
+        $challenge = AuthChallenge::query()->whereKey($outbox->challenge_id)->first();
+        $attempt = $challenge instanceof AuthChallenge
+            ? AuthAttempt::query()->whereKey($challenge->attempt_id)->first()
+            : null;
+
+        if (! $challenge instanceof AuthChallenge || ! $attempt instanceof AuthAttempt) {
+            $this->terminalize($opaqueId, OtpOutboxFailureReason::TargetUnavailable);
+
+            return;
+        }
+
+        $channel = match ($challenge->factor_type) {
+            'email_otp' => 'email',
+            'sms_otp' => 'sms',
+            default => null,
+        };
+
+        if ($channel === null) {
+            $this->terminalize($opaqueId, OtpOutboxFailureReason::TargetUnavailable);
+
+            return;
+        }
+
+        $country = null;
+
+        if ($channel === 'sms') {
+            try {
+                $normalized = $this->normalizer->normalize($identifier->value);
+            } catch (\InvalidArgumentException) {
+                $this->terminalize($opaqueId, OtpOutboxFailureReason::LegacyUnparseable);
+
+                return;
+            }
+
+            $country = $normalized->country;
+            $identifier->value = $normalized->e164;
+        }
+
+        $decision = $this->reserve(
+            new DeliveryEconomicsRequest(
+                $challenge->factor_type,
+                $channel,
+                $attempt->tenant_id,
+                $country,
+                $this->cost($channel),
+                false,
+                $outbox->opaque_id,
+            ),
+        );
+
+        if ($decision === DeliveryReservationDecision::CountryNotAllowed) {
+            $this->terminalize($opaqueId, OtpOutboxFailureReason::CountryNotAllowed);
+
+            return;
+        }
+
+        if ($decision === DeliveryReservationDecision::SpendCeiling) {
+            $this->terminalize($opaqueId, OtpOutboxFailureReason::SpendCeiling);
+
+            return;
+        }
+
         try {
             $this->delivery->deliver(
                 $identifier,
@@ -85,6 +157,37 @@ final readonly class OtpOutboxDelivery
                 'status' => OtpOutboxStatus::Delivered->value,
                 'delivered_at' => $this->time->now(),
             ]);
+    }
+
+    private function reserve(DeliveryEconomicsRequest $request): DeliveryReservationDecision
+    {
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $decision = $this->economics->reserve($request);
+
+            if ($decision !== DeliveryReservationDecision::RetryableContention) {
+                return $decision;
+            }
+
+            usleep(20_000);
+        }
+
+        throw new RetryableOtpDeliveryFailure(
+            'Delivery economics remained contended; no provider call was attempted.',
+        );
+    }
+
+    private function cost(string $channel): int
+    {
+        $cost = $this->costs[$channel] ?? null;
+
+        if (! is_int($cost) || $cost < 1) {
+            throw new \InvalidArgumentException(sprintf(
+                'A positive delivery cost is required for the %s channel.',
+                $channel,
+            ));
+        }
+
+        return $cost;
     }
 
     public function terminalize(

@@ -127,6 +127,14 @@ return [
         'queue' => env('VOUCH_OTP_QUEUE', 'vouch-otp'),
     ],
 
+    'delivery' => [
+        'economics' => [
+            // Minor units. Hosts should replace these with provider pricing.
+            'email_cost_minor' => (int) env('VOUCH_EMAIL_DELIVERY_COST_MINOR', 1),
+            'sms_cost_minor' => (int) env('VOUCH_SMS_DELIVERY_COST_MINOR', 1),
+        ],
+    ],
+
     /*
      * Authentication throttling. These values deliberately are NOT cast here:
      * `(int) env(...)` turns a set-but-blank variable into zero. The provider
