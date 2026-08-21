@@ -178,7 +178,9 @@ observe-mode path, not only of ceiling-enforcing installations.
 
 CAPTCHA requirement is a kernel disclosure decision, not an ad hoc response
 field. 2.3c will amend `RetryPolicy`/`ScreenSpec` through the documented kernel
-API process and update the API snapshot. The challenge metadata is nullable and
+API process; the declared amendment is recorded in
+`../specs/2026-08-20-vouch-phase-2-3c-captcha-amendment.md` and the API snapshot
+is updated. The challenge metadata is nullable and
 only populated from shared/volume state; identifier-specific state may never
 make one submitted identifier receive a CAPTCHA while another does not.
 
