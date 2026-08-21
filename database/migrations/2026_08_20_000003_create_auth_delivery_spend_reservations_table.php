@@ -19,7 +19,7 @@ return new class extends Migration
             $table->timestamp('created_at');
             $table->timestamp('released_at')->nullable();
 
-            $table->index('created_at', 'auth_delivery_spend_reservations_created_at_index');
+            $table->index('window_started_at', 'auth_delivery_spend_reservations_window_index');
 
             $table->unique(
                 ['reservation_key', 'scope'],
