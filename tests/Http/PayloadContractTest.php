@@ -107,7 +107,7 @@ it('serializes the screen with its complete key set', function (): void {
 
     expect($screen)->toBeArray()
         ->and(array_keys((array) $screen))
-        ->toBe(['step', 'offeredFactors', 'fields', 'challengePayload', 'errors', 'retry']);
+        ->toBe(['step', 'offeredFactors', 'fields', 'challengePayload', 'errors', 'retry', 'captchaRequired']);
 });
 
 it('serializes each offered factor and field with its complete key set', function (): void {
@@ -138,7 +138,26 @@ it('reports retry as null rather than omitting it', function (): void {
     $screen = (array) contractSerializer()->toArray(new Continuing(contractScreen(), 'h'))['screen'];
 
     expect($screen)->toHaveKey('retry')
-        ->and($screen['retry'])->toBeNull();
+        ->and($screen['retry'])->toBeNull()
+        ->and($screen)->toHaveKey('captchaRequired')
+        ->and($screen['captchaRequired'])->toBeNull();
+});
+
+it('serializes a shared-volume CAPTCHA requirement without provider details', function (): void {
+    $base = contractScreen();
+    $screen = new ScreenSpec(
+        step: $base->step,
+        offeredFactors: $base->offeredFactors,
+        fields: $base->fields,
+        challengePayload: $base->challengePayload,
+        errors: $base->errors,
+        retry: $base->retry,
+        captchaRequired: true,
+    );
+
+    $payload = (array) contractSerializer()->toArray(new Continuing($screen, 'h'))['screen'];
+
+    expect($payload['captchaRequired'])->toBeTrue();
 });
 
 it('serializes every measured retry field with stable wire names and deadlines', function (): void {

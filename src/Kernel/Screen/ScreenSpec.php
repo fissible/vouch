@@ -19,5 +19,7 @@ final readonly class ScreenSpec
         public ?array $challengePayload,
         public array $errors,
         public ?RetryPolicy $retry,
+        /** Shared/volume escalation only; never derived from identifier state. */
+        public ?bool $captchaRequired = null,
     ) {}
 }

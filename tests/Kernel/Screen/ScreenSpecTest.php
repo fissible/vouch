@@ -42,7 +42,22 @@ it('carries everything an adapter needs to render', function (): void {
 
     expect($spec->challengePayload)->toBe(['delivery' => 'email'])
         ->and($spec->retry?->attemptsRemaining)->toBe(4)
-        ->and($spec->retry?->lockedUntil)->toBeNull();
+        ->and($spec->retry?->lockedUntil)->toBeNull()
+        ->and($spec->captchaRequired)->toBeNull();
+});
+
+it('carries a shared-volume CAPTCHA requirement explicitly', function (): void {
+    $spec = new ScreenSpec(
+        step: AuthStep::Challenge,
+        offeredFactors: [],
+        fields: [],
+        challengePayload: null,
+        errors: [],
+        retry: null,
+        captchaRequired: true,
+    );
+
+    expect($spec->captchaRequired)->toBeTrue();
 });
 
 it('supports a screen with no challenge and no retry disclosure', function (): void {

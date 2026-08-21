@@ -144,6 +144,7 @@ Fissible\Vouch\Kernel\Screen\RetryPolicy::$lockedUntil
 Fissible\Vouch\Kernel\Screen\RetryPolicy::$retryAfter
 Fissible\Vouch\Kernel\Screen\RetryPolicy::__construct()
 Fissible\Vouch\Kernel\Screen\ScreenSpec (class)
+Fissible\Vouch\Kernel\Screen\ScreenSpec::$captchaRequired
 Fissible\Vouch\Kernel\Screen\ScreenSpec::$challengePayload
 Fissible\Vouch\Kernel\Screen\ScreenSpec::$errors
 Fissible\Vouch\Kernel\Screen\ScreenSpec::$fields

@@ -77,6 +77,7 @@ final readonly class FlowResultSerializer
             'challengePayload' => $screen->challengePayload,
             'errors' => $screen->errors,
             'retry' => $this->retry($screen->retry),
+            'captchaRequired' => $screen->captchaRequired,
         ];
     }
 
