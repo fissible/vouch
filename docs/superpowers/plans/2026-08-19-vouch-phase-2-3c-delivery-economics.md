@@ -140,6 +140,18 @@ cost is required, with optional per-country SMS overrides for providers whose
 pricing differs by destination. No cost is silently defaulted to zero for a
 real delivery.
 
+### Accounting is independent of enforcement
+
+Spend accounting is not conditional on whether a ceiling is armed. Every
+permitted, real, priced delivery records both the global and tenant scopes
+(with the existing explicit absent-tenant digest); a configured ceiling adds an
+atomic refusal predicate to that scope, but does not determine whether the row
+exists. This makes aggregate reporting a statement about delivered economics,
+not a partial view whose coverage changes when an operator toggles enforcement.
+The cost is one locked aggregate update per scope even in observe mode, which
+is accepted as the price of complete reporting. Decoys and zero-cost deliveries
+do not create spend rows.
+
 ### CAPTCHA communication and ordering
 
 CAPTCHA requirement is a kernel disclosure decision, not an ad hoc response
