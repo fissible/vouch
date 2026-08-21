@@ -351,8 +351,8 @@ it('prunes only delivery reservations outside the active window without pending 
 
     expect(Artisan::call('vouch:prune'))->toBe(0)
         ->and(Artisan::output())->toContain('1 delivery reservation(s)')
-        ->and(DB::table('auth_delivery_spend_reservations')->pluck('reservation_key')->all())
-        ->toBe([$pending->opaque_id, str_repeat('c', 64)]);
+        ->and(DB::table('auth_delivery_spend_reservations')->pluck('reservation_key')->sort()->values()->all())
+        ->toBe(collect([$pending->opaque_id, str_repeat('c', 64)])->sort()->values()->all());
 });
 
 it('rolls back earlier deletions on prune failure without emitting a delivery-health finding', function (): void {
