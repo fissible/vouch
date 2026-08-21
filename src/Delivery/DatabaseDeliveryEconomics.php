@@ -115,12 +115,14 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
                 throw new \RuntimeException('The delivery spend row vanished after creation.');
             }
 
-            $reservation = $this->connection->table('auth_delivery_spend_reservations')
-                ->where('reservation_key', $request->reservationKey)
-                ->where('scope', (string) $scope)
-                ->exists();
+            $claimed = $this->connection->table('auth_delivery_spend_reservations')->insertOrIgnore([[
+                'reservation_key' => $request->reservationKey,
+                'scope' => (string) $scope,
+                'amount_minor' => $request->costMinor,
+                'created_at' => $this->time->now(),
+            ]]);
 
-            if ($reservation) {
+            if ($claimed === 0) {
                 continue;
             }
 
@@ -141,13 +143,6 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
                     throw new \RuntimeException('The delivery spend row vanished after rollover.');
                 }
             }
-
-            $this->connection->table('auth_delivery_spend_reservations')->insert([
-                'reservation_key' => $request->reservationKey,
-                'scope' => (string) $scope,
-                'amount_minor' => $request->costMinor,
-                'created_at' => $this->time->now(),
-            ]);
 
             $update = $this->connection->table('auth_delivery_spend')
                 ->where('id', $row['id']);

@@ -17,6 +17,8 @@ return new class extends Migration
             $table->unsignedBigInteger('amount_minor');
             $table->timestamp('created_at');
 
+            $table->index('created_at', 'auth_delivery_spend_reservations_created_at_index');
+
             $table->unique(
                 ['reservation_key', 'scope'],
                 'auth_delivery_spend_reservations_key_scope_unique',

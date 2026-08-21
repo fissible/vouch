@@ -86,7 +86,7 @@ it('admits only one concurrent reservation at the daily ceiling', function (): v
                         null,
                         10,
                         false,
-                        str_repeat('r', 64),
+                        str_repeat((string) ($index + 1), 64),
                     ));
 
                     file_put_contents($output, $result->name);
@@ -129,7 +129,127 @@ it('admits only one concurrent reservation at the daily ceiling', function (): v
 
         expect($results)->toHaveCount(2)
             ->and(array_count_values($results)[DeliveryReservationDecision::Permitted->name] ?? 0)->toBe(1)
-            ->and(array_count_values($results)[DeliveryReservationDecision::RetryableContention->name] ?? 0)->toBe(1);
+            ->and(array_count_values($results)[DeliveryReservationDecision::SpendCeiling->name] ?? 0)->toBe(1);
+    } finally {
+        foreach ($children as $pid) {
+            pcntl_waitpid($pid, $status, WNOHANG);
+        }
+
+        foreach (glob($directory . '/*') ?: [] as $file) {
+            unlink($file);
+        }
+
+        rmdir($directory);
+    }
+});
+
+it('charges one reservation once when two workers race on one key', function (): void {
+    $directory = sys_get_temp_dir() . '/vouch-delivery-economics-' . bin2hex(random_bytes(8));
+
+    if (! mkdir($directory, 0700) && ! is_dir($directory)) {
+        throw new RuntimeException('Could not create delivery economics race directory.');
+    }
+
+    $release = $directory . '/release';
+    $children = [];
+    DB::purge();
+
+    try {
+        foreach ([0, 1] as $index) {
+            $pid = pcntl_fork();
+
+            if ($pid === -1) {
+                throw new RuntimeException('Could not fork delivery economics race child.');
+            }
+
+            if ($pid === 0) {
+                $ready = $directory . "/ready-{$index}";
+                $output = $directory . "/output-{$index}";
+
+                try {
+                    $connection = DB::connection();
+                    $connection->getPdo();
+
+                    if ($connection->getDriverName() === 'sqlite') {
+                        $connection->statement('PRAGMA busy_timeout = 5000');
+                    }
+
+                    touch($ready);
+                    $deadline = microtime(true) + 10.0;
+
+                    while (! is_file($release)) {
+                        if (microtime(true) >= $deadline) {
+                            throw new RuntimeException('Timed out waiting for delivery economics release.');
+                        }
+
+                        usleep(1_000);
+                    }
+
+                    $economics = new DatabaseDeliveryEconomics(
+                        $connection,
+                        new DatabaseTime($connection),
+                        app(ThrottleKey::class),
+                        new DeliveryEconomicsConfiguration(null, null, ['US']),
+                        new BoundedLockWait($connection),
+                        new LockContention(),
+                    );
+
+                    $result = $economics->reserve(new DeliveryEconomicsRequest(
+                        'email_otp',
+                        'email',
+                        null,
+                        null,
+                        10,
+                        false,
+                        str_repeat('s', 64),
+                    ));
+
+                    file_put_contents($output, $result->name);
+                    exit(0);
+                } catch (Throwable $exception) {
+                    file_put_contents($output, $exception::class . ': ' . $exception->getMessage());
+                    exit(1);
+                }
+            }
+
+            $children[] = $pid;
+        }
+
+        foreach ([0, 1] as $index) {
+            $deadline = microtime(true) + 10.0;
+
+            while (! is_file($directory . "/ready-{$index}")) {
+                if (microtime(true) >= $deadline) {
+                    throw new RuntimeException('A delivery economics child did not reach the ready barrier.');
+                }
+
+                usleep(1_000);
+            }
+        }
+
+        touch($release);
+
+        foreach ($children as $pid) {
+            pcntl_waitpid($pid, $status);
+
+            if (pcntl_wexitstatus($status) !== 0) {
+                throw new RuntimeException('A delivery economics child failed.');
+            }
+        }
+
+        $results = array_map(
+            static fn (int $index): string => trim((string) file_get_contents($directory . "/output-{$index}")),
+            [0, 1],
+        );
+
+        $globalSpent = DB::table('auth_delivery_spend')->where('scope', 'global')->value('spent_minor');
+        $tenantSpent = DB::table('auth_delivery_spend')->where('scope', 'tenant')->value('spent_minor');
+
+        expect($results)->toHaveCount(2)
+            ->and(array_count_values($results)[DeliveryReservationDecision::Permitted->name] ?? 0)->toBe(2)
+            ->and($globalSpent)->toBeInt()->toBe(10)
+            ->and($tenantSpent)->toBeInt()->toBe(10)
+            ->and(DB::table('auth_delivery_spend_reservations')->count())->toBe(2);
     } finally {
         foreach ($children as $pid) {
             pcntl_waitpid($pid, $status, WNOHANG);
