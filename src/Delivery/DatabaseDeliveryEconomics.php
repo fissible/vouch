@@ -110,6 +110,18 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
                     continue;
                 }
 
+                if ($reservation->released_at !== null) {
+                    continue;
+                }
+
+                if ((string) $reservation->window_started_at !== $row['window_started_at']) {
+                    $this->connection->table('auth_delivery_spend_reservations')
+                        ->where('id', $reservation->id)
+                        ->update(['released_at' => $this->time->now()]);
+
+                    continue;
+                }
+
                 $value = $reservation->amount_minor;
 
                 if (! is_int($value) && ! is_string($value)) {
@@ -123,12 +135,16 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
                     ->decrement('spent_minor', $amount, ['updated_at' => $this->time->now()]);
 
                 if ($updated !== 1) {
-                    throw new \RuntimeException('The delivery spend row cannot release its reservation.');
+                    $this->connection->table('auth_delivery_spend_reservations')
+                        ->where('id', $reservation->id)
+                        ->update(['released_at' => $this->time->now()]);
+
+                    continue;
                 }
 
                 $this->connection->table('auth_delivery_spend_reservations')
                     ->where('id', $reservation->id)
-                    ->delete();
+                    ->update(['released_at' => $this->time->now()]);
             }
         });
     }
@@ -173,6 +189,7 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
                 'reservation_key' => $request->reservationKey,
                 'scope' => (string) $scope,
                 'amount_minor' => $request->costMinor,
+                'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'),
                 'created_at' => $this->time->now(),
             ]]);
 

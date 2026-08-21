@@ -150,5 +150,5 @@ it('releases a reservation when no provider delivery completed', function (): vo
 
     expect($globalSpent)->toBeInt()->toBe(0)
         ->and($tenantSpent)->toBeInt()->toBe(0)
-        ->and(DB::table('auth_delivery_spend_reservations')->count())->toBe(0);
+        ->and(DB::table('auth_delivery_spend_reservations')->whereNotNull('released_at')->count())->toBe(2);
 });

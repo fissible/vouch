@@ -15,7 +15,9 @@ return new class extends Migration
             $table->char('reservation_key', 64);
             $table->string('scope', 16);
             $table->unsignedBigInteger('amount_minor');
+            $table->timestamp('window_started_at');
             $table->timestamp('created_at');
+            $table->timestamp('released_at')->nullable();
 
             $table->index('created_at', 'auth_delivery_spend_reservations_created_at_index');
 

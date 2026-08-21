@@ -80,7 +80,7 @@ final readonly class OtpOutboxDelivery
         try {
             $channel = DeliveryChannel::fromFactor($challenge->factor_type);
         } catch (\InvalidArgumentException) {
-            $this->terminalize($opaqueId, OtpOutboxFailureReason::TargetUnavailable);
+            $this->terminalize($opaqueId, OtpOutboxFailureReason::WorkerFailure);
 
             return;
         }
@@ -100,12 +100,20 @@ final readonly class OtpOutboxDelivery
             $identifier->value = $normalized->e164;
         }
 
+        try {
+            $cost = $this->cost($channel);
+        } catch (\InvalidArgumentException) {
+            $this->terminalize($opaqueId, OtpOutboxFailureReason::WorkerFailure);
+
+            return;
+        }
+
         $reservationRequest = new DeliveryEconomicsRequest(
                 $challenge->factor_type,
                 $channel,
                 $attempt->tenant_id,
                 $country,
-                $this->cost($channel),
+                $cost,
                 false,
                 $outbox->opaque_id,
             );
