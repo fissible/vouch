@@ -110,7 +110,7 @@ function seedAggregateReport(): void
     $old = $now->sub(new DateInterval('P1D'));
     DB::table('auth_delivery_spend')->insert([
         ['scope' => 'global', 'subject_digest' => str_pad('1', 64, 'd'), 'window_started_at' => $now->format('Y-m-d 00:00:00'), 'spent_minor' => 10, 'created_at' => $now, 'updated_at' => $now],
-        ['scope' => 'tenant', 'subject_digest' => str_pad('2', 64, 'd'), 'window_started_at' => $now->format('Y-m-d 00:00:00'), 'spent_minor' => 20, 'created_at' => $now, 'updated_at' => $now],
+        ['scope' => 'tenant', 'subject_digest' => str_pad('2', 64, 'd'), 'window_started_at' => $now->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $now, 'updated_at' => $now],
     ]);
     DB::table('auth_delivery_spend_reservations')->insert([
         ['reservation_key' => str_pad(dechex(3), 64, 'c', STR_PAD_LEFT), 'scope' => 'global', 'amount_minor' => 10, 'window_started_at' => $now->format('Y-m-d 00:00:00'), 'created_at' => $now, 'released_at' => null],
@@ -188,7 +188,7 @@ it('reports active aggregate distributions and configured threshold crossings wi
         ])
         ->and($report['economics'])->toBe([
             'current_scopes' => 2,
-            'spent_minor' => 30,
+            'spent_minor' => 10,
             'reservations' => [
                 'records' => 2,
                 'gross_minor' => 30,
@@ -199,7 +199,9 @@ it('reports active aggregate distributions and configured threshold crossings wi
                 'never_attempted_released' => 0,
                 'missing_outbox' => 0,
             ],
-        ]);
+        ])
+        ->and($report['economics']['spent_minor'])
+        ->toBe($report['economics']['reservations']['unreleased_minor']);
 
     $encoded = json_encode($report, JSON_THROW_ON_ERROR);
     $digests = array_merge(
@@ -323,7 +325,7 @@ it('emits the same aggregate shape as JSON and human output', function (): void 
         'undeliverable' => 1,
         'undeliverable_reasons' => ['provider_rejected' => 1],
     ])
-        ->and(data_get($json, 'economics.spent_minor'))->toBe(30)
+        ->and(data_get($json, 'economics.spent_minor'))->toBe(10)
         ->and(data_get($json, 'economics.reservations.unreleased_minor'))->toBe(10)
         ->and(data_get($json, 'dimensions.0.dimension'))->toBe('identifier');
 
@@ -343,7 +345,7 @@ it('emits the same aggregate shape as JSON and human output', function (): void 
         ->and($output)->toContain('none')
         ->and($output)->toContain('OTP outbox: 1 pending, 1 overdue, 1 delivered, 1 undeliverable.')
         ->and($output)->toContain('Undeliverable reasons: {"provider_rejected":1}.')
-        ->and($output)->toContain('Delivery spend: 2 current scope(s), 30 minor units spent; 2 reservation record(s), 10 minor units unreleased.');
+        ->and($output)->toContain('Delivery spend: 2 current scope(s), 10 minor units spent; 2 reservation record(s), 10 minor units unreleased.');
 });
 
 it('exposes neither candidate lookup options nor an underlying subject parameter', function (): void {
