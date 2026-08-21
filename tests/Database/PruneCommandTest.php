@@ -312,12 +312,15 @@ it('removes encrypted OTP material at the exact database deadline regardless of 
         ->and(AuthChallengeOutbox::query()->whereKey($outbox->id)->exists())->toBeFalse();
 });
 
-it('prunes only delivery reservations outside the active window and queue grace', function (): void {
+it('prunes only delivery reservations outside the active window without pending outboxes', function (): void {
     $now = app(DatabaseTime::class)->current();
     $oldWindow = $now->sub(new DateInterval('P1D'))->format('Y-m-d 00:00:00');
-    $oldEnough = $now->sub(new DateInterval('PT181S'));
-    $tooRecent = $now->sub(new DateInterval('PT179S'));
+    $oldEnough = $now->sub(new DateInterval('P1D'));
     $currentWindow = $now->format('Y-m-d 00:00:00');
+    $pending = pruneOutbox(
+        OtpOutboxStatus::Pending->value,
+        $now->add(new DateInterval('PT60S')),
+    );
 
     DB::table('auth_delivery_spend_reservations')->insert([
         [
@@ -329,12 +332,12 @@ it('prunes only delivery reservations outside the active window and queue grace'
             'released_at' => $now,
         ],
         [
-            'reservation_key' => str_repeat('b', 64),
+            'reservation_key' => $pending->opaque_id,
             'scope' => 'global',
             'amount_minor' => 1,
             'window_started_at' => $oldWindow,
-            'created_at' => $tooRecent,
-            'released_at' => $now,
+            'created_at' => $oldEnough,
+            'released_at' => null,
         ],
         [
             'reservation_key' => str_repeat('c', 64),
@@ -349,7 +352,7 @@ it('prunes only delivery reservations outside the active window and queue grace'
     expect(Artisan::call('vouch:prune'))->toBe(0)
         ->and(Artisan::output())->toContain('1 delivery reservation(s)')
         ->and(DB::table('auth_delivery_spend_reservations')->pluck('reservation_key')->all())
-        ->toBe([str_repeat('b', 64), str_repeat('c', 64)]);
+        ->toBe([$pending->opaque_id, str_repeat('c', 64)]);
 });
 
 it('rolls back earlier deletions on prune failure without emitting a delivery-health finding', function (): void {

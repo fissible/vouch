@@ -105,10 +105,6 @@ final class VouchPruneCommand extends Command
                 'PT%dS',
                 $throttle->windowSeconds,
             )));
-            $reservationCutoff = $now->sub(new DateInterval(sprintf(
-                'PT%dS',
-                Config::integer('vouch.otp.ttl_seconds') + 60,
-            )));
             $currentDeliveryWindow = $now->format('Y-m-d 00:00:00');
 
             /*
@@ -175,8 +171,16 @@ final class VouchPruneCommand extends Command
                 ->where('window_started_at', '<=', $tupleCutoff)
                 ->delete();
             $deliveryReservations = $connection->table('auth_delivery_spend_reservations')
-                ->where('created_at', '<=', $reservationCutoff)
                 ->where('window_started_at', '<', $currentDeliveryWindow)
+                ->whereNotExists(function ($query): void {
+                    $query->selectRaw('1')
+                        ->from('auth_challenge_outbox AS pending_outbox')
+                        ->whereColumn(
+                            'pending_outbox.opaque_id',
+                            'auth_delivery_spend_reservations.reservation_key',
+                        )
+                        ->where('pending_outbox.status', OtpOutboxStatus::Pending->value);
+                })
                 ->delete();
 
             return new PruneResult(
