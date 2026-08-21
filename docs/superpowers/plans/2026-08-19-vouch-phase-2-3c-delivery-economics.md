@@ -110,6 +110,14 @@ attempt, or the queue integration must carry a separate contention budget;
 using one undifferentiated `$tries` counter is not evidence that either policy
 is correct.
 
+`release()` is not a separate budget: database, Redis, and SQS drivers all
+advance their receive/attempt count when a released job is delivered again.
+The chosen shape is a bounded in-attempt reservation retry followed, if needed,
+by dispatching a fresh `DeliverOtpChallenge` with a delay. The row remains
+pending; expiry is the final boundary and terminalizes as
+`expired_undelivered`. Queue behavior is verified with a real database queue,
+including the attempt count after release, rather than inferred from a fake.
+
 Reservation is idempotent per `AuthChallengeOutbox::opaque_id`. The worker
 reserves before provider I/O, but a transient provider failure leaves the row
 pending and the next attempt must not increment spend again. A reservation
@@ -117,6 +125,14 @@ ledger keyed by opaque id and spend scope records the successful reservation in
 the same transaction as the aggregate increment; retries detect the existing
 reservation and skip the increment. This is a charge-per-send decision, not a
 charge-per-provider-attempt decision.
+
+The reservation ledger enforces uniqueness with a database constraint on
+`(opaque_id, scope)`, not a read-then-write check. Two workers may select the
+same pending outbox row concurrently and both may reach reservation; a
+`tests/Concurrency/` race must prove that `spent_minor` advances once even
+though duplicate provider delivery remains an accepted posture. Per-scope
+keying is required because live configuration can add a scope between retries;
+an opaque-id-only key would silently skip the newly configured scope.
 
 The configuration surface is part of this slice. `DeliveryEconomicsConfiguration`
 is container-bound and validates ceilings plus live cost policy: a per-channel
