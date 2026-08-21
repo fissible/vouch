@@ -9,7 +9,10 @@ use Exception;
 use Fissible\Vouch\Attempts\TransitionOutcome;
 use Fissible\Vouch\Contracts\AttemptStore;
 use Fissible\Vouch\Contracts\AuthThrottleStore;
+use Fissible\Vouch\Contracts\CaptchaVerifier;
 use Fissible\Vouch\Contracts\TenantResolver;
+use Fissible\Vouch\Delivery\CaptchaDecision;
+use Fissible\Vouch\Delivery\CaptchaRequest;
 use Fissible\Vouch\Factors\ChallengeIssuanceIntent;
 use Fissible\Vouch\Factors\ChallengeIssuanceTicket;
 use Fissible\Vouch\Factors\ChallengeIssuer;
@@ -37,6 +40,7 @@ use Fissible\Vouch\Throttle\SharedThrottle;
 use Fissible\Vouch\Throttle\ThrottleDecision;
 use Fissible\Vouch\Throttle\ThrottleKey;
 use Fissible\Vouch\Throttle\ThrottleSubject;
+use Fissible\Vouch\Throttle\ThrottleConfiguration;
 use Psr\Clock\ClockInterface;
 
 /**
@@ -68,6 +72,8 @@ final readonly class AuthFlow
         private SatisfiabilityEvaluator $evaluator,
         private AssuranceVocabulary $vocabulary,
         private VerificationEqualizer $equalizer,
+        private CaptchaVerifier $captcha,
+        private ThrottleConfiguration $throttleConfiguration,
         private ClockInterface $clock,
         private int $attemptTtlSeconds,
     ) {}
@@ -215,9 +221,28 @@ final readonly class AuthFlow
         $preflight = $this->preflightThrottle($attempt, $request, $submittedIdentifier);
 
         if ($preflight !== null) {
-            // Do not derive presentation from the resolved user on a preflight
-            // refusal. The retry state is target-independent, and the screen is too.
-            return $this->refusal($attempt, $posture, 'password', $preflight);
+            if ($preflight instanceof SharedThrottle
+                && $preflight->decision === ThrottleDecision::BackedOff
+                && $this->throttleConfiguration->captchaEnabled
+            ) {
+                $captcha = $this->captcha->verify(new CaptchaRequest(
+                    $request->string('captcha') ?? '',
+                    $request->clientIp,
+                ));
+
+                if ($captcha === CaptchaDecision::Passed) {
+                    $preflight = null;
+                }
+            }
+
+            if ($preflight === null) {
+                // A valid shared CAPTCHA satisfies only the shared-volume gate;
+                // identifier lock/backoff and hard delivery economics remain.
+            } else {
+                // Do not derive presentation from the resolved user on a preflight
+                // refusal. The retry state is target-independent, and the screen is too.
+                return $this->refusal($attempt, $posture, 'password', $preflight);
+            }
         }
 
         if ($attempt->state === AttemptState::FactorPending
@@ -390,6 +415,11 @@ final readonly class AuthFlow
                 $posture,
                 $presented,
                 $throttle,
+                captchaRequired: $this->throttleConfiguration->captchaEnabled
+                    && $throttle instanceof SharedThrottle
+                    && $throttle->decision === ThrottleDecision::BackedOff
+                        ? true
+                        : null,
             ),
             $attempt->handle,
         );
@@ -479,10 +509,15 @@ final readonly class AuthFlow
             }
         }
 
-        if ($identifier !== null && in_array($identifier->decision, [
-            ThrottleDecision::BackedOff,
-            ThrottleDecision::Locked,
-        ], true)) {
+        if ($identifier?->decision === ThrottleDecision::Locked) {
+            return $identifier;
+        }
+
+        if ($this->throttleConfiguration->captchaEnabled && $sharedBackoff !== null) {
+            return $sharedBackoff;
+        }
+
+        if ($identifier?->decision === ThrottleDecision::BackedOff) {
             return $identifier;
         }
 

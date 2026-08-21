@@ -112,6 +112,7 @@ final class ErrorShaper
             challengePayload: $spec->challengePayload,
             errors: $errors,
             retry: $retry,
+            captchaRequired: $spec->captchaRequired,
         );
     }
 }

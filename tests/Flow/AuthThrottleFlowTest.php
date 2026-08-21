@@ -16,6 +16,7 @@ use Fissible\Vouch\Models\AuthPolicy;
 use Fissible\Vouch\Sessions\BindingDomain;
 use Fissible\Vouch\Sessions\SessionBinding;
 use Fissible\Vouch\Tests\Support\RecordingAuthThrottleStore;
+use Fissible\Vouch\Tests\Support\RecordingCaptchaVerifier;
 use Fissible\Vouch\Tests\Support\FailingSharedAuthThrottleStore;
 use Fissible\Vouch\Throttle\IdentifierThrottle;
 use Fissible\Vouch\Throttle\SharedThrottle;
@@ -23,6 +24,7 @@ use Fissible\Vouch\Throttle\ThrottleDimension;
 use Fissible\Vouch\Throttle\ThrottleKey;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
@@ -152,6 +154,111 @@ it('advances identical state channels for known and nonexistent identifiers', fu
         ->and($screens[0]->retry?->attemptsRemaining)->toBeNull()
         ->and($screens[0]->retry?->lockedUntil)->toBeNull()
         ->and($screens[0]->retry?->retryAfter)->toBe($retryAfter);
+});
+
+it('requires CAPTCHA at shared backoff for known and unknown identifiers', function (): void {
+    Config::set('vouch.throttle.captcha.enabled', true);
+    Config::set('vouch.throttle.global.mode', 'enforce');
+    Config::set('vouch.throttle.global.enforce_at', 5);
+    Config::set('vouch.throttle.global.backoff_seconds', 1);
+    app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+    $verifier = new RecordingCaptchaVerifier();
+    app()->instance(\Fissible\Vouch\Contracts\CaptchaVerifier::class, $verifier);
+    $screens = [];
+
+    foreach (['ada@acme.example', 'nobody@acme.example'] as $index => $identifier) {
+        $store = new RecordingAuthThrottleStore();
+        $store->preflightSharedResult = SharedThrottle::backedOff(
+            new DateTimeImmutable('2026-08-16T12:00:05Z'),
+        );
+        $flow = authThrottleFlow($store);
+        $suffix = "captcha-{$index}";
+        $handle = authThrottleIdentified($flow, $identifier, $suffix);
+        $result = authThrottleSubmit($flow, $handle, ['password' => 'wrong'], $suffix);
+        assert($result instanceof Continuing);
+        $screens[] = $result->screen;
+    }
+
+    expect($screens[0]->captchaRequired)->toBeTrue()
+        ->and($screens[1]->captchaRequired)->toBeTrue()
+        ->and($verifier->requests)->toHaveCount(2)
+        ->and($screens[0]->errors)->toEqual($screens[1]->errors)
+        ->and($screens[0]->retry)->toEqual($screens[1]->retry);
+
+    Config::set('vouch.throttle.captcha.enabled', false);
+    Config::set('vouch.throttle.global.mode', 'observe');
+    Config::set('vouch.throttle.global.enforce_at', null);
+    Config::set('vouch.throttle.global.backoff_seconds', null);
+    app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+});
+
+it('allows a passed shared CAPTCHA to reach factor verification', function (): void {
+    Config::set('vouch.throttle.captcha.enabled', true);
+    Config::set('vouch.throttle.global.mode', 'enforce');
+    Config::set('vouch.throttle.global.enforce_at', 5);
+    Config::set('vouch.throttle.global.backoff_seconds', 1);
+    app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+    $verifier = new RecordingCaptchaVerifier();
+    $verifier->decision = \Fissible\Vouch\Delivery\CaptchaDecision::Passed;
+    app()->instance(\Fissible\Vouch\Contracts\CaptchaVerifier::class, $verifier);
+
+    $store = new RecordingAuthThrottleStore();
+    $store->preflightSharedResult = SharedThrottle::backedOff(
+        new DateTimeImmutable('2026-08-16T12:00:05Z'),
+    );
+    $flow = authThrottleFlow($store);
+    $handle = authThrottleIdentified($flow, 'ada@acme.example', 'captcha-passed');
+    $result = authThrottleSubmit(
+        $flow,
+        $handle,
+        ['password' => 'a-real-password', 'captcha' => 'valid'],
+        'captcha-passed',
+    );
+
+    expect($result)->toBeInstanceOf(Authenticated::class)
+        ->and($verifier->requests)->toHaveCount(1);
+
+    Config::set('vouch.throttle.captcha.enabled', false);
+    Config::set('vouch.throttle.global.mode', 'observe');
+    Config::set('vouch.throttle.global.enforce_at', null);
+    Config::set('vouch.throttle.global.backoff_seconds', null);
+    app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+});
+
+it('reaches the shared CAPTCHA threshold identically for known and unknown identifiers', function (): void {
+    Config::set('vouch.throttle.captcha.enabled', true);
+    Config::set('vouch.throttle.global.mode', 'enforce');
+    Config::set('vouch.throttle.global.enforce_at', 5);
+    Config::set('vouch.throttle.global.backoff_seconds', 1);
+    app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+    app()->forgetInstance(AuthThrottleStore::class);
+    $screens = [];
+
+    foreach (['ada@acme.example', 'nobody@acme.example'] as $index => $identifier) {
+        DB::table('auth_throttle_counters')->delete();
+        AuthAttempt::query()->delete();
+        $flow = authThrottleFlow();
+        $suffix = "captcha-threshold-{$index}";
+        $handle = authThrottleIdentified($flow, $identifier, $suffix);
+
+        for ($failure = 1; $failure <= 5; $failure++) {
+            $result = authThrottleSubmit($flow, $handle, ['password' => 'wrong'], $suffix);
+            assert($result instanceof Continuing);
+            $screens[$index][] = $result->screen;
+        }
+    }
+
+    expect($screens[0][3]->captchaRequired)->toBeNull()
+        ->and($screens[1][3]->captchaRequired)->toBeNull()
+        ->and($screens[0][4]->captchaRequired)->toBeTrue()
+        ->and($screens[1][4]->captchaRequired)->toBeTrue();
+
+    Config::set('vouch.throttle.captcha.enabled', false);
+    Config::set('vouch.throttle.global.mode', 'observe');
+    Config::set('vouch.throttle.global.enforce_at', null);
+    Config::set('vouch.throttle.global.backoff_seconds', null);
+    app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+    app()->forgetInstance(AuthThrottleStore::class);
 });
 
 it('keys state by the submitted identifier rather than the resolved user', function (): void {

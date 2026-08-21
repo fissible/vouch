@@ -585,18 +585,35 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
                 : SharedThrottle::observed();
         }
 
-        if ($subject->dimension !== ThrottleDimension::Recovery) {
-            // Tenant and global ship unarmed. Their live counters support the
-            // aggregate report; Task 12 adds their explicitly configured
-            // enforcement decision at the integration boundary.
-            return SharedThrottle::observed();
+        if ($subject->dimension === ThrottleDimension::Recovery) {
+            $threshold = $this->configuration->backoffAfter;
+            $backoff = $this->configuration->initialBackoffSeconds;
+        } else {
+            $mode = $subject->dimension === ThrottleDimension::Tenant
+                ? $this->configuration->tenantMode
+                : $this->configuration->globalMode;
+
+            if ($mode === 'observe') {
+                return SharedThrottle::observed();
+            }
+
+            $threshold = $subject->dimension === ThrottleDimension::Tenant
+                ? $this->configuration->tenantEnforceAt
+                : $this->configuration->globalEnforceAt;
+            $backoff = $subject->dimension === ThrottleDimension::Tenant
+                ? $this->configuration->tenantBackoffSeconds
+                : $this->configuration->globalBackoffSeconds;
+
+            if ($threshold === null || $backoff === null) {
+                throw new RuntimeException('Validated shared enforcement configuration is incomplete.');
+            }
         }
 
-        if ($counter['count'] < $this->configuration->backoffAfter) {
+        if ($counter['count'] < $threshold) {
             return SharedThrottle::permitted();
         }
 
-        $offset = $this->backoffOffset($counter['count']);
+        $offset = $this->backoffOffsetFrom($counter['count'], $threshold, $backoff);
 
         return $this->deadlinePending($subject, $offset)
             ? SharedThrottle::backedOff($this->deadline($counter['windowStartedAt'], $offset))
@@ -605,9 +622,18 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
 
     private function backoffOffset(int $count): int
     {
+        return $this->backoffOffsetFrom(
+            $count,
+            $this->configuration->backoffAfter,
+            $this->configuration->initialBackoffSeconds,
+        );
+    }
+
+    private function backoffOffsetFrom(int $count, int $threshold, int $initialBackoff): int
+    {
         $offset = 0;
-        $delay = $this->configuration->initialBackoffSeconds;
-        $step = $this->configuration->backoffAfter;
+        $delay = $initialBackoff;
+        $step = $threshold;
 
         while ($step <= $count && $offset < $this->configuration->windowSeconds) {
             $offset += min($delay, $this->configuration->backoffCapSeconds);

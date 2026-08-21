@@ -207,6 +207,8 @@ final class VouchServiceProvider extends ServiceProvider
                 new \Fissible\Vouch\Flow\VerificationEqualizer(
                     $app->make(\Illuminate\Contracts\Hashing\Hasher::class),
                 ),
+                $app->make(CaptchaVerifier::class),
+                $app->make(ThrottleConfiguration::class),
                 $app->make(\Psr\Clock\ClockInterface::class),
                 config()->integer('vouch.attempts.ttl_seconds'),
             ),

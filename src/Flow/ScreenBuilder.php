@@ -81,6 +81,7 @@ final readonly class ScreenBuilder
         EnumerationPosture $posture,
         ?string $factorId = null,
         IdentifierThrottle|SharedThrottle|null $throttle = null,
+        ?bool $captchaRequired = null,
     ): ScreenSpec {
         $measuredLock = $throttle instanceof IdentifierThrottle
             && $throttle->decision === ThrottleDecision::Locked;
@@ -111,6 +112,7 @@ final readonly class ScreenBuilder
             challengePayload: null,
             errors: [],
             retry: $this->retryPolicy($throttle),
+            captchaRequired: $captchaRequired,
         );
 
         return $this->shaper->shape($base, $outcome, $posture);
