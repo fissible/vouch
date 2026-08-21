@@ -350,6 +350,7 @@ it('never leaves two recovery-code generations live under interleaved regenerati
         },
         $active,
     )));
+    sort($generations);
 
     expect($refusal)->toBeInstanceOf(EnrollmentRefused::class)
         ->and($active)->toHaveCount(10)

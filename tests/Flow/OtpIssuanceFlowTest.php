@@ -426,7 +426,7 @@ it('charges known and nonexistent identifiers identically before target resoluti
 
     expect($sixth[0])->toEqual($sixth[1])
         ->and(data_get($sixth[0], 'errors'))->not->toBe([])
-        ->and(DB::table('auth_throttle_counters')->where('dimension', 'issuance')->pluck('count')->all())
+        ->and(DB::table('auth_throttle_counters')->where('dimension', 'issuance')->pluck('count')->sort()->values()->all())
         ->toBe([5, 5])
         ->and(AuthChallenge::query()->count())->toBe(10);
 
