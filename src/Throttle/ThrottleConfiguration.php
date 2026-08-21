@@ -42,6 +42,7 @@ final readonly class ThrottleConfiguration
         public string $globalMode,
         public ?int $globalEnforceAt,
         public ?int $globalBackoffSeconds,
+        public bool $captchaEnabled,
     ) {}
 
     /**
@@ -85,6 +86,7 @@ final readonly class ThrottleConfiguration
         $globalMode = self::mode($value, 'global.mode');
         $globalEnforceAt = self::nullablePositive($value, 'global.enforce_at');
         $globalBackoffSeconds = self::nullablePositive($value, 'global.backoff_seconds');
+        $captchaEnabled = self::boolean($value, 'captcha.enabled');
 
         self::require($backoffAfter < $lockAfter,
             'Configuration "vouch.throttle.identifier.backoff_after" must be less than '
@@ -115,6 +117,11 @@ final readonly class ThrottleConfiguration
         self::sharedIp($ipMode, $ipv6EnforceAt, $ipv4EnforceAt, $ipBackoffSeconds, $backoffCapSeconds);
         self::sharedOne('tenant', $tenantMode, $tenantEnforceAt, $tenantBackoffSeconds, $backoffCapSeconds);
         self::sharedOne('global', $globalMode, $globalEnforceAt, $globalBackoffSeconds, $backoffCapSeconds);
+        self::require(
+            ! $captchaEnabled || in_array('enforce', [$ipMode, $tenantMode, $globalMode], true),
+            'Configuration "vouch.throttle.captcha.enabled" requires at least one shared '
+            . 'throttle dimension in "enforce" mode.',
+        );
 
         return new self(
             $windowSeconds,
@@ -139,6 +146,7 @@ final readonly class ThrottleConfiguration
             $globalMode,
             $globalEnforceAt,
             $globalBackoffSeconds,
+            $captchaEnabled,
         );
     }
 
@@ -209,6 +217,31 @@ final readonly class ThrottleConfiguration
 
         throw new InvalidArgumentException(sprintf(
             'Configuration "%s%s" must be exactly "observe" or "enforce"; got %s.',
+            self::PREFIX,
+            $path,
+            self::describe($value),
+        ));
+    }
+
+    /** @param array<array-key, mixed> $config */
+    private static function boolean(array $config, string $path): bool
+    {
+        $value = self::read($config, $path);
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if ($value === 'true' || $value === '1' || $value === 1) {
+            return true;
+        }
+
+        if ($value === 'false' || $value === '0' || $value === 0) {
+            return false;
+        }
+
+        throw new InvalidArgumentException(sprintf(
+            'Configuration "%s%s" must be boolean; got %s.',
             self::PREFIX,
             $path,
             self::describe($value),

@@ -66,6 +66,26 @@ it('reads every shipped default without a caller passing one', function (): void
         ->and(ThrottleConfiguration::MAX_LOCK_DURATION_SECONDS)->toBe(3_600);
 });
 
+it('hydrates CAPTCHA enablement as an explicit boolean', function (): void {
+    $config = configuredThrottle([
+        'captcha.enabled' => true,
+        'global.mode' => 'enforce',
+        'global.enforce_at' => 10,
+        'global.backoff_seconds' => 1,
+    ]);
+
+    expect($config->captchaEnabled)->toBeTrue();
+});
+
+it('rejects CAPTCHA enablement when no shared dimension can escalate', function (): void {
+    expect(fn (): ThrottleConfiguration => configuredThrottle([
+        'captcha.enabled' => true,
+    ]))->toThrow(
+        InvalidArgumentException::class,
+        'vouch.throttle.captcha.enabled',
+    );
+});
+
 it('accepts explicit numeric environment strings and returns typed values', function (): void {
     $config = configuredThrottle([
         'window_seconds' => '1200',

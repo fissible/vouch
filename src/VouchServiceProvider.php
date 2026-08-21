@@ -353,7 +353,7 @@ final class VouchServiceProvider extends ServiceProvider
         // not wait for the first attacker-controlled request to reach a store.
         $this->app->make(ThrottleConfiguration::class);
 
-        if ($this->captchaEscalationEnabled()
+        if ($this->app->make(ThrottleConfiguration::class)->captchaEnabled
             && $this->app->make(CaptchaVerifier::class) instanceof UnconfiguredCaptchaVerifier) {
             throw new \RuntimeException(
                 'CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. '
@@ -425,8 +425,4 @@ final class VouchServiceProvider extends ServiceProvider
         return $factors;
     }
 
-    private function captchaEscalationEnabled(): bool
-    {
-        return config()->boolean('vouch.throttle.captcha.enabled');
-    }
 }
