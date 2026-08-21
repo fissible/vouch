@@ -6,6 +6,7 @@ namespace Fissible\Vouch\Flow;
 
 use DateTimeImmutable;
 use Exception;
+use Throwable;
 use Fissible\Vouch\Attempts\TransitionOutcome;
 use Fissible\Vouch\Contracts\AttemptStore;
 use Fissible\Vouch\Contracts\AuthThrottleStore;
@@ -225,10 +226,20 @@ final readonly class AuthFlow
                 && $preflight->decision === ThrottleDecision::BackedOff
                 && $this->throttleConfiguration->captchaEnabled
             ) {
-                $captcha = $this->captcha->verify(new CaptchaRequest(
-                    $request->string('captcha') ?? '',
-                    $request->clientIp,
-                ));
+                $token = $request->string('captcha');
+                $captcha = CaptchaDecision::Failed;
+
+                if ($token !== null && $token !== '') {
+                    try {
+                        $captcha = $this->captcha->verify(new CaptchaRequest(
+                            $token,
+                            $request->clientIp,
+                        ));
+                    } catch (Throwable) {
+                        // A provider outage must not turn shared backoff into
+                        // a 500; failure is the safe, target-independent result.
+                    }
+                }
 
                 if ($captcha === CaptchaDecision::Passed) {
                     $preflight = null;

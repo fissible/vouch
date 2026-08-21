@@ -15,9 +15,15 @@ final class RecordingCaptchaVerifier implements CaptchaVerifier
 
     public CaptchaDecision $decision = CaptchaDecision::Failed;
 
+    public ?\Throwable $failure = null;
+
     public function verify(CaptchaRequest $request): CaptchaDecision
     {
         $this->requests[] = $request;
+
+        if ($this->failure !== null) {
+            throw $this->failure;
+        }
 
         return $this->decision;
     }

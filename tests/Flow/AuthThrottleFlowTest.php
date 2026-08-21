@@ -181,7 +181,7 @@ it('requires CAPTCHA at shared backoff for known and unknown identifiers', funct
 
     expect($screens[0]->captchaRequired)->toBeTrue()
         ->and($screens[1]->captchaRequired)->toBeTrue()
-        ->and($verifier->requests)->toHaveCount(2)
+        ->and($verifier->requests)->toHaveCount(0)
         ->and($screens[0]->errors)->toEqual($screens[1]->errors)
         ->and($screens[0]->retry)->toEqual($screens[1]->retry);
 
@@ -216,6 +216,46 @@ it('allows a passed shared CAPTCHA to reach factor verification', function (): v
     );
 
     expect($result)->toBeInstanceOf(Authenticated::class)
+        ->and($verifier->requests)->toHaveCount(1);
+
+    Config::set('vouch.throttle.captcha.enabled', false);
+    Config::set('vouch.throttle.global.mode', 'observe');
+    Config::set('vouch.throttle.global.enforce_at', null);
+    Config::set('vouch.throttle.global.backoff_seconds', null);
+    app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+});
+
+it('does not call CAPTCHA without a token and fails closed on provider errors', function (): void {
+    Config::set('vouch.throttle.captcha.enabled', true);
+    Config::set('vouch.throttle.global.mode', 'enforce');
+    Config::set('vouch.throttle.global.enforce_at', 5);
+    Config::set('vouch.throttle.global.backoff_seconds', 1);
+    app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+    $verifier = new RecordingCaptchaVerifier();
+    app()->instance(\Fissible\Vouch\Contracts\CaptchaVerifier::class, $verifier);
+
+    $store = new RecordingAuthThrottleStore();
+    $store->preflightSharedResult = SharedThrottle::backedOff(
+        new DateTimeImmutable('2026-08-16T12:00:05Z'),
+    );
+    $flow = authThrottleFlow($store);
+    $handle = authThrottleIdentified($flow, 'ada@acme.example', 'captcha-empty');
+    $missing = authThrottleSubmit($flow, $handle, ['password' => 'wrong'], 'captcha-empty');
+    assert($missing instanceof Continuing);
+
+    $verifier->failure = new RuntimeException('captcha provider unavailable');
+    $flow = authThrottleFlow($store);
+    $handle = authThrottleIdentified($flow, 'ada@acme.example', 'captcha-error');
+    $failed = authThrottleSubmit(
+        $flow,
+        $handle,
+        ['password' => 'wrong', 'captcha' => 'present'],
+        'captcha-error',
+    );
+    assert($failed instanceof Continuing);
+
+    expect($missing->screen->captchaRequired)->toBeTrue()
+        ->and($failed->screen->captchaRequired)->toBeTrue()
         ->and($verifier->requests)->toHaveCount(1);
 
     Config::set('vouch.throttle.captcha.enabled', false);
