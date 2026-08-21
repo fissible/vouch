@@ -100,6 +100,16 @@ it('records global and tenant spend even when both ceilings are observe-only', f
     expect($economics->reserve(deliveryRequest()))
         ->toBe(DeliveryReservationDecision::Permitted);
 
-    expect(DB::table('auth_delivery_spend')->count())->toBe(2)
-        ->and(DB::table('auth_delivery_spend')->sum('spent_minor'))->toBe(20);
+    $rows = DB::table('auth_delivery_spend')->get()->keyBy('scope');
+    $global = $rows->get('global');
+    $tenant = $rows->get('tenant');
+
+    if (! is_object($global) || ! property_exists($global, 'spent_minor')
+        || ! is_object($tenant) || ! property_exists($tenant, 'spent_minor')) {
+        throw new RuntimeException('Expected global and tenant spend rows.');
+    }
+
+    expect($rows)->toHaveKeys(['global', 'tenant'])
+        ->and((int) $global->spent_minor)->toBe(10)
+        ->and((int) $tenant->spent_minor)->toBe(10);
 });

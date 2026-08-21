@@ -118,6 +118,12 @@ pending; expiry is the final boundary and terminalizes as
 `expired_undelivered`. Queue behavior is verified with a real database queue,
 including the attempt count after release, rather than inferred from a fake.
 
+The reservation call sits outside the provider-I/O `try` block. A vanished
+spend row, unsupported configuration, or other storage failure must remain a
+storage/configuration error; it must not be wrapped as
+`TransientOtpDeliveryFailure`, labeled `provider_exhausted`, or retried as if a
+provider had been contacted.
+
 Reservation is idempotent per `AuthChallengeOutbox::opaque_id`. The worker
 reserves before provider I/O, but a transient provider failure leaves the row
 pending and the next attempt must not increment spend again. A reservation
