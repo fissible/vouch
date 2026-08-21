@@ -16,6 +16,7 @@ final readonly class PruneResult
         public int $tupleMarkers,
         public int $deliveredOutbox,
         public int $undeliveredOutbox,
+        public int $deliveryReservations,
     ) {}
 
     public function foundUndeliveredWork(): bool

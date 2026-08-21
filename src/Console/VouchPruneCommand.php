@@ -51,7 +51,7 @@ final class VouchPruneCommand extends Command
             'Pruned %d attempt(s), %d challenge(s), %d revoked session(s), '
             . '%d throttle counter(s), %d expired identifier lock(s), '
             . '%d tuple marker(s), %d delivered OTP outbox row(s), and '
-            . '%d expired-undelivered OTP outbox row(s).',
+            . '%d expired-undelivered OTP outbox row(s), and %d delivery reservation(s).',
             $result->attempts,
             $result->challenges,
             $result->revokedSessions,
@@ -60,6 +60,7 @@ final class VouchPruneCommand extends Command
             $result->tupleMarkers,
             $result->deliveredOutbox,
             $result->undeliveredOutbox,
+            $result->deliveryReservations,
         ));
 
         if ($result->foundUndeliveredWork()) {
@@ -104,6 +105,11 @@ final class VouchPruneCommand extends Command
                 'PT%dS',
                 $throttle->windowSeconds,
             )));
+            $reservationCutoff = $now->sub(new DateInterval(sprintf(
+                'PT%dS',
+                Config::integer('vouch.otp.ttl_seconds') + 60,
+            )));
+            $currentDeliveryWindow = $now->format('Y-m-d 00:00:00');
 
             /*
              * Classify outbox rows before any attempt cascade can delete them.
@@ -168,6 +174,10 @@ final class VouchPruneCommand extends Command
             $tuples = $connection->table('auth_throttle_tuples')
                 ->where('window_started_at', '<=', $tupleCutoff)
                 ->delete();
+            $deliveryReservations = $connection->table('auth_delivery_spend_reservations')
+                ->where('created_at', '<=', $reservationCutoff)
+                ->where('window_started_at', '<', $currentDeliveryWindow)
+                ->delete();
 
             return new PruneResult(
                 attempts: $attempts,
@@ -178,6 +188,7 @@ final class VouchPruneCommand extends Command
                 tupleMarkers: $tuples,
                 deliveredOutbox: $deliveredOutbox,
                 undeliveredOutbox: $undeliveredOutbox,
+                deliveryReservations: $deliveryReservations,
             );
         });
     }
