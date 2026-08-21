@@ -190,15 +190,14 @@ it('reports active aggregate distributions and configured threshold crossings wi
             'current_scopes' => 2,
             'spent_minor' => 30,
             'reservations' => [
-                'records' => 3,
-                'gross_minor' => 60,
-                'released_minor' => 50,
-                'outstanding_minor' => 10,
+                'records' => 2,
+                'gross_minor' => 30,
+                'released_minor' => 20,
+                'unreleased_minor' => 10,
                 'delivered' => 1,
                 'attempted_failed' => 1,
                 'never_attempted_released' => 0,
-                'closed_window_released' => 1,
-                'missing_outbox' => 1,
+                'missing_outbox' => 0,
             ],
         ]);
 
@@ -244,11 +243,10 @@ it('reports the complete top-level envelope and empty distributions', function (
                 'records' => 0,
                 'gross_minor' => 0,
                 'released_minor' => 0,
-                'outstanding_minor' => 0,
+                'unreleased_minor' => 0,
                 'delivered' => 0,
                 'attempted_failed' => 0,
                 'never_attempted_released' => 0,
-                'closed_window_released' => 0,
                 'missing_outbox' => 0,
             ],
         ]);
@@ -326,7 +324,7 @@ it('emits the same aggregate shape as JSON and human output', function (): void 
         'undeliverable_reasons' => ['provider_rejected' => 1],
     ])
         ->and(data_get($json, 'economics.spent_minor'))->toBe(30)
-        ->and(data_get($json, 'economics.reservations.outstanding_minor'))->toBe(10)
+        ->and(data_get($json, 'economics.reservations.unreleased_minor'))->toBe(10)
         ->and(data_get($json, 'dimensions.0.dimension'))->toBe('identifier');
 
     $status = Artisan::call('vouch:throttle:report');
@@ -345,7 +343,7 @@ it('emits the same aggregate shape as JSON and human output', function (): void 
         ->and($output)->toContain('none')
         ->and($output)->toContain('OTP outbox: 1 pending, 1 overdue, 1 delivered, 1 undeliverable.')
         ->and($output)->toContain('Undeliverable reasons: {"provider_rejected":1}.')
-        ->and($output)->toContain('Delivery spend: 2 current scope(s), 30 minor units spent; 3 reservation record(s), 10 minor units outstanding.');
+        ->and($output)->toContain('Delivery spend: 2 current scope(s), 30 minor units spent; 2 reservation record(s), 10 minor units unreleased.');
 });
 
 it('exposes neither candidate lookup options nor an underlying subject parameter', function (): void {

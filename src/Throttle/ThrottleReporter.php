@@ -32,7 +32,7 @@ final readonly class ThrottleReporter
      *     thresholds: list<array{name: string, value: int, buckets_at_or_above: int}>
      *   }>,
      *   outbox: array{pending: int, overdue: int, delivered: int, undeliverable: int, undeliverable_reasons: array<string, int>},
-     *   economics: array{current_scopes: int, spent_minor: int, reservations: array{records: int, gross_minor: int, released_minor: int, outstanding_minor: int, delivered: int, attempted_failed: int, never_attempted_released: int, closed_window_released: int, missing_outbox: int}}
+     *   economics: array{current_scopes: int, spent_minor: int, reservations: array{records: int, gross_minor: int, released_minor: int, unreleased_minor: int, delivered: int, attempted_failed: int, never_attempted_released: int, missing_outbox: int}}
      * }
      */
     public function report(): array
@@ -91,7 +91,7 @@ final readonly class ThrottleReporter
         ];
     }
 
-    /** @return array{current_scopes: int, spent_minor: int, reservations: array{records: int, gross_minor: int, released_minor: int, outstanding_minor: int, delivered: int, attempted_failed: int, never_attempted_released: int, closed_window_released: int, missing_outbox: int}} */
+    /** @return array{current_scopes: int, spent_minor: int, reservations: array{records: int, gross_minor: int, released_minor: int, unreleased_minor: int, delivered: int, attempted_failed: int, never_attempted_released: int, missing_outbox: int}} */
     private function economics(DateTimeImmutable $now): array
     {
         $today = $now->format('Y-m-d');
@@ -107,6 +107,7 @@ final readonly class ThrottleReporter
 
         $reservations = $this->connection->table('auth_delivery_spend_reservations AS reservations')
             ->leftJoin('auth_challenge_outbox AS outbox', 'outbox.opaque_id', '=', 'reservations.reservation_key')
+            ->where('reservations.window_started_at', '>=', $today . ' 00:00:00')
             ->get([
                 'reservations.amount_minor',
                 'reservations.released_at',
@@ -119,7 +120,6 @@ final readonly class ThrottleReporter
         $delivered = 0;
         $attemptedFailed = 0;
         $neverAttemptedReleased = 0;
-        $closedWindowReleased = 0;
         $missingOutbox = 0;
 
         foreach ($reservations as $reservation) {
@@ -144,9 +144,6 @@ final readonly class ThrottleReporter
                 $neverAttemptedReleased++;
             }
 
-            if ($released && ! str_starts_with((string) $reservation->window_started_at, $today)) {
-                $closedWindowReleased++;
-            }
         }
 
         return [
@@ -156,11 +153,10 @@ final readonly class ThrottleReporter
                 'records' => $reservations->count(),
                 'gross_minor' => $grossMinor,
                 'released_minor' => $releasedMinor,
-                'outstanding_minor' => $grossMinor - $releasedMinor,
+                'unreleased_minor' => $grossMinor - $releasedMinor,
                 'delivered' => $delivered,
                 'attempted_failed' => $attemptedFailed,
                 'never_attempted_released' => $neverAttemptedReleased,
-                'closed_window_released' => $closedWindowReleased,
                 'missing_outbox' => $missingOutbox,
             ],
         ];

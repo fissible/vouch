@@ -65,11 +65,11 @@ final class VouchThrottleReportCommand extends Command
         $economics = $report['economics'];
         $reservations = $economics['reservations'];
         $this->components->info(sprintf(
-            'Delivery spend: %d current scope(s), %d minor units spent; %d reservation record(s), %d minor units outstanding.',
+            'Delivery spend: %d current scope(s), %d minor units spent; %d reservation record(s), %d minor units unreleased.',
             $economics['current_scopes'],
             $economics['spent_minor'],
             $reservations['records'],
-            $reservations['outstanding_minor'],
+            $reservations['unreleased_minor'],
         ));
 
         return CommandExit::Success->value;
