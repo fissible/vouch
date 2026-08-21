@@ -5,6 +5,9 @@ declare(strict_types=1);
 use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Contracts\DeliveryEconomics;
 use Fissible\Vouch\Contracts\OtpDelivery;
+use Fissible\Vouch\Delivery\DeliveryEconomicsDecision;
+use Fissible\Vouch\Delivery\DeliveryEconomicsRequest;
+use Fissible\Vouch\Delivery\DeliveryReservationDecision;
 use Fissible\Vouch\Enrollment\EnrollmentGuard;
 use Fissible\Vouch\Factors\ChallengeRequest;
 use Fissible\Vouch\Factors\Drivers\EmailOtpFactor;
@@ -91,6 +94,61 @@ final class ExpiringThenFailingOtpDelivery implements OtpDelivery
 
         throw new RuntimeException('provider failed after the database deadline');
     }
+}
+
+final class AlwaysContendedDeliveryEconomics implements DeliveryEconomics
+{
+    public function preflight(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision
+    {
+        return DeliveryEconomicsDecision::Permitted;
+    }
+
+    public function reserve(DeliveryEconomicsRequest $request): DeliveryReservationDecision
+    {
+        return DeliveryReservationDecision::RetryableContention;
+    }
+
+    public function release(DeliveryEconomicsRequest $request): void
+    {
+    }
+}
+
+function realDatabaseQueueForTest(): QueueManager
+{
+    Schema::create('jobs', function (Illuminate\Database\Schema\Blueprint $table): void {
+        $table->id();
+        $table->string('queue')->index();
+        $table->longText('payload');
+        $table->unsignedSmallInteger('attempts');
+        $table->unsignedInteger('reserved_at')->nullable();
+        $table->unsignedInteger('available_at');
+        $table->unsignedInteger('created_at');
+    });
+    Schema::create('failed_jobs', function (Illuminate\Database\Schema\Blueprint $table): void {
+        $table->id();
+        $table->string('uuid')->unique();
+        $table->string('connection');
+        $table->string('queue');
+        $table->longText('payload');
+        $table->longText('exception');
+        $table->timestamp('failed_at')->useCurrent();
+    });
+
+    config()->set('queue.connections.database', [
+        'driver' => 'database',
+        'connection' => null,
+        'table' => 'jobs',
+        'queue' => 'default',
+        'retry_after' => 60,
+    ]);
+    $manager = new QueueManager(app());
+    $manager->addConnector('database', fn (): DatabaseConnector => new DatabaseConnector(app('db')));
+    app()->instance('queue', $manager);
+    Queue::swap($manager);
+    app()->forgetInstance('queue.worker');
+    app()->forgetInstance('queue.connection');
+
+    return $manager;
 }
 
 /** @return array{EmailOtpFactor, AuthAttempt, ArrayOtpDelivery} */
@@ -448,38 +506,7 @@ it('classifies five real database-queue provider attempts as provider exhaustion
     $outbox = AuthChallengeOutbox::query()->where('status', 'pending')->firstOrFail();
     app()->instance(OtpDelivery::class, new RetryingOtpDelivery(99));
 
-    Schema::create('jobs', function (Illuminate\Database\Schema\Blueprint $table): void {
-        $table->id();
-        $table->string('queue')->index();
-        $table->longText('payload');
-        $table->unsignedSmallInteger('attempts');
-        $table->unsignedInteger('reserved_at')->nullable();
-        $table->unsignedInteger('available_at');
-        $table->unsignedInteger('created_at');
-    });
-    Schema::create('failed_jobs', function (Illuminate\Database\Schema\Blueprint $table): void {
-        $table->id();
-        $table->string('uuid')->unique();
-        $table->string('connection');
-        $table->string('queue');
-        $table->longText('payload');
-        $table->longText('exception');
-        $table->timestamp('failed_at')->useCurrent();
-    });
-
-    config()->set('queue.connections.database', [
-        'driver' => 'database',
-        'connection' => null,
-        'table' => 'jobs',
-        'queue' => 'default',
-        'retry_after' => 60,
-    ]);
-    $manager = new QueueManager(app());
-    $manager->addConnector('database', fn (): DatabaseConnector => new DatabaseConnector(app('db')));
-    app()->instance('queue', $manager);
-    Queue::swap($manager);
-    app()->forgetInstance('queue.worker');
-    app()->forgetInstance('queue.connection');
+    $manager = realDatabaseQueueForTest();
 
     app('queue')->connection('database')->push(
         new DeliverOtpChallenge($outbox->opaque_id),
@@ -501,6 +528,32 @@ it('classifies five real database-queue provider attempts as provider exhaustion
     expect(DB::table('jobs')->count())->toBe(0)
         ->and($outbox->refresh()->failure_reason)->toBe('provider_exhausted')
         ->and($outbox->provider_attempted_at)->not->toBeNull();
+});
+
+it('redispatches persistent contention as a fresh delayed queue job', function (): void {
+    $manager = realDatabaseQueueForTest();
+    [$factor, $attempt] = outboxFixture();
+    $factor->challenge(new ChallengeRequest($attempt));
+    $outbox = AuthChallengeOutbox::query()->where('status', 'pending')->firstOrFail();
+    $dispatchedAt = $outbox->dispatched_at;
+    app()->instance(DeliveryEconomics::class, new AlwaysContendedDeliveryEconomics());
+
+    app('queue.worker')->runNextJob('database', 'vouch-otp', new WorkerOptions(
+        name: 'otp-contention-test',
+        sleep: 0,
+        maxTries: 5,
+        force: true,
+    ));
+
+    $queued = DB::table('jobs')->sole();
+
+    expect($queued->queue)->toBe('vouch-otp')
+        ->and($queued->attempts)->toBe(0)
+        ->and($queued->available_at)->toBeGreaterThan($queued->created_at)
+        ->and($outbox->refresh()->dispatched_at?->getTimestamp())
+        ->toBe($dispatchedAt?->getTimestamp())
+        ->and($outbox->status)->toBe(OtpOutboxStatus::Pending->value)
+        ->and($outbox->provider_attempted_at)->toBeNull();
 });
 
 it('treats missing and expired rows as successful terminal outcomes', function (): void {
