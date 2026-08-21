@@ -353,6 +353,15 @@ final class VouchServiceProvider extends ServiceProvider
         // not wait for the first attacker-controlled request to reach a store.
         $this->app->make(ThrottleConfiguration::class);
 
+        if ($this->captchaEscalationEnabled()
+            && $this->app->make(CaptchaVerifier::class) instanceof UnconfiguredCaptchaVerifier) {
+            throw new \RuntimeException(
+                'CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. '
+                . 'Bind Fissible\\Vouch\\Contracts\\CaptchaVerifier before enabling '
+                . 'shared-throttle enforcement.',
+            );
+        }
+
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
         $this->loadRoutesFrom(__DIR__ . '/../routes/vouch.php');
 
@@ -414,5 +423,12 @@ final class VouchServiceProvider extends ServiceProvider
         }
 
         return $factors;
+    }
+
+    private function captchaEscalationEnabled(): bool
+    {
+        return config()->string('vouch.throttle.ip.mode') === 'enforce'
+            || config()->string('vouch.throttle.tenant.mode') === 'enforce'
+            || config()->string('vouch.throttle.global.mode') === 'enforce';
     }
 }

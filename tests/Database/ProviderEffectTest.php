@@ -50,6 +50,23 @@ it('validates throttle configuration eagerly during provider boot', function ():
     expect(app()->resolved(ThrottleConfiguration::class))->toBeTrue();
 });
 
+it('fails boot when shared-throttle CAPTCHA escalation has no verifier', function (): void {
+    Config::set('vouch.throttle.global.mode', 'enforce');
+    Config::set('vouch.throttle.global.enforce_at', 10);
+    Config::set('vouch.throttle.global.backoff_seconds', 1);
+    app()->forgetInstance(ThrottleConfiguration::class);
+
+    try {
+        expect(fn () => (new VouchServiceProvider(app()))->boot())
+            ->toThrow(RuntimeException::class, 'CAPTCHA escalation is enabled');
+    } finally {
+        Config::set('vouch.throttle.global.mode', 'observe');
+        Config::set('vouch.throttle.global.enforce_at', null);
+        Config::set('vouch.throttle.global.backoff_seconds', null);
+        app()->forgetInstance(ThrottleConfiguration::class);
+    }
+});
+
 it('fails provider boot on a set-but-blank throttle value', function (): void {
     Config::set('vouch.throttle.window_seconds', '');
     app()->forgetInstance(ThrottleConfiguration::class);
