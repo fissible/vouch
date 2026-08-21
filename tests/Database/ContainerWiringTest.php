@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use Fissible\Vouch\Factors\FactorRegistry;
 use Fissible\Vouch\Contracts\DeliveryEconomics;
+use Fissible\Vouch\Contracts\CaptchaVerifier;
+use Fissible\Vouch\Delivery\UnconfiguredCaptchaVerifier;
 use Fissible\Vouch\Delivery\UnconfiguredDeliveryEconomics;
 use Fissible\Vouch\Http\AssuranceComparator;
 use Fissible\Vouch\Http\FlowResultSerializer;
@@ -55,6 +57,14 @@ it('binds delivery economics to the fail-closed implementation by default', func
                 true,
             ),
         ))->toThrow(RuntimeException::class, 'No OTP delivery economics is configured');
+});
+
+it('binds CAPTCHA verification to the fail-closed implementation by default', function (): void {
+    $captcha = app(CaptchaVerifier::class);
+
+    expect($captcha)->toBeInstanceOf(UnconfiguredCaptchaVerifier::class)
+        ->and(fn () => $captcha->verify(new Fissible\Vouch\Delivery\CaptchaRequest('token', null)))
+        ->toThrow(RuntimeException::class, 'No CAPTCHA verifier is configured');
 });
 
 it('resolves every singleton the provider registers as one shared instance', function (string $class): void {

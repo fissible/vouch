@@ -11,6 +11,7 @@ use Fissible\Vouch\Console\VouchThrottleReportCommand;
 use Fissible\Vouch\Console\VouchSmsIdentifierAuditCommand;
 use Fissible\Vouch\Contracts\AttemptStore;
 use Fissible\Vouch\Contracts\AuthThrottleStore;
+use Fissible\Vouch\Contracts\CaptchaVerifier;
 use Fissible\Vouch\Contracts\DeliveryEconomics;
 use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Contracts\RandomSource;
@@ -30,6 +31,7 @@ use Fissible\Vouch\Notifications\OtpQueueDispatcher;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
 use Fissible\Vouch\Delivery\SmsCountryNormalizer;
 use Fissible\Vouch\Delivery\SmsIdentifierAudit;
+use Fissible\Vouch\Delivery\UnconfiguredCaptchaVerifier;
 use Fissible\Vouch\Delivery\UnconfiguredDeliveryEconomics;
 use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\LockContention;
@@ -61,6 +63,7 @@ final class VouchServiceProvider extends ServiceProvider
          */
         $this->app->bind(OtpDelivery::class, UnconfiguredOtpDelivery::class);
         $this->app->bind(DeliveryEconomics::class, UnconfiguredDeliveryEconomics::class);
+        $this->app->bind(CaptchaVerifier::class, UnconfiguredCaptchaVerifier::class);
 
         $this->app->singleton(
             OtpQueueDispatcher::class,
