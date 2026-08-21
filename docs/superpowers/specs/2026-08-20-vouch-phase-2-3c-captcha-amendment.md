@@ -24,3 +24,7 @@ same `captchaRequired` value under the same posture.
 `CaptchaVerifier` remains provider-independent and fail-closed. No provider
 diagnostics, token secret, account identity, or delivery target crosses the
 screen or serializer boundary.
+
+CAPTCHA escalation is opt-in through `vouch.throttle.captcha.enabled`; enabling
+shared-throttle enforcement alone does not require a CAPTCHA provider. When the
+CAPTCHA rung is enabled, boot validates that a real verifier is bound.

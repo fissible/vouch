@@ -189,5 +189,12 @@ return [
             'enforce_at' => env('VOUCH_THROTTLE_GLOBAL_ENFORCE_AT'),
             'backoff_seconds' => env('VOUCH_THROTTLE_GLOBAL_BACKOFF_SECONDS'),
         ],
+
+        // CAPTCHA escalation is an explicit adoption choice, separate from
+        // enabling shared throttling. When enabled, a real verifier is required
+        // at boot before the shared-volume rung can be reached under load.
+        'captcha' => [
+            'enabled' => env('VOUCH_THROTTLE_CAPTCHA_ENABLED', false),
+        ],
     ],
 ];

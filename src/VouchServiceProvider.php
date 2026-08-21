@@ -427,8 +427,6 @@ final class VouchServiceProvider extends ServiceProvider
 
     private function captchaEscalationEnabled(): bool
     {
-        return config()->string('vouch.throttle.ip.mode') === 'enforce'
-            || config()->string('vouch.throttle.tenant.mode') === 'enforce'
-            || config()->string('vouch.throttle.global.mode') === 'enforce';
+        return config()->boolean('vouch.throttle.captcha.enabled');
     }
 }
