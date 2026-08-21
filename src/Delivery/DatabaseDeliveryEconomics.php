@@ -115,6 +115,10 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
                 throw new \RuntimeException('The delivery spend row vanished after creation.');
             }
 
+            // The unique claim must stand on its own. Do not replace this with
+            // exists() followed by insert(): the spend-row lock protects the
+            // current accounting transaction, but it is not the reservation's
+            // correctness boundary and may be removed for an unceilinged scope.
             $claimed = $this->connection->table('auth_delivery_spend_reservations')->insertOrIgnore([[
                 'reservation_key' => $request->reservationKey,
                 'scope' => (string) $scope,
