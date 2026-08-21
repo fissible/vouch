@@ -93,3 +93,13 @@ it('keeps tenant absence and tenant names in separate spend buckets', function (
 
     expect(DB::table('auth_delivery_spend')->where('scope', 'tenant')->count())->toBe(2);
 });
+
+it('records global and tenant spend even when both ceilings are observe-only', function (): void {
+    $economics = deliveryEconomics(['daily' => null, 'tenant' => null]);
+
+    expect($economics->reserve(deliveryRequest()))
+        ->toBe(DeliveryReservationDecision::Permitted);
+
+    expect(DB::table('auth_delivery_spend')->count())->toBe(2)
+        ->and(DB::table('auth_delivery_spend')->sum('spent_minor'))->toBe(20);
+});

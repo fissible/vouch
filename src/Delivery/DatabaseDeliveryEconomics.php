@@ -59,9 +59,7 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
             return DeliveryReservationDecision::CountryNotAllowed;
         }
 
-        if ($request->costMinor === 0
-            || ($this->configuration->dailyCeilingMinor === null
-                && $this->configuration->tenantCeilingMinor === null)) {
+        if ($request->costMinor === 0) {
             return DeliveryReservationDecision::Permitted;
         }
 
@@ -87,15 +85,10 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
 
     private function reserveAtomically(DeliveryEconomicsRequest $request): DeliveryReservationDecision
     {
-        $scopes = [];
-
-        if ($this->configuration->dailyCeilingMinor !== null) {
-            $scopes[] = [self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor];
-        }
-
-        if ($this->configuration->tenantCeilingMinor !== null) {
-            $scopes[] = [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor];
-        }
+        $scopes = [
+            [self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor],
+            [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor],
+        ];
 
         foreach ($scopes as [$scope, $digest, $ceiling]) {
             $this->rowLock->ensureAndLock(
@@ -134,13 +127,25 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
                 }
             }
 
-            $updated = $this->connection->table('auth_delivery_spend')
-                ->where('id', $row['id'])
-                ->where('spent_minor', '<=', (int) $ceiling - $request->costMinor)
-                ->increment('spent_minor', $request->costMinor, ['updated_at' => $this->time->now()]);
+            $update = $this->connection->table('auth_delivery_spend')
+                ->where('id', $row['id']);
+
+            if ($ceiling !== null) {
+                $update->where('spent_minor', '<=', (int) $ceiling - $request->costMinor);
+            }
+
+            $updated = $update->increment(
+                'spent_minor',
+                $request->costMinor,
+                ['updated_at' => $this->time->now()],
+            );
 
             if ($updated !== 1) {
-                throw new DeliverySpendRefused();
+                if ($ceiling !== null) {
+                    throw new DeliverySpendRefused();
+                }
+
+                throw new \RuntimeException('The delivery spend row vanished during accounting.');
             }
         }
 

@@ -152,6 +152,14 @@ The cost is one locked aggregate update per scope even in observe mode, which
 is accepted as the price of complete reporting. Decoys and zero-cost deliveries
 do not create spend rows.
 
+The atomic update must keep enforcement diagnosis separate from write health:
+an armed ceiling adds the `spent_minor <= ceiling - cost` predicate, so zero
+affected rows there means `SpendCeiling`; an unarmed scope increments without
+that predicate, and zero affected rows then means the row vanished after its
+lock and must raise a storage error. Since every priced delivery now records
+these scopes, contention and bounded-wait behavior are part of the common
+observe-mode path, not only of ceiling-enforcing installations.
+
 ### CAPTCHA communication and ordering
 
 CAPTCHA requirement is a kernel disclosure decision, not an ad hoc response
