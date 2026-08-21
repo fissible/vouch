@@ -36,8 +36,11 @@ use Illuminate\Queue\FailoverQueue;
 use Illuminate\Queue\NullQueue;
 use Illuminate\Queue\QueueManager;
 use Illuminate\Queue\SyncQueue;
+use Illuminate\Queue\WorkerOptions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schema;
 use Psr\Clock\ClockInterface;
 
 uses(RefreshDatabase::class);
@@ -437,6 +440,67 @@ it('classifies queue exhaustion without provider evidence as a worker failure', 
     (new DeliverOtpChallenge($outbox->opaque_id))->failed(new RuntimeException('tries exhausted'));
 
     expect($outbox->refresh()->failure_reason)->toBe('worker_failure');
+});
+
+it('classifies five real database-queue provider attempts as provider exhaustion', function (): void {
+    [$factor, $attempt] = outboxFixture();
+    $factor->challenge(new ChallengeRequest($attempt));
+    $outbox = AuthChallengeOutbox::query()->where('status', 'pending')->firstOrFail();
+    app()->instance(OtpDelivery::class, new RetryingOtpDelivery(99));
+
+    Schema::create('jobs', function (Illuminate\Database\Schema\Blueprint $table): void {
+        $table->id();
+        $table->string('queue')->index();
+        $table->longText('payload');
+        $table->unsignedSmallInteger('attempts');
+        $table->unsignedInteger('reserved_at')->nullable();
+        $table->unsignedInteger('available_at');
+        $table->unsignedInteger('created_at');
+    });
+    Schema::create('failed_jobs', function (Illuminate\Database\Schema\Blueprint $table): void {
+        $table->id();
+        $table->string('uuid')->unique();
+        $table->string('connection');
+        $table->string('queue');
+        $table->longText('payload');
+        $table->longText('exception');
+        $table->timestamp('failed_at')->useCurrent();
+    });
+
+    config()->set('queue.connections.database', [
+        'driver' => 'database',
+        'connection' => null,
+        'table' => 'jobs',
+        'queue' => 'default',
+        'retry_after' => 60,
+    ]);
+    $manager = new QueueManager(app());
+    $manager->addConnector('database', fn (): DatabaseConnector => new DatabaseConnector(app('db')));
+    app()->instance('queue', $manager);
+    Queue::swap($manager);
+    app()->forgetInstance('queue.worker');
+    app()->forgetInstance('queue.connection');
+
+    app('queue')->connection('database')->push(
+        new DeliverOtpChallenge($outbox->opaque_id),
+        queue: 'default',
+    );
+
+    $worker = app('queue.worker');
+    $options = new WorkerOptions(
+        name: 'otp-test',
+        sleep: 0,
+        maxTries: 5,
+        force: true,
+    );
+
+    for ($run = 0; $run < 5; $run++) {
+        $worker->runNextJob('database', 'default', $options);
+    }
+
+    expect(DB::table('jobs')->count())->toBe(0)
+        ->and($outbox->refresh()->failure_reason)->toBe('provider_exhausted')
+        ->and($outbox->provider_attempted_at)->not->toBeNull();
 });
 
 it('treats missing and expired rows as successful terminal outcomes', function (): void {
