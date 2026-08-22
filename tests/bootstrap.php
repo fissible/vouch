@@ -10,7 +10,8 @@ require __DIR__ . '/../vendor/autoload.php';
  * three-engine matrix may still override this explicitly.
  */
 if ((getenv('VOUCH_TEST_DB') ?: 'sqlite') === 'sqlite' && getenv('VOUCH_SQLITE_PATH') === false) {
-    putenv('VOUCH_SQLITE_PATH=' . sys_get_temp_dir() . '/vouch-test.sqlite');
+    $token = getenv('TEST_TOKEN') ?: '';
+    putenv('VOUCH_SQLITE_PATH=' . sys_get_temp_dir() . '/vouch-test' . ($token !== '' ? '-' . $token : '') . '.sqlite');
 }
 
 /*

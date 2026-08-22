@@ -16,6 +16,13 @@ use Illuminate\Support\Facades\Schema;
 
 uses(DatabaseMigrations::class);
 
+/*
+ * This deliberately uses committed migrations rather than RefreshDatabase:
+ * dropping the reservations table must produce the real QueryException. A
+ * wrapping transaction can turn that schema error into a test-harness rollback
+ * failure on engines where DDL commits implicitly.
+ */
+
 it('rethrows a non-contention query error instead of classifying it as retryable', function (): void {
     Schema::drop('auth_delivery_spend_reservations');
 
