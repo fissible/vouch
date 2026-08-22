@@ -129,21 +129,59 @@ Requirements:
 - **Host guidance**: document that an unverified identifier is invisible to login
   by design, because it is the first failure a new adopter will hit. The
   adoption guidance must enumerate the complete prerequisite staircase: the
-  host must establish `verified_at`, bind a durable asynchronous `OtpDelivery`,
-  and bind a real `DeliveryEconomics` implementation. The latter is mandatory
-  because the default is fail-closed and `ChallengeIssuer` evaluates it before
-  every OTP challenge; `DatabaseDeliveryEconomics::preflight()` is currently a
-  target-independent permit, so actual spend enforcement remains in the worker
-  slice rather than being implied by this request-path hook.
+  host must establish `verified_at`, bind a real `OtpDelivery`, point it at a
+  durable asynchronous queue connection, bind a real `DeliveryEconomics`
+  implementation, and — only when `vouch.throttle.captcha.enabled` is true —
+  bind a real `CaptchaVerifier`.
+
+  The delivery binding and the queue connection are two prerequisites, not one.
+  A host can bind a working `OtpDelivery` and still run `QUEUE_CONNECTION=sync`;
+  that is rejected by `OtpQueueDispatcher::assertAsynchronous()` with a different
+  message and a different remedy than an unbound provider. Reporting them as one
+  row would send an adopter to the wrong fix.
+
+  `DeliveryEconomics` is mandatory because the default is fail-closed and
+  `ChallengeIssuer` evaluates it before every OTP challenge;
+  `DatabaseDeliveryEconomics::preflight()` is currently a target-independent
+  permit, so actual spend enforcement remains in the worker slice rather than
+  being implied by this request-path hook.
 
 - **Adoption diagnostics**: add a `vouch:doctor` check as part of this task. It
-  reports the three prerequisites together — identifier verification is being
-  established by the host, a durable asynchronous `OtpDelivery` is bound, and
-  a real `DeliveryEconomics` implementation is bound — using aggregate status
-  only. It must not accept an identifier or inspect a candidate account, and it
-  must never turn the production `verified_at` refusal into a more informative
-  response. The command makes the silent, enumeration-safe prerequisite
-  discoverable before a host exercises the login endpoint.
+  reports all five prerequisites together, using aggregate status only:
+  identifier verification is being established by the host, a real `OtpDelivery`
+  is bound, its queue connection is durable and asynchronous, a real
+  `DeliveryEconomics` implementation is bound, and — when CAPTCHA escalation is
+  enabled — a real `CaptchaVerifier` is bound. It must not accept an identifier
+  or inspect a candidate account, and it must never turn the production
+  `verified_at` refusal into a more informative response.
+
+  The command exists because the staircase is ordered worst-first for
+  discoverability. `verified_at` fails **silently**, as an enumeration-safe
+  refusal indistinguishable from a wrong identifier, and it is the prerequisite
+  an adopter meets first. The three middle rows announce themselves loudly on the
+  first OTP, so they are found in development. The CAPTCHA row is the inverse of
+  `verified_at`: it is never exercised in development or ordinary operation, and
+  fires first under elevated volume — the moment the escalation ladder is
+  supposed to be protecting the install. Reporting all five together is what
+  turns a sequence of separate discoveries into one answer.
+
+  **The CAPTCHA row must not inherit the boot guard.** `VouchServiceProvider`
+  throws during `boot()` when `vouch.throttle.captcha.enabled` is true and the
+  bound verifier is `UnconfiguredCaptchaVerifier`. That guard is correct for
+  every other entry point — it moves the failure to deploy time rather than to
+  attack time — but it also kills the diagnostic written to report exactly this
+  condition, leaving `vouch:doctor` able to produce only exit `2` for the one
+  prerequisite hardest to find any other way. The guard must therefore stand down
+  for `vouch:doctor` specifically, and the command must report the missing
+  verifier as a failed prerequisite and exit `1`.
+
+  Scope the exemption to this command, not to console execution generally:
+  queue workers and deploy scripts also run in console, and they are exactly
+  where a deploy-time failure is wanted. Two proofs are required and they are a
+  pair — any other artisan command under that configuration still throws at
+  boot, and `vouch:doctor` under the same configuration completes and exits `1`
+  with the CAPTCHA row marked missing.
+
   Its exit contract is explicit: `0` means every prerequisite passes; `1` means
   the checks completed but one or more prerequisites are missing; `2` means the
   diagnostic itself could not run. A missing prerequisite is therefore suitable
