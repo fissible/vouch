@@ -62,6 +62,12 @@ it('permits a decoy without creating or charging spend state', function (): void
         ->and(DB::table('auth_delivery_spend')->count())->toBe(0);
 });
 
+it('permits a zero-cost delivery without creating spend state', function (): void {
+    expect(deliveryEconomics()->reserve(deliveryRequest(0)))
+        ->toBe(DeliveryReservationDecision::Permitted)
+        ->and(DB::table('auth_delivery_spend')->count())->toBe(0);
+});
+
 it('refuses an SMS country before creating spend state', function (): void {
     expect(deliveryEconomics()->reserve(deliveryRequest(channel: 'sms', country: 'GB')))
         ->toBe(DeliveryReservationDecision::CountryNotAllowed)
@@ -192,6 +198,54 @@ it('does not release an older-window reservation against the current spend windo
         ->toBeInt()->toBe(20)
         ->and(DB::table('auth_delivery_spend_reservations')
             ->where('reservation_key', $oldRequest->reservationKey)
-            ->value('released_at'))
-        ->not->toBeNull();
+            ->whereNotNull('released_at')->count())
+        ->toBe(2);
+});
+
+it('continues releasing other scopes when one reservation is already released', function (): void {
+    $economics = deliveryEconomics();
+    $request = deliveryRequest(reservationKey: str_repeat('r', 64));
+
+    expect($economics->reserve($request))->toBe(DeliveryReservationDecision::Permitted);
+
+    DB::table('auth_delivery_spend_reservations')
+        ->where('reservation_key', $request->reservationKey)
+        ->where('scope', 'global')
+        ->update(['released_at' => now()]);
+
+    $economics->release($request);
+
+    expect(DB::table('auth_delivery_spend')->where('scope', 'global')->value('spent_minor'))
+        ->toBeInt()->toBe(10)
+        ->and(DB::table('auth_delivery_spend')->where('scope', 'tenant')->value('spent_minor'))
+        ->toBeInt()->toBe(0);
+});
+
+it('continues releasing other scopes when one reservation is absent', function (): void {
+    $economics = deliveryEconomics();
+    $request = deliveryRequest(reservationKey: str_repeat('m', 64));
+
+    expect($economics->reserve($request))->toBe(DeliveryReservationDecision::Permitted);
+
+    DB::table('auth_delivery_spend_reservations')
+        ->where('reservation_key', $request->reservationKey)
+        ->where('scope', 'global')
+        ->delete();
+
+    $economics->release($request);
+
+    expect(DB::table('auth_delivery_spend')->where('scope', 'tenant')->value('spent_minor'))
+        ->toBeInt()->toBe(0);
+});
+
+it('marks a reservation released when its spend cannot be decremented', function (): void {
+    $economics = deliveryEconomics();
+    $request = deliveryRequest(reservationKey: str_repeat('u', 64));
+
+    expect($economics->reserve($request))->toBe(DeliveryReservationDecision::Permitted);
+
+    DB::table('auth_delivery_spend')->update(['spent_minor' => 0]);
+    $economics->release($request);
+
+    expect(DB::table('auth_delivery_spend_reservations')->whereNotNull('released_at')->count())->toBe(2);
 });
