@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 use Fissible\Vouch\Console\CommandExit;
 use Fissible\Vouch\VouchServiceProvider;
+use Fissible\Vouch\Models\AuthIdentifier;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+uses(RefreshDatabase::class);
 
 it('reports all adoption prerequisites without accepting subject input', function (): void {
     Config::set('vouch.throttle.captcha.enabled', true);
@@ -13,6 +17,12 @@ it('reports all adoption prerequisites without accepting subject input', functio
     Config::set('vouch.throttle.global.enforce_at', 5);
     Config::set('vouch.throttle.global.backoff_seconds', 1);
     app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+    AuthIdentifier::create([
+        'user_id' => 1,
+        'type' => 'email',
+        'value' => 'doctor@example.test',
+        'verified_at' => null,
+    ]);
 
     try {
         $exit = Artisan::call('vouch:doctor', ['--json' => true]);
@@ -30,10 +40,12 @@ it('reports all adoption prerequisites without accepting subject input', functio
 
         expect($exit)->toBe(CommandExit::Failure->value)
             ->and($prerequisites)->toHaveCount(5)
-            ->and($report['missing'])->toBe(3)
+            ->and($report['missing'])->toBe(4)
             ->and($prerequisites[0])->toBe([
                 'prerequisite' => 'verified_at',
-                'status' => 'host-owned',
+                'status' => 'missing',
+                'total_identifiers' => 1,
+                'verified_identifiers' => 0,
             ])
             ->and(array_keys(Artisan::all()['vouch:doctor']->getDefinition()->getArguments()))->toBe(['command'])
             ->and(array_keys(Artisan::all()['vouch:doctor']->getDefinition()->getOptions()))->toBe(['json', 'help', 'silent', 'quiet', 'verbose', 'version', 'ansi', 'no-interaction', 'env']);

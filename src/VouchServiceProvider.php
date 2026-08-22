@@ -434,7 +434,17 @@ final class VouchServiceProvider extends ServiceProvider
     {
         $argv = $_SERVER['argv'] ?? [];
 
-        return is_array($argv) && in_array('vouch:doctor', $argv, true);
+        if (! is_array($argv)) {
+            return false;
+        }
+
+        foreach (array_slice($argv, 1) as $argument) {
+            if (is_string($argument) && ! str_starts_with($argument, '-')) {
+                return $argument === 'vouch:doctor';
+            }
+        }
+
+        return false;
     }
 
 }

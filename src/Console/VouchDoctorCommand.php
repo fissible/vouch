@@ -8,6 +8,7 @@ use Fissible\Vouch\Contracts\CaptchaVerifier;
 use Fissible\Vouch\Contracts\DeliveryEconomics;
 use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Delivery\UnconfiguredCaptchaVerifier;
+use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Notifications\OtpQueueDispatcher;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
 use Fissible\Vouch\Throttle\ThrottleConfiguration;
@@ -29,8 +30,15 @@ final class VouchDoctorCommand extends Command
         ThrottleConfiguration $throttle,
     ): int {
         try {
+            $totalIdentifiers = AuthIdentifier::query()->count();
+            $verifiedIdentifiers = AuthIdentifier::query()->whereNotNull('verified_at')->count();
             $rows = [
-                ['prerequisite' => 'verified_at', 'status' => 'host-owned'],
+                [
+                    'prerequisite' => 'verified_at',
+                    'status' => $totalIdentifiers > 0 && $verifiedIdentifiers === 0 ? 'missing' : 'pass',
+                    'total_identifiers' => $totalIdentifiers,
+                    'verified_identifiers' => $verifiedIdentifiers,
+                ],
                 ['prerequisite' => 'OtpDelivery', 'status' => $this->deliveryStatus()],
                 ['prerequisite' => 'durable_queue', 'status' => $this->queueStatus($dispatcher)],
                 ['prerequisite' => 'DeliveryEconomics', 'status' => $this->economicsStatus()],
@@ -53,8 +61,14 @@ final class VouchDoctorCommand extends Command
             if ($this->option('json') === true) {
                 $this->line(json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
             } else {
-                $this->table(['Prerequisite', 'Status'], array_map(
-                    static fn (array $row): array => [$row['prerequisite'], $row['status']],
+                $this->table(['Prerequisite', 'Status', 'Details'], array_map(
+                    static fn (array $row): array => [
+                        $row['prerequisite'],
+                        $row['status'],
+                        isset($row['total_identifiers'])
+                            ? sprintf('%d total, %d verified', $row['total_identifiers'], $row['verified_identifiers'])
+                            : '',
+                    ],
                     $rows,
                 ));
             }
