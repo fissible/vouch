@@ -333,6 +333,38 @@ it('reaches the shared CAPTCHA threshold identically for known and unknown ident
     app()->forgetInstance(AuthThrottleStore::class);
 });
 
+it('never discloses CAPTCHA for identifier backoff while shared volume is permitted', function (): void {
+    Config::set('vouch.throttle.captcha.enabled', true);
+    Config::set('vouch.throttle.global.mode', 'enforce');
+    Config::set('vouch.throttle.global.enforce_at', 5);
+    Config::set('vouch.throttle.global.backoff_seconds', 1);
+    app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+
+    $store = new RecordingAuthThrottleStore();
+    $store->preflightIdentifierResult = IdentifierThrottle::backedOff(
+        4,
+        new DateTimeImmutable('2026-08-16T12:00:05Z'),
+    );
+    $store->preflightSharedResult = SharedThrottle::permitted();
+    $flow = authThrottleFlow($store);
+    $handle = authThrottleIdentified($flow, 'ada@acme.example', 'captcha-identifier-only');
+    $result = authThrottleSubmit(
+        $flow,
+        $handle,
+        ['password' => 'wrong'],
+        'captcha-identifier-only',
+    );
+    assert($result instanceof Continuing);
+
+    expect($result->screen->captchaRequired)->toBeNull();
+
+    Config::set('vouch.throttle.captcha.enabled', false);
+    Config::set('vouch.throttle.global.mode', 'observe');
+    Config::set('vouch.throttle.global.enforce_at', null);
+    Config::set('vouch.throttle.global.backoff_seconds', null);
+    app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+});
+
 it('keys state by the submitted identifier rather than the resolved user', function (): void {
     AuthIdentifier::create([
         'user_id' => 7,
