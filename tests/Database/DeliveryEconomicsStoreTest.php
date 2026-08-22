@@ -96,6 +96,27 @@ it('enforces the ceiling with an atomic predicate rather than a PHP increment', 
         ->and(DB::table('auth_delivery_spend')->where('scope', 'global')->value('spent_minor'))->toBe(7);
 });
 
+it('resets each spend scope when its daily window rolls over', function (): void {
+    $economics = deliveryEconomics(['daily' => 100, 'tenant' => 100]);
+
+    expect($economics->reserve(deliveryRequest(40)))->toBe(DeliveryReservationDecision::Permitted);
+
+    $yesterday = now()->subDay()->startOfDay()->format('Y-m-d H:i:s');
+    DB::table('auth_delivery_spend')->update([
+        'window_started_at' => $yesterday,
+        'spent_minor' => 40,
+    ]);
+
+    expect($economics->reserve(deliveryRequest(10)))->toBe(DeliveryReservationDecision::Permitted);
+
+    $rows = DB::table('auth_delivery_spend')->orderBy('scope')->get();
+
+    expect($rows)->toHaveCount(2)
+        ->and($rows->pluck('spent_minor')->all())->each->toBe(10)
+        ->and($rows->pluck('window_started_at')->all())
+        ->each->toBe(now()->startOfDay()->format('Y-m-d H:i:s'));
+});
+
 it('keeps tenant absence and tenant names in separate spend buckets', function (): void {
     $economics = deliveryEconomics(['daily' => null, 'tenant' => 100]);
 
@@ -151,4 +172,26 @@ it('releases a reservation when no provider delivery completed', function (): vo
     expect($globalSpent)->toBeInt()->toBe(0)
         ->and($tenantSpent)->toBeInt()->toBe(0)
         ->and(DB::table('auth_delivery_spend_reservations')->whereNotNull('released_at')->count())->toBe(2);
+});
+
+it('does not release an older-window reservation against the current spend window', function (): void {
+    $economics = deliveryEconomics(['daily' => 100, 'tenant' => 100]);
+    $oldRequest = deliveryRequest(reservationKey: str_repeat('o', 64));
+    $currentRequest = deliveryRequest(reservationKey: str_repeat('c', 64));
+
+    expect($economics->reserve($oldRequest))->toBe(DeliveryReservationDecision::Permitted)
+        ->and($economics->reserve($currentRequest))->toBe(DeliveryReservationDecision::Permitted);
+
+    DB::table('auth_delivery_spend_reservations')
+        ->where('reservation_key', $oldRequest->reservationKey)
+        ->update(['window_started_at' => now()->subDay()->startOfDay()->format('Y-m-d H:i:s')]);
+
+    $economics->release($oldRequest);
+
+    expect(DB::table('auth_delivery_spend')->where('scope', 'global')->value('spent_minor'))
+        ->toBeInt()->toBe(20)
+        ->and(DB::table('auth_delivery_spend_reservations')
+            ->where('reservation_key', $oldRequest->reservationKey)
+            ->value('released_at'))
+        ->not->toBeNull();
 });
