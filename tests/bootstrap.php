@@ -5,6 +5,15 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 /*
+ * The ordinary suite uses file-backed SQLite by default so the concurrency
+ * tests exercise one database from their child processes. Hosts and the
+ * three-engine matrix may still override this explicitly.
+ */
+if ((getenv('VOUCH_TEST_DB') ?: 'sqlite') === 'sqlite' && getenv('VOUCH_SQLITE_PATH') === false) {
+    putenv('VOUCH_SQLITE_PATH=' . sys_get_temp_dir() . '/vouch-test.sqlite');
+}
+
+/*
  * Raise the memory limit for MUTATION CHILD PROCESSES ONLY.
  *
  * pest-plugin-mutate launches every mutant as a fresh Symfony Process built from
