@@ -143,3 +143,13 @@ as deliberate margin). Per-file rulings are in the dated `*-rulings.md` files.
   also reflected that production never called the method. After ruling rows
   individually, step back and prove the class's main contract is reached from its
   intended public entry point.
+- **The default mutation suite does not execute `tests/Concurrency/`.** Those
+  tests require file-backed SQLite and skip against the in-memory database used
+  by the ordinary mutation run. A concurrency disposition must name the test
+  that would kill the row and state whether a file-backed mutation measurement
+  was attempted; `UNTESTED` is not evidence that the control is unnecessary.
+- **Defensive unreachable branches are their own disposition category.** A row
+  such as `row() === null` after `ensureAndLock()` is correct because a database
+  invariant makes the branch unreachable, not because a test happened to omit
+  it. Record the invariant and the operation that would make the branch
+  reachable; group such rows consistently instead of treating each as prose.
