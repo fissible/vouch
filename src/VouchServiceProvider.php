@@ -6,6 +6,7 @@ namespace Fissible\Vouch;
 
 use Fissible\Vouch\Attempts\DatabaseAttemptStore;
 use Fissible\Vouch\Console\VouchDispatchOtpOutboxCommand;
+use Fissible\Vouch\Console\VouchDoctorCommand;
 use Fissible\Vouch\Console\VouchPruneCommand;
 use Fissible\Vouch\Console\VouchThrottleReportCommand;
 use Fissible\Vouch\Console\VouchSmsIdentifierAuditCommand;
@@ -355,7 +356,8 @@ final class VouchServiceProvider extends ServiceProvider
         // not wait for the first attacker-controlled request to reach a store.
         $this->app->make(ThrottleConfiguration::class);
 
-        if ($this->app->make(ThrottleConfiguration::class)->captchaEnabled
+        if (! $this->isDoctorCommand()
+            && $this->app->make(ThrottleConfiguration::class)->captchaEnabled
             && $this->app->make(CaptchaVerifier::class) instanceof UnconfiguredCaptchaVerifier) {
             throw new \RuntimeException(
                 'CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. '
@@ -404,6 +406,7 @@ final class VouchServiceProvider extends ServiceProvider
                 VouchDispatchOtpOutboxCommand::class,
                 VouchThrottleReportCommand::class,
                 VouchSmsIdentifierAuditCommand::class,
+                VouchDoctorCommand::class,
             ]);
         }
     }
@@ -425,6 +428,13 @@ final class VouchServiceProvider extends ServiceProvider
         }
 
         return $factors;
+    }
+
+    private function isDoctorCommand(): bool
+    {
+        $argv = $_SERVER['argv'] ?? [];
+
+        return is_array($argv) && in_array('vouch:doctor', $argv, true);
     }
 
 }
