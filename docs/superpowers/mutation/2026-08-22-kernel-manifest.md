@@ -10,10 +10,13 @@ Literal command:
 vendor/bin/pest --mutate --path=src/Kernel --no-cache --min=0
 ```
 
-The path-scoped run is authoritative. An earlier exact-class probe using
+The path-scoped run is authoritative. An earlier probe using
 `--class='Fissible\\Vouch\\Kernel'` generated zero mutations because the
-plugin's class filter does not match nested namespace declarations; that probe
-is discarded as an instrument failure.
+single-quoted shell argument passed literal doubled backslashes, which the
+plugin escaped into a pattern requiring doubled backslashes in the source.
+The class filter itself is an unanchored namespace-prefix match and does reach
+nested namespaces; the same incorrectly escaped spelling matches nothing for
+any chunk. That probe is discarded as an escaping/instrument failure.
 
 | field | value |
 |---|---|

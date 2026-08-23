@@ -14,6 +14,28 @@ cannot be mistaken for a complete mutant scope. The compact parallel smoke
 run is not a ruling artifact: it credited 53 timeouts and suppressed the
 `RUN` file list. It is retained only as a harness smoke result.
 
+## Matrix provenance
+
+The three-engine coverage union is blocked until the databases are running.
+Use and record this single port choice for the entire reconciliation:
+
+| engine | target |
+|---|---|
+| file-backed SQLite | `VOUCH_SQLITE_PATH` scoped by `TEST_TOKEN` |
+| MySQL 8 | `127.0.0.1:13306` |
+| PostgreSQL 16 | `127.0.0.1:15432` |
+
+There is no repository compose file; the matrix host setup must record image
+versions, container IDs, and these ports alongside the SHA. Do not substitute
+the older port pairs recorded in historical `PROJECT.md` entries.
+
+For each engine, retain only the set of `(file, line)` pairs with a nonzero
+Clover execution count. Union the three sets once. A row is `engine-gated` when
+its line is absent from SQLite but present in MySQL or PostgreSQL; a line absent
+from all three remains unroutable or a genuine gap according to the other
+dispositions. Validate the method first against
+`DatabaseAuthThrottleStore.php:415–419`.
+
 ## Measurement rules
 
 - Record the exact SHA (`66ac67d`) and the plugin timeout threshold in every
@@ -26,12 +48,19 @@ run is not a ruling artifact: it credited 53 timeouts and suppressed the
 - Membership is `(file, mutator, expression)`, never filename or mutator
   family. A chunk is complete only when its non-compact artifact reconciles
   its `RUN` files to the assigned source inventory.
+- Dispositions include `instrument-unroutable` for non-executable mutation
+  lines and `engine-gated` for code reachable only on a different database
+  engine. Engine-gated coverage must be established by unioning Clover maps
+  from SQLite, MySQL, and PostgreSQL; SQLite alone cannot classify it.
 - A chunk command must assert a positive mutation count and reconcile its `RUN`
   count to the assigned mutant-bearing files. `--min=0` otherwise permits a
   misspelled scope to exit successfully with `0 Mutations for 0 Files`.
 - Record the literal command line, not a Markdown-escaped namespace spelling.
-  For nested namespaces, prefer the directory-literal `--path=src/Kernel`
-  filter; the class filter matches only an exact namespace declaration.
+  The class filter is a prefix match on the `namespace` declaration and does
+  reach nested namespaces, but it is escaping-sensitive: a single-quoted
+  `--class='Fissible\\Vouch\\Kernel'` passes a literal double backslash and
+  matches nothing anywhere. Prefer the directory-literal `--path=src/Kernel`,
+  which has no escaping hazard and mirrors the chunk assignment.
 
 ## Chunk assignment
 
@@ -39,14 +68,14 @@ run is not a ruling artifact: it credited 53 timeouts and suppressed the
 |---|---|---:|---|---|
 | Delivery | `src/Delivery/` | 14 | 137.63s / 37.69s | measured: 229 mutations / 7 RUN files; 164 tested, 64 untested, 1 uncovered, 0 timeouts |
 | Flow | `src/Flow/` | 10 | AuthFlow 239.82s / 36.82s | partial: `AuthFlow.php` measured (285 mutations; 272 tested, 12 untested, 1 uncovered); 9 files pending |
-| Throttle | `src/Throttle/` | 13 | 3,165.85s / 37.28s | measured: 865 mutations; 736 tested, 89 untested, 40 uncovered, 0 timeouts; verified score 85.09% |
+| Throttle | `src/Throttle/` | 13 assigned / 7 mutant-bearing | 3,047.11s / 38.52s | rerun measured: 865 mutations; 739 tested, 86 untested, 40 uncovered, 0 timeouts; verified score 85.43% |
 | Kernel | `src/Kernel/` | 26 | pending | pending; disclosure-sensitive (`ErrorShaper`, `ScreenSpec`, `RetryPolicy`) |
 | Console | `src/Console/` | 8 | pending | pending |
 | Notifications | `src/Notifications/` | 9 | pending | pending |
 | Core / data and boundaries | explicit sub-runs below | 82 | pending | pending; no aggregate run may stand in for its sub-runs |
 
 Core sub-runs are deliberately itemized because routing breadth makes one
-83-file estimate misleading:
+82-file estimate misleading:
 
 | sub-run | source files | status |
 |---|---:|---|
@@ -101,8 +130,29 @@ rather than disappearing from the ledger.
 - SHA: `66ac67d`
 - Baseline: 1,161 tests, file-backed SQLite, 31.07s
 - Timeout threshold: 37.28s
-- Result: 865 mutations / 13 source files; 736 tested, 89 untested, 40
-  uncovered, 0 timeouts; verified score 85.09%
+- Result, first run: 865 mutations / 7 mutant-bearing files; 736 tested, 89
+  untested, 40 uncovered, 0 timeouts; 3,165.85s; threshold 37.28s.
+- Result, retained rerun: 865 mutations / 7 RUN files; 739 tested, 86
+  untested, 40 uncovered, 0 timeouts; 3,047.11s; threshold 38.52s; verified
+  score 85.43%.
+- Assigned inventory remains 13 files; six produced zero mutations and are
+  retained as zero-mutant evidence. The mutant-bearing RUN set is
+  `ThrottleKey`, `ThrottleSubject`, `DatabaseAuthThrottleStore`,
+  `IdentifierThrottle`, `ThrottleConfiguration`, `ThrottleReporter`, and
+  `IpCanonicalizer`.
+- Same SHA, instrument, mutation total, and RUN set produced a three-row
+  tested/untested flip between the two runs. Coverage-derived uncovered rows
+  were identical; kill/survive outcomes are not fully reproducible in the
+  lock-wait-heavy `DatabaseAuthThrottleStore` path. The rerun log and manifest
+  are the row-level artifact; up to three timing-sensitive untested rows should
+  be individually reconfirmed before adding tests or rulings.
+- Rerun row artifacts: `/tmp/vouch-throttle-66ac67d-rerun-clean.log` and
+  `/tmp/vouch-throttle-66ac67d-rerun-manifest.json`.
+- Rerun uncovered/untested distribution: `DatabaseAuthThrottleStore` 8/49,
+  `ThrottleConfiguration` 22/25, `ThrottleReporter` 10/10, and
+  `IpCanonicalizer` 0/2. The unioned engine map is load-bearing for the
+  DatabaseAuthThrottleStore branch; the remaining uncovered rows are not
+  presumed engine-gated.
 - The 3,165.85s elapsed time validates the scheduling warning: routing breadth,
   not mutation count, dominates this chunk.
 - The initial hypothesis that the 40 uncovered rows were caused by observe-mode
@@ -127,9 +177,13 @@ rather than disappearing from the ledger.
 - Result: 236 mutations / 13 RUN files; 205 tested, 5 untested, 26
   uncovered, 0 timeouts; elapsed 161.87s; verified score 86.86%
 - The initial `--class='Fissible\\Vouch\\Kernel'` probe generated zero
-  mutations because nested namespaces are not matched by that exact-class
-  filter. It exited successfully under `--min=0` and is explicitly discarded;
-  the path-scoped run is the authoritative Kernel measurement.
+  mutations because single quotes passed a literal double backslash, which
+  `preg_quote` turned into a pattern requiring two backslashes in the source.
+  The class filter itself prefix-matches nested namespaces correctly; the same
+  spelling matches nothing for any chunk, which is why the Delivery measurement
+  could not have used it. The probe exited successfully under `--min=0` and is
+  explicitly discarded; the path-scoped run is the authoritative Kernel
+  measurement.
 - Coverage routing identifies 25 of the 26 uncovered rows as
   **instrument-unroutable** declaration/match lines (14 `TransitionRules`
   constant declarations, 10 `FactorStrength` enum-case declarations, and the
@@ -138,6 +192,26 @@ rather than disappearing from the ledger.
   for it, but do not land it during measurement.
 - The five untested rows are on executed lines and remain genuine survivor
   candidates for individual classification.
+
+## Queued cross-chunk findings
+
+These are recorded before the remaining chunks run and must not be silently
+reclassified as instrumentation artifacts:
+
+- `DatabaseAuthThrottleStore.php:415–419` is engine-gated. SQLite always takes
+  the SQLite branch; the committed-row path is exercised only by MySQL and
+  PostgreSQL. Three engine-specific Clover maps must be unioned before ruling.
+- `VouchDoctorCommand.php` has no coverage for exit 0, exit 2, human/table
+  output, or per-check exception fallback. Its command-specific exit contract
+  needs tests for all three outcomes and both render modes.
+- `OtpOutboxDelivery.php` has no terminalization proof for
+  `target_unavailable`, `legacy_unparseable`, `country_not_allowed`, or
+  `spend_ceiling`, nor for the pre-provider `InvalidArgumentException` and
+  positive-cost guards. Queue an end-to-end assertion that a `SpendCeiling`
+  reservation refusal records `spend_ceiling` on the outbox row.
+- `VouchPruneCommand.php:130` and `OtpQueueDispatcher.php:75` are defensive
+  invariant-unreachable throws and should be dispositioned as such, not left
+  as unexplained uncovered rows.
 
 ### Full parallel smoke (non-authoritative)
 
