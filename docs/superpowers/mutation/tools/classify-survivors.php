@@ -56,6 +56,7 @@ const DISPOSITIONS = [
     'never-executed',
     'engine-gated',
     'executed-and-survived',
+    'timeout-unresolved',
     'indeterminate',
     'inconsistent-map',
 ];
@@ -277,33 +278,88 @@ function readExpression(string $file, int $line, string $root): ?string
 }
 
 /**
+ * Describe what the measuring map says about a row's line, independent of any
+ * verdict: `absent` (not an executable statement), `zero`, or `hits`.
+ *
+ * @param  array<string, array<int, int>>|null  $measuring
+ */
+function coverageOf(array $row, ?array $measuring): string
+{
+    if ($measuring === null) {
+        return 'unmapped';
+    }
+
+    if (! isset($measuring[$row['file']][$row['line']])) {
+        return 'absent';
+    }
+
+    return $measuring[$row['file']][$row['line']] > 0 ? 'hits' : 'zero';
+}
+
+/**
  * @param  array<string, array<int, int>>|null  $measuring
  * @param  array<string, array<int, true>>  $executedElsewhere
+ * @return array{disposition: string, coverage: string, contested: bool}
  */
-function disposition(array $row, ?array $measuring, array $executedElsewhere): string
+function disposition(array $row, ?array $measuring, array $executedElsewhere): array
 {
     $file = $row['file'];
     $line = $row['line'];
     $executed = isset($executedElsewhere[$file][$line]);
+    $coverage = coverageOf($row, $measuring);
+
+    // A timeout means a test ran and did not finish. The ledger requires it to
+    // be resolved by rerun under recorded conditions, never folded into a kill
+    // or a survivor.
+    if ($row['state'] === 'TIMEOUT') {
+        return ['disposition' => 'timeout-unresolved', 'coverage' => $coverage, 'contested' => false];
+    }
+
+    // UNTESTED is direct positive evidence: the plugin routed a test to this
+    // mutant and the mutant lived. Line coverage cannot demote that. Mutants
+    // on default parameter values sit on a signature line, which is never an
+    // executable statement, so the coverage map calls them absent while the
+    // plugin correctly reports a survivor. Where the two disagree, the
+    // stronger evidence wins and the disagreement is surfaced, not silently
+    // resolved.
+    if ($row['state'] === 'UNTESTED') {
+        return [
+            'disposition' => 'executed-and-survived',
+            'coverage' => $coverage,
+            'contested' => $coverage !== 'hits',
+        ];
+    }
 
     if ($measuring === null) {
         // Only an executed set was supplied. Absent-from-set collapses
         // unroutable and never-executed together; say so rather than guess.
-        return $executed ? 'executed-and-survived' : 'indeterminate';
+        return [
+            'disposition' => $executed ? 'executed-and-survived' : 'indeterminate',
+            'coverage' => $coverage,
+            'contested' => false,
+        ];
     }
 
-    if (! isset($measuring[$file][$line])) {
+    if ($coverage === 'absent') {
         // Identical source should yield identical executable lines on every
         // engine. Presence elsewhere means the maps disagree about what is
         // executable, which is a harness problem, not a row disposition.
-        return $executed ? 'inconsistent-map' : 'instrument-unroutable';
+        return [
+            'disposition' => $executed ? 'inconsistent-map' : 'instrument-unroutable',
+            'coverage' => $coverage,
+            'contested' => false,
+        ];
     }
 
-    if ($measuring[$file][$line] > 0) {
-        return 'executed-and-survived';
+    if ($coverage === 'hits') {
+        return ['disposition' => 'executed-and-survived', 'coverage' => $coverage, 'contested' => false];
     }
 
-    return $executed ? 'engine-gated' : 'never-executed';
+    return [
+        'disposition' => $executed ? 'engine-gated' : 'never-executed',
+        'coverage' => $coverage,
+        'contested' => false,
+    ];
 }
 
 $options = parseArguments($argv);
@@ -335,8 +391,7 @@ $classified = [];
 
 foreach (readLog($options['log']) as $row) {
     $row['expression'] = readExpression($row['file'], $row['line'], $root);
-    $row['disposition'] = disposition($row, $measuring, $executedElsewhere);
-    $classified[] = $row;
+    $classified[] = [...$row, ...disposition($row, $measuring, $executedElsewhere)];
 }
 
 if ($options['json']) {
@@ -371,15 +426,28 @@ foreach ($buckets as $name => $rows) {
 
     foreach ($rows as $row) {
         printf(
-            '  %s:%d  %s  %s  [%s]  %s%s',
+            '  %s:%d  %s  %s  [%s]%s  %s%s',
             $row['file'],
             $row['line'],
             $row['state'],
             $row['mutator'],
             $row['id'] ?? 'no-id',
+            $row['contested'] ? '  CONTESTED(coverage=' . $row['coverage'] . ')' : '',
             $row['expression'] ?? '<source unavailable>',
             PHP_EOL
         );
+    }
+
+    echo PHP_EOL;
+}
+
+$contested = array_values(array_filter($classified, static fn (array $row): bool => $row['contested']));
+
+if ($contested !== []) {
+    printf('CONTESTED (%d) — the plugin reports a survivor on a line the map calls %s%s', count($contested), 'non-executable' . PHP_EOL, PHP_EOL);
+
+    foreach ($contested as $row) {
+        printf('  %s:%d  %s  %s%s', $row['file'], $row['line'], $row['mutator'], $row['expression'] ?? '', PHP_EOL);
     }
 
     echo PHP_EOL;

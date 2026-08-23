@@ -66,7 +66,7 @@ $shaper = 'src/Kernel/Enumeration/ErrorShaper.php';
 echo 'single measuring map', PHP_EOL;
 $single = classify(["--log={$fixtures}/survivors.log", "--map={$fixtures}/sqlite.clover.xml"]);
 check('exits 0', $single['exit'] === 0);
-check('reads every survivor row', count($single['rows']) === 4);
+check('reads every survivor row', count($single['rows']) === 6);
 check(
     'enum case declaration is instrument-unroutable',
     ($single['rows']["{$strength}:19"]['disposition'] ?? null) === 'instrument-unroutable'
@@ -82,6 +82,24 @@ check(
 check(
     'engine-gated branch reads as never-executed without a union',
     ($single['rows']["{$store}:415"]['disposition'] ?? null) === 'never-executed'
+);
+
+check(
+    'a timeout is never folded into a kill or a survivor',
+    ($single['rows']["{$store}:409"]['disposition'] ?? null) === 'timeout-unresolved'
+);
+
+echo PHP_EOL, 'the plugin outranks the coverage map for UNTESTED rows', PHP_EOL;
+$signature = $single['rows']["{$store}:436"] ?? [];
+check(
+    'a survivor on a default parameter stays executed-and-survived',
+    ($signature['disposition'] ?? null) === 'executed-and-survived'
+);
+check('the map is recorded as calling that line absent', ($signature['coverage'] ?? null) === 'absent');
+check('the disagreement is surfaced rather than resolved away', ($signature['contested'] ?? null) === true);
+check(
+    'a survivor the map agrees with is not contested',
+    ($single['rows']["{$strength}:25"]['contested'] ?? null) === false
 );
 
 echo PHP_EOL, 'union across engines', PHP_EOL;
@@ -102,6 +120,10 @@ check(
 check(
     'an unroutable row is not rescued by the union',
     ($union['rows']["{$strength}:19"]['disposition'] ?? null) === 'instrument-unroutable'
+);
+check(
+    'a contested survivor is not reclassified by the union either',
+    ($union['rows']["{$store}:436"]['disposition'] ?? null) === 'executed-and-survived'
 );
 
 echo PHP_EOL, 'identity is preserved', PHP_EOL;
