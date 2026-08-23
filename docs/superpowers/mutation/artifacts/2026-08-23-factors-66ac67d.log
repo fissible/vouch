@@ -1,0 +1,1567 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  .....................
+
+  Tests:    1161 passed (4092 assertions)
+  Duration: 31.05s
+
+  Mutating application files...
+  485 Mutations for 10 Files created
+
+   RUN  src/Factors/FactorResult.php
+  ⨯ Line 33: UnwrapArrayValues
+  ✓ Line 47: NotIdenticalToIdentical
+
+   RUN  src/Factors/ChallengeIssuer.php
+  ✓ Line 39: BooleanAndToBooleanOr
+  ✓ Line 46: IfNegated
+  ✓ Line 46: RemoveNot
+  ✓ Line 53: IfNegated
+  ✓ Line 53: InstanceOfToTrue
+  ✓ Line 53: InstanceOfToFalse
+  ✓ Line 58: RemoveMethodCall
+  ✓ Line 73: IfNegated
+  ✓ Line 73: IdenticalToNotIdentical
+  ✓ Line 74: RemoveEarlyReturn
+  ✓ Line 77: IfNegated
+  ✓ Line 77: NotIdenticalToIdentical
+  ✓ Line 90: TernaryNegated
+  ✓ Line 90: IdenticalToNotIdentical
+  ✓ Line 90: DecrementInteger
+  ✓ Line 90: IncrementInteger
+  ✓ Line 99: DecrementInteger
+  ⨯ Line 99: IncrementInteger
+  ✓ Line 100: InstanceOfToTrue
+  ⨯ Line 100: InstanceOfToFalse
+  ✓ Line 100: RemoveNot
+  ✓ Line 103: IfNegated
+  ✓ Line 103: IdenticalToNotIdentical
+  ✓ Line 104: RemoveEarlyReturn
+  ✓ Line 109: AlwaysReturnNull
+  ✓ Line 121: AlwaysReturnNull
+  ✓ Line 126: InstanceOfToTrue
+  ✓ Line 126: InstanceOfToFalse
+  ✓ Line 126: RemoveNot
+  ✓ Line 127: IdenticalToNotIdentical
+
+   RUN  src/Factors/Drivers/RecoveryCodeFactor.php
+  ✓ Line 56: DecrementInteger
+  ✓ Line 56: IncrementInteger
+  ✓ Line 57: DecrementInteger
+  ✓ Line 57: IncrementInteger
+  ✓ Line 66: IfNegated
+  ✓ Line 66: SmallerToGreaterOrEqual
+  ✓ Line 66: SmallerToSmallerOrEqual
+  ✓ Line 66: DecrementInteger
+  ✓ Line 66: IncrementInteger
+  ✓ Line 68: ConcatRemoveLeft
+  ✓ Line 68: ConcatRemoveLeft
+  ✓ Line 68: ConcatRemoveLeft
+  ⨯ Line 68: ConcatRemoveRight
+  ⨯ Line 68: ConcatRemoveRight
+  ⨯ Line 68: ConcatRemoveRight
+  ⨯ Line 68: ConcatSwitchSides
+  ⨯ Line 68: ConcatSwitchSides
+  ⨯ Line 68: ConcatSwitchSides
+  ✓ Line 76: IfNegated
+  ✓ Line 76: SmallerToGreaterOrEqual
+  ✓ Line 76: SmallerToSmallerOrEqual
+  ✓ Line 76: DecrementInteger
+  ✓ Line 76: IncrementInteger
+  ⨯ Line 78: ConcatRemoveLeft
+  ✓ Line 78: ConcatRemoveLeft
+  ✓ Line 78: ConcatRemoveLeft
+  ✓ Line 78: ConcatRemoveLeft
+  ✓ Line 78: ConcatRemoveRight
+  ⨯ Line 78: ConcatRemoveRight
+  ⨯ Line 78: ConcatRemoveRight
+  ⨯ Line 78: ConcatRemoveRight
+  ⨯ Line 78: ConcatSwitchSides
+  ⨯ Line 78: ConcatSwitchSides
+  ⨯ Line 78: ConcatSwitchSides
+  ⨯ Line 78: ConcatSwitchSides
+  ✓ Line 131: RemoveMethodCall
+  ✓ Line 135: RemoveArrayItem
+  t Line 140: PostIncrementToPostDecrement
+  ✓ Line 140: ForAlwaysFalse
+  ✓ Line 140: SmallerToGreaterOrEqual
+  ✓ Line 140: SmallerToSmallerOrEqual
+  ✓ Line 140: DecrementInteger
+  ✓ Line 140: IncrementInteger
+  ✓ Line 144: RemoveArrayItem
+  ✓ Line 145: RemoveArrayItem
+  ✓ Line 146: RemoveArrayItem
+  ✓ Line 147: RemoveArrayItem
+  ✓ Line 151: RemoveArrayItem
+  ✓ Line 151: RemoveArrayItem
+  ✓ Line 157: UnwrapArrayMap
+  ✓ Line 170: IfNegated
+  ✓ Line 170: IdenticalToNotIdentical
+  ✓ Line 171: RemoveEarlyReturn
+  ✓ Line 174: RemoveArrayItem
+  ✓ Line 174: RemoveArrayItem
+  ✓ Line 174: EmptyStringToNotEmpty
+  ✓ Line 174: UnwrapStrReplace
+  ✓ Line 174: UnwrapStrtoupper
+  ✓ Line 183: IfNegated
+  ✓ Line 183: IdenticalToNotIdentical
+  ✓ Line 183: EmptyStringToNotEmpty
+  ✓ Line 184: RemoveEarlyReturn
+  ✓ Line 189: IfNegated
+  ✓ Line 189: IdenticalToNotIdentical
+  - Line 190: RemoveEarlyReturn
+  ✓ Line 199: IfNegated
+  ✓ Line 200: RemoveEarlyReturn
+  ✓ Line 203: ForeachEmptyIterable
+  ✓ Line 204: IfNegated
+  ✓ Line 204: BooleanOrToBooleanAnd
+  ✓ Line 204: RemoveNot
+  ✓ Line 204: RemoveNot
+  ✓ Line 205: ContinueToBreak
+  ✓ Line 213: RemoveEarlyReturn
+  ✓ Line 216: RemoveStringCast
+  ✓ Line 219: FalseToTrue
+  ✓ Line 220: FalseToTrue
+  ✓ Line 221: FalseToTrue
+  ✓ Line 234: RemoveArrayItem
+  ✓ Line 234: RemoveMethodCall
+  ✓ Line 245: MinusToPlus
+  ✓ Line 245: DecrementInteger
+  ✓ Line 245: IncrementInteger
+  ✓ Line 246: EmptyStringToNotEmpty
+  t Line 248: PostIncrementToPostDecrement
+  ✓ Line 248: ForAlwaysFalse
+  ✓ Line 248: SmallerToGreaterOrEqual
+  ✓ Line 248: SmallerToSmallerOrEqual
+  ✓ Line 248: DecrementInteger
+  ✓ Line 248: IncrementInteger
+  ✓ Line 249: ConcatEqualToEqual
+  ✓ Line 249: DecrementInteger
+  ✓ Line 249: IncrementInteger
+
+   RUN  src/Factors/Drivers/OtpFactor.php
+  ✓ Line 59: DecrementInteger
+  ✓ Line 59: IncrementInteger
+  ✓ Line 60: DecrementInteger
+  ✓ Line 60: IncrementInteger
+  ✓ Line 65: IfNegated
+  ✓ Line 65: SmallerToGreaterOrEqual
+  ✓ Line 65: SmallerToSmallerOrEqual
+  ✓ Line 65: DecrementInteger
+  ✓ Line 65: IncrementInteger
+  ✓ Line 67: ConcatRemoveLeft
+  ✓ Line 67: ConcatRemoveLeft
+  ✓ Line 67: ConcatRemoveLeft
+  ⨯ Line 67: ConcatRemoveRight
+  ⨯ Line 67: ConcatRemoveRight
+  ⨯ Line 67: ConcatRemoveRight
+  ⨯ Line 67: ConcatSwitchSides
+  ⨯ Line 67: ConcatSwitchSides
+  ⨯ Line 67: ConcatSwitchSides
+  ✓ Line 76: IfNegated
+  ✓ Line 76: SmallerToGreaterOrEqual
+  ✓ Line 76: SmallerToSmallerOrEqual
+  ✓ Line 76: DecrementInteger
+  ✓ Line 76: IncrementInteger
+  ✓ Line 78: ConcatRemoveLeft
+  ✓ Line 78: ConcatRemoveLeft
+  ✓ Line 78: ConcatRemoveLeft
+  ⨯ Line 78: ConcatRemoveRight
+  ⨯ Line 78: ConcatRemoveRight
+  ⨯ Line 78: ConcatRemoveRight
+  ⨯ Line 78: ConcatSwitchSides
+  ⨯ Line 78: ConcatSwitchSides
+  ⨯ Line 78: ConcatSwitchSides
+  ✓ Line 127: CoalesceRemoveLeft
+  ✓ Line 129: IfNegated
+  ✓ Line 129: RemoveNot
+  ✓ Line 138: IfNegated
+  ✓ Line 138: InstanceOfToTrue
+  ✓ Line 138: InstanceOfToFalse
+  ✓ Line 138: RemoveNot
+  ✓ Line 142: IfNegated
+  ✓ Line 142: NotIdenticalToIdentical
+  ⨯ Line 144: ConcatRemoveLeft
+  ⨯ Line 144: ConcatRemoveRight
+  ⨯ Line 144: ConcatSwitchSides
+  ✓ Line 169: IfNegated
+  ✓ Line 169: InstanceOfToTrue
+  ✓ Line 169: InstanceOfToFalse
+  ✓ Line 172: RemoveArrayItem
+  ✓ Line 172: RemoveMethodCall
+  ✓ Line 178: RemoveArrayItem
+  ✓ Line 179: RemoveArrayItem
+  ✓ Line 180: RemoveArrayItem
+  ⨯ Line 181: RemoveArrayItem
+  ✓ Line 182: RemoveArrayItem
+  ✓ Line 188: RemoveArrayItem
+  ✓ Line 193: RemoveMethodCall
+  ✓ Line 195: IfNegated
+  ✓ Line 196: IfNegated
+  ✓ Line 196: NotIdenticalToIdentical
+  ✓ Line 205: CoalesceRemoveLeft
+  ✓ Line 217: IfNegated
+  ✓ Line 217: NotIdenticalToIdentical
+  ⨯ Line 219: ConcatRemoveLeft
+  ⨯ Line 219: ConcatRemoveLeft
+  ⨯ Line 219: ConcatRemoveRight
+  ⨯ Line 219: ConcatRemoveRight
+  ⨯ Line 219: ConcatSwitchSides
+  ⨯ Line 219: ConcatSwitchSides
+  ✓ Line 229: IfNegated
+  ✓ Line 229: NotIdenticalToIdentical
+  ✓ Line 248: AlwaysReturnNull
+  ✓ Line 275: IfNegated
+  ✓ Line 275: IdenticalToNotIdentical
+  ✓ Line 275: IdenticalToNotIdentical
+  ✓ Line 275: BooleanOrToBooleanAnd
+  ✓ Line 275: EmptyStringToNotEmpty
+  ✓ Line 276: RemoveEarlyReturn
+  ✓ Line 279: CoalesceRemoveLeft
+  ✓ Line 281: IfNegated
+  ✓ Line 281: InstanceOfToTrue
+  ✓ Line 281: InstanceOfToFalse
+  ✓ Line 281: RemoveNot
+  ✓ Line 282: RemoveEarlyReturn
+  ✓ Line 293: IfNegated
+  ✓ Line 293: InstanceOfToTrue
+  ✓ Line 293: InstanceOfToFalse
+  ✓ Line 293: RemoveNot
+  ✓ Line 294: RemoveEarlyReturn
+  ✓ Line 297: IfNegated
+  ✓ Line 297: NotIdenticalToIdentical
+  ✓ Line 297: NotIdenticalToIdentical
+  ✓ Line 297: BooleanOrToBooleanAnd
+  ✓ Line 298: RemoveEarlyReturn
+  ✓ Line 301: IfNegated
+  ✓ Line 301: NotIdenticalToIdentical
+  ✓ Line 302: RemoveEarlyReturn
+  ✓ Line 305: IfNegated
+  ✓ Line 305: SmallerOrEqualToGreater
+  ✓ Line 305: SmallerOrEqualToSmaller
+  ✓ Line 306: RemoveEarlyReturn
+  ✓ Line 315: IfNegated
+  ✓ Line 315: RemoveNot
+  ✓ Line 316: RemoveEarlyReturn
+  ✓ Line 321: IfNegated
+  ✓ Line 321: IdenticalToNotIdentical
+  ⨯ Line 324: RemoveEarlyReturn
+  ✓ Line 343: IfNegated
+  ✓ Line 343: InstanceOfToTrue
+  ✓ Line 343: InstanceOfToFalse
+  ✓ Line 343: RemoveNot
+  ✓ Line 344: RemoveEarlyReturn
+  ✓ Line 347: IfNegated
+  ✓ Line 347: RemoveNot
+  ✓ Line 350: IfNegated
+  ✓ Line 350: IdenticalToNotIdentical
+  - Line 351: RemoveEarlyReturn
+  ✓ Line 354: IfNegated
+  ✓ Line 354: IdenticalToNotIdentical
+  - Line 355: RemoveEarlyReturn
+  ✓ Line 358: IfNegated
+  ✓ Line 358: IdenticalToNotIdentical
+  - Line 359: RemoveEarlyReturn
+  ✓ Line 362: RemoveEarlyReturn
+  ✓ Line 370: RemoveStringCast
+  ✓ Line 373: FalseToTrue
+  ✓ Line 374: FalseToTrue
+  ✓ Line 375: FalseToTrue
+  ✓ Line 385: RemoveArrayItem
+  ✓ Line 385: RemoveMethodCall
+  ✓ Line 394: IfNegated
+  ✓ Line 394: NotIdenticalToIdentical
+  ✓ Line 394: NotIdenticalToIdentical
+  ✓ Line 394: BooleanAndToBooleanOr
+  ✓ Line 395: FalseToTrue
+  ✓ Line 395: RemoveEarlyReturn
+  ✓ Line 398: NotIdenticalToIdentical
+  ✓ Line 398: BooleanAndToBooleanOr
+  ✓ Line 398: RemoveNot
+  ✓ Line 399: NotIdenticalToIdentical
+  ✓ Line 406: IfNegated
+  ✓ Line 406: IdenticalToNotIdentical
+  ✓ Line 418: IfNegated
+  ✓ Line 418: NotIdenticalToIdentical
+  ✓ Line 418: DecrementInteger
+  ✓ Line 418: IncrementInteger
+  ⨯ Line 420: ConcatRemoveLeft
+  ⨯ Line 420: ConcatRemoveRight
+  ⨯ Line 420: ConcatSwitchSides
+  ✓ Line 430: IfNegated
+  ⨯ Line 430: InstanceOfToTrue
+  ✓ Line 430: InstanceOfToFalse
+  ✓ Line 430: RemoveNot
+  ✓ Line 442: AlwaysReturnNull
+  ✓ Line 457: EmptyStringToNotEmpty
+  t Line 459: PostIncrementToPostDecrement
+  ✓ Line 459: ForAlwaysFalse
+  ✓ Line 459: SmallerToGreaterOrEqual
+  ✓ Line 459: SmallerToSmallerOrEqual
+  ✓ Line 459: DecrementInteger
+  ✓ Line 459: IncrementInteger
+  ✓ Line 460: ConcatEqualToEqual
+  ⨯ Line 460: RemoveStringCast
+  ✓ Line 460: DecrementInteger
+  ✓ Line 460: DecrementInteger
+  ✓ Line 460: IncrementInteger
+  ✓ Line 460: IncrementInteger
+
+   RUN  src/Factors/Drivers/TotpFactor.php
+  ✓ Line 57: DecrementInteger
+  ✓ Line 57: IncrementInteger
+  ✓ Line 58: DecrementInteger
+  ✓ Line 58: IncrementInteger
+  ✓ Line 59: DecrementInteger
+  ✓ Line 59: IncrementInteger
+  ✓ Line 61: IfNegated
+  ✓ Line 61: IdenticalToNotIdentical
+  ✓ Line 61: EmptyStringToNotEmpty
+  ✓ Line 63: ConcatRemoveLeft
+  ✓ Line 63: ConcatRemoveLeft
+  ✓ Line 63: ConcatRemoveLeft
+  ⨯ Line 63: ConcatRemoveRight
+  ⨯ Line 63: ConcatRemoveRight
+  ⨯ Line 63: ConcatRemoveRight
+  ⨯ Line 63: ConcatSwitchSides
+  ⨯ Line 63: ConcatSwitchSides
+  ⨯ Line 63: ConcatSwitchSides
+  ✓ Line 70: IfNegated
+  ✓ Line 70: SmallerToGreaterOrEqual
+  ✓ Line 70: SmallerToSmallerOrEqual
+  ✓ Line 70: DecrementInteger
+  ✓ Line 70: IncrementInteger
+  ⨯ Line 72: ConcatRemoveLeft
+  ⨯ Line 72: ConcatRemoveLeft
+  ⨯ Line 72: ConcatRemoveRight
+  ⨯ Line 72: ConcatRemoveRight
+  ⨯ Line 72: ConcatSwitchSides
+  ⨯ Line 72: ConcatSwitchSides
+  ✓ Line 79: IfNegated
+  ✓ Line 79: SmallerToGreaterOrEqual
+  ✓ Line 79: SmallerToSmallerOrEqual
+  ✓ Line 79: DecrementInteger
+  ✓ Line 79: IncrementInteger
+  ⨯ Line 81: ConcatRemoveLeft
+  ⨯ Line 81: ConcatRemoveLeft
+  ⨯ Line 81: ConcatRemoveRight
+  ⨯ Line 81: ConcatRemoveRight
+  ⨯ Line 81: ConcatSwitchSides
+  ⨯ Line 81: ConcatSwitchSides
+  ✓ Line 88: IfNegated
+  ✓ Line 88: SmallerToGreaterOrEqual
+  ✓ Line 88: SmallerToSmallerOrEqual
+  ✓ Line 88: DecrementInteger
+  ✓ Line 88: IncrementInteger
+  ⨯ Line 90: ConcatRemoveLeft
+  ⨯ Line 90: ConcatRemoveLeft
+  ⨯ Line 90: ConcatRemoveLeft
+  ⨯ Line 90: ConcatRemoveRight
+  ⨯ Line 90: ConcatRemoveRight
+  ⨯ Line 90: ConcatRemoveRight
+  ⨯ Line 90: ConcatSwitchSides
+  ⨯ Line 90: ConcatSwitchSides
+  ⨯ Line 90: ConcatSwitchSides
+  ✓ Line 116: DecrementInteger
+  ✓ Line 116: IncrementInteger
+  ✓ Line 124: CoalesceRemoveLeft
+  ✓ Line 126: IfNegated
+  ✓ Line 126: IdenticalToNotIdentical
+  ✓ Line 126: BooleanOrToBooleanAnd
+  ✓ Line 126: RemoveNot
+  ✓ Line 126: EmptyStringToNotEmpty
+  ✓ Line 128: ConcatRemoveLeft
+  ⨯ Line 128: ConcatRemoveRight
+  ⨯ Line 128: ConcatSwitchSides
+  ✓ Line 133: IdenticalToNotIdentical
+  ✓ Line 133: CoalesceRemoveLeft
+  ✓ Line 133: FalseToTrue
+  ✓ Line 133: TrueToFalse
+  ✓ Line 136: RemoveMethodCall
+  ✓ Line 137: RemoveMethodCall
+  ✓ Line 138: RemoveMethodCall
+  ✓ Line 141: RemoveMethodCall
+  ✓ Line 150: IfNegated
+  ✓ Line 151: RemoveMethodCall
+  ✓ Line 155: RemoveArrayItem
+  ✓ Line 159: RemoveArrayItem
+  ✓ Line 160: RemoveArrayItem
+  ✓ Line 162: RemoveArrayItem
+  ✓ Line 163: RemoveArrayItem
+  ✓ Line 169: RemoveArrayItem
+  ✓ Line 170: RemoveArrayItem
+  ✓ Line 185: IfNegated
+  ✓ Line 185: IdenticalToNotIdentical
+  ✓ Line 185: IdenticalToNotIdentical
+  ✓ Line 185: BooleanOrToBooleanAnd
+  ✓ Line 185: EmptyStringToNotEmpty
+  ✓ Line 186: RemoveEarlyReturn
+  ✓ Line 191: IfNegated
+  ✓ Line 191: IdenticalToNotIdentical
+  - Line 192: RemoveEarlyReturn
+  ✓ Line 210: IfNegated
+  ✓ Line 210: IdenticalToNotIdentical
+  ✓ Line 211: RemoveEarlyReturn
+  ✓ Line 216: IfNegated
+  ✓ Line 216: IdenticalToNotIdentical
+  ✓ Line 216: BooleanOrToBooleanAnd
+  ✓ Line 216: RemoveNot
+  ✓ Line 216: EmptyStringToNotEmpty
+  ✓ Line 217: RemoveEarlyReturn
+  ✓ Line 222: IfNegated
+  ✓ Line 222: IdenticalToNotIdentical
+  ✓ Line 223: RemoveEarlyReturn
+  ✓ Line 231: IfNegated
+  ✓ Line 231: NotIdenticalToIdentical
+  ✓ Line 231: SmallerOrEqualToGreater
+  ✓ Line 231: SmallerOrEqualToSmaller
+  ✓ Line 231: BooleanAndToBooleanOr
+  ✓ Line 232: RemoveEarlyReturn
+  ✓ Line 238: RemoveStringCast
+  ✓ Line 244: FalseToTrue
+  ✓ Line 245: FalseToTrue
+  ✓ Line 246: FalseToTrue
+  ✓ Line 256: RemoveArrayItem
+  ✓ Line 256: RemoveMethodCall
+  ✓ Line 274: RemoveMethodCall
+  ✓ Line 275: RemoveMethodCall
+  t Line 279: PostDecrementToPostIncrement
+  ✓ Line 279: ForAlwaysFalse
+  ✓ Line 279: GreaterOrEqualToGreater
+  ✓ Line 279: GreaterOrEqualToSmaller
+  ⨯ Line 280: PlusToMinus
+  ✓ Line 282: IfNegated
+  ✓ Line 282: SmallerToGreaterOrEqual
+  ✓ Line 282: SmallerToSmallerOrEqual
+  ✓ Line 282: DecrementInteger
+  ✓ Line 282: IncrementInteger
+  ⨯ Line 283: ContinueToBreak
+  ✓ Line 292: MultiplicationToDivision
+  ✓ Line 292: IfNegated
+  ✓ Line 293: RemoveEarlyReturn
+
+   RUN  src/Factors/Drivers/PasswordFactor.php
+  ✓ Line 62: DecrementInteger
+  ✓ Line 62: IncrementInteger
+  ✓ Line 70: CoalesceRemoveLeft
+  ✓ Line 72: IfNegated
+  ✓ Line 72: IdenticalToNotIdentical
+  ✓ Line 72: BooleanOrToBooleanAnd
+  ✓ Line 72: RemoveNot
+  ✓ Line 72: EmptyStringToNotEmpty
+  ✓ Line 76: IdenticalToNotIdentical
+  ✓ Line 76: CoalesceRemoveLeft
+  ✓ Line 76: FalseToTrue
+  ✓ Line 76: TrueToFalse
+  ✓ Line 83: IfNegated
+  ✓ Line 89: RemoveMethodCall
+  ✓ Line 93: RemoveArrayItem
+  ✓ Line 97: RemoveArrayItem
+  ✓ Line 98: RemoveArrayItem
+  ✓ Line 99: RemoveArrayItem
+  ✓ Line 100: RemoveArrayItem
+  ✓ Line 106: RemoveArrayItem
+  ✓ Line 126: IfNegated
+  ✓ Line 126: IdenticalToNotIdentical
+  ✓ Line 126: IdenticalToNotIdentical
+  ✓ Line 126: BooleanOrToBooleanAnd
+  ✓ Line 126: EmptyStringToNotEmpty
+  ✓ Line 127: RemoveEarlyReturn
+  ✓ Line 132: IfNegated
+  ✓ Line 132: IdenticalToNotIdentical
+  - Line 133: RemoveEarlyReturn
+  ✓ Line 142: IfNegated
+  ✓ Line 142: BooleanOrToBooleanAnd
+  ✓ Line 142: InstanceOfToTrue
+  ✓ Line 142: InstanceOfToFalse
+  ✓ Line 142: RemoveNot
+  ✓ Line 142: RemoveNot
+  ✓ Line 143: RemoveEarlyReturn
+  ✓ Line 146: IfNegated
+  ✓ Line 146: RemoveNot
+  ✓ Line 147: RemoveEarlyReturn
+  ✓ Line 156: RemoveStringCast
+  ✓ Line 159: FalseToTrue
+  ✓ Line 160: FalseToTrue
+  ✓ Line 161: FalseToTrue
+  ✓ Line 169: RemoveArrayItem
+  ✓ Line 169: RemoveMethodCall
+
+   RUN  src/Factors/FactorRegistry.php
+  ✓ Line 27: IfNegated
+  ✓ Line 29: ConcatRemoveLeft
+  ✓ Line 29: ConcatRemoveLeft
+  ⨯ Line 29: ConcatRemoveRight
+  ⨯ Line 29: ConcatRemoveRight
+  ⨯ Line 29: ConcatSwitchSides
+  ⨯ Line 29: ConcatSwitchSides
+  ✓ Line 50: UnwrapArrayKeys
+  ✓ Line 50: CoalesceRemoveLeft
+  ✓ Line 58: UnwrapArrayValues
+  ✓ Line 58: AlwaysReturnEmptyArray
+
+   RUN  src/Factors/VerificationRequest.php
+  ✓ Line 44: CoalesceRemoveLeft
+  ✓ Line 46: TernaryNegated
+  ✓ Line 46: AlwaysReturnNull
+
+   RUN  src/Factors/UnknownFactor.php
+  ✓ Line 19: TernaryNegated
+  ✓ Line 19: IdenticalToNotIdentical
+
+   RUN  src/Factors/ChallengeRequest.php
+  ✓ Line 29: FalseToTrue
+  ✓ Line 30: FalseToTrue
+   UNTESTED  src/Factors/FactorResult.php  > Line 33: UnwrapArrayValues - ID: 42154a8f487b4873
+
+       }
+       public static function satisfied(SatisfiedFactor $factor, SingleUseMutation ...$mutations): self
+       {
+  -        return new self($factor, null, array_values($mutations));
+  +        return new self($factor, null, $mutations);
+       }
+       public static function failed(FactorFailure $reason): self
+       {
+  
+
+   UNTESTED  src/Factors/ChallengeIssuer.php  > Line 99: IncrementInteger - ID: 72bc677f8f31c389
+
+               country: null,
+               // Request preflight never charges; the worker's target-bearing
+               // reservation will carry the configured delivery cost.
+  -            costMinor: 0,
+  +            costMinor: 1,
+               decoy: !$credential instanceof AuthCredential
+           ));
+           if ($economics === DeliveryEconomicsDecision::Refused) {
+  
+
+   UNTESTED  src/Factors/ChallengeIssuer.php  > Line 100: InstanceOfToFalse - ID: ee00a71f2069067f
+
+               // Request preflight never charges; the worker's target-bearing
+               // reservation will carry the configured delivery cost.
+               costMinor: 0,
+  -            decoy: !$credential instanceof AuthCredential
+  +            decoy: !false
+           ));
+           if ($economics === DeliveryEconomicsDecision::Refused) {
+               return null;
+  
+
+   UNTESTED  src/Factors/Drivers/RecoveryCodeFactor.php  > Line 68: ConcatRemoveRight - ID: 7c746651267a3159
+
+       )
+       {
+           if ($this->count < 1) {
+  -            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+  +            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+           }
+           if ($this->length < 1) {
+               throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+  
+
+   UNTESTED  src/Factors/Drivers/RecoveryCodeFactor.php  > Line 68: ConcatRemoveRight - ID: f09256e980ef6d65
+
+       )
+       {
+           if ($this->count < 1) {
+  -            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+  +            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . 'rather than the default.', $this->count));
+           }
+           if ($this->length < 1) {
+               throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+  
+
+   UNTESTED  src/Factors/Drivers/RecoveryCodeFactor.php  > Line 68: ConcatRemoveRight - ID: 4809ca9c8573efa3
+
+       )
+       {
+           if ($this->count < 1) {
+  -            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+  +            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ', $this->count));
+           }
+           if ($this->length < 1) {
+               throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+  
+
+   UNTESTED  src/Factors/Drivers/RecoveryCodeFactor.php  > Line 68: ConcatSwitchSides - ID: 895a8934653c1c47
+
+       )
+       {
+           if ($this->count < 1) {
+  -            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+  +            throw new InvalidArgumentException(sprintf('(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . 'RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+           }
+           if ($this->length < 1) {
+               throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+  
+
+   UNTESTED  src/Factors/Drivers/RecoveryCodeFactor.php  > Line 68: ConcatSwitchSides - ID: a454ba44ed7c0944
+
+       )
+       {
+           if ($this->count < 1) {
+  -            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+  +            throw new InvalidArgumentException(sprintf('`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . ('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ') . 'rather than the default.', $this->count));
+           }
+           if ($this->length < 1) {
+               throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+  
+
+   UNTESTED  src/Factors/Drivers/RecoveryCodeFactor.php  > Line 68: ConcatSwitchSides - ID: 4d24842a75a5d958
+
+       )
+       {
+           if ($this->count < 1) {
+  -            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+  +            throw new InvalidArgumentException(sprintf('rather than the default.' . ('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 '), $this->count));
+           }
+           if ($this->length < 1) {
+               throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+  
+
+   UNTESTED  src/Factors/Drivers/RecoveryCodeFactor.php  > Line 78: ConcatRemoveLeft - ID: bd55c7d82eb25b8a
+
+               throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+           }
+           if ($this->length < 1) {
+  -            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+  +            throw new InvalidArgumentException(sprintf('"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/RecoveryCodeFactor.php  > Line 78: ConcatRemoveRight - ID: 9fcf8c2919bbcb1a
+
+               throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+           }
+           if ($this->length < 1) {
+  -            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+  +            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/RecoveryCodeFactor.php  > Line 78: ConcatRemoveRight - ID: 2c41e0e48cf4cf55
+
+               throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+           }
+           if ($this->length < 1) {
+  -            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+  +            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'any empty submission matches.', $this->length));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/RecoveryCodeFactor.php  > Line 78: ConcatRemoveRight - ID: 147ac020631b09d5
+
+               throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+           }
+           if ($this->length < 1) {
+  -            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+  +            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ', $this->length));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/RecoveryCodeFactor.php  > Line 78: ConcatSwitchSides - ID: 1891faf13188f29b
+
+               throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+           }
+           if ($this->length < 1) {
+  -            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+  +            throw new InvalidArgumentException(sprintf('"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'RecoveryCodeFactor requires a length of at least 1: config ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/RecoveryCodeFactor.php  > Line 78: ConcatSwitchSides - ID: 6e4c331fb00f9404
+
+               throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+           }
+           if ($this->length < 1) {
+  -            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+  +            throw new InvalidArgumentException(sprintf('config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . ('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ') . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/RecoveryCodeFactor.php  > Line 78: ConcatSwitchSides - ID: 8dd6276f865fdca4
+
+               throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+           }
+           if ($this->length < 1) {
+  -            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+  +            throw new InvalidArgumentException(sprintf('arrives as 0 rather than the default — which would generate empty codes that ' . ('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ') . 'any empty submission matches.', $this->length));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/RecoveryCodeFactor.php  > Line 78: ConcatSwitchSides - ID: 93dadcd15ac3dfdc
+
+               throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a count of at least 1: config "vouch.recovery.count" ' . '(env VOUCH_RECOVERY_CODE_COUNT) resolved to %d. That config reads ' . '`(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_COUNT= arrives as 0 ' . 'rather than the default.', $this->count));
+           }
+           if ($this->length < 1) {
+  -            throw new InvalidArgumentException(sprintf('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that ' . 'any empty submission matches.', $this->length));
+  +            throw new InvalidArgumentException(sprintf('any empty submission matches.' . ('RecoveryCodeFactor requires a length of at least 1: config ' . '"vouch.recovery.length" (env VOUCH_RECOVERY_CODE_LENGTH) resolved to %d. That ' . 'config reads `(int) env(...)`, so a set-but-blank VOUCH_RECOVERY_CODE_LENGTH= ' . 'arrives as 0 rather than the default — which would generate empty codes that '), $this->length));
+           }
+       }
+       public function id(): string
+  
+
+   UNCOVERED  src/Factors/Drivers/RecoveryCodeFactor.php  > Line 190: RemoveEarlyReturn - ID: 13797df0aef85f47
+
+           }
+           $userId = $request->attempt->user_id;
+           if ($userId === null) {
+  -            return FactorResult::failed(FactorFailure::NoCredential);
+  +            
+           }
+           $candidates = AuthCredential::query()->where('user_id', $userId)->where('type', $this->id())->whereNull('disabled_at')->get();
+           if ($candidates->isEmpty()) {
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 67: ConcatRemoveRight - ID: 2de78a72e168b562
+
+       )
+       {
+           if ($this->length < 1) {
+  -            throw new InvalidArgumentException(sprintf('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ' . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+  +            throw new InvalidArgumentException(sprintf('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ' . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+           }
+           if ($this->ttlSeconds < 1) {
+               throw new InvalidArgumentException(sprintf('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ' . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 67: ConcatRemoveRight - ID: c2e44af0575fcda6
+
+       )
+       {
+           if ($this->length < 1) {
+  -            throw new InvalidArgumentException(sprintf('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ' . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+  +            throw new InvalidArgumentException(sprintf('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+           }
+           if ($this->ttlSeconds < 1) {
+               throw new InvalidArgumentException(sprintf('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ' . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 67: ConcatRemoveRight - ID: ae2e0fa66c1e2403
+
+       )
+       {
+           if ($this->length < 1) {
+  -            throw new InvalidArgumentException(sprintf('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ' . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+  +            throw new InvalidArgumentException(sprintf('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ', static::class, $this->length));
+           }
+           if ($this->ttlSeconds < 1) {
+               throw new InvalidArgumentException(sprintf('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ' . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 67: ConcatSwitchSides - ID: 377397c09b734dfa
+
+       )
+       {
+           if ($this->length < 1) {
+  -            throw new InvalidArgumentException(sprintf('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ' . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+  +            throw new InvalidArgumentException(sprintf('VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . '%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ' . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+           }
+           if ($this->ttlSeconds < 1) {
+               throw new InvalidArgumentException(sprintf('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ' . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 67: ConcatSwitchSides - ID: 7607a1ab76cd357e
+
+       )
+       {
+           if ($this->length < 1) {
+  -            throw new InvalidArgumentException(sprintf('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ' . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+  +            throw new InvalidArgumentException(sprintf('set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ' . ('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ') . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+           }
+           if ($this->ttlSeconds < 1) {
+               throw new InvalidArgumentException(sprintf('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ' . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 67: ConcatSwitchSides - ID: 2310e9664c890d22
+
+       )
+       {
+           if ($this->length < 1) {
+  -            throw new InvalidArgumentException(sprintf('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ' . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+  +            throw new InvalidArgumentException(sprintf('would deliver empty codes that any empty submission matches.' . ('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which '), static::class, $this->length));
+           }
+           if ($this->ttlSeconds < 1) {
+               throw new InvalidArgumentException(sprintf('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ' . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 78: ConcatRemoveRight - ID: 84c61b8f4c25d0f1
+
+               throw new InvalidArgumentException(sprintf('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ' . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+           }
+           if ($this->ttlSeconds < 1) {
+  -            throw new InvalidArgumentException(sprintf('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ' . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+  +            throw new InvalidArgumentException(sprintf('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ' . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+           }
+       }
+       /** The auth_identifiers.type this driver delivers to. */
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 78: ConcatRemoveRight - ID: f2669f87abd648de
+
+               throw new InvalidArgumentException(sprintf('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ' . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+           }
+           if ($this->ttlSeconds < 1) {
+  -            throw new InvalidArgumentException(sprintf('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ' . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+  +            throw new InvalidArgumentException(sprintf('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+           }
+       }
+       /** The auth_identifiers.type this driver delivers to. */
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 78: ConcatRemoveRight - ID: 52e7e57d6bb8f7dc
+
+               throw new InvalidArgumentException(sprintf('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ' . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+           }
+           if ($this->ttlSeconds < 1) {
+  -            throw new InvalidArgumentException(sprintf('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ' . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+  +            throw new InvalidArgumentException(sprintf('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ', static::class, $this->ttlSeconds));
+           }
+       }
+       /** The auth_identifiers.type this driver delivers to. */
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 78: ConcatSwitchSides - ID: 657a058c1d66e775
+
+               throw new InvalidArgumentException(sprintf('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ' . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+           }
+           if ($this->ttlSeconds < 1) {
+  -            throw new InvalidArgumentException(sprintf('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ' . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+  +            throw new InvalidArgumentException(sprintf('VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . '%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ' . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+           }
+       }
+       /** The auth_identifiers.type this driver delivers to. */
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 78: ConcatSwitchSides - ID: 03ab2db2bfa9fd54
+
+               throw new InvalidArgumentException(sprintf('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ' . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+           }
+           if ($this->ttlSeconds < 1) {
+  -            throw new InvalidArgumentException(sprintf('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ' . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+  +            throw new InvalidArgumentException(sprintf('set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ' . ('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ') . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+           }
+       }
+       /** The auth_identifiers.type this driver delivers to. */
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 78: ConcatSwitchSides - ID: 268166c7328bc14e
+
+               throw new InvalidArgumentException(sprintf('%s requires a code length of at least 1: config "vouch.otp.length" (env ' . 'VOUCH_OTP_LENGTH) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_LENGTH= arrives as 0 rather than the default — which ' . 'would deliver empty codes that any empty submission matches.', static::class, $this->length));
+           }
+           if ($this->ttlSeconds < 1) {
+  -            throw new InvalidArgumentException(sprintf('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which ' . 'would expire every code at the instant it is delivered.', static::class, $this->ttlSeconds));
+  +            throw new InvalidArgumentException(sprintf('would expire every code at the instant it is delivered.' . ('%s requires a ttl of at least 1 second: config "vouch.otp.ttl_seconds" (env ' . 'VOUCH_OTP_TTL) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_OTP_TTL= arrives as 0 rather than the default — which '), static::class, $this->ttlSeconds));
+           }
+       }
+       /** The auth_identifiers.type this driver delivers to. */
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 144: ConcatRemoveLeft - ID: 99759fb31921267b
+
+               throw new InvalidArgumentException(sprintf('Identifier %d does not exist.', $identifierId));
+           }
+           if ($identifier->type !== $this->identifierType()) {
+  -            throw new InvalidArgumentException(sprintf('%s delivers to "%s" identifiers, but identifier %d is a "%s". Delivering an ' . 'SMS code to an email address, or the reverse, would send it nowhere useful.', static::class, $this->identifierType(), $identifierId, $identifier->type));
+  +            throw new InvalidArgumentException(sprintf('SMS code to an email address, or the reverse, would send it nowhere useful.', static::class, $this->identifierType(), $identifierId, $identifier->type));
+           }
+           /*
+            * Same-user and verified are NOT re-checked here. GuardsIdentifierLinkage
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 144: ConcatRemoveRight - ID: 95041b60405105b7
+
+               throw new InvalidArgumentException(sprintf('Identifier %d does not exist.', $identifierId));
+           }
+           if ($identifier->type !== $this->identifierType()) {
+  -            throw new InvalidArgumentException(sprintf('%s delivers to "%s" identifiers, but identifier %d is a "%s". Delivering an ' . 'SMS code to an email address, or the reverse, would send it nowhere useful.', static::class, $this->identifierType(), $identifierId, $identifier->type));
+  +            throw new InvalidArgumentException(sprintf('%s delivers to "%s" identifiers, but identifier %d is a "%s". Delivering an ', static::class, $this->identifierType(), $identifierId, $identifier->type));
+           }
+           /*
+            * Same-user and verified are NOT re-checked here. GuardsIdentifierLinkage
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 144: ConcatSwitchSides - ID: e6eac177d4bcdb1b
+
+               throw new InvalidArgumentException(sprintf('Identifier %d does not exist.', $identifierId));
+           }
+           if ($identifier->type !== $this->identifierType()) {
+  -            throw new InvalidArgumentException(sprintf('%s delivers to "%s" identifiers, but identifier %d is a "%s". Delivering an ' . 'SMS code to an email address, or the reverse, would send it nowhere useful.', static::class, $this->identifierType(), $identifierId, $identifier->type));
+  +            throw new InvalidArgumentException(sprintf('SMS code to an email address, or the reverse, would send it nowhere useful.' . '%s delivers to "%s" identifiers, but identifier %d is a "%s". Delivering an ', static::class, $this->identifierType(), $identifierId, $identifier->type));
+           }
+           /*
+            * Same-user and verified are NOT re-checked here. GuardsIdentifierLinkage
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 181: RemoveArrayItem - ID: 24111a72fa57ee17
+
+                   $existing->update(['disabled_at' => null]);
+                   return $existing->refresh();
+               }
+  -            return AuthCredential::create(['user_id' => $userId, 'type' => $this->id(), 'identifier_id' => $identifierId, 'secret' => null, 'strength' => $this->strength()->name]);
+  +            return AuthCredential::create(['user_id' => $userId, 'type' => $this->id(), 'identifier_id' => $identifierId, 'strength' => $this->strength()->name]);
+           });
+           // No one-time secrets: an OTP credential holds nothing to show.
+           return new EnrollmentResult([$credential]);
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 219: ConcatRemoveLeft - ID: 472bd005ee8bcd08
+
+                * email is satisfied by SMS.
+                */
+               if ($credential->type !== $this->id()) {
+  -                throw new InvalidArgumentException(sprintf('Credential %d is a "%s", but %s issues "%s" challenges. Delivering against ' . 'another factor\'s credential would let the challenge claim a factor type it ' . 'never exercised.', $credential->id, $credential->type, static::class, $this->id()));
+  +                throw new InvalidArgumentException(sprintf('another factor\'s credential would let the challenge claim a factor type it ' . 'never exercised.', $credential->id, $credential->type, static::class, $this->id()));
+               }
+               if ($credential->disabled_at !== null) {
+                   throw new InvalidArgumentException(sprintf('Credential %d is disabled and cannot be sent an %s code.', $credential->id, $this->id()));
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 219: ConcatRemoveLeft - ID: f1afc380b1b437bf
+
+                * email is satisfied by SMS.
+                */
+               if ($credential->type !== $this->id()) {
+  -                throw new InvalidArgumentException(sprintf('Credential %d is a "%s", but %s issues "%s" challenges. Delivering against ' . 'another factor\'s credential would let the challenge claim a factor type it ' . 'never exercised.', $credential->id, $credential->type, static::class, $this->id()));
+  +                throw new InvalidArgumentException(sprintf('never exercised.', $credential->id, $credential->type, static::class, $this->id()));
+               }
+               if ($credential->disabled_at !== null) {
+                   throw new InvalidArgumentException(sprintf('Credential %d is disabled and cannot be sent an %s code.', $credential->id, $this->id()));
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 219: ConcatRemoveRight - ID: 1e10fdbfad3154d7
+
+                * email is satisfied by SMS.
+                */
+               if ($credential->type !== $this->id()) {
+  -                throw new InvalidArgumentException(sprintf('Credential %d is a "%s", but %s issues "%s" challenges. Delivering against ' . 'another factor\'s credential would let the challenge claim a factor type it ' . 'never exercised.', $credential->id, $credential->type, static::class, $this->id()));
+  +                throw new InvalidArgumentException(sprintf('Credential %d is a "%s", but %s issues "%s" challenges. Delivering against ' . 'never exercised.', $credential->id, $credential->type, static::class, $this->id()));
+               }
+               if ($credential->disabled_at !== null) {
+                   throw new InvalidArgumentException(sprintf('Credential %d is disabled and cannot be sent an %s code.', $credential->id, $this->id()));
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 219: ConcatRemoveRight - ID: 486bab19d6ea7cf3
+
+                * email is satisfied by SMS.
+                */
+               if ($credential->type !== $this->id()) {
+  -                throw new InvalidArgumentException(sprintf('Credential %d is a "%s", but %s issues "%s" challenges. Delivering against ' . 'another factor\'s credential would let the challenge claim a factor type it ' . 'never exercised.', $credential->id, $credential->type, static::class, $this->id()));
+  +                throw new InvalidArgumentException(sprintf('Credential %d is a "%s", but %s issues "%s" challenges. Delivering against ' . 'another factor\'s credential would let the challenge claim a factor type it ', $credential->id, $credential->type, static::class, $this->id()));
+               }
+               if ($credential->disabled_at !== null) {
+                   throw new InvalidArgumentException(sprintf('Credential %d is disabled and cannot be sent an %s code.', $credential->id, $this->id()));
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 219: ConcatSwitchSides - ID: f4517da0557dcd69
+
+                * email is satisfied by SMS.
+                */
+               if ($credential->type !== $this->id()) {
+  -                throw new InvalidArgumentException(sprintf('Credential %d is a "%s", but %s issues "%s" challenges. Delivering against ' . 'another factor\'s credential would let the challenge claim a factor type it ' . 'never exercised.', $credential->id, $credential->type, static::class, $this->id()));
+  +                throw new InvalidArgumentException(sprintf('another factor\'s credential would let the challenge claim a factor type it ' . 'Credential %d is a "%s", but %s issues "%s" challenges. Delivering against ' . 'never exercised.', $credential->id, $credential->type, static::class, $this->id()));
+               }
+               if ($credential->disabled_at !== null) {
+                   throw new InvalidArgumentException(sprintf('Credential %d is disabled and cannot be sent an %s code.', $credential->id, $this->id()));
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 219: ConcatSwitchSides - ID: 632f620a21817cae
+
+                * email is satisfied by SMS.
+                */
+               if ($credential->type !== $this->id()) {
+  -                throw new InvalidArgumentException(sprintf('Credential %d is a "%s", but %s issues "%s" challenges. Delivering against ' . 'another factor\'s credential would let the challenge claim a factor type it ' . 'never exercised.', $credential->id, $credential->type, static::class, $this->id()));
+  +                throw new InvalidArgumentException(sprintf('never exercised.' . ('Credential %d is a "%s", but %s issues "%s" challenges. Delivering against ' . 'another factor\'s credential would let the challenge claim a factor type it '), $credential->id, $credential->type, static::class, $this->id()));
+               }
+               if ($credential->disabled_at !== null) {
+                   throw new InvalidArgumentException(sprintf('Credential %d is disabled and cannot be sent an %s code.', $credential->id, $this->id()));
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 324: RemoveEarlyReturn - ID: fe6718ec3a5d5930
+
+           }
+           $credentialId = $challenge->credential_id;
+           if ($credentialId === null) {
+  -            // GuardsChallengeTarget makes this unreachable for OTP; failing
+  -            // closed rather than inventing a credential id keeps it that way.
+  -            return FactorResult::failed(FactorFailure::NoCredential);
+  +            
+           }
+           /*
+            * Re-read the credential AT VERIFY TIME. GuardsChallengeTarget hooks
+  
+
+   UNCOVERED  src/Factors/Drivers/OtpFactor.php  > Line 351: RemoveEarlyReturn - ID: 46227d8c177a7558
+
+           if (!Hash::check($submitted, $challenge->code_hash)) {
+               $decision = $this->throttle->recordChallengeFailure($challenge->id);
+               if ($decision === ChallengeAttemptDecision::Consumed) {
+  -                return FactorResult::failed(FactorFailure::Consumed);
+  +                
+               }
+               if ($decision === ChallengeAttemptDecision::Expired) {
+                   return FactorResult::failed(FactorFailure::Expired);
+  
+
+   UNCOVERED  src/Factors/Drivers/OtpFactor.php  > Line 355: RemoveEarlyReturn - ID: 48647c0db425cada
+
+                   return FactorResult::failed(FactorFailure::Consumed);
+               }
+               if ($decision === ChallengeAttemptDecision::Expired) {
+  -                return FactorResult::failed(FactorFailure::Expired);
+  +                
+               }
+               if ($decision === ChallengeAttemptDecision::Unavailable) {
+                   return FactorResult::failed(FactorFailure::NoCredential);
+  
+
+   UNCOVERED  src/Factors/Drivers/OtpFactor.php  > Line 359: RemoveEarlyReturn - ID: 7aef5d8e703a22f0
+
+                   return FactorResult::failed(FactorFailure::Expired);
+               }
+               if ($decision === ChallengeAttemptDecision::Unavailable) {
+  -                return FactorResult::failed(FactorFailure::NoCredential);
+  +                
+               }
+               return FactorResult::failed(FactorFailure::Mismatch);
+           }
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 420: ConcatRemoveLeft - ID: 7dbbdf48f6cc18dd
+
+           }
+           $candidates = AuthCredential::query()->where('user_id', $userId)->where('type', $this->id())->whereNull('disabled_at')->get();
+           if ($candidates->count() !== 1) {
+  -            throw new InvalidArgumentException(sprintf('ChallengeRequest named no credential and user %d has %d active %s credentials. ' . 'Choosing one silently would deliver a code to an address the user did not pick.', $userId, $candidates->count(), $this->id()));
+  +            throw new InvalidArgumentException(sprintf('Choosing one silently would deliver a code to an address the user did not pick.', $userId, $candidates->count(), $this->id()));
+           }
+           $sole = $candidates->first();
+           if (!$sole instanceof AuthCredential) {
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 420: ConcatRemoveRight - ID: 9169ca404d975710
+
+           }
+           $candidates = AuthCredential::query()->where('user_id', $userId)->where('type', $this->id())->whereNull('disabled_at')->get();
+           if ($candidates->count() !== 1) {
+  -            throw new InvalidArgumentException(sprintf('ChallengeRequest named no credential and user %d has %d active %s credentials. ' . 'Choosing one silently would deliver a code to an address the user did not pick.', $userId, $candidates->count(), $this->id()));
+  +            throw new InvalidArgumentException(sprintf('ChallengeRequest named no credential and user %d has %d active %s credentials. ', $userId, $candidates->count(), $this->id()));
+           }
+           $sole = $candidates->first();
+           if (!$sole instanceof AuthCredential) {
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 420: ConcatSwitchSides - ID: 9956609dfda38c04
+
+           }
+           $candidates = AuthCredential::query()->where('user_id', $userId)->where('type', $this->id())->whereNull('disabled_at')->get();
+           if ($candidates->count() !== 1) {
+  -            throw new InvalidArgumentException(sprintf('ChallengeRequest named no credential and user %d has %d active %s credentials. ' . 'Choosing one silently would deliver a code to an address the user did not pick.', $userId, $candidates->count(), $this->id()));
+  +            throw new InvalidArgumentException(sprintf('Choosing one silently would deliver a code to an address the user did not pick.' . 'ChallengeRequest named no credential and user %d has %d active %s credentials. ', $userId, $candidates->count(), $this->id()));
+           }
+           $sole = $candidates->first();
+           if (!$sole instanceof AuthCredential) {
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 430: InstanceOfToTrue - ID: 71f6b3984c4a3389
+
+               throw new InvalidArgumentException(sprintf('ChallengeRequest named no credential and user %d has %d active %s credentials. ' . 'Choosing one silently would deliver a code to an address the user did not pick.', $userId, $candidates->count(), $this->id()));
+           }
+           $sole = $candidates->first();
+  -        if (!$sole instanceof AuthCredential) {
+  +        if (!true) {
+               // Unreachable: the count check above already guarantees exactly
+               // one. Failing closed here rather than trusting Collection::first()
+               // keeps that guarantee load-bearing instead of assumed.
+  
+
+   UNTESTED  src/Factors/Drivers/OtpFactor.php  > Line 460: RemoveStringCast - ID: 2280e57477784fbd
+
+       {
+           $code = '';
+           for ($i = 0; $i < $this->length; $i++) {
+  -            $code .= (string) $this->random->int(0, 9);
+  +            $code .= $this->random->int(0, 9);
+           }
+           return $code;
+       }
+   }
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 63: ConcatRemoveRight - ID: 016656d9d4b56c25
+
+       public function __construct(private EnrollmentGuard $guard, private ClockInterface $clock, private string $issuer = 'Vouch', private int $period = 30, private int $digits = 6, private int $window = 1)
+       {
+           if ($this->issuer === '') {
+  -            throw new InvalidArgumentException('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'reads as "" rather than falling back to the default, so unset it or give ' . 'it a value.');
+  +            throw new InvalidArgumentException('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'reads as "" rather than falling back to the default, so unset it or give ' . 'it a value.');
+           }
+           if ($this->period < 1) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 63: ConcatRemoveRight - ID: 3fd10d48537bb875
+
+       public function __construct(private EnrollmentGuard $guard, private ClockInterface $clock, private string $issuer = 'Vouch', private int $period = 30, private int $digits = 6, private int $window = 1)
+       {
+           if ($this->issuer === '') {
+  -            throw new InvalidArgumentException('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'reads as "" rather than falling back to the default, so unset it or give ' . 'it a value.');
+  +            throw new InvalidArgumentException('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'it a value.');
+           }
+           if ($this->period < 1) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 63: ConcatRemoveRight - ID: 7bdd9ced1b515510
+
+       public function __construct(private EnrollmentGuard $guard, private ClockInterface $clock, private string $issuer = 'Vouch', private int $period = 30, private int $digits = 6, private int $window = 1)
+       {
+           if ($this->issuer === '') {
+  -            throw new InvalidArgumentException('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'reads as "" rather than falling back to the default, so unset it or give ' . 'it a value.');
+  +            throw new InvalidArgumentException('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'reads as "" rather than falling back to the default, so unset it or give ');
+           }
+           if ($this->period < 1) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 63: ConcatSwitchSides - ID: 75b88af5f33b7929
+
+       public function __construct(private EnrollmentGuard $guard, private ClockInterface $clock, private string $issuer = 'Vouch', private int $period = 30, private int $digits = 6, private int $window = 1)
+       {
+           if ($this->issuer === '') {
+  -            throw new InvalidArgumentException('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'reads as "" rather than falling back to the default, so unset it or give ' . 'it a value.');
+  +            throw new InvalidArgumentException('VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'reads as "" rather than falling back to the default, so unset it or give ' . 'it a value.');
+           }
+           if ($this->period < 1) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 63: ConcatSwitchSides - ID: 2cb230be3c50abe7
+
+       public function __construct(private EnrollmentGuard $guard, private ClockInterface $clock, private string $issuer = 'Vouch', private int $period = 30, private int $digits = 6, private int $window = 1)
+       {
+           if ($this->issuer === '') {
+  -            throw new InvalidArgumentException('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'reads as "" rather than falling back to the default, so unset it or give ' . 'it a value.');
+  +            throw new InvalidArgumentException('reads as "" rather than falling back to the default, so unset it or give ' . ('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ') . 'it a value.');
+           }
+           if ($this->period < 1) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 63: ConcatSwitchSides - ID: 2762b74ecba21f86
+
+       public function __construct(private EnrollmentGuard $guard, private ClockInterface $clock, private string $issuer = 'Vouch', private int $period = 30, private int $digits = 6, private int $window = 1)
+       {
+           if ($this->issuer === '') {
+  -            throw new InvalidArgumentException('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'reads as "" rather than falling back to the default, so unset it or give ' . 'it a value.');
+  +            throw new InvalidArgumentException('it a value.' . ('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'reads as "" rather than falling back to the default, so unset it or give '));
+           }
+           if ($this->period < 1) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 72: ConcatRemoveLeft - ID: d74dba56d718ad79
+
+               throw new InvalidArgumentException('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'reads as "" rather than falling back to the default, so unset it or give ' . 'it a value.');
+           }
+           if ($this->period < 1) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+  +            throw new InvalidArgumentException(sprintf('(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+           }
+           if ($this->digits < 1) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 72: ConcatRemoveLeft - ID: 30cb23da82d1355a
+
+               throw new InvalidArgumentException('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'reads as "" rather than falling back to the default, so unset it or give ' . 'it a value.');
+           }
+           if ($this->period < 1) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+  +            throw new InvalidArgumentException(sprintf('so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+           }
+           if ($this->digits < 1) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 72: ConcatRemoveRight - ID: 4397a41cf57c97f5
+
+               throw new InvalidArgumentException('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'reads as "" rather than falling back to the default, so unset it or give ' . 'it a value.');
+           }
+           if ($this->period < 1) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+  +            throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+           }
+           if ($this->digits < 1) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 72: ConcatRemoveRight - ID: 4da1d309cbce6fb7
+
+               throw new InvalidArgumentException('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'reads as "" rather than falling back to the default, so unset it or give ' . 'it a value.');
+           }
+           if ($this->period < 1) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+  +            throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ', $this->period));
+           }
+           if ($this->digits < 1) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 72: ConcatSwitchSides - ID: f7a2f85ce2b9c816
+
+               throw new InvalidArgumentException('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'reads as "" rather than falling back to the default, so unset it or give ' . 'it a value.');
+           }
+           if ($this->period < 1) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+  +            throw new InvalidArgumentException(sprintf('(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+           }
+           if ($this->digits < 1) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 72: ConcatSwitchSides - ID: 3bd3d7d6302fb67b
+
+               throw new InvalidArgumentException('TotpFactor requires a non-empty issuer: config "vouch.totp.issuer" (env ' . 'VOUCH_TOTP_ISSUER) is an empty string. A set-but-blank VOUCH_TOTP_ISSUER= ' . 'reads as "" rather than falling back to the default, so unset it or give ' . 'it a value.');
+           }
+           if ($this->period < 1) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+  +            throw new InvalidArgumentException(sprintf('so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.' . ('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, '), $this->period));
+           }
+           if ($this->digits < 1) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 81: ConcatRemoveLeft - ID: 7c9e86e98e5a84fd
+
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+           }
+           if ($this->digits < 1) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+  +            throw new InvalidArgumentException(sprintf('VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+           }
+           if ($this->window < 0) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 81: ConcatRemoveLeft - ID: 2acb2724fbe7709d
+
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+           }
+           if ($this->digits < 1) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+  +            throw new InvalidArgumentException(sprintf('set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+           }
+           if ($this->window < 0) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 81: ConcatRemoveRight - ID: bc18eadfafe1aa33
+
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+           }
+           if ($this->digits < 1) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+  +            throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+           }
+           if ($this->window < 0) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 81: ConcatRemoveRight - ID: f3f576c9b258555e
+
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+           }
+           if ($this->digits < 1) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+  +            throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ', $this->digits));
+           }
+           if ($this->window < 0) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 81: ConcatSwitchSides - ID: 79adfd880f221168
+
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+           }
+           if ($this->digits < 1) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+  +            throw new InvalidArgumentException(sprintf('VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+           }
+           if ($this->window < 0) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 81: ConcatSwitchSides - ID: a76458921cc2e2a1
+
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a period of at least 1 second: config "vouch.totp.period" ' . '(env VOUCH_TOTP_PERIOD) resolved to %d. That config reads `(int) env(...)`, ' . 'so a set-but-blank VOUCH_TOTP_PERIOD= arrives as 0 rather than the default.', $this->period));
+           }
+           if ($this->digits < 1) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+  +            throw new InvalidArgumentException(sprintf('set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.' . ('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a '), $this->digits));
+           }
+           if ($this->window < 0) {
+               throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 90: ConcatRemoveLeft - ID: 503a8cb67369b78a
+
+               throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+           }
+           if ($this->window < 0) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+  +            throw new InvalidArgumentException(sprintf('VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 90: ConcatRemoveLeft - ID: a03fba4b89ad34f7
+
+               throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+           }
+           if ($this->window < 0) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+  +            throw new InvalidArgumentException(sprintf('set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 90: ConcatRemoveLeft - ID: 0b410f7ff99198cd
+
+               throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+           }
+           if ($this->window < 0) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+  +            throw new InvalidArgumentException(sprintf('tolerance) — only a negative value reaches here.', $this->window));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 90: ConcatRemoveRight - ID: 613d6cf338a9fca9
+
+               throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+           }
+           if ($this->window < 0) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+  +            throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 90: ConcatRemoveRight - ID: 0340bf2fb9c84f06
+
+               throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+           }
+           if ($this->window < 0) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+  +            throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'tolerance) — only a negative value reaches here.', $this->window));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 90: ConcatRemoveRight - ID: fec3bceb991c1509
+
+               throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+           }
+           if ($this->window < 0) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+  +            throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ', $this->window));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 90: ConcatSwitchSides - ID: ca6ef09ce2f8410a
+
+               throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+           }
+           if ($this->window < 0) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+  +            throw new InvalidArgumentException(sprintf('VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 90: ConcatSwitchSides - ID: b644e3bfe56cd9a4
+
+               throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+           }
+           if ($this->window < 0) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+  +            throw new InvalidArgumentException(sprintf('set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . ('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ') . 'tolerance) — only a negative value reaches here.', $this->window));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 90: ConcatSwitchSides - ID: 372f53a7c6ab0a25
+
+               throw new InvalidArgumentException(sprintf('TotpFactor requires at least 1 digit: config "vouch.totp.digits" (env ' . 'VOUCH_TOTP_DIGITS) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_DIGITS= arrives as 0 rather than the default.', $this->digits));
+           }
+           if ($this->window < 0) {
+  -            throw new InvalidArgumentException(sprintf('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift ' . 'tolerance) — only a negative value reaches here.', $this->window));
+  +            throw new InvalidArgumentException(sprintf('tolerance) — only a negative value reaches here.' . ('TotpFactor requires a non-negative window: config "vouch.totp.window" (env ' . 'VOUCH_TOTP_WINDOW) resolved to %d. That config reads `(int) env(...)`, so a ' . 'set-but-blank VOUCH_TOTP_WINDOW= arrives as 0, which is legal (no drift '), $this->window));
+           }
+       }
+       public function id(): string
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 128: ConcatRemoveRight - ID: d43c621945d47b04
+
+       {
+           $label = $data['label'] ?? null;
+           if (!is_string($label) || $label === '') {
+  -            throw new InvalidArgumentException('TotpFactor::enroll() requires a non-empty "label" string — it is what the ' . 'authenticator app shows next to the code.');
+  +            throw new InvalidArgumentException('TotpFactor::enroll() requires a non-empty "label" string — it is what the ');
+           }
+           $replace = ($data['replace'] ?? false) === true;
+           $totp = TOTP::generate($this->clock);
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 128: ConcatSwitchSides - ID: a3fbf3b0342d2605
+
+       {
+           $label = $data['label'] ?? null;
+           if (!is_string($label) || $label === '') {
+  -            throw new InvalidArgumentException('TotpFactor::enroll() requires a non-empty "label" string — it is what the ' . 'authenticator app shows next to the code.');
+  +            throw new InvalidArgumentException('authenticator app shows next to the code.' . 'TotpFactor::enroll() requires a non-empty "label" string — it is what the ');
+           }
+           $replace = ($data['replace'] ?? false) === true;
+           $totp = TOTP::generate($this->clock);
+  
+
+   UNCOVERED  src/Factors/Drivers/TotpFactor.php  > Line 192: RemoveEarlyReturn - ID: b33b87c3674172db
+
+           }
+           $userId = $request->attempt->user_id;
+           if ($userId === null) {
+  -            return FactorResult::failed(FactorFailure::NoCredential);
+  +            
+           }
+           $credential = AuthCredential::query()->where('user_id', $userId)->where('type', $this->id())->whereNull('disabled_at')->first();
+           /*
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 280: PlusToMinus - ID: 825c19b291566c65
+
+           $totp->setDigits($this->digits);
+           $currentStep = intdiv($this->clock->now()->getTimestamp(), $this->period);
+           for ($offset = $this->window; $offset >= -$this->window; $offset--) {
+  -            $step = $currentStep + $offset;
+  +            $step = $currentStep - $offset;
+               if ($step < 0) {
+                   continue;
+               }
+  
+
+   UNTESTED  src/Factors/Drivers/TotpFactor.php  > Line 283: ContinueToBreak - ID: 72bc7b20776598b8
+
+           for ($offset = $this->window; $offset >= -$this->window; $offset--) {
+               $step = $currentStep + $offset;
+               if ($step < 0) {
+  -                continue;
+  +                break;
+               }
+               // Null leeway: an EXACT comparison at this timestamp, so a match
+               // identifies the step unambiguously. `$step * $this->period` is
+  
+
+   UNCOVERED  src/Factors/Drivers/PasswordFactor.php  > Line 133: RemoveEarlyReturn - ID: 7d7de55a3d58ff0b
+
+           }
+           $userId = $request->attempt->user_id;
+           if ($userId === null) {
+  -            return FactorResult::failed(FactorFailure::NoCredential);
+  +            
+           }
+           $credential = AuthCredential::query()->where('user_id', $userId)->where('type', $this->id())->whereNull('disabled_at')->first();
+           if (!$credential instanceof AuthCredential || !is_string($credential->secret)) {
+  
+
+   UNTESTED  src/Factors/FactorRegistry.php  > Line 29: ConcatRemoveRight - ID: df9acb2e87b685c2
+
+       {
+           $id = $factor->id();
+           if (isset($this->factors[$id])) {
+  -            throw new LogicException(sprintf('A factor driver is already registered for "%s" (%s). Registration is ' . 'write-once: replacing a driver silently would let a permissive ' . 'implementation displace a restrictive one.', $id, $this->factors[$id]::class));
+  +            throw new LogicException(sprintf('A factor driver is already registered for "%s" (%s). Registration is ' . 'implementation displace a restrictive one.', $id, $this->factors[$id]::class));
+           }
+           $this->factors[$id] = $factor;
+       }
+  
+
+   UNTESTED  src/Factors/FactorRegistry.php  > Line 29: ConcatRemoveRight - ID: ac11b4c0366d8dd3
+
+       {
+           $id = $factor->id();
+           if (isset($this->factors[$id])) {
+  -            throw new LogicException(sprintf('A factor driver is already registered for "%s" (%s). Registration is ' . 'write-once: replacing a driver silently would let a permissive ' . 'implementation displace a restrictive one.', $id, $this->factors[$id]::class));
+  +            throw new LogicException(sprintf('A factor driver is already registered for "%s" (%s). Registration is ' . 'write-once: replacing a driver silently would let a permissive ', $id, $this->factors[$id]::class));
+           }
+           $this->factors[$id] = $factor;
+       }
+  
+
+   UNTESTED  src/Factors/FactorRegistry.php  > Line 29: ConcatSwitchSides - ID: 96966b6b4ca66eee
+
+       {
+           $id = $factor->id();
+           if (isset($this->factors[$id])) {
+  -            throw new LogicException(sprintf('A factor driver is already registered for "%s" (%s). Registration is ' . 'write-once: replacing a driver silently would let a permissive ' . 'implementation displace a restrictive one.', $id, $this->factors[$id]::class));
+  +            throw new LogicException(sprintf('write-once: replacing a driver silently would let a permissive ' . 'A factor driver is already registered for "%s" (%s). Registration is ' . 'implementation displace a restrictive one.', $id, $this->factors[$id]::class));
+           }
+           $this->factors[$id] = $factor;
+       }
+  
+
+   UNTESTED  src/Factors/FactorRegistry.php  > Line 29: ConcatSwitchSides - ID: 4c715965861175c0
+
+       {
+           $id = $factor->id();
+           if (isset($this->factors[$id])) {
+  -            throw new LogicException(sprintf('A factor driver is already registered for "%s" (%s). Registration is ' . 'write-once: replacing a driver silently would let a permissive ' . 'implementation displace a restrictive one.', $id, $this->factors[$id]::class));
+  +            throw new LogicException(sprintf('implementation displace a restrictive one.' . ('A factor driver is already registered for "%s" (%s). Registration is ' . 'write-once: replacing a driver silently would let a permissive '), $id, $this->factors[$id]::class));
+           }
+           $this->factors[$id] = $factor;
+       }
+  
+
+  Mutations: 80 untested, 6 uncovered, 4 timeout, 395 tested
+  Score:     82.27%
+  Duration:  427.39s
+

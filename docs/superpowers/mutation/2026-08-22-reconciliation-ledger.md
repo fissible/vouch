@@ -124,7 +124,7 @@ Core sub-runs are deliberately itemized because routing breadth makes one
 | Attempts | 10 | pending |
 | Contracts | 9 | pending |
 | Enrollment | 3 | pending |
-| Factors | 16 | pending |
+| Factors | 16 | measured: 485 mutations; 395 tested, 80 untested, 6 uncovered, 4 timeouts |
 | Http | 7 | pending |
 | Jobs | 1 | measured: 13 mutations; 8 tested, 3 untested, 2 uncovered; 0 timeouts |
 | Models | 15 | pending; expected high routing breadth |
@@ -342,6 +342,34 @@ as unexplained uncovered rows.
   `da3c99b9f9b03bc5a11fec9466fcf00894df2bcfb8501858091a325a594bae97`) and
   `artifacts/2026-08-23-jobs-classification.json` (SHA-256
   `bb32ffa612641b454047f15adba293377e4925de0af1136ff932d78714e10e5a`).
+
+### Core / Factors
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Factors --no-cache --min=0`
+- SHA/source-equivalence guard: `cf2addd`, with no guarded-path diff from
+  `66ac67d` immediately before the run.
+- Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 31.05s;
+  timeout threshold 37.26s.
+- Result: 485 mutations / 10 RUN files; 395 tested, 80 untested, 6
+  uncovered, 4 timeouts; elapsed 427.39s; verified score 81.44% when the
+  four timeouts are kept unresolved (82.27% is the plugin display that credits
+  them).
+- The six uncovered rows are all null-user early-return guards in
+  `RecoveryCodeFactor`, `OtpFactor`, `TotpFactor`, and `PasswordFactor`; they
+  are present executable lines with no test reaching the branch, not engine
+  artifacts. The predicted `ChallengeIssuer:78` cross-attempt guard generated
+  no mutation and therefore has no row-level evidence yet.
+- The four timeout rows are structural non-termination: post-decrementing the
+  bounded loops at `RecoveryCodeFactor:140`, `RecoveryCodeFactor:248`,
+  `OtpFactor:459`, or changing the TOTP offset loop at `TotpFactor:279` to
+  post-increment makes the loop fail to reach its terminating condition. They
+  are dispositioned as killed-by-non-termination rather than rerun.
+- The 80 executed survivors require a later ruling pass; many are exception
+  message concatenations, while the factor/credential and TOTP decision rows
+  need mechanism-level review. Artifacts: `artifacts/2026-08-23-factors-66ac67d.log`
+  (SHA-256 `7f06da059ea88044f17956c2cbd0579300771d5883174357f7e61cdbe1e041d8`)
+  and `artifacts/2026-08-23-factors-classification.json` (SHA-256
+  `6245eb4a88163287dc05428378dc805b5cc0921efabe66e52b09f79ab7f85ea7`).
 
 ### Queued mechanism ruling: console contracts
 
