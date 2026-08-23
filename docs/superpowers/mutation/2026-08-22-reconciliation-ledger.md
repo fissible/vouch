@@ -126,7 +126,7 @@ Core sub-runs are deliberately itemized because routing breadth makes one
 | Enrollment | 3 | pending |
 | Factors | 16 | pending |
 | Http | 7 | pending |
-| Jobs | 1 | pending |
+| Jobs | 1 | measured: 13 mutations; 8 tested, 3 untested, 2 uncovered; 0 timeouts |
 | Models | 15 | pending; expected high routing breadth |
 | Persistence | 3 | pending |
 | Recovery | 2 | pending |
@@ -316,6 +316,28 @@ as unexplained uncovered rows.
   `killed-by-non-termination`, not rerun indefinitely as an environmental
   timeout. The committed classifier retains the mechanical
   `timeout-unresolved` state; this explicit ruling is the human disposition.
+
+### Core / Jobs
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Jobs --no-cache --min=0`
+- SHA/source-equivalence guard: `bda06d4`, with no guarded-path diff from
+  `66ac67d` immediately before the run.
+- Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 30.96s;
+  timeout threshold 37.15s.
+- Result: 13 mutations / 1 RUN file; 8 tested, 3 untested, 2 uncovered,
+  0 timeouts; elapsed 6.27s; verified score 61.54%.
+- The two `$tries = 5` declaration rows are instrument-unroutable. The three
+  executed survivors are lifecycle branches: `handle():32` forcing a missing
+  outbox through redispatch, `handle():33` changing the redispatch delay, and
+  `failed():46` removing the null-safe access. Existing tests cover the
+  positive outcomes but do not discriminate these edge conditions. The
+  `failed()` attribution mechanism remains a queued ruling rather than a
+  confirmed finding; provider-attempted and provider-never-attempted outcomes
+  are asserted, but missing-row and contention-redispatch guards are not.
+- Artifacts: `artifacts/2026-08-23-jobs-66ac67d.log` (SHA-256
+  `da3c99b9f9b03bc5a11fec9466fcf00894df2bcfb8501858091a325a594bae97`) and
+  `artifacts/2026-08-23-jobs-classification.json` (SHA-256
+  `bb32ffa612641b454047f15adba293377e4925de0af1136ff932d78714e10e5a`).
 
 ### Queued mechanism ruling: console contracts
 
