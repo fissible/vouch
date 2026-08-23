@@ -94,6 +94,12 @@ are absent from all three maps. Their future `UNCOVERED` rows are therefore
   lines and `engine-gated` for code reachable only on a different database
   engine. Engine-gated coverage must be established by unioning Clover maps
   from SQLite, MySQL, and PostgreSQL; SQLite alone cannot classify it.
+- Exception-message concatenation survivors are a standing `no-action`
+  disposition when the throwing guard itself is killed: asserting prose would
+  couple tests to explanatory text rather than behavior. A bare throw that
+  generates no mutation is instead `unmutatable`; unlike an unroutable line,
+  it still requires ordinary test coverage when the guard carries a security
+  or state-transition contract.
 - A chunk command must assert a positive mutation count and reconcile its `RUN`
   count to the assigned mutant-bearing files. `--min=0` otherwise permits a
   misspelled scope to exit successfully with `0 Mutations for 0 Files`.
@@ -132,7 +138,7 @@ Core sub-runs are deliberately itemized because routing breadth makes one
 | Recovery | 2 | pending |
 | Secrets | 2 | pending |
 | Sessions | 5 | pending |
-| Support | 6 | pending |
+| Support | 6 | measured: 119 mutations; 79 tested, 25 untested, 14 uncovered, 1 timeout |
 | Tenancy | 1 | pending |
 | root (`Vouch.php`, `VouchServiceProvider.php`) | 2 | pending |
 
@@ -370,6 +376,33 @@ as unexplained uncovered rows.
   (SHA-256 `7f06da059ea88044f17956c2cbd0579300771d5883174357f7e61cdbe1e041d8`)
   and `artifacts/2026-08-23-factors-classification.json` (SHA-256
   `6245eb4a88163287dc05428378dc805b5cc0921efabe66e52b09f79ab7f85ea7`).
+
+### Core / Support
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Support --no-cache --min=0`
+- SHA/source-equivalence guard: `bb549ed`, with no guarded-path diff from
+  `66ac67d` immediately before the run.
+- Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 31.46s;
+  timeout threshold 37.75s.
+- Result: 119 mutations / 4 RUN files; 79 tested, 25 untested, 14
+  uncovered, 1 timeout; elapsed 309.14s; verified score 66.39% excluding the
+  unresolved timeout.
+- The 14 uncovered rows are genuine never-executed branches: the PostgreSQL
+  rollback-restoration predicate in `BoundedLockWait`, plus the unsupported
+  driver and scalar/timestamp fallback paths. No row was engine-gated by the
+  union. The one timeout is `BoundedLockWait:65 RemoveMethodCall`; removing
+  `writeSeconds()` allows the real contention path to wait without its bound,
+  so it remains timeout-unresolved pending a deliberate ruling.
+- The 25 executed survivors include exception-message fragments (covered by
+  the standing message-prose rule), the `DatabaseRowLock` predicate-building
+  rows at lines 31–32, and behavioral/cast rows in `BoundedLockWait` and
+  `DatabaseTime` that need individual review. The row-lock survivors are
+  carried into the existing throttle-lock mechanism ruling rather than
+  treated as independent test gaps.
+- Artifacts: `artifacts/2026-08-23-support-66ac67d.log` (SHA-256
+  `bae57b4f5d5893e1860dc73a428eb6e7d8a4c881fe2c129aafe1ae09b3539ec0`) and
+  `artifacts/2026-08-23-support-classification.json` (SHA-256
+  `7c9e4fcad72859eb9fd5a2ae0c23e34d3e8d1d8f4faa1dbf50a8af4a32315558`).
 
 ### Queued mechanism ruling: console contracts
 

@@ -1,0 +1,611 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  .....................
+
+  Tests:    1161 passed (4092 assertions)
+  Duration: 31.46s
+
+  Mutating application files...
+  119 Mutations for 4 Files created
+
+   RUN  src/Support/DatabaseTime.php
+  ✓ Line 48: TernaryNegated
+  ✓ Line 48: CoalesceRemoveLeft
+  ⨯ Line 84: ConcatRemoveLeft
+  ✓ Line 84: ConcatRemoveLeft
+  ✓ Line 84: ConcatRemoveLeft
+  ✓ Line 84: ConcatRemoveLeft
+  ✓ Line 84: ConcatRemoveLeft
+  ✓ Line 84: ConcatRemoveRight
+  ⨯ Line 84: ConcatRemoveRight
+  ⨯ Line 84: ConcatRemoveRight
+  ⨯ Line 84: ConcatRemoveRight
+  ⨯ Line 84: ConcatRemoveRight
+  ⨯ Line 84: ConcatSwitchSides
+  ⨯ Line 84: ConcatSwitchSides
+  ⨯ Line 84: ConcatSwitchSides
+  ⨯ Line 84: ConcatSwitchSides
+  ⨯ Line 84: ConcatSwitchSides
+  ✓ Line 101: IfNegated
+  ✓ Line 101: SmallerToGreaterOrEqual
+  ✓ Line 101: SmallerToSmallerOrEqual
+  ✓ Line 101: DecrementInteger
+  ✓ Line 101: IncrementInteger
+  ✓ Line 105: ConcatRemoveLeft
+  ✓ Line 105: ConcatRemoveLeft
+  ✓ Line 105: ConcatRemoveRight
+  ✓ Line 105: ConcatRemoveRight
+  ✓ Line 105: ConcatSwitchSides
+  ✓ Line 105: ConcatSwitchSides
+  ✓ Line 106: RemoveArrayItem
+  ✓ Line 108: TernaryNegated
+  ✓ Line 108: CoalesceRemoveLeft
+  ✓ Line 115: IfNegated
+  ✓ Line 115: InstanceOfToTrue
+  ⨯ Line 115: InstanceOfToFalse
+  - Line 116: RemoveEarlyReturn
+  ✓ Line 119: IfNegated
+  ✓ Line 189: ConcatRemoveLeft
+  ✓ Line 189: ConcatRemoveLeft
+  ✓ Line 189: ConcatRemoveRight
+  ✓ Line 189: ConcatRemoveRight
+  ✓ Line 189: ConcatSwitchSides
+  ✓ Line 189: ConcatSwitchSides
+  ✓ Line 226: ConcatRemoveLeft
+  ✓ Line 226: ConcatRemoveLeft
+  ✓ Line 226: ConcatRemoveLeft
+  ✓ Line 226: ConcatRemoveLeft
+  ✓ Line 226: ConcatRemoveRight
+  ✓ Line 226: ConcatRemoveRight
+  ✓ Line 226: ConcatRemoveRight
+  ✓ Line 226: ConcatRemoveRight
+  ✓ Line 226: ConcatSwitchSides
+  ✓ Line 226: ConcatSwitchSides
+  ✓ Line 226: ConcatSwitchSides
+  ✓ Line 226: ConcatSwitchSides
+
+   RUN  src/Support/LockContention.php
+  ✓ Line 27: CoalesceRemoveLeft
+  ✓ Line 27: DecrementInteger
+  ✓ Line 27: IncrementInteger
+  ✓ Line 30: IdenticalToNotIdentical
+  ✓ Line 30: DecrementInteger
+  ✓ Line 30: IncrementInteger
+  ✓ Line 31: IdenticalToNotIdentical
+  ✓ Line 32: IdenticalToNotIdentical
+  ✓ Line 32: DecrementInteger
+  ✓ Line 32: IncrementInteger
+  ✓ Line 33: FalseToTrue
+
+   RUN  src/Support/DatabaseRowLock.php
+  ✓ Line 27: RemoveArrayItem
+  ✓ Line 27: RemoveMethodCall
+  ⨯ Line 31: ForeachEmptyIterable
+  ⨯ Line 32: RemoveMethodCall
+  ✓ Line 35: IfNegated
+  ✓ Line 35: IdenticalToNotIdentical
+
+   RUN  src/Support/BoundedLockWait.php
+  ✓ Line 49: DecrementInteger
+  ✓ Line 49: IncrementInteger
+  ✓ Line 60: IfNegated
+  ✓ Line 60: SmallerToGreaterOrEqual
+  ✓ Line 60: SmallerToSmallerOrEqual
+  ✓ Line 60: DecrementInteger
+  ✓ Line 60: IncrementInteger
+  t Line 65: RemoveMethodCall
+  ✓ Line 76: RemoveMethodCall
+  - Line 78: IfNegated
+  - Line 78: RemoveNot
+  ✓ Line 93: ConcatRemoveLeft
+  ✓ Line 93: ConcatRemoveLeft
+  ✓ Line 93: ConcatRemoveRight
+  ✓ Line 93: ConcatRemoveRight
+  ✓ Line 93: ConcatSwitchSides
+  ✓ Line 93: ConcatSwitchSides
+  ✓ Line 99: IfNegated
+  ✓ Line 99: BooleanAndToBooleanOr
+  ✓ Line 99: RemoveNot
+  ✓ Line 99: RemoveNot
+  ⨯ Line 112: ConcatRemoveLeft
+  ✓ Line 112: ConcatRemoveRight
+  ⨯ Line 112: ConcatSwitchSides
+  ✓ Line 114: MultiplicationToDivision
+  ✓ Line 114: DecrementInteger
+  ✓ Line 114: IncrementInteger
+  ⨯ Line 125: RemoveIntegerCast
+  ⨯ Line 127: RemoveStringCast
+  ⨯ Line 129: RemoveIntegerCast
+  ⨯ Line 137: RemoveMethodCall
+  ⨯ Line 139: GreaterToGreaterOrEqual
+  ⨯ Line 139: GreaterToSmallerOrEqual
+  ⨯ Line 139: DecrementInteger
+  ⨯ Line 139: IncrementInteger
+  ⨯ Line 139: RemoveArrayItem
+  ⨯ Line 139: RemoveArrayItem
+  - Line 152: IdenticalToNotIdentical
+  - Line 152: BooleanAndToBooleanOr
+  - Line 152: BooleanAndToBooleanOr
+  - Line 152: BooleanAndToBooleanOr
+  - Line 153: GreaterToGreaterOrEqual
+  - Line 153: GreaterToSmallerOrEqual
+  - Line 153: DecrementInteger
+  - Line 153: IncrementInteger
+  - Line 154: InstanceOfToTrue
+  - Line 154: InstanceOfToFalse
+  - Line 155: IdenticalToNotIdentical
+   UNTESTED  src/Support/DatabaseTime.php  > Line 84: ConcatRemoveLeft - ID: 1331292f41ac5d65
+
+               // SQLite modifier '+-N seconds'. Positive callers remain
+               // byte-for-byte equivalent at the value boundary.
+               'sqlite' => "datetime('now', printf('%+d seconds', ?))",
+  -            default => throw new InvalidArgumentException('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ' . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+  +            default => throw new InvalidArgumentException($driver . '". ' . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+           };
+       }
+       /** SQL for a deadline on THIS connection's driver. @return literal-string */
+  
+
+   UNTESTED  src/Support/DatabaseTime.php  > Line 84: ConcatRemoveRight - ID: 2f9c9a7ded9e86f5
+
+               // SQLite modifier '+-N seconds'. Positive callers remain
+               // byte-for-byte equivalent at the value boundary.
+               'sqlite' => "datetime('now', printf('%+d seconds', ?))",
+  -            default => throw new InvalidArgumentException('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ' . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+  +            default => throw new InvalidArgumentException('Vouch cannot express a database-clock deadline for driver "' . $driver . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+           };
+       }
+       /** SQL for a deadline on THIS connection's driver. @return literal-string */
+  
+
+   UNTESTED  src/Support/DatabaseTime.php  > Line 84: ConcatRemoveRight - ID: 73f3bd3bc1f69373
+
+               // SQLite modifier '+-N seconds'. Positive callers remain
+               // byte-for-byte equivalent at the value boundary.
+               'sqlite' => "datetime('now', printf('%+d seconds', ?))",
+  -            default => throw new InvalidArgumentException('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ' . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+  +            default => throw new InvalidArgumentException('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ' . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+           };
+       }
+       /** SQL for a deadline on THIS connection's driver. @return literal-string */
+  
+
+   UNTESTED  src/Support/DatabaseTime.php  > Line 84: ConcatRemoveRight - ID: 15a0ad032c8796bf
+
+               // SQLite modifier '+-N seconds'. Positive callers remain
+               // byte-for-byte equivalent at the value boundary.
+               'sqlite' => "datetime('now', printf('%+d seconds', ?))",
+  -            default => throw new InvalidArgumentException('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ' . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+  +            default => throw new InvalidArgumentException('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ' . 'Add the interval expression for it rather than falling back to an ' . 'window, silently, on the one engine nobody tested.'),
+           };
+       }
+       /** SQL for a deadline on THIS connection's driver. @return literal-string */
+  
+
+   UNTESTED  src/Support/DatabaseTime.php  > Line 84: ConcatRemoveRight - ID: c5c8849789a50f82
+
+               // SQLite modifier '+-N seconds'. Positive callers remain
+               // byte-for-byte equivalent at the value boundary.
+               'sqlite' => "datetime('now', printf('%+d seconds', ?))",
+  -            default => throw new InvalidArgumentException('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ' . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+  +            default => throw new InvalidArgumentException('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ' . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security '),
+           };
+       }
+       /** SQL for a deadline on THIS connection's driver. @return literal-string */
+  
+
+   UNTESTED  src/Support/DatabaseTime.php  > Line 84: ConcatSwitchSides - ID: 8a3d2972756f1c12
+
+               // SQLite modifier '+-N seconds'. Positive callers remain
+               // byte-for-byte equivalent at the value boundary.
+               'sqlite' => "datetime('now', printf('%+d seconds', ?))",
+  -            default => throw new InvalidArgumentException('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ' . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+  +            default => throw new InvalidArgumentException($driver . 'Vouch cannot express a database-clock deadline for driver "' . '". ' . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+           };
+       }
+       /** SQL for a deadline on THIS connection's driver. @return literal-string */
+  
+
+   UNTESTED  src/Support/DatabaseTime.php  > Line 84: ConcatSwitchSides - ID: 2a0b766a2674db01
+
+               // SQLite modifier '+-N seconds'. Positive callers remain
+               // byte-for-byte equivalent at the value boundary.
+               'sqlite' => "datetime('now', printf('%+d seconds', ?))",
+  -            default => throw new InvalidArgumentException('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ' . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+  +            default => throw new InvalidArgumentException('". ' . ('Vouch cannot express a database-clock deadline for driver "' . $driver) . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+           };
+       }
+       /** SQL for a deadline on THIS connection's driver. @return literal-string */
+  
+
+   UNTESTED  src/Support/DatabaseTime.php  > Line 84: ConcatSwitchSides - ID: 66aff7e18817b77e
+
+               // SQLite modifier '+-N seconds'. Positive callers remain
+               // byte-for-byte equivalent at the value boundary.
+               'sqlite' => "datetime('now', printf('%+d seconds', ?))",
+  -            default => throw new InvalidArgumentException('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ' . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+  +            default => throw new InvalidArgumentException('Add the interval expression for it rather than falling back to an ' . ('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ') . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+           };
+       }
+       /** SQL for a deadline on THIS connection's driver. @return literal-string */
+  
+
+   UNTESTED  src/Support/DatabaseTime.php  > Line 84: ConcatSwitchSides - ID: 34181b53fb369785
+
+               // SQLite modifier '+-N seconds'. Positive callers remain
+               // byte-for-byte equivalent at the value boundary.
+               'sqlite' => "datetime('now', printf('%+d seconds', ?))",
+  -            default => throw new InvalidArgumentException('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ' . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+  +            default => throw new InvalidArgumentException('application timestamp: that would reintroduce clock drift into a security ' . ('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ' . 'Add the interval expression for it rather than falling back to an ') . 'window, silently, on the one engine nobody tested.'),
+           };
+       }
+       /** SQL for a deadline on THIS connection's driver. @return literal-string */
+  
+
+   UNTESTED  src/Support/DatabaseTime.php  > Line 84: ConcatSwitchSides - ID: 2fbeb0a88fd5b652
+
+               // SQLite modifier '+-N seconds'. Positive callers remain
+               // byte-for-byte equivalent at the value boundary.
+               'sqlite' => "datetime('now', printf('%+d seconds', ?))",
+  -            default => throw new InvalidArgumentException('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ' . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security ' . 'window, silently, on the one engine nobody tested.'),
+  +            default => throw new InvalidArgumentException('window, silently, on the one engine nobody tested.' . ('Vouch cannot express a database-clock deadline for driver "' . $driver . '". ' . 'Add the interval expression for it rather than falling back to an ' . 'application timestamp: that would reintroduce clock drift into a security ')),
+           };
+       }
+       /** SQL for a deadline on THIS connection's driver. @return literal-string */
+  
+
+   UNTESTED  src/Support/DatabaseTime.php  > Line 115: InstanceOfToFalse - ID: a4de0875e1921727
+
+       }
+       private function parse(mixed $value, string $label): DateTimeImmutable
+       {
+  -        if ($value instanceof DateTimeInterface) {
+  +        if (false) {
+               return DateTimeImmutable::createFromInterface($value);
+           }
+           if (is_string($value)) {
+  
+
+   UNCOVERED  src/Support/DatabaseTime.php  > Line 116: RemoveEarlyReturn - ID: f55fadcad40a263c
+
+       private function parse(mixed $value, string $label): DateTimeImmutable
+       {
+           if ($value instanceof DateTimeInterface) {
+  -            return DateTimeImmutable::createFromInterface($value);
+  +            
+           }
+           if (is_string($value)) {
+               try {
+  
+
+   UNTESTED  src/Support/DatabaseRowLock.php  > Line 31: ForeachEmptyIterable - ID: 0b32604199a7dae3
+
+       {
+           $this->connection->table($table)->insertOrIgnore([$insert]);
+           $query = $this->connection->table($table);
+  -        foreach ($where as $column => $value) {
+  +        foreach ([] as $column => $value) {
+               $query->where($column, $value);
+           }
+           if ($query->lockForUpdate()->first() === null) {
+  
+
+   UNTESTED  src/Support/DatabaseRowLock.php  > Line 32: RemoveMethodCall - ID: b7506398153685f4
+
+           $this->connection->table($table)->insertOrIgnore([$insert]);
+           $query = $this->connection->table($table);
+           foreach ($where as $column => $value) {
+  -            $query->where($column, $value);
+  +            
+           }
+           if ($query->lockForUpdate()->first() === null) {
+               throw new RuntimeException(sprintf('The serialization row vanished from %s after ensure.', $table));
+  
+
+   UNCOVERED  src/Support/BoundedLockWait.php  > Line 78: IfNegated - ID: 6ceaf86a636f9a3b
+
+               try {
+                   $this->restore($prior);
+               } catch (QueryException $restoreFailure) {
+  -                if (!$this->restoresOnRollback($failure, $restoreFailure)) {
+  +                if (!!$this->restoresOnRollback($failure, $restoreFailure)) {
+                       throw $restoreFailure;
+                   }
+               }
+  
+
+   UNCOVERED  src/Support/BoundedLockWait.php  > Line 78: RemoveNot - ID: 5f3dcb9a0e0f8202
+
+               try {
+                   $this->restore($prior);
+               } catch (QueryException $restoreFailure) {
+  -                if (!$this->restoresOnRollback($failure, $restoreFailure)) {
+  +                if ($this->restoresOnRollback($failure, $restoreFailure)) {
+                       throw $restoreFailure;
+                   }
+               }
+  
+
+   UNTESTED  src/Support/BoundedLockWait.php  > Line 112: ConcatRemoveLeft - ID: 64c7e53958fc12e4
+
+       {
+           match ($this->connection->getDriverName()) {
+               'mysql' => $this->connection->statement(sprintf('SET SESSION innodb_lock_wait_timeout = %d', $seconds)),
+  -            'pgsql' => $this->setPostgres($seconds . 's'),
+  +            'pgsql' => $this->setPostgres('s'),
+               'sqlite' => $this->connection->statement(sprintf('PRAGMA busy_timeout = %d', $seconds * 1000)),
+               default => throw new InvalidArgumentException('Unsupported database driver.'),
+           };
+  
+
+   UNTESTED  src/Support/BoundedLockWait.php  > Line 112: ConcatSwitchSides - ID: d32805dafbcb3887
+
+       {
+           match ($this->connection->getDriverName()) {
+               'mysql' => $this->connection->statement(sprintf('SET SESSION innodb_lock_wait_timeout = %d', $seconds)),
+  -            'pgsql' => $this->setPostgres($seconds . 's'),
+  +            'pgsql' => $this->setPostgres('s' . $seconds),
+               'sqlite' => $this->connection->statement(sprintf('PRAGMA busy_timeout = %d', $seconds * 1000)),
+               default => throw new InvalidArgumentException('Unsupported database driver.'),
+           };
+  
+
+   UNTESTED  src/Support/BoundedLockWait.php  > Line 125: RemoveIntegerCast - ID: 0a3821ebb49f4c7f
+
+       private function restore(int|string $prior): void
+       {
+           match ($this->connection->getDriverName()) {
+  -            'mysql' => $this->connection->statement(sprintf('SET SESSION innodb_lock_wait_timeout = %d', (int) $prior)),
+  +            'mysql' => $this->connection->statement(sprintf('SET SESSION innodb_lock_wait_timeout = %d', $prior)),
+               'pgsql' => $this->setPostgres((string) $prior),
+               'sqlite' => $this->connection->statement(sprintf('PRAGMA busy_timeout = %d', (int) $prior)),
+               default => throw new InvalidArgumentException('Unsupported database driver.'),
+  
+
+   UNTESTED  src/Support/BoundedLockWait.php  > Line 127: RemoveStringCast - ID: fce3173d874637d7
+
+       {
+           match ($this->connection->getDriverName()) {
+               'mysql' => $this->connection->statement(sprintf('SET SESSION innodb_lock_wait_timeout = %d', (int) $prior)),
+  -            'pgsql' => $this->setPostgres((string) $prior),
+  +            'pgsql' => $this->setPostgres($prior),
+               'sqlite' => $this->connection->statement(sprintf('PRAGMA busy_timeout = %d', (int) $prior)),
+               default => throw new InvalidArgumentException('Unsupported database driver.'),
+           };
+  
+
+   UNTESTED  src/Support/BoundedLockWait.php  > Line 129: RemoveIntegerCast - ID: aa9745694dcdaf84
+
+           match ($this->connection->getDriverName()) {
+               'mysql' => $this->connection->statement(sprintf('SET SESSION innodb_lock_wait_timeout = %d', (int) $prior)),
+               'pgsql' => $this->setPostgres((string) $prior),
+  -            'sqlite' => $this->connection->statement(sprintf('PRAGMA busy_timeout = %d', (int) $prior)),
+  +            'sqlite' => $this->connection->statement(sprintf('PRAGMA busy_timeout = %d', $prior)),
+               default => throw new InvalidArgumentException('Unsupported database driver.'),
+           };
+       }
+  
+
+   UNTESTED  src/Support/BoundedLockWait.php  > Line 137: RemoveMethodCall - ID: 7601c22e71bfc485
+
+       }
+       private function setPostgres(string $value): void
+       {
+  -        $this->connection->scalar("SELECT set_config('lock_timeout', ?, ?)", [$value, $this->connection->transactionLevel() > 0]);
+  +        
+       }
+       /**
+        * A PostgreSQL statement error aborts its transaction, so no restoration
+  
+
+   UNTESTED  src/Support/BoundedLockWait.php  > Line 139: GreaterToGreaterOrEqual - ID: 49d33638e893624c
+
+       }
+       private function setPostgres(string $value): void
+       {
+  -        $this->connection->scalar("SELECT set_config('lock_timeout', ?, ?)", [$value, $this->connection->transactionLevel() > 0]);
+  +        $this->connection->scalar("SELECT set_config('lock_timeout', ?, ?)", [$value, $this->connection->transactionLevel() >= 0]);
+       }
+       /**
+        * A PostgreSQL statement error aborts its transaction, so no restoration
+  
+
+   UNTESTED  src/Support/BoundedLockWait.php  > Line 139: GreaterToSmallerOrEqual - ID: 85dab2cd73087ca4
+
+       }
+       private function setPostgres(string $value): void
+       {
+  -        $this->connection->scalar("SELECT set_config('lock_timeout', ?, ?)", [$value, $this->connection->transactionLevel() > 0]);
+  +        $this->connection->scalar("SELECT set_config('lock_timeout', ?, ?)", [$value, $this->connection->transactionLevel() <= 0]);
+       }
+       /**
+        * A PostgreSQL statement error aborts its transaction, so no restoration
+  
+
+   UNTESTED  src/Support/BoundedLockWait.php  > Line 139: DecrementInteger - ID: 90245e2d6c843900
+
+       }
+       private function setPostgres(string $value): void
+       {
+  -        $this->connection->scalar("SELECT set_config('lock_timeout', ?, ?)", [$value, $this->connection->transactionLevel() > 0]);
+  +        $this->connection->scalar("SELECT set_config('lock_timeout', ?, ?)", [$value, $this->connection->transactionLevel() > -1]);
+       }
+       /**
+        * A PostgreSQL statement error aborts its transaction, so no restoration
+  
+
+   UNTESTED  src/Support/BoundedLockWait.php  > Line 139: IncrementInteger - ID: e251d023dbf188c5
+
+       }
+       private function setPostgres(string $value): void
+       {
+  -        $this->connection->scalar("SELECT set_config('lock_timeout', ?, ?)", [$value, $this->connection->transactionLevel() > 0]);
+  +        $this->connection->scalar("SELECT set_config('lock_timeout', ?, ?)", [$value, $this->connection->transactionLevel() > 1]);
+       }
+       /**
+        * A PostgreSQL statement error aborts its transaction, so no restoration
+  
+
+   UNTESTED  src/Support/BoundedLockWait.php  > Line 139: RemoveArrayItem - ID: d44a4c1c78fb50f1
+
+       }
+       private function setPostgres(string $value): void
+       {
+  -        $this->connection->scalar("SELECT set_config('lock_timeout', ?, ?)", [$value, $this->connection->transactionLevel() > 0]);
+  +        $this->connection->scalar("SELECT set_config('lock_timeout', ?, ?)", [$this->connection->transactionLevel() > 0]);
+       }
+       /**
+        * A PostgreSQL statement error aborts its transaction, so no restoration
+  
+
+   UNTESTED  src/Support/BoundedLockWait.php  > Line 139: RemoveArrayItem - ID: ff5fe20d8b4dcaa7
+
+       }
+       private function setPostgres(string $value): void
+       {
+  -        $this->connection->scalar("SELECT set_config('lock_timeout', ?, ?)", [$value, $this->connection->transactionLevel() > 0]);
+  +        $this->connection->scalar("SELECT set_config('lock_timeout', ?, ?)", [$value]);
+       }
+       /**
+        * A PostgreSQL statement error aborts its transaction, so no restoration
+  
+
+   UNCOVERED  src/Support/BoundedLockWait.php  > Line 152: IdenticalToNotIdentical - ID: ad6e9dd8c35304b6
+
+        */
+       private function restoresOnRollback(?Throwable $failure, QueryException $restoreFailure): bool
+       {
+  -        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+  +        return $this->connection->getDriverName() !== 'pgsql' && $this->connection->transactionLevel() > 0 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+       }
+   }
+  
+
+   UNCOVERED  src/Support/BoundedLockWait.php  > Line 152: BooleanAndToBooleanOr - ID: 373240e1cf5453cb
+
+        */
+       private function restoresOnRollback(?Throwable $failure, QueryException $restoreFailure): bool
+       {
+  -        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+  +        return ($this->connection->getDriverName() === 'pgsql' || $this->connection->transactionLevel() > 0) && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+       }
+   }
+  
+
+   UNCOVERED  src/Support/BoundedLockWait.php  > Line 152: BooleanAndToBooleanOr - ID: cc7ab95fcd0d01b3
+
+        */
+       private function restoresOnRollback(?Throwable $failure, QueryException $restoreFailure): bool
+       {
+  -        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+  +        return ($this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 || $failure instanceof QueryException) && $restoreFailure->getCode() === '25P02';
+       }
+   }
+  
+
+   UNCOVERED  src/Support/BoundedLockWait.php  > Line 152: BooleanAndToBooleanOr - ID: 9e08e2ca26c2f15d
+
+        */
+       private function restoresOnRollback(?Throwable $failure, QueryException $restoreFailure): bool
+       {
+  -        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+  +        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 && $failure instanceof QueryException || $restoreFailure->getCode() === '25P02';
+       }
+   }
+  
+
+   UNCOVERED  src/Support/BoundedLockWait.php  > Line 153: GreaterToGreaterOrEqual - ID: 735eedc866b7b9d4
+
+        */
+       private function restoresOnRollback(?Throwable $failure, QueryException $restoreFailure): bool
+       {
+  -        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+  +        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() >= 0 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+       }
+   }
+  
+
+   UNCOVERED  src/Support/BoundedLockWait.php  > Line 153: GreaterToSmallerOrEqual - ID: ed6a1e531909aafe
+
+        */
+       private function restoresOnRollback(?Throwable $failure, QueryException $restoreFailure): bool
+       {
+  -        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+  +        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() <= 0 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+       }
+   }
+  
+
+   UNCOVERED  src/Support/BoundedLockWait.php  > Line 153: DecrementInteger - ID: 2cf226b868327363
+
+        */
+       private function restoresOnRollback(?Throwable $failure, QueryException $restoreFailure): bool
+       {
+  -        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+  +        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > -1 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+       }
+   }
+  
+
+   UNCOVERED  src/Support/BoundedLockWait.php  > Line 153: IncrementInteger - ID: adc45d5aedf3c9dc
+
+        */
+       private function restoresOnRollback(?Throwable $failure, QueryException $restoreFailure): bool
+       {
+  -        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+  +        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 1 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+       }
+   }
+  
+
+   UNCOVERED  src/Support/BoundedLockWait.php  > Line 154: InstanceOfToTrue - ID: 3660ea442e627d59
+
+        */
+       private function restoresOnRollback(?Throwable $failure, QueryException $restoreFailure): bool
+       {
+  -        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+  +        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 && true && $restoreFailure->getCode() === '25P02';
+       }
+   }
+  
+
+   UNCOVERED  src/Support/BoundedLockWait.php  > Line 154: InstanceOfToFalse - ID: be3593d9a69963c2
+
+        */
+       private function restoresOnRollback(?Throwable $failure, QueryException $restoreFailure): bool
+       {
+  -        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+  +        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 && false && $restoreFailure->getCode() === '25P02';
+       }
+   }
+  
+
+   UNCOVERED  src/Support/BoundedLockWait.php  > Line 155: IdenticalToNotIdentical - ID: a42e04c92a09cf03
+
+        */
+       private function restoresOnRollback(?Throwable $failure, QueryException $restoreFailure): bool
+       {
+  -        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 && $failure instanceof QueryException && $restoreFailure->getCode() === '25P02';
+  +        return $this->connection->getDriverName() === 'pgsql' && $this->connection->transactionLevel() > 0 && $failure instanceof QueryException && $restoreFailure->getCode() !== '25P02';
+       }
+   }
+  
+
+  Mutations: 25 untested, 14 uncovered, 1 timeout, 79 tested
+  Score:     67.23%
+  Duration:  309.14s
+
