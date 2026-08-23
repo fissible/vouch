@@ -36,6 +36,27 @@ from all three remains unroutable or a genuine gap according to the other
 dispositions. Validate the method first against
 `DatabaseAuthThrottleStore.php:415–419`.
 
+### Throttle union completed
+
+All three full-suite maps were generated in one sitting at the source-equivalent
+state guarded against `66ac67d`:
+
+| engine | result | artifact SHA-256 | container |
+|---|---|---|---|
+| SQLite | 1,161 passed / 4,092 assertions / 32.15s | `3fdb26087a79ef6d6227ad3ec7879fce1843d3158276bf8c9c4cc1cf715b8daa` | file-backed `/tmp/vouch-union.sqlite` |
+| MySQL 8 | 1,161 passed / 4,094 assertions / 77.72s | `da88f26cbe1213c08d7885266940132ceff4c5432a06b5187acfe6671b62d3c2` | `vouch-matrix-mysql`, `618ea48acc9d…`, port `13306` |
+| PostgreSQL 16 | 1,161 passed / 4,096 assertions / 71.69s | `4c70761f6f7c808a542e59fe820679540e43bb36547ea9ffce87e5f96268eb9a` | `vouch-matrix-pg`, `62ad6e01115a…`, port `15432` |
+
+The committed classifier ran once with SQLite as `--map` and both other maps as
+`--union`. It emitted the reusable executed-line set
+(`0000242fc84ba3be5884a0dfe136a0e7780cdcd7ef0a953d0fcc6f731e1faee1`) and
+classified the 126 Throttle rows as 83 executed-and-survived, 27
+never-executed, 10 engine-gated, and 6 instrument-unroutable. The union rescued
+the reference `DatabaseAuthThrottleStore.php:415–419` branch. In
+`ThrottleConfiguration`, the 22 uncovered rows resolve to 19 never-executed,
+3 instrument-unroutable, and 25 executed-and-survived rows—mostly genuine
+validation gaps, as predicted.
+
 ## Measurement rules
 
 - Record the exact SHA (`66ac67d`) and the plugin timeout threshold in every
