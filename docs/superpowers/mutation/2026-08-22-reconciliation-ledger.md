@@ -112,7 +112,7 @@ are absent from all three maps. Their future `UNCOVERED` rows are therefore
 | Flow | `src/Flow/` | 10 | AuthFlow 239.82s / 36.82s | partial: `AuthFlow.php` measured (285 mutations; 272 tested, 12 untested, 1 uncovered); 9 files pending |
 | Throttle | `src/Throttle/` | 13 assigned / 7 mutant-bearing | 3,047.11s / 38.52s | rerun measured: 865 mutations; 739 tested, 86 untested, 40 uncovered, 0 timeouts; verified score 85.43% |
 | Kernel | `src/Kernel/` | 26 | pending | pending; disclosure-sensitive (`ErrorShaper`, `ScreenSpec`, `RetryPolicy`) |
-| Console | `src/Console/` | 8 | pending | pending |
+| Console | `src/Console/` | 8 | 88.94s / 38.03s | measured: 181 mutations / 8 RUN files; 125 tested, 34 untested, 22 uncovered, 0 timeouts |
 | Notifications | `src/Notifications/` | 9 | pending | pending |
 | Core / data and boundaries | explicit sub-runs below | 82 | pending | pending; no aggregate run may stand in for its sub-runs |
 
@@ -253,7 +253,22 @@ reclassified as instrumentation artifacts:
   reservation refusal records `spend_ceiling` on the outbox row.
 - `VouchPruneCommand.php:130` and `OtpQueueDispatcher.php:75` are defensive
   invariant-unreachable throws and should be dispositioned as such, not left
-  as unexplained uncovered rows.
+as unexplained uncovered rows.
+
+### Console
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Console --no-cache --min=0`
+- SHA/source-equivalence guard: current documentation HEAD `f4a5c00`, no
+  guarded-path diff from `66ac67d`.
+- Baseline: 1,161 tests, file-backed SQLite, 31.69s; timeout threshold 38.03s.
+- Result: 181 mutations / 8 RUN files; 125 tested, 34 untested, 22 uncovered,
+  0 timeouts; elapsed 88.94s.
+- Definitive classifier used the Console SQLite map plus the pinned MySQL and
+  PostgreSQL union: 34 executed-and-survived, 16 never-executed, and 6
+  instrument-unroutable. The predicted `VouchDoctorCommand.php:84` row is
+  `never-executed` across the union, not engine-gated. The artifact is
+  `artifacts/2026-08-22-console-classification.json` (SQLite map SHA-256
+  `f97315f0fae6b1647f7e0e1bddbd51c052334fa55ef87215b39aedd27cb3867a`).
 
 ### Queued mechanism ruling: throttle row locks
 
