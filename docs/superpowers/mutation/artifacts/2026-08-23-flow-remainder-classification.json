@@ -1,0 +1,90 @@
+[
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/ScreenBuilder.php",
+        "line": 91,
+        "mutator": "ConcatRemoveRight",
+        "id": "7c3de343d3c3fd11",
+        "expression": "'ScreenBuilder requires Outcome::Locked and a measured identifier lock '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/ScreenBuilder.php",
+        "line": 91,
+        "mutator": "ConcatRemoveRight",
+        "id": "76844c511eef979d",
+        "expression": "'ScreenBuilder requires Outcome::Locked and a measured identifier lock '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/ScreenBuilder.php",
+        "line": 91,
+        "mutator": "ConcatRemoveRight",
+        "id": "35f98ecd76baa179",
+        "expression": "'ScreenBuilder requires Outcome::Locked and a measured identifier lock '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/ScreenBuilder.php",
+        "line": 91,
+        "mutator": "ConcatSwitchSides",
+        "id": "736a01a6b4f0d446",
+        "expression": "'ScreenBuilder requires Outcome::Locked and a measured identifier lock '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/ScreenBuilder.php",
+        "line": 91,
+        "mutator": "ConcatSwitchSides",
+        "id": "b85191488ae9fcf9",
+        "expression": "'ScreenBuilder requires Outcome::Locked and a measured identifier lock '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/ScreenBuilder.php",
+        "line": 91,
+        "mutator": "ConcatSwitchSides",
+        "id": "7facb3953433e77b",
+        "expression": "'ScreenBuilder requires Outcome::Locked and a measured identifier lock '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/UnknownFlowResult.php",
+        "line": 23,
+        "mutator": "ConcatRemoveRight",
+        "id": "a9f247272595d581",
+        "expression": "'No handler for FlowResult variant %s. Every variant must be handled '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/UnknownFlowResult.php",
+        "line": 23,
+        "mutator": "ConcatSwitchSides",
+        "id": "a4f60546e4f0f817",
+        "expression": "'No handler for FlowResult variant %s. Every variant must be handled '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    }
+]

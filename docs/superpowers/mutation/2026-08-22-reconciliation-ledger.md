@@ -109,7 +109,7 @@ are absent from all three maps. Their future `UNCOVERED` rows are therefore
 | chunk | assigned source directories | source files | elapsed / timeout | status at `66ac67d` |
 |---|---|---:|---|---|
 | Delivery | `src/Delivery/` | 14 | 137.63s / 37.69s | measured: 229 mutations / 7 RUN files; 164 tested, 64 untested, 1 uncovered, 0 timeouts |
-| Flow | `src/Flow/` | 10 | AuthFlow 239.82s / 36.82s | partial: `AuthFlow.php` measured (285 mutations; 272 tested, 12 untested, 1 uncovered); 9 files pending |
+| Flow | `src/Flow/` | 10 assigned / 5 mutant-bearing | 239.82s + 70.97s / 37.50s | measured: AuthFlow plus 9-file remainder; 354 mutations total, 333 tested, 20 untested, 1 uncovered; remainder has 61 tested, 8 untested, 0 uncovered, 0 timeouts |
 | Throttle | `src/Throttle/` | 13 assigned / 7 mutant-bearing | 3,047.11s / 38.52s | rerun measured: 865 mutations; 739 tested, 86 untested, 40 uncovered, 0 timeouts; verified score 85.43% |
 | Kernel | `src/Kernel/` | 26 | pending | pending; disclosure-sensitive (`ErrorShaper`, `ScreenSpec`, `RetryPolicy`) |
 | Console | `src/Console/` | 8 | 88.94s / 38.03s | measured: 181 mutations / 8 RUN files; 125 tested, 34 untested, 22 uncovered, 0 timeouts |
@@ -165,6 +165,26 @@ rather than disappearing from the ledger.
   0 timeouts; verified score 95.44%
 - This does **not** close Flow. `VerificationEqualizer`, `ScreenBuilder`, and
   the seven remaining result/request classes require their own RUN evidence.
+
+### Flow remainder
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Flow/AuthSuccess.php,src/Flow/Authenticated.php,src/Flow/Continuing.php,src/Flow/FlowRequest.php,src/Flow/FlowResult.php,src/Flow/RecoveryGraceStarted.php,src/Flow/ScreenBuilder.php,src/Flow/UnknownFlowResult.php,src/Flow/VerificationEqualizer.php --no-cache --min=0`
+- SHA/source-equivalence guard: `a73aa6d`, with no guarded-path diff from
+  `66ac67d` immediately before the run.
+- Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 31.25s;
+  timeout threshold 37.50s.
+- Result: 69 mutations / 5 RUN files; 61 tested, 8 untested, 0 uncovered,
+  0 timeouts; elapsed 70.97s; verified score 88.41%.
+- The nine-file prediction held: no remaining Flow row was absent from the
+  unioned executed-line set. The eight survivors are message-fragment
+  concatenation mutants only: six in `ScreenBuilder.php:91` and two in
+  `UnknownFlowResult.php:23`. `VerificationEqualizer` and the DTO/result
+  classes produced no surviving rows. Keep the eight as one queued
+  message-only ruling; do not add tests during the pinned measurement.
+- Row-level artifacts: `artifacts/2026-08-23-flow-remainder-66ac67d.log`
+  (SHA-256 `47c6f8800caae6368444f088a297a1917ca2391416581ece93fa0f9cf078d87e`)
+  and `artifacts/2026-08-23-flow-remainder-classification.json` (SHA-256
+  `12e7c8992bebdfe4b544da9f9d983fee5e1d4f2fb91bea91acded790840fd2e9`).
 
 ### Throttle
 

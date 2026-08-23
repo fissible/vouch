@@ -1,0 +1,200 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  .....................
+
+  Tests:    1161 passed (4092 assertions)
+  Duration: 31.25s
+
+  Mutating application files...
+  69 Mutations for 5 Files created
+
+   RUN  src/Flow/AuthSuccess.php
+  ✓ Line 39: UnwrapArrayMap
+  ✓ Line 39: AlwaysReturnEmptyArray
+
+   RUN  src/Flow/FlowRequest.php
+  ✓ Line 39: CoalesceRemoveLeft
+  ✓ Line 41: TernaryNegated
+  ✓ Line 41: AlwaysReturnNull
+
+   RUN  src/Flow/ScreenBuilder.php
+  ✓ Line 50: FalseToTrue
+  ✓ Line 51: DecrementInteger
+  ✓ Line 51: IncrementInteger
+  ✓ Line 51: RemoveArrayItem
+  ✓ Line 66: DecrementInteger
+  ✓ Line 66: IncrementInteger
+  ✓ Line 66: RemoveArrayItem
+  ✓ Line 86: BooleanAndToBooleanOr
+  ✓ Line 86: InstanceOfToTrue
+  ✓ Line 86: InstanceOfToFalse
+  ✓ Line 87: IdenticalToNotIdentical
+  ✓ Line 89: IfNegated
+  ✓ Line 89: IdenticalToNotIdentical
+  ✓ Line 89: NotIdenticalToIdentical
+  ✓ Line 91: ConcatRemoveLeft
+  ✓ Line 91: ConcatRemoveLeft
+  ✓ Line 91: ConcatRemoveLeft
+  ⨯ Line 91: ConcatRemoveRight
+  ⨯ Line 91: ConcatRemoveRight
+  ⨯ Line 91: ConcatRemoveRight
+  ⨯ Line 91: ConcatSwitchSides
+  ⨯ Line 91: ConcatSwitchSides
+  ⨯ Line 91: ConcatSwitchSides
+  ✓ Line 98: IfNegated
+  ✓ Line 98: BooleanAndToBooleanOr
+  ✓ Line 98: InstanceOfToTrue
+  ✓ Line 98: InstanceOfToFalse
+  ✓ Line 99: NotIdenticalToIdentical
+  ✓ Line 101: ConcatRemoveLeft
+  ✓ Line 101: ConcatRemoveRight
+  ✓ Line 101: ConcatSwitchSides
+  ✓ Line 108: TernaryNegated
+  ✓ Line 108: IdenticalToNotIdentical
+  ✓ Line 109: TernaryNegated
+  ✓ Line 109: IdenticalToNotIdentical
+  ✓ Line 110: DecrementInteger
+  ✓ Line 110: IncrementInteger
+  ✓ Line 110: RemoveArrayItem
+  ✓ Line 111: DecrementInteger
+  ✓ Line 111: IncrementInteger
+  ✓ Line 111: RemoveArrayItem
+  ✓ Line 124: IfNegated
+  ✓ Line 124: InstanceOfToTrue
+  ✓ Line 124: InstanceOfToFalse
+  ✓ Line 125: RemoveEarlyReturn
+  ✓ Line 132: IfNegated
+  ✓ Line 132: InstanceOfToTrue
+  ✓ Line 132: InstanceOfToFalse
+  ✓ Line 133: RemoveEarlyReturn
+  ✓ Line 148: TrueToFalse
+  ✓ Line 151: UnwrapArrayMap
+  ✓ Line 151: AlwaysReturnEmptyArray
+  ✓ Line 156: IdenticalToNotIdentical
+  ✓ Line 158: UnwrapArrayFilter
+  ✓ Line 158: UnwrapArrayValues
+  ✓ Line 160: BooleanOrToBooleanAnd
+  ✓ Line 161: NotIdenticalToIdentical
+
+   RUN  src/Flow/UnknownFlowResult.php
+  ✓ Line 23: ConcatRemoveLeft
+  ⨯ Line 23: ConcatRemoveRight
+  ⨯ Line 23: ConcatSwitchSides
+
+   RUN  src/Flow/VerificationEqualizer.php
+  ✓ Line 32: IfNegated
+  ✓ Line 32: NotIdenticalToIdentical
+  ✓ Line 42: CoalesceEqualToEqual
+  ✓ Line 44: RemoveMethodCall
+   UNTESTED  src/Flow/ScreenBuilder.php  > Line 91: ConcatRemoveRight - ID: 7c3de343d3c3fd11
+
+       {
+           $measuredLock = $throttle instanceof IdentifierThrottle && $throttle->decision === ThrottleDecision::Locked;
+           if (($outcome === Outcome::Locked) !== $measuredLock) {
+  -            throw new LogicException('ScreenBuilder requires Outcome::Locked and a measured identifier lock ' . 'to arrive together. A lock outcome without identifier state fabricates ' . 'a lockout, while hiding measured lock state would discard the only ' . 'deadline a legitimate user can act on.');
+  +            throw new LogicException('ScreenBuilder requires Outcome::Locked and a measured identifier lock ' . 'a lockout, while hiding measured lock state would discard the only ' . 'deadline a legitimate user can act on.');
+           }
+           if ($throttle instanceof SharedThrottle && $throttle->decision !== ThrottleDecision::BackedOff) {
+               throw new LogicException('ScreenBuilder can refuse from shared throttle state only when that ' . 'dimension measured an active backoff.');
+  
+
+   UNTESTED  src/Flow/ScreenBuilder.php  > Line 91: ConcatRemoveRight - ID: 76844c511eef979d
+
+       {
+           $measuredLock = $throttle instanceof IdentifierThrottle && $throttle->decision === ThrottleDecision::Locked;
+           if (($outcome === Outcome::Locked) !== $measuredLock) {
+  -            throw new LogicException('ScreenBuilder requires Outcome::Locked and a measured identifier lock ' . 'to arrive together. A lock outcome without identifier state fabricates ' . 'a lockout, while hiding measured lock state would discard the only ' . 'deadline a legitimate user can act on.');
+  +            throw new LogicException('ScreenBuilder requires Outcome::Locked and a measured identifier lock ' . 'to arrive together. A lock outcome without identifier state fabricates ' . 'deadline a legitimate user can act on.');
+           }
+           if ($throttle instanceof SharedThrottle && $throttle->decision !== ThrottleDecision::BackedOff) {
+               throw new LogicException('ScreenBuilder can refuse from shared throttle state only when that ' . 'dimension measured an active backoff.');
+  
+
+   UNTESTED  src/Flow/ScreenBuilder.php  > Line 91: ConcatRemoveRight - ID: 35f98ecd76baa179
+
+       {
+           $measuredLock = $throttle instanceof IdentifierThrottle && $throttle->decision === ThrottleDecision::Locked;
+           if (($outcome === Outcome::Locked) !== $measuredLock) {
+  -            throw new LogicException('ScreenBuilder requires Outcome::Locked and a measured identifier lock ' . 'to arrive together. A lock outcome without identifier state fabricates ' . 'a lockout, while hiding measured lock state would discard the only ' . 'deadline a legitimate user can act on.');
+  +            throw new LogicException('ScreenBuilder requires Outcome::Locked and a measured identifier lock ' . 'to arrive together. A lock outcome without identifier state fabricates ' . 'a lockout, while hiding measured lock state would discard the only ');
+           }
+           if ($throttle instanceof SharedThrottle && $throttle->decision !== ThrottleDecision::BackedOff) {
+               throw new LogicException('ScreenBuilder can refuse from shared throttle state only when that ' . 'dimension measured an active backoff.');
+  
+
+   UNTESTED  src/Flow/ScreenBuilder.php  > Line 91: ConcatSwitchSides - ID: 736a01a6b4f0d446
+
+       {
+           $measuredLock = $throttle instanceof IdentifierThrottle && $throttle->decision === ThrottleDecision::Locked;
+           if (($outcome === Outcome::Locked) !== $measuredLock) {
+  -            throw new LogicException('ScreenBuilder requires Outcome::Locked and a measured identifier lock ' . 'to arrive together. A lock outcome without identifier state fabricates ' . 'a lockout, while hiding measured lock state would discard the only ' . 'deadline a legitimate user can act on.');
+  +            throw new LogicException('to arrive together. A lock outcome without identifier state fabricates ' . 'ScreenBuilder requires Outcome::Locked and a measured identifier lock ' . 'a lockout, while hiding measured lock state would discard the only ' . 'deadline a legitimate user can act on.');
+           }
+           if ($throttle instanceof SharedThrottle && $throttle->decision !== ThrottleDecision::BackedOff) {
+               throw new LogicException('ScreenBuilder can refuse from shared throttle state only when that ' . 'dimension measured an active backoff.');
+  
+
+   UNTESTED  src/Flow/ScreenBuilder.php  > Line 91: ConcatSwitchSides - ID: b85191488ae9fcf9
+
+       {
+           $measuredLock = $throttle instanceof IdentifierThrottle && $throttle->decision === ThrottleDecision::Locked;
+           if (($outcome === Outcome::Locked) !== $measuredLock) {
+  -            throw new LogicException('ScreenBuilder requires Outcome::Locked and a measured identifier lock ' . 'to arrive together. A lock outcome without identifier state fabricates ' . 'a lockout, while hiding measured lock state would discard the only ' . 'deadline a legitimate user can act on.');
+  +            throw new LogicException('a lockout, while hiding measured lock state would discard the only ' . ('ScreenBuilder requires Outcome::Locked and a measured identifier lock ' . 'to arrive together. A lock outcome without identifier state fabricates ') . 'deadline a legitimate user can act on.');
+           }
+           if ($throttle instanceof SharedThrottle && $throttle->decision !== ThrottleDecision::BackedOff) {
+               throw new LogicException('ScreenBuilder can refuse from shared throttle state only when that ' . 'dimension measured an active backoff.');
+  
+
+   UNTESTED  src/Flow/ScreenBuilder.php  > Line 91: ConcatSwitchSides - ID: 7facb3953433e77b
+
+       {
+           $measuredLock = $throttle instanceof IdentifierThrottle && $throttle->decision === ThrottleDecision::Locked;
+           if (($outcome === Outcome::Locked) !== $measuredLock) {
+  -            throw new LogicException('ScreenBuilder requires Outcome::Locked and a measured identifier lock ' . 'to arrive together. A lock outcome without identifier state fabricates ' . 'a lockout, while hiding measured lock state would discard the only ' . 'deadline a legitimate user can act on.');
+  +            throw new LogicException('deadline a legitimate user can act on.' . ('ScreenBuilder requires Outcome::Locked and a measured identifier lock ' . 'to arrive together. A lock outcome without identifier state fabricates ' . 'a lockout, while hiding measured lock state would discard the only '));
+           }
+           if ($throttle instanceof SharedThrottle && $throttle->decision !== ThrottleDecision::BackedOff) {
+               throw new LogicException('ScreenBuilder can refuse from shared throttle state only when that ' . 'dimension measured an active backoff.');
+  
+
+   UNTESTED  src/Flow/UnknownFlowResult.php  > Line 23: ConcatRemoveRight - ID: a9f247272595d581
+
+   {
+       public static function for(FlowResult $result): self
+       {
+  -        return new self(sprintf('No handler for FlowResult variant %s. Every variant must be handled ' . 'explicitly; falling through would skip session rotation on success.', $result::class));
+  +        return new self(sprintf('No handler for FlowResult variant %s. Every variant must be handled ', $result::class));
+       }
+   }
+  
+
+   UNTESTED  src/Flow/UnknownFlowResult.php  > Line 23: ConcatSwitchSides - ID: a4f60546e4f0f817
+
+   {
+       public static function for(FlowResult $result): self
+       {
+  -        return new self(sprintf('No handler for FlowResult variant %s. Every variant must be handled ' . 'explicitly; falling through would skip session rotation on success.', $result::class));
+  +        return new self(sprintf('explicitly; falling through would skip session rotation on success.' . 'No handler for FlowResult variant %s. Every variant must be handled ', $result::class));
+       }
+   }
+  
+
+  Mutations: 8 untested, 61 tested
+  Score:     88.41%
+  Duration:  70.97s
+
