@@ -113,7 +113,7 @@ are absent from all three maps. Their future `UNCOVERED` rows are therefore
 | Throttle | `src/Throttle/` | 13 assigned / 7 mutant-bearing | 3,047.11s / 38.52s | rerun measured: 865 mutations; 739 tested, 86 untested, 40 uncovered, 0 timeouts; verified score 85.43% |
 | Kernel | `src/Kernel/` | 26 | pending | pending; disclosure-sensitive (`ErrorShaper`, `ScreenSpec`, `RetryPolicy`) |
 | Console | `src/Console/` | 8 | 88.94s / 38.03s | measured: 181 mutations / 8 RUN files; 125 tested, 34 untested, 22 uncovered, 0 timeouts |
-| Notifications | `src/Notifications/` | 9 | pending | pending |
+| Notifications | `src/Notifications/` | 9 assigned / 4 mutant-bearing | 153.02s / 38.52s | measured: 183 mutations; 150 tested, 24 untested, 8 uncovered, 1 timeout |
 | Core / data and boundaries | explicit sub-runs below | 82 | pending | pending; no aggregate run may stand in for its sub-runs |
 
 Core sub-runs are deliberately itemized because routing breadth makes one
@@ -269,6 +269,24 @@ as unexplained uncovered rows.
   `never-executed` across the union, not engine-gated. The artifact is
   `artifacts/2026-08-22-console-classification.json` (SQLite map SHA-256
   `f97315f0fae6b1647f7e0e1bddbd51c052334fa55ef87215b39aedd27cb3867a`).
+
+### Notifications
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Notifications --no-cache --min=0`
+- SHA/source-equivalence guard: documentation HEAD `c194b7d`, no guarded-path
+  diff from `66ac67d`.
+- Baseline: 1,161 tests, file-backed SQLite, 32.11s; timeout threshold 38.52s.
+- Result: 183 mutations / 4 RUN files; 150 tested, 24 untested, 8 uncovered,
+  1 timeout; elapsed 153.02s. The timeout identity was not emitted by the
+  plugin's detailed section and remains unresolved rather than being classified.
+- The committed classifier used the Notifications SQLite map plus the pinned
+  MySQL/PostgreSQL union: 24 executed-and-survived and 8 never-executed. The
+  eight never-executed rows are the predicted `OtpOutboxDelivery`
+  terminalization causes. The 16 executed survivors in that class are not
+  evidence that `DeliverOtpChallenge::failed()` is discriminated: that class is
+  in `src/Jobs/` and will be measured in the Jobs/Core sub-run.
+- Artifact: `artifacts/2026-08-22-notifications-classification.json` (SQLite
+  map SHA-256 `bc502c4b33b531784bacd681e54162c5dc72e8cb1f7f6d921bb1ccd8b5fd0040`).
 
 ### Queued mechanism ruling: console contracts
 
