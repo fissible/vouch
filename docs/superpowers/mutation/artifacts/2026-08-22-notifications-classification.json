@@ -1,5 +1,16 @@
 [
     {
+        "state": "TIMEOUT",
+        "file": "src/Notifications/OtpOutboxDelivery.php",
+        "line": 175,
+        "mutator": "PostIncrementToPostDecrement",
+        "id": null,
+        "expression": "for ($attempt = 0; $attempt < 3; $attempt++) {",
+        "disposition": "timeout-unresolved",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
         "state": "UNTESTED",
         "file": "src/Notifications/OtpOutboxDelivery.php",
         "line": 70,

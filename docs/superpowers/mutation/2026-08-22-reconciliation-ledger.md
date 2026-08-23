@@ -277,16 +277,25 @@ as unexplained uncovered rows.
   diff from `66ac67d`.
 - Baseline: 1,161 tests, file-backed SQLite, 32.11s; timeout threshold 38.52s.
 - Result: 183 mutations / 4 RUN files; 150 tested, 24 untested, 8 uncovered,
-  1 timeout; elapsed 153.02s. The timeout identity was not emitted by the
-  plugin's detailed section and remains unresolved rather than being classified.
+  1 timeout; elapsed 153.02s. The timeout is recovered positionally from its
+  `RUN` heading as `OtpOutboxDelivery.php:175` `PostIncrementToPostDecrement`.
 - The committed classifier used the Notifications SQLite map plus the pinned
-  MySQL/PostgreSQL union: 24 executed-and-survived and 8 never-executed. The
+  MySQL/PostgreSQL union: 24 executed-and-survived, 8 never-executed, and 1
+  recovered timeout. The
   eight never-executed rows are the predicted `OtpOutboxDelivery`
   terminalization causes. The 16 executed survivors in that class are not
   evidence that `DeliverOtpChallenge::failed()` is discriminated: that class is
   in `src/Jobs/` and will be measured in the Jobs/Core sub-run.
 - Artifact: `artifacts/2026-08-22-notifications-classification.json` (SQLite
-  map SHA-256 `bc502c4b33b531784bacd681e54162c5dc72e8cb1f7f6d921bb1ccd8b5fd0040`).
+  map SHA-256 `bc502c4b33b531784bacd681e54162c5dc72e8cb1f7f6d921bb1ccd8b5fd0040`;
+  corrected classifier SHA-256
+  `902dd8c5c2c8aad47fdce84a8b5defb17ff1bb2181c50c85d5458ef0ee0d884a`).
+- The recovered timeout is a structural non-termination: mutating
+  `for ($attempt = 0; $attempt < 3; $attempt++)` to post-decrement runs the
+  counter `0, -1, -2, ...` and can never terminate. It is dispositioned as
+  `killed-by-non-termination`, not rerun indefinitely as an environmental
+  timeout. The committed classifier retains the mechanical
+  `timeout-unresolved` state; this explicit ruling is the human disposition.
 
 ### Queued mechanism ruling: console contracts
 
