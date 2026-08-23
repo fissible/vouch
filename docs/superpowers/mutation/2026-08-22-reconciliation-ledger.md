@@ -50,12 +50,20 @@ state guarded against `66ac67d`:
 The committed classifier ran once with SQLite as `--map` and both other maps as
 `--union`. It emitted the reusable executed-line set
 (`0000242fc84ba3be5884a0dfe136a0e7780cdcd7ef0a953d0fcc6f731e1faee1`) and
-classified the 126 Throttle rows as 83 executed-and-survived, 27
-never-executed, 10 engine-gated, and 6 instrument-unroutable. The union rescued
+classified the 126 Throttle rows as 86 executed-and-survived (3 contested
+against the coverage map), 27 never-executed, 10 engine-gated, and 3
+instrument-unroutable. Coverage informs `UNCOVERED` rows only; plugin-reported
+`UNTESTED` rows remain survivors even when their signature line is absent from
+the map. Timeout rows receive a separate unresolved disposition. The union rescued
 the reference `DatabaseAuthThrottleStore.php:415–419` branch. In
 `ThrottleConfiguration`, the 22 uncovered rows resolve to 19 never-executed,
 3 instrument-unroutable, and 25 executed-and-survived rows—mostly genuine
 validation gaps, as predicted.
+The corrected classifier artifact is committed at
+`artifacts/2026-08-22-throttle-classification.json` (SHA-256
+`fc383dcfe5e2c8c27d37bbc965e61de8c24ee309bbfe723e6f606a75264f016b`); the
+emitted line set is committed as `.txt`, not `.json`, because the tool writes
+plain `path:line` records.
 
 ## Measurement rules
 

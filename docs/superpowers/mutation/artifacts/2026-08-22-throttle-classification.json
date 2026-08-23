@@ -6,7 +6,9 @@
         "mutator": "NotIdenticalToIdentical",
         "id": "fc03070cefca61f0",
         "expression": "$counterExists = $this->counter($identifier) !== null;",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -15,7 +17,9 @@
         "mutator": "RemoveMethodCall",
         "id": "97278c064af5aa67",
         "expression": "$this->ensureCounter($identifier, $counterExists);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -24,7 +28,9 @@
         "mutator": "TrueToFalse",
         "id": "bdbad651b50a409e",
         "expression": "$counter = $this->counter($identifier, lock: true);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -33,7 +39,9 @@
         "mutator": "TrueToFalse",
         "id": "7fb3f175d6749a81",
         "expression": "$counter = $this->counter($identifier, lock: true);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -42,7 +50,9 @@
         "mutator": "TrueToFalse",
         "id": "e8dd6cc5cdf303eb",
         "expression": "$lock = $this->lock($identifier, lock: true);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -51,7 +61,9 @@
         "mutator": "NotIdenticalToIdentical",
         "id": "5ca8951969adb36e",
         "expression": "$parentExists = $this->ipParent($ip) !== null;",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -60,7 +72,9 @@
         "mutator": "RemoveMethodCall",
         "id": "d29fcc711f931461",
         "expression": "$this->ensureIpParent($ip, $parentExists);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -69,7 +83,9 @@
         "mutator": "TrueToFalse",
         "id": "1f21412d206806e0",
         "expression": "$parent = $this->ipParent($ip, lock: true);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -78,7 +94,9 @@
         "mutator": "TrueToFalse",
         "id": "4f5a3858efdb5b97",
         "expression": "$parent = $this->ipParent($ip, lock: true);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -87,7 +105,9 @@
         "mutator": "TrueToFalse",
         "id": "2c40cd020773751a",
         "expression": "$parent = $this->ipParent($ip, lock: true);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -96,7 +116,9 @@
         "mutator": "NotIdenticalToIdentical",
         "id": "6315c90f2622ee71",
         "expression": "$counterExists = $this->counter($issuance) !== null;",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -105,7 +127,9 @@
         "mutator": "RemoveMethodCall",
         "id": "6830d7cfdc3fe60c",
         "expression": "$this->ensureCounter($issuance, $counterExists);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -114,7 +138,9 @@
         "mutator": "TrueToFalse",
         "id": "48ab2520cf87d6bd",
         "expression": "$counter = $this->counter($issuance, lock: true);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -123,7 +149,9 @@
         "mutator": "TrueToFalse",
         "id": "39c70da5df6c37fb",
         "expression": "$counter = $this->counter($issuance, lock: true);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -132,7 +160,9 @@
         "mutator": "NotIdenticalToIdentical",
         "id": "e4197dfe3e4a7987",
         "expression": "$counterExists = $this->counter($subject) !== null;",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -141,7 +171,9 @@
         "mutator": "RemoveMethodCall",
         "id": "4ed81078788d5dbb",
         "expression": "$this->ensureCounter($subject, $counterExists);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -150,7 +182,9 @@
         "mutator": "TrueToFalse",
         "id": "90f9aafc5592f42e",
         "expression": "$counter = $this->counter($subject, lock: true);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -159,7 +193,9 @@
         "mutator": "TrueToFalse",
         "id": "28b9817c7971a4cf",
         "expression": "$counter = $this->counter($subject, lock: true);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -168,7 +204,9 @@
         "mutator": "IfNegated",
         "id": "b1dd9d842104d485",
         "expression": "if ($this->connection->getDriverName() === 'sqlite') {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -177,7 +215,9 @@
         "mutator": "RemoveMethodCall",
         "id": "0d5e871982db1c1a",
         "expression": "$this->insertIpParentIfMissing($ip);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -186,7 +226,9 @@
         "mutator": "RemoveEarlyReturn",
         "id": "77fe6d3f503d3421",
         "expression": "return;",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -195,7 +237,9 @@
         "mutator": "IfNegated",
         "id": "966b1c6693be8c31",
         "expression": "if ($existedBeforeTransaction) {",
-        "disposition": "engine-gated"
+        "disposition": "engine-gated",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -204,7 +248,9 @@
         "mutator": "RemoveMethodCall",
         "id": "c0ee1d4065d003fa",
         "expression": "$this->insertIpParentIfMissing($ip);",
-        "disposition": "engine-gated"
+        "disposition": "engine-gated",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -213,7 +259,9 @@
         "mutator": "FalseToTrue",
         "id": "d6c1abb84615ac01",
         "expression": "private function ipParent(ThrottleSubject $ip, bool $lock = false): ?array",
-        "disposition": "instrument-unroutable"
+        "disposition": "executed-and-survived",
+        "coverage": "absent",
+        "contested": true
     },
     {
         "state": "UNTESTED",
@@ -222,7 +270,9 @@
         "mutator": "IfNegated",
         "id": "25a146719f83c489",
         "expression": "if ($lock) {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -231,7 +281,9 @@
         "mutator": "RemoveMethodCall",
         "id": "aa48a384a4c30237",
         "expression": "$query->lockForUpdate();",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -240,7 +292,9 @@
         "mutator": "BooleanOrToBooleanAnd",
         "id": "91d08fbb9ef73fd6",
         "expression": "if (! is_int($id) || $id < 1) {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -249,7 +303,9 @@
         "mutator": "DecrementInteger",
         "id": "b5a99be8cec0fe1f",
         "expression": "if (! is_int($id) || $id < 1) {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -258,7 +314,9 @@
         "mutator": "BooleanOrToBooleanAnd",
         "id": "419adbd6ede26d17",
         "expression": "if ($threshold === null || $backoff === null) {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -267,7 +325,9 @@
         "mutator": "ConcatRemoveLeft",
         "id": "3819ced15ed37ab4",
         "expression": "$retryAfter = $this->date($latest)->modify('+' . $backoff . ' seconds');",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -276,7 +336,9 @@
         "mutator": "ConcatRemoveLeft",
         "id": "8a2a555999d60795",
         "expression": "->modify('+' . $this->configuration->windowSeconds . ' seconds');",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -285,7 +347,9 @@
         "mutator": "GreaterToGreaterOrEqual",
         "id": "567fdd7208518201",
         "expression": "$retryAfter > $windowDeadline ? $windowDeadline : $retryAfter,",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -294,7 +358,9 @@
         "mutator": "RemoveEarlyReturn",
         "id": "9484518c0fb3640c",
         "expression": "return IdentifierThrottle::permitted($remaining);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -303,7 +369,9 @@
         "mutator": "TernaryNegated",
         "id": "0c05cc3b25cf52b4",
         "expression": "return $subject->dimension === ThrottleDimension::Recovery",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -312,7 +380,9 @@
         "mutator": "IdenticalToNotIdentical",
         "id": "ec5afe20f37d64e1",
         "expression": "return $subject->dimension === ThrottleDimension::Recovery",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -321,7 +391,9 @@
         "mutator": "RemoveEarlyReturn",
         "id": "3a910068d0a05c10",
         "expression": "return $subject->dimension === ThrottleDimension::Recovery",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -330,7 +402,9 @@
         "mutator": "BooleanOrToBooleanAnd",
         "id": "25ee7b4b7605a08c",
         "expression": "if ($threshold === null || $backoff === null) {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -339,7 +413,9 @@
         "mutator": "RemoveEarlyReturn",
         "id": "7166f6d585dc3923",
         "expression": "return SharedThrottle::permitted();",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -348,7 +424,9 @@
         "mutator": "SmallerToSmallerOrEqual",
         "id": "26a4c695192e90cb",
         "expression": "while ($step <= $count && $offset < $this->configuration->windowSeconds) {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -357,7 +435,9 @@
         "mutator": "ConcatRemoveLeft",
         "id": "9dc300e74967558a",
         "expression": "return $windowStartedAt->modify('+' . min($offset, $this->configuration->windowSeconds) . ' seconds');",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -366,7 +446,9 @@
         "mutator": "IdenticalToNotIdentical",
         "id": "11692d58fea5af98",
         "expression": "if ($this->connection->getDriverName() === 'sqlite') {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -375,7 +457,9 @@
         "mutator": "RemoveMethodCall",
         "id": "92412cbf5867d18c",
         "expression": "$this->insertCounterIfMissing($subject);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -384,7 +468,9 @@
         "mutator": "RemoveEarlyReturn",
         "id": "1a6b50b470479038",
         "expression": "return;",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -393,7 +479,9 @@
         "mutator": "IfNegated",
         "id": "3500ad43e61d2211",
         "expression": "if ($existedBeforeTransaction) {",
-        "disposition": "engine-gated"
+        "disposition": "engine-gated",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -402,7 +490,9 @@
         "mutator": "RemoveMethodCall",
         "id": "3aa314cdb15599e0",
         "expression": "$this->insertCounterIfMissing($subject);",
-        "disposition": "engine-gated"
+        "disposition": "engine-gated",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -411,7 +501,9 @@
         "mutator": "DecrementInteger",
         "id": "6f0b970598298177",
         "expression": "$forceRollover ? 1 : 0,",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -420,7 +512,9 @@
         "mutator": "DecrementInteger",
         "id": "2e657bfbdbd0f62a",
         "expression": "$forceRollover ? 1 : 0,",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -429,7 +523,9 @@
         "mutator": "TrueToFalse",
         "id": "baa55b3db1e54658",
         "expression": "$counter = $this->counter($subject, lock: true);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -438,7 +534,9 @@
         "mutator": "FalseToTrue",
         "id": "5357e4133389d519",
         "expression": "private function counter(ThrottleSubject $subject, bool $lock = false): ?array",
-        "disposition": "instrument-unroutable"
+        "disposition": "executed-and-survived",
+        "coverage": "absent",
+        "contested": true
     },
     {
         "state": "UNTESTED",
@@ -447,7 +545,9 @@
         "mutator": "IfNegated",
         "id": "c4f92209aa73597a",
         "expression": "if ($lock) {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -456,7 +556,9 @@
         "mutator": "RemoveMethodCall",
         "id": "dd5920cc7734117b",
         "expression": "$query->lockForUpdate();",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -465,7 +567,9 @@
         "mutator": "TrueToFalse",
         "id": "48557523d6192281",
         "expression": "$lock = $this->lock($identifier, lock: true);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -474,7 +578,9 @@
         "mutator": "FalseToTrue",
         "id": "fdc16f445037c743",
         "expression": "private function lock(ThrottleSubject $identifier, bool $lock = false): ?DateTimeImmutable",
-        "disposition": "instrument-unroutable"
+        "disposition": "executed-and-survived",
+        "coverage": "absent",
+        "contested": true
     },
     {
         "state": "UNTESTED",
@@ -483,7 +589,9 @@
         "mutator": "IfNegated",
         "id": "11d2d54dc325f55a",
         "expression": "if ($lock) {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -492,7 +600,9 @@
         "mutator": "RemoveMethodCall",
         "id": "27f24be326f0111a",
         "expression": "$query->lockForUpdate();",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -501,7 +611,9 @@
         "mutator": "InstanceOfToFalse",
         "id": "896be8168be064ab",
         "expression": "if ($value instanceof DateTimeInterface) {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -510,7 +622,9 @@
         "mutator": "RemoveEarlyReturn",
         "id": "88692e119fbb0525",
         "expression": "return DateTimeImmutable::createFromInterface($value);",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -519,7 +633,9 @@
         "mutator": "DecrementInteger",
         "id": "459883d428f933fa",
         "expression": "public const int MAX_LOCK_DURATION_SECONDS = 3600;",
-        "disposition": "instrument-unroutable"
+        "disposition": "instrument-unroutable",
+        "coverage": "absent",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -528,7 +644,9 @@
         "mutator": "IncrementInteger",
         "id": "ea512af37b30f9c7",
         "expression": "public const int MAX_LOCK_DURATION_SECONDS = 3600;",
-        "disposition": "instrument-unroutable"
+        "disposition": "instrument-unroutable",
+        "coverage": "absent",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -537,7 +655,9 @@
         "mutator": "ConcatRemoveRight",
         "id": "045f49160ced0c3f",
         "expression": "'Configuration \"vouch.throttle.identifier.backoff_after\" must be less than '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -546,7 +666,9 @@
         "mutator": "ConcatSwitchSides",
         "id": "a5b6ddea1910927e",
         "expression": "'Configuration \"vouch.throttle.identifier.backoff_after\" must be less than '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -555,7 +677,9 @@
         "mutator": "ConcatRemoveRight",
         "id": "d923bce78f91a46e",
         "expression": "'Configuration \"vouch.throttle.retention_seconds\" must be at least '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -564,7 +688,9 @@
         "mutator": "ConcatSwitchSides",
         "id": "29d52bcd69930f68",
         "expression": "'Configuration \"vouch.throttle.retention_seconds\" must be at least '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -573,7 +699,9 @@
         "mutator": "ConcatRemoveRight",
         "id": "bc0cce989fe5be6a",
         "expression": "'Configuration \"vouch.throttle.ip.ipv4_observe_at\" must be greater than '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -582,7 +710,9 @@
         "mutator": "ConcatSwitchSides",
         "id": "48d689c0f6043ada",
         "expression": "'Configuration \"vouch.throttle.ip.ipv4_observe_at\" must be greater than '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -591,7 +721,9 @@
         "mutator": "RemoveArrayItem",
         "id": "06dd009d210a6914",
         "expression": "! $captchaEnabled || in_array('enforce', [$ipMode, $tenantMode, $globalMode], true),",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -600,7 +732,9 @@
         "mutator": "RemoveArrayItem",
         "id": "535404a1d8f080d7",
         "expression": "! $captchaEnabled || in_array('enforce', [$ipMode, $tenantMode, $globalMode], true),",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -609,7 +743,9 @@
         "mutator": "ConcatRemoveRight",
         "id": "2bb1dbe305f6e0a4",
         "expression": "'Configuration \"vouch.throttle.captcha.enabled\" requires at least one shared '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -618,7 +754,9 @@
         "mutator": "ConcatSwitchSides",
         "id": "1c1100c3ae4b42e9",
         "expression": "'Configuration \"vouch.throttle.captcha.enabled\" requires at least one shared '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -627,7 +765,9 @@
         "mutator": "GreaterToGreaterOrEqual",
         "id": "97b42762bd26dc39",
         "expression": "if (is_int($integer) && $integer > 0) {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -636,7 +776,9 @@
         "mutator": "BooleanAndToBooleanOr",
         "id": "9b2b7afd4badc418",
         "expression": "if (is_int($integer) && $integer > 0) {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -645,7 +787,9 @@
         "mutator": "DecrementInteger",
         "id": "83630d09bd4ebc70",
         "expression": "if (is_int($integer) && $integer > 0) {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -654,7 +798,9 @@
         "mutator": "DecrementInteger",
         "id": "f8fe49fa79ae6cbb",
         "expression": "if (is_int($integer) && $integer >= 0) {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -663,7 +809,9 @@
         "mutator": "IfNegated",
         "id": "dd189209327e7542",
         "expression": "if ($value === 'true' || $value === '1' || $value === 1) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -672,7 +820,9 @@
         "mutator": "IdenticalToNotIdentical",
         "id": "a2d5a378017d2824",
         "expression": "if ($value === 'true' || $value === '1' || $value === 1) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -681,7 +831,9 @@
         "mutator": "IdenticalToNotIdentical",
         "id": "f18eec693cc8bfd5",
         "expression": "if ($value === 'true' || $value === '1' || $value === 1) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -690,7 +842,9 @@
         "mutator": "IdenticalToNotIdentical",
         "id": "97e9f1ea6910a585",
         "expression": "if ($value === 'true' || $value === '1' || $value === 1) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -699,7 +853,9 @@
         "mutator": "BooleanOrToBooleanAnd",
         "id": "083410b64f5177f9",
         "expression": "if ($value === 'true' || $value === '1' || $value === 1) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -708,7 +864,9 @@
         "mutator": "BooleanOrToBooleanAnd",
         "id": "d40d08716eedb607",
         "expression": "if ($value === 'true' || $value === '1' || $value === 1) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -717,7 +875,9 @@
         "mutator": "DecrementInteger",
         "id": "001e6ba7f105de00",
         "expression": "if ($value === 'true' || $value === '1' || $value === 1) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -726,7 +886,9 @@
         "mutator": "IncrementInteger",
         "id": "916577d53a4c9e49",
         "expression": "if ($value === 'true' || $value === '1' || $value === 1) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -735,7 +897,9 @@
         "mutator": "TrueToFalse",
         "id": "a1f29a7644a26bf6",
         "expression": "return true;",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -744,7 +908,9 @@
         "mutator": "RemoveEarlyReturn",
         "id": "95c344b3e46b80d1",
         "expression": "return true;",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -753,7 +919,9 @@
         "mutator": "IfNegated",
         "id": "24e90b0942c766e6",
         "expression": "if ($value === 'false' || $value === '0' || $value === 0) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -762,7 +930,9 @@
         "mutator": "IdenticalToNotIdentical",
         "id": "a8deab2b7960a574",
         "expression": "if ($value === 'false' || $value === '0' || $value === 0) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -771,7 +941,9 @@
         "mutator": "IdenticalToNotIdentical",
         "id": "8d876e4588dd3740",
         "expression": "if ($value === 'false' || $value === '0' || $value === 0) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -780,7 +952,9 @@
         "mutator": "IdenticalToNotIdentical",
         "id": "e05ee6acabf1c5fd",
         "expression": "if ($value === 'false' || $value === '0' || $value === 0) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -789,7 +963,9 @@
         "mutator": "BooleanOrToBooleanAnd",
         "id": "af6991d031637da8",
         "expression": "if ($value === 'false' || $value === '0' || $value === 0) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -798,7 +974,9 @@
         "mutator": "BooleanOrToBooleanAnd",
         "id": "cced0f13c7712047",
         "expression": "if ($value === 'false' || $value === '0' || $value === 0) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -807,7 +985,9 @@
         "mutator": "DecrementInteger",
         "id": "55b8c435267491fa",
         "expression": "if ($value === 'false' || $value === '0' || $value === 0) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -816,7 +996,9 @@
         "mutator": "IncrementInteger",
         "id": "7353031e5717ea5a",
         "expression": "if ($value === 'false' || $value === '0' || $value === 0) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -825,7 +1007,9 @@
         "mutator": "FalseToTrue",
         "id": "a2c0f640c6c3812b",
         "expression": "return false;",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -834,7 +1018,9 @@
         "mutator": "ConcatRemoveLeft",
         "id": "f0d868c4ed0f66c0",
         "expression": "'Configuration \"vouch.throttle.ip\" is in observe mode; enforcement thresholds '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -843,7 +1029,9 @@
         "mutator": "ConcatSwitchSides",
         "id": "324754c35bd70eb3",
         "expression": "'Configuration \"vouch.throttle.ip\" is in observe mode; enforcement thresholds '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -852,7 +1040,9 @@
         "mutator": "BooleanAndToBooleanOr",
         "id": "77601b3f67091410",
         "expression": "if ($ipv6Threshold !== null && $ipv4Threshold !== null) {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -861,7 +1051,9 @@
         "mutator": "ConcatRemoveRight",
         "id": "59bace892881eed8",
         "expression": "'Configuration \"vouch.throttle.ip.ipv4_enforce_at\" must be greater than '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -870,7 +1062,9 @@
         "mutator": "ConcatSwitchSides",
         "id": "727e7c9e95c048c3",
         "expression": "'Configuration \"vouch.throttle.ip.ipv4_enforce_at\" must be greater than '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -879,7 +1073,9 @@
         "mutator": "ConcatRemoveLeft",
         "id": "f74ac415babc420f",
         "expression": "'Configuration \"vouch.throttle.ip.backoff_seconds\" must not exceed the '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -888,7 +1084,9 @@
         "mutator": "ConcatSwitchSides",
         "id": "a94a5f02ea73a966",
         "expression": "'Configuration \"vouch.throttle.ip.backoff_seconds\" must not exceed the '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -897,7 +1095,9 @@
         "mutator": "ConcatRemoveLeft",
         "id": "5fca84bf48807a37",
         "expression": "'Configuration \"vouch.throttle.challenge.attempts\" \u00d7 '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -906,7 +1106,9 @@
         "mutator": "ConcatSwitchSides",
         "id": "8e7cd2c5766b4c5e",
         "expression": "'Configuration \"vouch.throttle.%s\" is in observe mode; enforcement threshold '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -915,7 +1117,9 @@
         "mutator": "ConcatRemoveLeft",
         "id": "5642ca30c9e2eeca",
         "expression": "'Configuration \"vouch.throttle.%s.backoff_seconds\" must not exceed the identifier '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -924,7 +1128,9 @@
         "mutator": "ConcatSwitchSides",
         "id": "80724185c9d73f1d",
         "expression": "'Configuration \"vouch.throttle.%s.backoff_seconds\" must not exceed the identifier '",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -933,7 +1139,9 @@
         "mutator": "TrueToFalse",
         "id": "6eb36ef6fb19d9a9",
         "expression": "return match (true) {",
-        "disposition": "instrument-unroutable"
+        "disposition": "instrument-unroutable",
+        "coverage": "absent",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -942,7 +1150,9 @@
         "mutator": "ConcatRemoveLeft",
         "id": "1589131532ec8dc9",
         "expression": "->where('window_started_at', '>=', $today . ' 00:00:00')",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -951,7 +1161,9 @@
         "mutator": "ConcatRemoveRight",
         "id": "05ebafa83267923d",
         "expression": "->where('window_started_at', '>=', $today . ' 00:00:00')",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -960,7 +1172,9 @@
         "mutator": "ConcatSwitchSides",
         "id": "65e223d2ed05d782",
         "expression": "->where('window_started_at', '>=', $today . ' 00:00:00')",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -969,7 +1183,9 @@
         "mutator": "ConcatRemoveRight",
         "id": "345acefa51f74eed",
         "expression": "->where('reservations.window_started_at', '>=', $today . ' 00:00:00')",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -978,7 +1194,9 @@
         "mutator": "RemoveArrayItem",
         "id": "f834514d3bafc965",
         "expression": "'reservations.window_started_at',",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -987,7 +1205,9 @@
         "mutator": "PostIncrementToPostDecrement",
         "id": "4f985cb1d0e3693d",
         "expression": "$missingOutbox++;",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -996,7 +1216,9 @@
         "mutator": "BooleanAndToBooleanOr",
         "id": "20fc5c84ff09bd7f",
         "expression": "$reservation->outbox_status === OtpOutboxStatus::Undeliverable->value",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -1005,7 +1227,9 @@
         "mutator": "ElseIfNegated",
         "id": "4eabae7f7dde9875",
         "expression": "} elseif ($released && $reservation->provider_attempted_at === null) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -1014,7 +1238,9 @@
         "mutator": "IdenticalToNotIdentical",
         "id": "8dbb6dc056b1b57b",
         "expression": "} elseif ($released && $reservation->provider_attempted_at === null) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -1023,7 +1249,9 @@
         "mutator": "BooleanAndToBooleanOr",
         "id": "93beedeefddf085f",
         "expression": "} elseif ($released && $reservation->provider_attempted_at === null) {",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -1032,7 +1260,9 @@
         "mutator": "PostIncrementToPostDecrement",
         "id": "1ed7d31ec3f9ef80",
         "expression": "$neverAttemptedReleased++;",
-        "disposition": "never-executed"
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -1041,7 +1271,9 @@
         "mutator": "BooleanAndToBooleanOr",
         "id": "f4988c55e27fd9ec",
         "expression": "$reason = is_string($row->failure_reason) && $row->failure_reason !== ''",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -1050,7 +1282,9 @@
         "mutator": "EmptyStringToNotEmpty",
         "id": "2379785d821c329c",
         "expression": "$reason = is_string($row->failure_reason) && $row->failure_reason !== ''",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -1059,7 +1293,9 @@
         "mutator": "RemoveFunctionCall",
         "id": "a2cdcb30fb5bc519",
         "expression": "ksort($reasons);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -1068,7 +1304,9 @@
         "mutator": "IfNegated",
         "id": "1a96970536b51dff",
         "expression": "if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 1) {",
-        "disposition": "engine-gated"
+        "disposition": "engine-gated",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -1077,7 +1315,9 @@
         "mutator": "IdenticalToNotIdentical",
         "id": "cd2ba4fbc2450316",
         "expression": "if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 1) {",
-        "disposition": "engine-gated"
+        "disposition": "engine-gated",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -1086,7 +1326,9 @@
         "mutator": "BooleanAndToBooleanOr",
         "id": "b5ef0e7c619a8f07",
         "expression": "if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 1) {",
-        "disposition": "engine-gated"
+        "disposition": "engine-gated",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -1095,7 +1337,9 @@
         "mutator": "DecrementInteger",
         "id": "c94c78c4931b287f",
         "expression": "if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 1) {",
-        "disposition": "engine-gated"
+        "disposition": "engine-gated",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -1104,7 +1348,9 @@
         "mutator": "IncrementInteger",
         "id": "ac7304c2dc8abd5b",
         "expression": "if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 1) {",
-        "disposition": "engine-gated"
+        "disposition": "engine-gated",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNCOVERED",
@@ -1113,7 +1359,9 @@
         "mutator": "IfNegated",
         "id": "5be5ba9f9b07e96b",
         "expression": "if (is_int($integer)) {",
-        "disposition": "engine-gated"
+        "disposition": "engine-gated",
+        "coverage": "zero",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -1122,7 +1370,9 @@
         "mutator": "IncrementInteger",
         "id": "c183c2a8e9c65347",
         "expression": "$packed = substr_replace($packed, str_repeat(\"\\0\", 8), 8, 8);",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     },
     {
         "state": "UNTESTED",
@@ -1131,6 +1381,8 @@
         "mutator": "FalseToTrue",
         "id": "d882b414399c8c6f",
         "expression": "if ($canonical === false) {",
-        "disposition": "executed-and-survived"
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
     }
 ]
