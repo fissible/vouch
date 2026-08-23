@@ -270,6 +270,18 @@ as unexplained uncovered rows.
   `artifacts/2026-08-22-console-classification.json` (SQLite map SHA-256
   `f97315f0fae6b1647f7e0e1bddbd51c052334fa55ef87215b39aedd27cb3867a`).
 
+### Queued mechanism ruling: console contracts
+
+The 32 non-unroutable Console rows are one mechanism-level finding: command
+output and exit-code contracts are not asserted. `VouchDoctorCommand` has 16
+never-executed rows because every test uses `--json`, leaving its human output,
+exit 0, and exit 2 paths untested. `VouchSmsIdentifierAuditCommand` has 16
+executed-and-survived rows because both modes execute but tests assert only
+that the exit code is zero; even the `--json` branch predicate can invert
+without failing. Queue one focused ruling requiring output assertions per mode
+and explicit assertions for all doctor exit codes. The six `CommandExit` enum
+declaration rows remain instrument-unroutable and are not part of this ruling.
+
 ### Queued mechanism ruling: throttle row locks
 
 The corrected classifier exposed one design question rather than a test-only
