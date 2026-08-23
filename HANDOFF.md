@@ -36,19 +36,25 @@ provisional. It must be replaced by the sum of authoritative non-compact
 timeouts and is not a ruling artifact; verified kills were 2,545 / 3,155
 (80.66%), not the displayed 82.35%.
 
-## Next action: Kernel
+## Kernel measurement (completed)
 
-Run Kernel before the smaller Console and Notifications chunks. Kernel is
-disclosure-sensitive and broadly routed, so its survivors may require design
-decisions rather than only test additions.
+Kernel was measured before the smaller Console and Notifications chunks because
+it is disclosure-sensitive and broadly routed.
 
 Use the exact baseline guard and a non-compact, sequential, file-backed run;
 record the initial suite duration and Pest’s timeout threshold in the ledger.
-The scope is `src/Kernel/` (26 source files), including:
+The scope was `src/Kernel/` (26 source files), including:
 
 - `Kernel/Enumeration/ErrorShaper.php` — sole disclosure authority.
 - `Kernel/Screen/ScreenSpec.php` — CAPTCHA surface amendment.
 - `Kernel/Screen/RetryPolicy.php` — 2.3b retry disclosure amendment.
+
+The literal path-scoped run generated 236 mutations / 13 RUN files: 205 tested,
+5 untested, 26 uncovered, 0 timeouts, 161.87s elapsed. Coverage inspection
+classified 25 uncovered rows as instrument-unroutable declaration/match lines;
+the remaining uncovered row is the genuine `ErrorShaper::strictLockRetry()`
+gap. Five untested rows remain for individual disposition. Details and stable
+rows are committed in `docs/superpowers/mutation/2026-08-22-kernel-manifest.md`.
 
 Do not land tests or source changes discovered while ruling. Queue them until
 all chunks are measured, then apply the queued set and run one confirming full
@@ -56,11 +62,10 @@ mutation pass at the new SHA.
 
 ## Remaining ledger order
 
-1. Kernel (next; 26 files).
-2. Console (8 files).
-3. Notifications (8 files).
-4. Remaining Flow files (9 files, separate from the already measured AuthFlow).
-5. Core sub-runs: Attempts, Contracts, Enrollment, Factors, Http, Jobs,
+1. Console (8 files).
+2. Notifications (9 files).
+3. Remaining Flow files (9 files, separate from the already measured AuthFlow).
+4. Core sub-runs: Attempts, Contracts, Enrollment, Factors, Http, Jobs,
    Models, Persistence, Recovery, Secrets, Sessions, Support, Tenancy, and
    the two root files. Models and broad Core paths are expected to be slow.
 

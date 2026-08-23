@@ -26,6 +26,12 @@ run is not a ruling artifact: it credited 53 timeouts and suppressed the
 - Membership is `(file, mutator, expression)`, never filename or mutator
   family. A chunk is complete only when its non-compact artifact reconciles
   its `RUN` files to the assigned source inventory.
+- A chunk command must assert a positive mutation count and reconcile its `RUN`
+  count to the assigned mutant-bearing files. `--min=0` otherwise permits a
+  misspelled scope to exit successfully with `0 Mutations for 0 Files`.
+- Record the literal command line, not a Markdown-escaped namespace spelling.
+  For nested namespaces, prefer the directory-literal `--path=src/Kernel`
+  filter; the class filter matches only an exact namespace declaration.
 
 ## Chunk assignment
 
@@ -36,8 +42,8 @@ run is not a ruling artifact: it credited 53 timeouts and suppressed the
 | Throttle | `src/Throttle/` | 13 | 3,165.85s / 37.28s | measured: 865 mutations; 736 tested, 89 untested, 40 uncovered, 0 timeouts; verified score 85.09% |
 | Kernel | `src/Kernel/` | 26 | pending | pending; disclosure-sensitive (`ErrorShaper`, `ScreenSpec`, `RetryPolicy`) |
 | Console | `src/Console/` | 8 | pending | pending |
-| Notifications | `src/Notifications/` | 8 | pending | pending |
-| Core / data and boundaries | explicit sub-runs below | 83 | pending | pending; no aggregate run may stand in for its sub-runs |
+| Notifications | `src/Notifications/` | 9 | pending | pending |
+| Core / data and boundaries | explicit sub-runs below | 82 | pending | pending; no aggregate run may stand in for its sub-runs |
 
 Core sub-runs are deliberately itemized because routing breadth makes one
 83-file estimate misleading:
@@ -109,6 +115,29 @@ rather than disappearing from the ledger.
   Throttle starts at 89 untested / 40 uncovered, and those figures must be
   compared with the final post-routing artifact rather than read as a trend in
   implementation quality.
+
+### Kernel
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Kernel --no-cache --min=0`
+- Source-equivalence guard: current documentation HEAD `aa04377` has no diff
+  from baseline `66ac67d` under `src/`, `tests/`, dependencies, config, or
+  database paths.
+- Baseline: 1,161 tests, file-backed SQLite, 31.54s
+- Timeout threshold: 37.85s
+- Result: 236 mutations / 13 RUN files; 205 tested, 5 untested, 26
+  uncovered, 0 timeouts; elapsed 161.87s; verified score 86.86%
+- The initial `--class='Fissible\\Vouch\\Kernel'` probe generated zero
+  mutations because nested namespaces are not matched by that exact-class
+  filter. It exited successfully under `--min=0` and is explicitly discarded;
+  the path-scoped run is the authoritative Kernel measurement.
+- Coverage routing identifies 25 of the 26 uncovered rows as
+  **instrument-unroutable** declaration/match lines (14 `TransitionRules`
+  constant declarations, 10 `FactorStrength` enum-case declarations, and the
+  `SatisfiabilityEvaluator` match line). The remaining uncovered row is the
+  genuine `ErrorShaper::strictLockRetry()` disclosure gap; queue a focused test
+  for it, but do not land it during measurement.
+- The five untested rows are on executed lines and remain genuine survivor
+  candidates for individual classification.
 
 ### Full parallel smoke (non-authoritative)
 
