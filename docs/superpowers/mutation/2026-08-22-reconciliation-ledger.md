@@ -65,6 +65,19 @@ The corrected classifier artifact is committed at
 emitted line set is committed as `.txt`, not `.json`, because the tool writes
 plain `path:line` records.
 
+The emitted union is repo-wide, not Throttle-scoped: it contains 3,829
+executed lines across 126 files and is reusable by every pending chunk through
+`--lines=artifacts/2026-08-22-throttle-union-lines.txt`. It is valid only while
+the guarded source-equivalence paths remain unchanged from `66ac67d`; any
+change under `src/`, `tests/`, `composer.*`, `phpunit.xml`, `pest.php`,
+`config/`, or `database/` invalidates the set and requires all three engine
+maps to be regenerated together.
+
+Three repo-wide predictions are now confirmed by the union: the lines for
+`VouchDoctorCommand.php:84`, `OtpOutboxDelivery.php:129`, and `AuthFlow.php:717`
+are absent from all three maps. Their future `UNCOVERED` rows are therefore
+`never-executed`, not engine-gated.
+
 ## Measurement rules
 
 - Record the exact SHA (`66ac67d`) and the plugin timeout threshold in every
