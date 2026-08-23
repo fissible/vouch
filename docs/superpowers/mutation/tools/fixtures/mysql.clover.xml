@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Second engine. The driver check fails, so 410/412 go cold and the
+     committed-row branch at 415-419 executes. -->
+<coverage generated="0">
+  <project timestamp="0">
+    <file name="src/Throttle/DatabaseAuthThrottleStore.php">
+      <line num="409" type="stmt" count="5"/>
+      <line num="410" type="stmt" count="0"/>
+      <line num="412" type="stmt" count="0"/>
+      <line num="415" type="stmt" count="5"/>
+      <line num="416" type="stmt" count="3"/>
+      <line num="419" type="stmt" count="2"/>
+    </file>
+    <file name="src/Kernel/Factor/FactorStrength.php">
+      <line num="25" type="stmt" count="8"/>
+    </file>
+    <file name="src/Kernel/Enumeration/ErrorShaper.php">
+      <line num="89" type="stmt" count="6"/>
+      <line num="90" type="stmt" count="0"/>
+    </file>
+  </project>
+</coverage>

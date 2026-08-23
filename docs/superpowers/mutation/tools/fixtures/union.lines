@@ -1,0 +1,3 @@
+# Unioned executed (file, line) pairs, as produced by --emit-lines.
+src/Throttle/DatabaseAuthThrottleStore.php:415
+src/Kernel/Factor/FactorStrength.php:25

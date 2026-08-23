@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Deliberately disagrees with the measuring map about what is executable:
+     FactorStrength line 19 is an enum case declaration and cannot be a
+     statement on any engine. Classifying against this must signal a harness
+     problem rather than silently reclassifying the row. -->
+<coverage generated="0">
+  <project timestamp="0">
+    <file name="src/Kernel/Factor/FactorStrength.php">
+      <line num="19" type="stmt" count="4"/>
+    </file>
+  </project>
+</coverage>
