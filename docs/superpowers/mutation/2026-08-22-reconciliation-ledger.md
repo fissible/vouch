@@ -326,14 +326,18 @@ as unexplained uncovered rows.
   timeout threshold 37.15s.
 - Result: 13 mutations / 1 RUN file; 8 tested, 3 untested, 2 uncovered,
   0 timeouts; elapsed 6.27s; verified score 61.54%.
-- The two `$tries = 5` declaration rows are instrument-unroutable. The three
-  executed survivors are lifecycle branches: `handle():32` forcing a missing
-  outbox through redispatch, `handle():33` changing the redispatch delay, and
-  `failed():46` removing the null-safe access. Existing tests cover the
-  positive outcomes but do not discriminate these edge conditions. The
-  `failed()` attribution mechanism remains a queued ruling rather than a
-  confirmed finding; provider-attempted and provider-never-attempted outcomes
-  are asserted, but missing-row and contention-redispatch guards are not.
+- The two `$tries = 5` declaration rows are instrument-unroutable: a declared
+  retry count cannot be certified by an executable-line mutation. The three
+  executed survivors form one queued retry-and-missing-evidence ruling. At
+  `handle():32`, forcing the missing-outbox guard true survives, so the
+  not-found redispatch path is untested; `handle():33` shows the one-second
+  delay is not asserted. At `failed():46`, removing `?->` survives because no
+  test observes a vanished outbox row. The null row is currently classified as
+  `WorkerFailure` by the null comparison, but disappearance does not prove
+  whether a provider was contacted, so that terminal attribution needs an
+  explicit decision and test. The positive provider-attempted and
+  provider-never-attempted outcomes are asserted; this ruling covers the
+  missing-evidence paths rather than reopening those branches.
 - Artifacts: `artifacts/2026-08-23-jobs-66ac67d.log` (SHA-256
   `da3c99b9f9b03bc5a11fec9466fcf00894df2bcfb8501858091a325a594bae97`) and
   `artifacts/2026-08-23-jobs-classification.json` (SHA-256
