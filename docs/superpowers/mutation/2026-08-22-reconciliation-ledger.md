@@ -242,6 +242,28 @@ reclassified as instrumentation artifacts:
   invariant-unreachable throws and should be dispositioned as such, not left
   as unexplained uncovered rows.
 
+### Queued mechanism ruling: throttle row locks
+
+The corrected classifier exposed one design question rather than a test-only
+gap. Fifteen `DatabaseAuthThrottleStore` survivors collectively remove the
+`FOR UPDATE` mechanism from every flagged read-modify-write path:
+
+- Three default-parameter rows: `ipParent(..., bool $lock = false)` at line
+  436, `counter(..., bool $lock = false)` at 742, and `lock(..., bool $lock =
+  false)` at 839.
+- Twelve `TrueToFalse` call-site rows passing `lock: true` (lines 108, 116,
+  123, 174, 183, 198, 355, 359, 386, 390, 732, and 820).
+
+The full suite and all three engines preserve the throttle invariant with each
+mutant, while the two unconditional `lockForUpdate()` sites are killed. This
+does not yet establish whether the flagged locks are redundant under the
+constructed races (unique inserts may be carrying the invariant), or whether
+the tests fail to discriminate the pessimistic mechanism. Keep this as one
+mechanism-level ruling with stable row identities; do not add tests or remove
+locks during the measurement sequence. Resolution options remain: a
+mechanism-specific concurrency proof, a deliberately narrow SQL assertion, or
+removal if the unique-constraint design is shown sufficient.
+
 ### Full parallel smoke (non-authoritative)
 
 - Scope: non-Kernel `Fissible\\Vouch`, SHA `66ac67d`, 10 processes
