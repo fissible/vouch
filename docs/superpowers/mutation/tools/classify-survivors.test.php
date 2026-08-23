@@ -88,6 +88,17 @@ check(
     'a timeout is never folded into a kill or a survivor',
     ($single['rows']["{$store}:409"]['disposition'] ?? null) === 'timeout-unresolved'
 );
+check(
+    'a timeout is attributed to the file of its RUN heading',
+    ($single['rows']["{$store}:409"]['file'] ?? null) === $store
+);
+$timeout = $single['rows']["{$store}:409"] ?? [];
+check(
+    'a timeout carries its mutator despite having no ID',
+    ($timeout['mutator'] ?? null) === 'IfNegated'
+        && array_key_exists('id', $timeout)
+        && $timeout['id'] === null
+);
 
 echo PHP_EOL, 'the plugin outranks the coverage map for UNTESTED rows', PHP_EOL;
 $signature = $single['rows']["{$store}:436"] ?? [];

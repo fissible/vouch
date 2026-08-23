@@ -1,6 +1,7 @@
   236 Mutations for 13 Files created
 
   RUN  src/Throttle/DatabaseAuthThrottleStore.php
+  t Line 409: IfNegated
   RUN  src/Kernel/Factor/FactorStrength.php
   RUN  src/Kernel/Enumeration/ErrorShaper.php
 
@@ -9,6 +10,5 @@
   UNCOVERED  src/Kernel/Enumeration/ErrorShaper.php  > Line 90: RemoveEarlyReturn - ID: cccc111122223333
   UNTESTED  src/Kernel/Factor/FactorStrength.php  > Line 25: GreaterOrEqualToGreater - ID: dddd111122223333
   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 436: FalseToTrue - ID: eeee111122223333
-  TIMEOUT  src/Throttle/DatabaseAuthThrottleStore.php  > Line 409: IfNegated - ID: ffff111122223333
 
   Mutations: 3 untested, 26 uncovered, 1 timeout, 205 tested

@@ -239,8 +239,39 @@ function readLog(string $path): array
     // zero rows, which would read as a clean chunk.
     $contents = (string) preg_replace('/\x1b\[[0-9;]*m/', '', $contents);
 
+    // Timed-out mutants never reach the labelled summary block: the plugin's
+    // writeMutationTestSummary() returns early for anything that is not
+    // Untested or Uncovered. All a timeout leaves behind is a `t Line N:
+    // Mutator` glyph row under the current RUN heading, with no path and no
+    // mutation ID. Track the heading so those rows can still be attributed.
+    $currentFile = null;
+
     foreach (explode("\n", $contents) as $line) {
-        if (! preg_match('/^\s*(UNCOVERED|UNTESTED|TIMEOUT)\s+(\S+\.php)\s+> Line (\d+): (\S+?)(?:\s+- ID: (\S+))?\s*$/', $line, $matches)) {
+        if (preg_match('/^\s*RUN\s+(\S+\.php)\s*$/', $line, $heading) === 1) {
+            $currentFile = ltrim($heading[1], './');
+
+            continue;
+        }
+
+        if (preg_match('/^\s*t\s+Line\s+(\d+):\s+(\S+)\s*$/', $line, $glyph) === 1) {
+            if ($currentFile === null) {
+                fwrite(STDERR, "Timeout row before any RUN heading; cannot attribute: {$line}" . PHP_EOL);
+
+                continue;
+            }
+
+            $rows[] = [
+                'state' => 'TIMEOUT',
+                'file' => $currentFile,
+                'line' => (int) $glyph[1],
+                'mutator' => $glyph[2],
+                'id' => null,
+            ];
+
+            continue;
+        }
+
+        if (! preg_match('/^\s*(UNCOVERED|UNTESTED)\s+(\S+\.php)\s+> Line (\d+): (\S+?)(?:\s+- ID: (\S+))?\s*$/', $line, $matches)) {
             continue;
         }
 
