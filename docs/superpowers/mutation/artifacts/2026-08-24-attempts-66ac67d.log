@@ -1,0 +1,407 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  .....................
+
+  Tests:    1161 passed (4092 assertions)
+  Duration: 30.67s
+
+  Mutating application files...
+  [90m87 Mutations for 8 Files created[39m
+
+  [39;100;1m RUN [39;49;22m src/Attempts/MisdirectedMutation.php
+  [31;1m⨯[39;22m [90mLine 26: ConcatRemoveLeft[39m
+  [31;1m⨯[39;22m [90mLine 26: ConcatRemoveLeft[39m
+  [31;1m⨯[39;22m [90mLine 26: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 26: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 26: ConcatSwitchSides[39m
+  [31;1m⨯[39;22m [90mLine 26: ConcatSwitchSides[39m
+
+  [39;100;1m RUN [39;49;22m src/Attempts/UnknownMutation.php
+  [31;1m⨯[39;22m [90mLine 24: ConcatRemoveLeft[39m
+  [31;1m⨯[39;22m [90mLine 24: ConcatRemoveLeft[39m
+  [31;1m⨯[39;22m [90mLine 24: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 24: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 24: ConcatSwitchSides[39m
+  [31;1m⨯[39;22m [90mLine 24: ConcatSwitchSides[39m
+
+  [39;100;1m RUN [39;49;22m src/Attempts/ConflictingMutations.php
+  [31;1m⨯[39;22m [90mLine 21: ConcatRemoveLeft[39m
+  [31;1m⨯[39;22m [90mLine 21: ConcatRemoveLeft[39m
+  [31;1m⨯[39;22m [90mLine 21: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 21: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 21: ConcatSwitchSides[39m
+  [31;1m⨯[39;22m [90mLine 21: ConcatSwitchSides[39m
+
+  [39;100;1m RUN [39;49;22m src/Attempts/TransitionRefused.php
+  [31;1m⨯[39;22m [90mLine 25: RemoveMethodCall[39m
+  [31;1m⨯[39;22m [90mLine 25: ConcatRemoveLeft[39m
+  [31;1m⨯[39;22m [90mLine 25: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 25: ConcatSwitchSides[39m
+
+  [39;100;1m RUN [39;49;22m src/Attempts/Mutations/AdvanceCredentialTimestep.php
+  [32;1m✓[39;22m [90mLine 23: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 23: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 23: ConcatSwitchSides[39m
+
+  [39;100;1m RUN [39;49;22m src/Attempts/Mutations/ConsumeChallenge.php
+  [32;1m✓[39;22m [90mLine 26: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 26: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 26: ConcatSwitchSides[39m
+
+  [39;100;1m RUN [39;49;22m src/Attempts/Mutations/DisableCredential.php
+  [32;1m✓[39;22m [90mLine 18: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 18: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 18: ConcatSwitchSides[39m
+
+  [39;100;1m RUN [39;49;22m src/Attempts/DatabaseAttemptStore.php
+  [31;1m⨯[39;22m [90mLine 37: UnwrapArrayValues[39m
+  [32;1m✓[39;22m [90mLine 40: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 40: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 41: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 46: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 46: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 46: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 46: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 47: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 50: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 50: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 51: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 56: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 61: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 71: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 72: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 73: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 81: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 82: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 83: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 86: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 86: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 86: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 86: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 106: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 109: IfNegated[39m
+  [31;1m⨯[39;22m [90mLine 113: TrueToFalse[39m
+  [32;1m✓[39;22m [90mLine 124: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 125: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 125: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 125: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 125: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 125: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 147: TrueToFalse[39m
+  [32;1m✓[39;22m [90mLine 148: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 148: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 153: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 155: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 155: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 158: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 158: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 160: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 160: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 166: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 167: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 168: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 174: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 174: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 174: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 174: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 175: TrueToFalse[39m
+  [32;1m✓[39;22m [90mLine 176: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 176: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 177: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 177: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 223: TernaryNegated[39m
+  [39;41;1m UNTESTED [39;49;22m [39;1msrc/Attempts/MisdirectedMutation.php [39;22m[90m > Line 26: ConcatRemoveLeft - ID: ca89e653f3e58dea[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function forChallenge(ConsumeChallenge $mutation, int $advancingAttemptId): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('ConsumeChallenge for challenge %d named attempt %d, but this transition is ' . 'advancing attempt %d. A mutation must name the attempt it is actually being ' . 'applied within.', $mutation->challengeId, $mutation->attemptId, $advancingAttemptId));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('advancing attempt %d. A mutation must name the attempt it is actually being ' . 'applied within.', $mutation->challengeId, $mutation->attemptId, $advancingAttemptId));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/MisdirectedMutation.php [39;22m[90m > Line 26: ConcatRemoveLeft - ID: 3372bc225d60a5f3[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function forChallenge(ConsumeChallenge $mutation, int $advancingAttemptId): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('ConsumeChallenge for challenge %d named attempt %d, but this transition is ' . 'advancing attempt %d. A mutation must name the attempt it is actually being ' . 'applied within.', $mutation->challengeId, $mutation->attemptId, $advancingAttemptId));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('applied within.', $mutation->challengeId, $mutation->attemptId, $advancingAttemptId));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/MisdirectedMutation.php [39;22m[90m > Line 26: ConcatRemoveRight - ID: 71b5949f2b8b1ce5[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function forChallenge(ConsumeChallenge $mutation, int $advancingAttemptId): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('ConsumeChallenge for challenge %d named attempt %d, but this transition is ' . 'advancing attempt %d. A mutation must name the attempt it is actually being ' . 'applied within.', $mutation->challengeId, $mutation->attemptId, $advancingAttemptId));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('ConsumeChallenge for challenge %d named attempt %d, but this transition is ' . 'applied within.', $mutation->challengeId, $mutation->attemptId, $advancingAttemptId));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/MisdirectedMutation.php [39;22m[90m > Line 26: ConcatRemoveRight - ID: 921eee43c7424cdd[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function forChallenge(ConsumeChallenge $mutation, int $advancingAttemptId): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('ConsumeChallenge for challenge %d named attempt %d, but this transition is ' . 'advancing attempt %d. A mutation must name the attempt it is actually being ' . 'applied within.', $mutation->challengeId, $mutation->attemptId, $advancingAttemptId));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('ConsumeChallenge for challenge %d named attempt %d, but this transition is ' . 'advancing attempt %d. A mutation must name the attempt it is actually being ', $mutation->challengeId, $mutation->attemptId, $advancingAttemptId));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/MisdirectedMutation.php [39;22m[90m > Line 26: ConcatSwitchSides - ID: 8b01aceb557545ea[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function forChallenge(ConsumeChallenge $mutation, int $advancingAttemptId): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('ConsumeChallenge for challenge %d named attempt %d, but this transition is ' . 'advancing attempt %d. A mutation must name the attempt it is actually being ' . 'applied within.', $mutation->challengeId, $mutation->attemptId, $advancingAttemptId));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('advancing attempt %d. A mutation must name the attempt it is actually being ' . 'ConsumeChallenge for challenge %d named attempt %d, but this transition is ' . 'applied within.', $mutation->challengeId, $mutation->attemptId, $advancingAttemptId));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/MisdirectedMutation.php [39;22m[90m > Line 26: ConcatSwitchSides - ID: 84cf6249639d4048[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function forChallenge(ConsumeChallenge $mutation, int $advancingAttemptId): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('ConsumeChallenge for challenge %d named attempt %d, but this transition is ' . 'advancing attempt %d. A mutation must name the attempt it is actually being ' . 'applied within.', $mutation->challengeId, $mutation->attemptId, $advancingAttemptId));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('applied within.' . ('ConsumeChallenge for challenge %d named attempt %d, but this transition is ' . 'advancing attempt %d. A mutation must name the attempt it is actually being '), $mutation->challengeId, $mutation->attemptId, $advancingAttemptId));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/UnknownMutation.php [39;22m[90m > Line 24: ConcatRemoveLeft - ID: 3cc5835b420bad2f[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function for(SingleUseMutation $mutation): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('DatabaseAttemptStore cannot execute %s (target "%s"). Every single-use ' . 'mutation must be a type the store knows how to guard; add it there rather ' . 'than writing the state from a driver.', $mutation::class, $mutation->target()));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('mutation must be a type the store knows how to guard; add it there rather ' . 'than writing the state from a driver.', $mutation::class, $mutation->target()));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/UnknownMutation.php [39;22m[90m > Line 24: ConcatRemoveLeft - ID: b7b2b4985b73c305[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function for(SingleUseMutation $mutation): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('DatabaseAttemptStore cannot execute %s (target "%s"). Every single-use ' . 'mutation must be a type the store knows how to guard; add it there rather ' . 'than writing the state from a driver.', $mutation::class, $mutation->target()));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('than writing the state from a driver.', $mutation::class, $mutation->target()));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/UnknownMutation.php [39;22m[90m > Line 24: ConcatRemoveRight - ID: 2644d9dfbf572757[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function for(SingleUseMutation $mutation): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('DatabaseAttemptStore cannot execute %s (target "%s"). Every single-use ' . 'mutation must be a type the store knows how to guard; add it there rather ' . 'than writing the state from a driver.', $mutation::class, $mutation->target()));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('DatabaseAttemptStore cannot execute %s (target "%s"). Every single-use ' . 'than writing the state from a driver.', $mutation::class, $mutation->target()));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/UnknownMutation.php [39;22m[90m > Line 24: ConcatRemoveRight - ID: ec82ab1c56f81423[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function for(SingleUseMutation $mutation): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('DatabaseAttemptStore cannot execute %s (target "%s"). Every single-use ' . 'mutation must be a type the store knows how to guard; add it there rather ' . 'than writing the state from a driver.', $mutation::class, $mutation->target()));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('DatabaseAttemptStore cannot execute %s (target "%s"). Every single-use ' . 'mutation must be a type the store knows how to guard; add it there rather ', $mutation::class, $mutation->target()));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/UnknownMutation.php [39;22m[90m > Line 24: ConcatSwitchSides - ID: e0637cc4c4e5772d[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function for(SingleUseMutation $mutation): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('DatabaseAttemptStore cannot execute %s (target "%s"). Every single-use ' . 'mutation must be a type the store knows how to guard; add it there rather ' . 'than writing the state from a driver.', $mutation::class, $mutation->target()));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('mutation must be a type the store knows how to guard; add it there rather ' . 'DatabaseAttemptStore cannot execute %s (target "%s"). Every single-use ' . 'than writing the state from a driver.', $mutation::class, $mutation->target()));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/UnknownMutation.php [39;22m[90m > Line 24: ConcatSwitchSides - ID: 8ebdf679df427913[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function for(SingleUseMutation $mutation): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('DatabaseAttemptStore cannot execute %s (target "%s"). Every single-use ' . 'mutation must be a type the store knows how to guard; add it there rather ' . 'than writing the state from a driver.', $mutation::class, $mutation->target()));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('than writing the state from a driver.' . ('DatabaseAttemptStore cannot execute %s (target "%s"). Every single-use ' . 'mutation must be a type the store knows how to guard; add it there rather '), $mutation::class, $mutation->target()));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/ConflictingMutations.php [39;22m[90m > Line 21: ConcatRemoveLeft - ID: 36abde7c32d49221[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function forTarget(string $target): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('Two single-use mutations both target "%s" in one transition. Exactly one ' . 'mutation may apply to a target per transition; applying both would make ' . 'the outcome depend on argument order.', $target));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('mutation may apply to a target per transition; applying both would make ' . 'the outcome depend on argument order.', $target));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/ConflictingMutations.php [39;22m[90m > Line 21: ConcatRemoveLeft - ID: c34497f6998e54bf[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function forTarget(string $target): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('Two single-use mutations both target "%s" in one transition. Exactly one ' . 'mutation may apply to a target per transition; applying both would make ' . 'the outcome depend on argument order.', $target));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('the outcome depend on argument order.', $target));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/ConflictingMutations.php [39;22m[90m > Line 21: ConcatRemoveRight - ID: 89dc80a8d7d42723[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function forTarget(string $target): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('Two single-use mutations both target "%s" in one transition. Exactly one ' . 'mutation may apply to a target per transition; applying both would make ' . 'the outcome depend on argument order.', $target));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('Two single-use mutations both target "%s" in one transition. Exactly one ' . 'the outcome depend on argument order.', $target));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/ConflictingMutations.php [39;22m[90m > Line 21: ConcatRemoveRight - ID: b1e4740ced34d588[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function forTarget(string $target): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('Two single-use mutations both target "%s" in one transition. Exactly one ' . 'mutation may apply to a target per transition; applying both would make ' . 'the outcome depend on argument order.', $target));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('Two single-use mutations both target "%s" in one transition. Exactly one ' . 'mutation may apply to a target per transition; applying both would make ', $target));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/ConflictingMutations.php [39;22m[90m > Line 21: ConcatSwitchSides - ID: aeb968d362e332c9[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function forTarget(string $target): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('Two single-use mutations both target "%s" in one transition. Exactly one ' . 'mutation may apply to a target per transition; applying both would make ' . 'the outcome depend on argument order.', $target));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('mutation may apply to a target per transition; applying both would make ' . 'Two single-use mutations both target "%s" in one transition. Exactly one ' . 'the outcome depend on argument order.', $target));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/ConflictingMutations.php [39;22m[90m > Line 21: ConcatSwitchSides - ID: 462475de27a05f16[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function forTarget(string $target): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self(sprintf('Two single-use mutations both target "%s" in one transition. Exactly one ' . 'mutation may apply to a target per transition; applying both would make ' . 'the outcome depend on argument order.', $target));[39m[39;1m
+  [39;22m[32m+        return new self(sprintf('the outcome depend on argument order.' . ('Two single-use mutations both target "%s" in one transition. Exactly one ' . 'mutation may apply to a target per transition; applying both would make '), $target));[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/TransitionRefused.php [39;22m[90m > Line 25: RemoveMethodCall - ID: c2e993f75ccb8281[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public function __construct(public readonly TransitionOutcome $outcome)[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        parent::__construct('Transition refused: ' . $outcome->value);[39m[39;1m
+  [39;22m[32m+        [39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/TransitionRefused.php [39;22m[90m > Line 25: ConcatRemoveLeft - ID: 7fa8a31e61d67c59[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public function __construct(public readonly TransitionOutcome $outcome)[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        parent::__construct('Transition refused: ' . $outcome->value);[39m[39;1m
+  [39;22m[32m+        parent::__construct($outcome->value);[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/TransitionRefused.php [39;22m[90m > Line 25: ConcatRemoveRight - ID: db3c6704af816935[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public function __construct(public readonly TransitionOutcome $outcome)[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        parent::__construct('Transition refused: ' . $outcome->value);[39m[39;1m
+  [39;22m[32m+        parent::__construct('Transition refused: ');[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/TransitionRefused.php [39;22m[90m > Line 25: ConcatSwitchSides - ID: 8a7d26002751a030[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public function __construct(public readonly TransitionOutcome $outcome)[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        parent::__construct('Transition refused: ' . $outcome->value);[39m[39;1m
+  [39;22m[32m+        parent::__construct($outcome->value . 'Transition refused: ');[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/Mutations/ConsumeChallenge.php [39;22m[90m > Line 26: ConcatSwitchSides - ID: 9866712dc36924f5[39m
+[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     public function target(): string[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return 'challenge:' . $this->challengeId;[39m[39;1m
+  [39;22m[32m+        return $this->challengeId . 'challenge:';[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/DatabaseAttemptStore.php [39;22m[90m > Line 37: UnwrapArrayValues - ID: 67393e4199909dac[39m
+[39;1m
+  [39;22m[90m          * guaranteed list. Mutations are applied positionally, never by name;[39m[39;1m
+  [39;22m[90m          * reindexing makes that real rather than merely asserted.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[31m-        $mutations = array_values($mutations);[39m[39;1m
+  [39;22m[32m+        $mutations = $mutations;[39m[39;1m
+  [39;22m[90m         // Legality is the kernel's decision, and costs no write.[39m[39;1m
+  [39;22m[90m         if (!$this->rules->allows($attempt->state, $to)) {[39m[39;1m
+  [39;22m[90m             return TransitionOutcome::IllegalTransition;[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Attempts/DatabaseAttemptStore.php [39;22m[90m > Line 113: TrueToFalse - ID: 314cd628bbef6df1[39m
+[39;1m
+  [39;22m[90m             if (isset($seen[$target])) {[39m[39;1m
+  [39;22m[90m                 throw ConflictingMutations::forTarget($target);[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[31m-            $seen[$target] = true;[39m[39;1m
+  [39;22m[32m+            $seen[$target] = false;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     /**[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[90mMutations:[39m[39;1m [39;22m[31;1m25 untested[39;22m[90m,[39m[39m [39m[32;1m62 tested[39;22m
+[39m  [39m[90mScore:[39m[39m     [39m[39m71.26%[39m
+[39m  [39m[90mDuration:[39m[39m  [39m[39m55.48s[39m
+

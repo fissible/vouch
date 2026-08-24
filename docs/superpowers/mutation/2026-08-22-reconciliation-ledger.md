@@ -135,7 +135,7 @@ Core sub-runs are deliberately itemized because routing breadth makes one
 
 | sub-run | source files | status |
 |---|---:|---|
-| Attempts | 10 | pending |
+| Attempts | 10 | measured: 87 mutations; 62 tested, 25 untested, 0 uncovered, 0 timeouts |
 | Contracts | 9 | measured: 0 mutations / 9 zero-mutant files |
 | Enrollment | 3 | measured: 34 mutations; 18 tested, 16 untested, 0 uncovered, 0 timeouts |
 | Factors | 16 | measured: 485 mutations; 395 tested, 80 untested, 6 uncovered, 4 timeouts |
@@ -512,6 +512,30 @@ as unexplained uncovered rows.
   explicit zero-mutant evidence.
 - Artifact: `artifacts/2026-08-24-tenancy-66ac67d.log` (SHA-256
   `3d623f547577a712eef3e101c1f11b8aac559d70f0729c8ebb988ab93c000f92`).
+
+### Core / Attempts
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Attempts --no-cache --min=0`
+- SHA/source-equivalence guard: `6b6ac21`, with no guarded-path diff from
+  `66ac67d` immediately before the run.
+- Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 30.67s;
+  timeout threshold 36.80s.
+- Result: 87 mutations / 8 RUN files; 62 tested, 25 untested, 0 uncovered,
+  0 timeouts; elapsed 55.48s; verified score 71.26%.
+- The zero-gap prediction held: no never-executed rows. The 25 survivors are
+  executed-and-survived; they include message-prose rows in attempt outcome
+  exceptions and substantive `DatabaseAttemptStore` rows for mutation-list
+  reindexing and duplicate-target detection. The latter require review rather
+  than the standing prose ruling.
+- The seven-sub-run confidence set (Attempts, Contracts, Enrollment, Recovery,
+  Secrets, Sessions, Tenancy; 32 assigned files) is now fully measured. Its
+  zero-gap prediction held for coverage-negative rows, but it produced
+  substantive survivors in Enrollment and Attempts, so the set is not a
+  blanket no-action result.
+- Artifacts: `artifacts/2026-08-24-attempts-66ac67d.log` (SHA-256
+  `cf0693abf56afdf3136e2a53028e5f88870ae1fe5ec5e70203765d35b05ec007`) and
+  `artifacts/2026-08-24-attempts-classification.json` (SHA-256
+  `f3bfcd50e45b364afd0bee3cbc0d3e1f3fbd66c065379b3b4fa06c7dc72f65d4`).
 
 ### Queued mechanism ruling: console contracts
 
