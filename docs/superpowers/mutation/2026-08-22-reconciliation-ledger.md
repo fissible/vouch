@@ -139,7 +139,7 @@ Core sub-runs are deliberately itemized because routing breadth makes one
 | Contracts | 9 | measured: 0 mutations / 9 zero-mutant files |
 | Enrollment | 3 | measured: 34 mutations; 18 tested, 16 untested, 0 uncovered, 0 timeouts |
 | Factors | 16 | measured: 485 mutations; 395 tested, 80 untested, 6 uncovered, 4 timeouts |
-| Http | 7 | pending |
+| Http | 7 | measured: 167 mutations; 140 tested, 18 untested, 9 uncovered, 0 timeouts |
 | Jobs | 1 | measured: 13 mutations; 8 tested, 3 untested, 2 uncovered; 0 timeouts |
 | Models | 15 | pending; expected high routing breadth |
 | Persistence | 3 | pending |
@@ -565,6 +565,28 @@ as unexplained uncovered rows.
   `a54f8918fabb3257d607ef0c05f911489a881848bba54197e73d8be5293b49f6`) and
   `artifacts/2026-08-24-root-classification.json` (SHA-256
   `045f75db760468e4bd2206704b739adfecaf3a52c499b68f7988974dc76635c66`).
+
+### Core / Http
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Http --no-cache --min=0`
+- SHA/source-equivalence guard: `5e30efd`, with no guarded-path diff from
+  `66ac67d` immediately before the run.
+- Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 32.75s;
+  timeout threshold 39.30s.
+- Result: 167 mutations / 7 RUN files; 140 tested, 18 untested, 9 uncovered,
+  0 timeouts; elapsed 112.19s; verified score 83.83%.
+- Classification: 18 executed-and-survived, 3 never-executed, and 6
+  instrument-unroutable. The three never-executed rows are the predicted
+  `IntendedDestination` rejection returns at lines 83, 89, and 96; queue one
+  focused rejection-path test. The six unroutable rows are the `match (true)`
+  declarations in the two flow handlers and `AssuranceComparator::ORDER`
+  constant removals. The remaining survivors require row-level review; do not
+  infer that redirect or assurance contracts are covered from their aggregate
+  score.
+- Artifacts: `artifacts/2026-08-24-http-66ac67d.log` (SHA-256
+  `74f65c6672e2056796b85df73018f64889415f0b1599ce08029dc1c83db094bd`) and
+  `artifacts/2026-08-24-http-classification.json` (SHA-256
+  `49d662d7b2976cb6a778f13348a1b129bb18c9fa547ffc235bd1802377045852`).
 
 ### Queued mechanism ruling: console contracts
 

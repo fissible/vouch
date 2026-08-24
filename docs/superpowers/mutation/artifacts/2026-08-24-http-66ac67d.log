@@ -1,0 +1,535 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  .....................
+
+  Tests:    1161 passed (4092 assertions)
+  Duration: 32.75s
+
+  Mutating application files...
+  [90m167 Mutations for 7 Files created[39m
+
+  [39;100;1m RUN [39;49;22m src/Http/FlowResultHandler.php
+  [33;1m-[39;22m [90mLine 40: TrueToFalse[39m
+  [32;1m✓[39;22m [90mLine 41: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 41: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 43: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 43: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 51: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 51: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 59: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 62: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 69: RemoveMethodCall[39m
+
+  [39;100;1m RUN [39;49;22m src/Http/Middleware/RequireAssurance.php
+  [32;1m✓[39;22m [90mLine 37: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 38: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 49: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 49: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 49: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 49: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 49: EmptyStringToNotEmpty[39m
+  [32;1m✓[39;22m [90mLine 51: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 51: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 51: ConcatRemoveLeft[39m
+  [31;1m⨯[39;22m [90mLine 51: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 51: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 51: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 51: ConcatSwitchSides[39m
+  [31;1m⨯[39;22m [90mLine 51: ConcatSwitchSides[39m
+  [31;1m⨯[39;22m [90mLine 51: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 68: RemoveMethodCall[39m
+
+  [39;100;1m RUN [39;49;22m src/Http/Middleware/ValidatesVouchSession.php
+  [32;1m✓[39;22m [90mLine 35: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 35: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 36: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 43: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 43: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 43: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 43: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 44: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 47: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 47: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 48: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 50: RemoveEarlyReturn[39m
+
+  [39;100;1m RUN [39;49;22m src/Http/FlowResultSerializer.php
+  [33;1m-[39;22m [90mLine 35: TrueToFalse[39m
+  [32;1m✓[39;22m [90mLine 35: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 36: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 36: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 37: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 38: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 39: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 41: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 41: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 42: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 43: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 44: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 47: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 49: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 49: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 50: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 51: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 52: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 63: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 64: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 65: UnwrapArrayMap[39m
+  [32;1m✓[39;22m [90mLine 65: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 66: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 67: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 68: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 69: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 71: UnwrapArrayMap[39m
+  [32;1m✓[39;22m [90mLine 71: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 72: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 73: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 74: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 75: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 77: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 78: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 79: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 80: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 89: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 89: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 90: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 93: AlwaysReturnNull[39m
+  [32;1m✓[39;22m [90mLine 94: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 95: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 95: RemoveNullSafeOperator[39m
+  [32;1m✓[39;22m [90mLine 96: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 96: RemoveNullSafeOperator[39m
+
+  [39;100;1m RUN [39;49;22m src/Http/AuthController.php
+  [32;1m✓[39;22m [90mLine 42: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 43: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 44: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 65: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 65: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 65: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 66: CoalesceRemoveLeft[39m
+
+  [39;100;1m RUN [39;49;22m src/Http/IntendedDestination.php
+  [32;1m✓[39;22m [90mLine 32: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 32: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 33: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 38: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 46: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 48: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 48: AlwaysReturnNull[39m
+  [32;1m✓[39;22m [90mLine 58: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 59: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 68: TrueToFalse[39m
+  [32;1m✓[39;22m [90mLine 69: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 69: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 69: FalseToTrue[39m
+  [32;1m✓[39;22m [90mLine 71: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 71: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 71: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 71: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 72: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 76: IfNegated[39m
+  [31;1m⨯[39;22m [90mLine 76: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 76: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 76: StrStartsWithToStrEndsWith[39m
+  [31;1m⨯[39;22m [90mLine 76: StrStartsWithToStrEndsWith[39m
+  [31;1m⨯[39;22m [90mLine 77: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 82: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 82: IdenticalToNotIdentical[39m
+  [31;1m⨯[39;22m [90mLine 82: FalseToTrue[39m
+  [33;1m-[39;22m [90mLine 83: RemoveEarlyReturn[39m
+  [31;1m⨯[39;22m [90mLine 87: ForeachEmptyIterable[39m
+  [31;1m⨯[39;22m [90mLine 87: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 87: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 87: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 87: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 87: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 88: IfNegated[39m
+  [33;1m-[39;22m [90mLine 89: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 93: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 95: IfNegated[39m
+  [31;1m⨯[39;22m [90mLine 95: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 95: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 95: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 95: StrStartsWithToStrEndsWith[39m
+  [33;1m-[39;22m [90mLine 96: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 99: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 99: AlwaysReturnNull[39m
+  [32;1m✓[39;22m [90mLine 99: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 99: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 99: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 99: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 99: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 99: ConcatSwitchSides[39m
+
+  [39;100;1m RUN [39;49;22m src/Http/AssuranceComparator.php
+  [33;1m-[39;22m [90mLine 24: RemoveArrayItem[39m
+  [33;1m-[39;22m [90mLine 24: RemoveArrayItem[39m
+  [33;1m-[39;22m [90mLine 24: RemoveArrayItem[39m
+  [33;1m-[39;22m [90mLine 24: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 28: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 28: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 28: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 28: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 28: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 28: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 29: FalseToTrue[39m
+  [32;1m✓[39;22m [90mLine 29: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 37: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 38: FalseToTrue[39m
+  [32;1m✓[39;22m [90mLine 38: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 44: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 44: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 44: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 44: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 44: FalseToTrue[39m
+  [32;1m✓[39;22m [90mLine 44: FalseToTrue[39m
+  [32;1m✓[39;22m [90mLine 45: FalseToTrue[39m
+  [32;1m✓[39;22m [90mLine 45: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 48: GreaterOrEqualToGreater[39m
+  [32;1m✓[39;22m [90mLine 48: GreaterOrEqualToSmaller[39m
+  [39;101;1m UNCOVERED [39;49;22m [39;1msrc/Http/FlowResultHandler.php [39;22m[90m > Line 40: TrueToFalse - ID: f05b5809fd295180[39m
+[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     public function handle(FlowResult $result): FlowResult[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return match (true) {[39m[39;1m
+  [39;22m[32m+        return match (false) {[39m[39;1m
+  [39;22m[90m             $result instanceof Continuing => $result,[39m[39;1m
+  [39;22m[90m             $result instanceof Authenticated => $this->establish($result),[39m[39;1m
+  [39;22m[90m             /*[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/Middleware/RequireAssurance.php [39;22m[90m > Line 51: ConcatRemoveRight - ID: c78968562c7929e0[39m
+[39;1m
+  [39;22m[90m          * destination would be worse than refusing.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!is_string($presentation) || $presentation === '') {[39m[39;1m
+  [39;22m[31m-            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[32m+            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         /*[39m[39;1m
+  [39;22m[90m          * Built from the REQUEST's session, not a container-resolved one. In[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/Middleware/RequireAssurance.php [39;22m[90m > Line 51: ConcatRemoveRight - ID: 119fc08faaae9e69[39m
+[39;1m
+  [39;22m[90m          * destination would be worse than refusing.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!is_string($presentation) || $presentation === '') {[39m[39;1m
+  [39;22m[31m-            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[32m+            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'only answers POST.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         /*[39m[39;1m
+  [39;22m[90m          * Built from the REQUEST's session, not a container-resolved one. In[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/Middleware/RequireAssurance.php [39;22m[90m > Line 51: ConcatRemoveRight - ID: 7d0cf2a71995c867[39m
+[39;1m
+  [39;22m[90m          * destination would be worse than refusing.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!is_string($presentation) || $presentation === '') {[39m[39;1m
+  [39;22m[31m-            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[32m+            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         /*[39m[39;1m
+  [39;22m[90m          * Built from the REQUEST's session, not a container-resolved one. In[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/Middleware/RequireAssurance.php [39;22m[90m > Line 51: ConcatSwitchSides - ID: 53b0ea8ef5cc0989[39m
+[39;1m
+  [39;22m[90m          * destination would be worse than refusing.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!is_string($presentation) || $presentation === '') {[39m[39;1m
+  [39;22m[31m-            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[32m+            throw new RuntimeException('can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         /*[39m[39;1m
+  [39;22m[90m          * Built from the REQUEST's session, not a container-resolved one. In[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/Middleware/RequireAssurance.php [39;22m[90m > Line 51: ConcatSwitchSides - ID: 62d088bb00f91aa3[39m
+[39;1m
+  [39;22m[90m          * destination would be worse than refusing.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!is_string($presentation) || $presentation === '') {[39m[39;1m
+  [39;22m[31m-            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[32m+            throw new RuntimeException('the standard adapter. Refusing rather than redirecting to an endpoint that ' . ('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ') . 'only answers POST.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         /*[39m[39;1m
+  [39;22m[90m          * Built from the REQUEST's session, not a container-resolved one. In[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/Middleware/RequireAssurance.php [39;22m[90m > Line 51: ConcatSwitchSides - ID: bb1f29f5659446e1[39m
+[39;1m
+  [39;22m[90m          * destination would be worse than refusing.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!is_string($presentation) || $presentation === '') {[39m[39;1m
+  [39;22m[31m-            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[32m+            throw new RuntimeException('only answers POST.' . ('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that '));[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         /*[39m[39;1m
+  [39;22m[90m          * Built from the REQUEST's session, not a container-resolved one. In[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/Http/FlowResultSerializer.php [39;22m[90m > Line 35: TrueToFalse - ID: 3e81f7c526c6b1a4[39m
+[39;1m
+  [39;22m[90m      */[39m[39;1m
+  [39;22m[90m     public function toArray(FlowResult $result, ?string $returnTo = null): array[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return match (true) {[39m[39;1m
+  [39;22m[32m+        return match (false) {[39m[39;1m
+  [39;22m[90m             $result instanceof Continuing => ['result' => 'continuing', 'handle' => $result->handle, 'screen' => $this->screen($result->screen)],[39m[39;1m
+  [39;22m[90m             $result instanceof Authenticated => [[39m[39;1m
+  [39;22m[90m                 'result' => 'authenticated',[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/FlowResultSerializer.php [39;22m[90m > Line 71: UnwrapArrayMap - ID: 1678a73293843c3b[39m
+[39;1m
+  [39;22m[90m      */[39m[39;1m
+  [39;22m[90m     private function screen(ScreenSpec $screen): array[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return ['step' => $screen->step->value, 'offeredFactors' => array_map(static fn(FactorOption $option): array => ['factorId' => $option->factorId, 'label' => $option->label, 'strength' => $option->strength->name, 'isDefault' => $option->isDefault], $screen->offeredFactors), 'fields' => array_map(static fn(FieldSpec $field): array => ['name' => $field->name, 'type' => $field->type, 'autocomplete' => $field->autocomplete, 'maxLength' => $field->maxLength], $screen->fields), 'challengePayload' => $screen->challengePayload, 'errors' => $screen->errors, 'retry' => $this->retry($screen->retry), 'captchaRequired' => $screen->captchaRequired];[39m[39;1m
+  [39;22m[32m+        return ['step' => $screen->step->value, 'offeredFactors' => array_map(static fn(FactorOption $option): array => ['factorId' => $option->factorId, 'label' => $option->label, 'strength' => $option->strength->name, 'isDefault' => $option->isDefault], $screen->offeredFactors), 'fields' => $screen->fields, 'challengePayload' => $screen->challengePayload, 'errors' => $screen->errors, 'retry' => $this->retry($screen->retry), 'captchaRequired' => $screen->captchaRequired];[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     /**[39m[39;1m
+  [39;22m[90m      * @return array{attemptsRemaining: int|null, lockedUntil: string|null, retryAfter: string|null}|null[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/IntendedDestination.php [39;22m[90m > Line 76: BooleanOrToBooleanAnd - ID: 5240669a6894d8ef[39m
+[39;1m
+  [39;22m[90m             return null;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Exactly one leading slash. `//host` and `///host` are protocol-relative.[39m[39;1m
+  [39;22m[31m-        if (!str_starts_with($candidate, '/') || str_starts_with($candidate, '//')) {[39m[39;1m
+  [39;22m[32m+        if (!str_starts_with($candidate, '/') && str_starts_with($candidate, '//')) {[39m[39;1m
+  [39;22m[90m             return null;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $parts = parse_url($candidate);[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/IntendedDestination.php [39;22m[90m > Line 76: StrStartsWithToStrEndsWith - ID: 12ff5467cc00c7b4[39m
+[39;1m
+  [39;22m[90m             return null;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Exactly one leading slash. `//host` and `///host` are protocol-relative.[39m[39;1m
+  [39;22m[31m-        if (!str_starts_with($candidate, '/') || str_starts_with($candidate, '//')) {[39m[39;1m
+  [39;22m[32m+        if (!str_starts_with($candidate, '/') || str_ends_with($candidate, '//')) {[39m[39;1m
+  [39;22m[90m             return null;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $parts = parse_url($candidate);[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/IntendedDestination.php [39;22m[90m > Line 77: RemoveEarlyReturn - ID: 5dafcd2bce6202f8[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Exactly one leading slash. `//host` and `///host` are protocol-relative.[39m[39;1m
+  [39;22m[90m         if (!str_starts_with($candidate, '/') || str_starts_with($candidate, '//')) {[39m[39;1m
+  [39;22m[31m-            return null;[39m[39;1m
+  [39;22m[32m+            [39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $parts = parse_url($candidate);[39m[39;1m
+  [39;22m[90m         if ($parts === false) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/IntendedDestination.php [39;22m[90m > Line 82: FalseToTrue - ID: 05ab7e9abb839287[39m
+[39;1m
+  [39;22m[90m             return null;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $parts = parse_url($candidate);[39m[39;1m
+  [39;22m[31m-        if ($parts === false) {[39m[39;1m
+  [39;22m[32m+        if ($parts === true) {[39m[39;1m
+  [39;22m[90m             return null;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Any authority component at all means it is not origin-form.[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/Http/IntendedDestination.php [39;22m[90m > Line 83: RemoveEarlyReturn - ID: b5703b5474892050[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $parts = parse_url($candidate);[39m[39;1m
+  [39;22m[90m         if ($parts === false) {[39m[39;1m
+  [39;22m[31m-            return null;[39m[39;1m
+  [39;22m[32m+            [39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Any authority component at all means it is not origin-form.[39m[39;1m
+  [39;22m[90m         foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/IntendedDestination.php [39;22m[90m > Line 87: ForeachEmptyIterable - ID: f4d5c20087a9d032[39m
+[39;1m
+  [39;22m[90m             return null;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Any authority component at all means it is not origin-form.[39m[39;1m
+  [39;22m[31m-        foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {[39m[39;1m
+  [39;22m[32m+        foreach ([] as $component) {[39m[39;1m
+  [39;22m[90m             if (isset($parts[$component])) {[39m[39;1m
+  [39;22m[90m                 return null;[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/IntendedDestination.php [39;22m[90m > Line 87: RemoveArrayItem - ID: 895ed1d8a81d6b25[39m
+[39;1m
+  [39;22m[90m             return null;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Any authority component at all means it is not origin-form.[39m[39;1m
+  [39;22m[31m-        foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {[39m[39;1m
+  [39;22m[32m+        foreach (['host', 'port', 'user', 'pass'] as $component) {[39m[39;1m
+  [39;22m[90m             if (isset($parts[$component])) {[39m[39;1m
+  [39;22m[90m                 return null;[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/IntendedDestination.php [39;22m[90m > Line 87: RemoveArrayItem - ID: 99ebca0c4d42f11b[39m
+[39;1m
+  [39;22m[90m             return null;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Any authority component at all means it is not origin-form.[39m[39;1m
+  [39;22m[31m-        foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {[39m[39;1m
+  [39;22m[32m+        foreach (['scheme', 'port', 'user', 'pass'] as $component) {[39m[39;1m
+  [39;22m[90m             if (isset($parts[$component])) {[39m[39;1m
+  [39;22m[90m                 return null;[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/IntendedDestination.php [39;22m[90m > Line 87: RemoveArrayItem - ID: 3396aa68f34ac230[39m
+[39;1m
+  [39;22m[90m             return null;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Any authority component at all means it is not origin-form.[39m[39;1m
+  [39;22m[31m-        foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {[39m[39;1m
+  [39;22m[32m+        foreach (['scheme', 'host', 'user', 'pass'] as $component) {[39m[39;1m
+  [39;22m[90m             if (isset($parts[$component])) {[39m[39;1m
+  [39;22m[90m                 return null;[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/IntendedDestination.php [39;22m[90m > Line 87: RemoveArrayItem - ID: 113d048b229bb648[39m
+[39;1m
+  [39;22m[90m             return null;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Any authority component at all means it is not origin-form.[39m[39;1m
+  [39;22m[31m-        foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {[39m[39;1m
+  [39;22m[32m+        foreach (['scheme', 'host', 'port', 'pass'] as $component) {[39m[39;1m
+  [39;22m[90m             if (isset($parts[$component])) {[39m[39;1m
+  [39;22m[90m                 return null;[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/IntendedDestination.php [39;22m[90m > Line 87: RemoveArrayItem - ID: 3e0ed98e18e36034[39m
+[39;1m
+  [39;22m[90m             return null;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Any authority component at all means it is not origin-form.[39m[39;1m
+  [39;22m[31m-        foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {[39m[39;1m
+  [39;22m[32m+        foreach (['scheme', 'host', 'port', 'user'] as $component) {[39m[39;1m
+  [39;22m[90m             if (isset($parts[$component])) {[39m[39;1m
+  [39;22m[90m                 return null;[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/Http/IntendedDestination.php [39;22m[90m > Line 89: RemoveEarlyReturn - ID: ecc9727c2eb89117[39m
+[39;1m
+  [39;22m[90m         // Any authority component at all means it is not origin-form.[39m[39;1m
+  [39;22m[90m         foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {[39m[39;1m
+  [39;22m[90m             if (isset($parts[$component])) {[39m[39;1m
+  [39;22m[31m-                return null;[39m[39;1m
+  [39;22m[32m+                [39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $safe = $parts['path'] ?? null;[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Http/IntendedDestination.php [39;22m[90m > Line 95: BooleanOrToBooleanAnd - ID: dfad39a51184ea74[39m
+[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $safe = $parts['path'] ?? null;[39m[39;1m
+  [39;22m[31m-        if (!is_string($safe) || !str_starts_with($safe, '/')) {[39m[39;1m
+  [39;22m[32m+        if (!is_string($safe) && !str_starts_with($safe, '/')) {[39m[39;1m
+  [39;22m[90m             return null;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         return isset($parts['query']) ? $safe . '?' . $parts['query'] : $safe;[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/Http/IntendedDestination.php [39;22m[90m > Line 96: RemoveEarlyReturn - ID: a328e9134f2d69da[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $safe = $parts['path'] ?? null;[39m[39;1m
+  [39;22m[90m         if (!is_string($safe) || !str_starts_with($safe, '/')) {[39m[39;1m
+  [39;22m[31m-            return null;[39m[39;1m
+  [39;22m[32m+            [39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         return isset($parts['query']) ? $safe . '?' . $parts['query'] : $safe;[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/Http/AssuranceComparator.php [39;22m[90m > Line 24: RemoveArrayItem - ID: 98dc782578dcb775[39m
+[39;1m
+  [39;22m[90m final readonly class AssuranceComparator[39m[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     /** @var list<string> Weakest first. */[39m[39;1m
+  [39;22m[31m-    private const ORDER = ['aal0', 'aal1', 'aal2', 'aal3'];[39m[39;1m
+  [39;22m[32m+    private const ORDER = ['aal1', 'aal2', 'aal3'];[39m[39;1m
+  [39;22m[90m     public function isSufficient(?AuthSession $session, string $required): bool[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         if (!$session instanceof AuthSession || $session->revoked_at !== null) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/Http/AssuranceComparator.php [39;22m[90m > Line 24: RemoveArrayItem - ID: 9e86faf69f6b7f29[39m
+[39;1m
+  [39;22m[90m final readonly class AssuranceComparator[39m[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     /** @var list<string> Weakest first. */[39m[39;1m
+  [39;22m[31m-    private const ORDER = ['aal0', 'aal1', 'aal2', 'aal3'];[39m[39;1m
+  [39;22m[32m+    private const ORDER = ['aal0', 'aal2', 'aal3'];[39m[39;1m
+  [39;22m[90m     public function isSufficient(?AuthSession $session, string $required): bool[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         if (!$session instanceof AuthSession || $session->revoked_at !== null) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/Http/AssuranceComparator.php [39;22m[90m > Line 24: RemoveArrayItem - ID: 79f1ecf6f962d77a[39m
+[39;1m
+  [39;22m[90m final readonly class AssuranceComparator[39m[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     /** @var list<string> Weakest first. */[39m[39;1m
+  [39;22m[31m-    private const ORDER = ['aal0', 'aal1', 'aal2', 'aal3'];[39m[39;1m
+  [39;22m[32m+    private const ORDER = ['aal0', 'aal1', 'aal3'];[39m[39;1m
+  [39;22m[90m     public function isSufficient(?AuthSession $session, string $required): bool[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         if (!$session instanceof AuthSession || $session->revoked_at !== null) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/Http/AssuranceComparator.php [39;22m[90m > Line 24: RemoveArrayItem - ID: 5f55f93fd16860d4[39m
+[39;1m
+  [39;22m[90m final readonly class AssuranceComparator[39m[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     /** @var list<string> Weakest first. */[39m[39;1m
+  [39;22m[31m-    private const ORDER = ['aal0', 'aal1', 'aal2', 'aal3'];[39m[39;1m
+  [39;22m[32m+    private const ORDER = ['aal0', 'aal1', 'aal2'];[39m[39;1m
+  [39;22m[90m     public function isSufficient(?AuthSession $session, string $required): bool[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         if (!$session instanceof AuthSession || $session->revoked_at !== null) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[90mMutations:[39m[39;1m [39;22m[31;1m18 untested[39;22m[90m,[39m[39m [39m[33;1m9 uncovered[39;22m[90m,[39m[39m [39m[32;1m140 tested[39;22m
+[39m  [39m[90mScore:[39m[39m     [39m[39m83.83%[39m
+[39m  [39m[90mDuration:[39m[39m  [39m[39m112.19s[39m
+
