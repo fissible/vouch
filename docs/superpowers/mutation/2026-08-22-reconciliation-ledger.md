@@ -428,7 +428,9 @@ as unexplained uncovered rows.
   `66ac67d` immediately before the run.
 - Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 30.86s.
 - Result: 0 mutations / 0 RUN files; all 9 assigned contract files retained as
-  explicit zero-mutant evidence. There are no mutation rows to classify.
+  explicit zero-mutant evidence. This is genuine: the files are bare interface
+  declarations with no method bodies or mutable constructs, not an empty scope.
+  There are no mutation rows to classify.
 - Artifact: `artifacts/2026-08-24-contracts-66ac67d.log` (SHA-256
   `4742fbf169448ee73770eeaf5ab4ee9d0f511f1a00e65904afe8604a1f825349`).
 
@@ -509,7 +511,9 @@ as unexplained uncovered rows.
   `66ac67d` immediately before the run.
 - Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 30.80s.
 - Result: 0 mutations / 0 RUN files; the assigned tenancy file is retained as
-  explicit zero-mutant evidence.
+  explicit zero-mutant evidence. This is genuine: `NullTenantResolver` has a
+  single `return null;` body and no mutable construct for the plugin to emit,
+  rather than being a mis-scoped run.
 - Artifact: `artifacts/2026-08-24-tenancy-66ac67d.log` (SHA-256
   `3d623f547577a712eef3e101c1f11b8aac559d70f0729c8ebb988ab93c000f92`).
 
@@ -525,8 +529,10 @@ as unexplained uncovered rows.
 - The zero-gap prediction held: no never-executed rows. The 25 survivors are
   executed-and-survived; they include message-prose rows in attempt outcome
   exceptions and substantive `DatabaseAttemptStore` rows for mutation-list
-  reindexing and duplicate-target detection. The latter require review rather
-  than the standing prose ruling.
+  reindexing and duplicate-target detection. The `seen[$target] = true` to
+  `false` survivor is equivalent under the surrounding `isset()` check; the
+  reindexing survivor remains a contract row requiring review. The remaining
+  exception-code and message rows join the standing no-action ruling.
 - The seven-sub-run confidence set (Attempts, Contracts, Enrollment, Recovery,
   Secrets, Sessions, Tenancy; 32 assigned files) is now fully measured. Its
   zero-gap prediction held for coverage-negative rows, but it produced
@@ -570,6 +576,13 @@ mechanism-level ruling with stable row identities; do not add tests or remove
 locks during the measurement sequence. Resolution options remain: a
 mechanism-specific concurrency proof, a deliberately narrow SQL assertion, or
 removal if the unique-constraint design is shown sufficient.
+
+EnrollmentGuard contributes three additional rows to this same ruling: the
+two predicate-key removals at `EnrollmentGuard:126` (`user_id` and `type`) and
+the wait-floor increment at `EnrollmentGuard:122`. They are lock identity and
+bounded-wait mechanism rows, not a separate Enrollment finding. Its
+constructor coalesce survivor at `EnrollmentGuard:50` is instead a dependency
+injection test gap and remains separately classified.
 
 ### Full parallel smoke (non-authoritative)
 
