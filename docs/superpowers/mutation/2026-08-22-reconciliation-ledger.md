@@ -137,7 +137,7 @@ Core sub-runs are deliberately itemized because routing breadth makes one
 |---|---:|---|
 | Attempts | 10 | pending |
 | Contracts | 9 | measured: 0 mutations / 9 zero-mutant files |
-| Enrollment | 3 | pending |
+| Enrollment | 3 | measured: 34 mutations; 18 tested, 16 untested, 0 uncovered, 0 timeouts |
 | Factors | 16 | measured: 485 mutations; 395 tested, 80 untested, 6 uncovered, 4 timeouts |
 | Http | 7 | pending |
 | Jobs | 1 | measured: 13 mutations; 8 tested, 3 untested, 2 uncovered; 0 timeouts |
@@ -431,6 +431,26 @@ as unexplained uncovered rows.
   explicit zero-mutant evidence. There are no mutation rows to classify.
 - Artifact: `artifacts/2026-08-24-contracts-66ac67d.log` (SHA-256
   `4742fbf169448ee73770eeaf5ab4ee9d0f511f1a00e65904afe8604a1f825349`).
+
+### Core / Enrollment
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Enrollment --no-cache --min=0`
+- SHA/source-equivalence guard: `4e46fc9`, with no guarded-path diff from
+  `66ac67d` immediately before the run.
+- Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 30.82s;
+  timeout threshold 36.98s.
+- Result: 34 mutations / 2 RUN files; 18 tested, 16 untested, 0 uncovered,
+  0 timeouts; elapsed 239.04s; verified score 52.94%.
+- The zero-gap prediction held: no never-executed rows. The 16 survivors
+  divide into exception-code/message prose in `EnrollmentRefused` (covered by
+  the standing message rule) and substantive `EnrollmentGuard` contract rows:
+  injected `DatabaseRowLock` being discarded (`:50`), changing the minimum
+  bounded wait (`:122`), and removing either lock-key predicate (`:126`). The
+  latter rows join the existing lock/constructor-injection ruling queue.
+- Artifacts: `artifacts/2026-08-24-enrollment-66ac67d.log` (SHA-256
+  `52213ced456e484d25003c75ff6b22feac063c79618da4c5fc32dbee67325ffa`) and
+  `artifacts/2026-08-24-enrollment-classification.json` (SHA-256
+  `65d651fed95014c3be72c8c491806447f1a974ca950a4789c6f21e6db07c6976`).
 
 ### Queued mechanism ruling: console contracts
 

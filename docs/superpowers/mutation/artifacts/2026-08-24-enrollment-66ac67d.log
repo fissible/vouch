@@ -1,0 +1,254 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  .....................
+
+  Tests:    1161 passed (4092 assertions)
+  Duration: 30.82s
+
+  Mutating application files...
+  34 Mutations for 2 Files created
+
+   RUN  src/Enrollment/EnrollmentRefused.php
+  ⨯ Line 25: DecrementInteger
+  ⨯ Line 25: IncrementInteger
+  ⨯ Line 25: RemoveMethodCall
+  ⨯ Line 32: ConcatRemoveLeft
+  ⨯ Line 32: ConcatRemoveLeft
+  ⨯ Line 32: ConcatRemoveRight
+  ⨯ Line 32: ConcatRemoveRight
+  ⨯ Line 32: ConcatSwitchSides
+  ⨯ Line 32: ConcatSwitchSides
+  ⨯ Line 47: ConcatRemoveLeft
+  ⨯ Line 47: ConcatRemoveRight
+  ⨯ Line 47: ConcatSwitchSides
+
+   RUN  src/Enrollment/EnrollmentGuard.php
+  ✓ Line 43: DecrementInteger
+  ✓ Line 43: IncrementInteger
+  ✓ Line 48: CoalesceRemoveLeft
+  ✓ Line 49: CoalesceRemoveLeft
+  ⨯ Line 50: CoalesceRemoveLeft
+  ✓ Line 73: RemoveMethodCall
+  ✓ Line 77: IfNegated
+  ✓ Line 77: NotIdenticalToIdentical
+  ✓ Line 80: IfNegated
+  ✓ Line 80: GreaterToGreaterOrEqual
+  ✓ Line 80: GreaterToSmallerOrEqual
+  ✓ Line 122: MaxToMin
+  ✓ Line 122: DecrementInteger
+  ⨯ Line 122: IncrementInteger
+  ✓ Line 122: RemoveMethodCall
+  ✓ Line 123: RemoveMethodCall
+  ✓ Line 125: RemoveArrayItem
+  ✓ Line 125: RemoveArrayItem
+  ⨯ Line 126: RemoveArrayItem
+  ⨯ Line 126: RemoveArrayItem
+  ✓ Line 138: IfNegated
+  ✓ Line 138: RemoveNot
+   UNTESTED  src/Enrollment/EnrollmentRefused.php  > Line 25: DecrementInteger - ID: 292cd184bf37a560
+
+   {
+       private function __construct(string $message, public readonly EnrollmentRefusalReason $reason, ?Throwable $previous = null)
+       {
+  -        parent::__construct($message, 0, $previous);
+  +        parent::__construct($message, -1, $previous);
+       }
+       public static function capacityExceeded(string $type, int $maxActive, int $actual): self
+       {
+  
+
+   UNTESTED  src/Enrollment/EnrollmentRefused.php  > Line 25: IncrementInteger - ID: 65d3477af7df5e68
+
+   {
+       private function __construct(string $message, public readonly EnrollmentRefusalReason $reason, ?Throwable $previous = null)
+       {
+  -        parent::__construct($message, 0, $previous);
+  +        parent::__construct($message, 1, $previous);
+       }
+       public static function capacityExceeded(string $type, int $maxActive, int $actual): self
+       {
+  
+
+   UNTESTED  src/Enrollment/EnrollmentRefused.php  > Line 25: RemoveMethodCall - ID: bf723229c4433210
+
+   {
+       private function __construct(string $message, public readonly EnrollmentRefusalReason $reason, ?Throwable $previous = null)
+       {
+  -        parent::__construct($message, 0, $previous);
+  +        
+       }
+       public static function capacityExceeded(string $type, int $maxActive, int $actual): self
+       {
+  
+
+   UNTESTED  src/Enrollment/EnrollmentRefused.php  > Line 32: ConcatRemoveLeft - ID: 15f20773d121ae66
+
+       }
+       public static function capacityExceeded(string $type, int $maxActive, int $actual): self
+       {
+  -        return new self(sprintf('Enrolling this %s credential would leave %d active, but at most %d is allowed. ' . 'Nothing was written. Disable the existing credential in the same operation if ' . 'this was meant to replace it.', $type, $actual, $maxActive), EnrollmentRefusalReason::CapacityExceeded);
+  +        return new self(sprintf('Nothing was written. Disable the existing credential in the same operation if ' . 'this was meant to replace it.', $type, $actual, $maxActive), EnrollmentRefusalReason::CapacityExceeded);
+       }
+       public static function contended(string $type, Throwable $previous): self
+       {
+  
+
+   UNTESTED  src/Enrollment/EnrollmentRefused.php  > Line 32: ConcatRemoveLeft - ID: 3d6be94c0a120cf0
+
+       }
+       public static function capacityExceeded(string $type, int $maxActive, int $actual): self
+       {
+  -        return new self(sprintf('Enrolling this %s credential would leave %d active, but at most %d is allowed. ' . 'Nothing was written. Disable the existing credential in the same operation if ' . 'this was meant to replace it.', $type, $actual, $maxActive), EnrollmentRefusalReason::CapacityExceeded);
+  +        return new self(sprintf('this was meant to replace it.', $type, $actual, $maxActive), EnrollmentRefusalReason::CapacityExceeded);
+       }
+       public static function contended(string $type, Throwable $previous): self
+       {
+  
+
+   UNTESTED  src/Enrollment/EnrollmentRefused.php  > Line 32: ConcatRemoveRight - ID: aef5a8d9faf53cc8
+
+       }
+       public static function capacityExceeded(string $type, int $maxActive, int $actual): self
+       {
+  -        return new self(sprintf('Enrolling this %s credential would leave %d active, but at most %d is allowed. ' . 'Nothing was written. Disable the existing credential in the same operation if ' . 'this was meant to replace it.', $type, $actual, $maxActive), EnrollmentRefusalReason::CapacityExceeded);
+  +        return new self(sprintf('Enrolling this %s credential would leave %d active, but at most %d is allowed. ' . 'this was meant to replace it.', $type, $actual, $maxActive), EnrollmentRefusalReason::CapacityExceeded);
+       }
+       public static function contended(string $type, Throwable $previous): self
+       {
+  
+
+   UNTESTED  src/Enrollment/EnrollmentRefused.php  > Line 32: ConcatRemoveRight - ID: b9de9bb73a932798
+
+       }
+       public static function capacityExceeded(string $type, int $maxActive, int $actual): self
+       {
+  -        return new self(sprintf('Enrolling this %s credential would leave %d active, but at most %d is allowed. ' . 'Nothing was written. Disable the existing credential in the same operation if ' . 'this was meant to replace it.', $type, $actual, $maxActive), EnrollmentRefusalReason::CapacityExceeded);
+  +        return new self(sprintf('Enrolling this %s credential would leave %d active, but at most %d is allowed. ' . 'Nothing was written. Disable the existing credential in the same operation if ', $type, $actual, $maxActive), EnrollmentRefusalReason::CapacityExceeded);
+       }
+       public static function contended(string $type, Throwable $previous): self
+       {
+  
+
+   UNTESTED  src/Enrollment/EnrollmentRefused.php  > Line 32: ConcatSwitchSides - ID: 8a49b5a2700578c5
+
+       }
+       public static function capacityExceeded(string $type, int $maxActive, int $actual): self
+       {
+  -        return new self(sprintf('Enrolling this %s credential would leave %d active, but at most %d is allowed. ' . 'Nothing was written. Disable the existing credential in the same operation if ' . 'this was meant to replace it.', $type, $actual, $maxActive), EnrollmentRefusalReason::CapacityExceeded);
+  +        return new self(sprintf('Nothing was written. Disable the existing credential in the same operation if ' . 'Enrolling this %s credential would leave %d active, but at most %d is allowed. ' . 'this was meant to replace it.', $type, $actual, $maxActive), EnrollmentRefusalReason::CapacityExceeded);
+       }
+       public static function contended(string $type, Throwable $previous): self
+       {
+  
+
+   UNTESTED  src/Enrollment/EnrollmentRefused.php  > Line 32: ConcatSwitchSides - ID: 242ea18cc9074d8e
+
+       }
+       public static function capacityExceeded(string $type, int $maxActive, int $actual): self
+       {
+  -        return new self(sprintf('Enrolling this %s credential would leave %d active, but at most %d is allowed. ' . 'Nothing was written. Disable the existing credential in the same operation if ' . 'this was meant to replace it.', $type, $actual, $maxActive), EnrollmentRefusalReason::CapacityExceeded);
+  +        return new self(sprintf('this was meant to replace it.' . ('Enrolling this %s credential would leave %d active, but at most %d is allowed. ' . 'Nothing was written. Disable the existing credential in the same operation if '), $type, $actual, $maxActive), EnrollmentRefusalReason::CapacityExceeded);
+       }
+       public static function contended(string $type, Throwable $previous): self
+       {
+  
+
+   UNTESTED  src/Enrollment/EnrollmentRefused.php  > Line 47: ConcatRemoveLeft - ID: 8c23b95089241a67
+
+       }
+       public static function contended(string $type, Throwable $previous): self
+       {
+  -        return new self(sprintf('Another enrollment for this user\'s %s credential is in progress and did not ' . 'release in time. Nothing was written; this is safe to retry.', $type), EnrollmentRefusalReason::Contended, $previous);
+  +        return new self(sprintf('release in time. Nothing was written; this is safe to retry.', $type), EnrollmentRefusalReason::Contended, $previous);
+       }
+   }
+  
+
+   UNTESTED  src/Enrollment/EnrollmentRefused.php  > Line 47: ConcatRemoveRight - ID: d2183157768a96dc
+
+       }
+       public static function contended(string $type, Throwable $previous): self
+       {
+  -        return new self(sprintf('Another enrollment for this user\'s %s credential is in progress and did not ' . 'release in time. Nothing was written; this is safe to retry.', $type), EnrollmentRefusalReason::Contended, $previous);
+  +        return new self(sprintf('Another enrollment for this user\'s %s credential is in progress and did not ', $type), EnrollmentRefusalReason::Contended, $previous);
+       }
+   }
+  
+
+   UNTESTED  src/Enrollment/EnrollmentRefused.php  > Line 47: ConcatSwitchSides - ID: db4785940dcb4538
+
+       }
+       public static function contended(string $type, Throwable $previous): self
+       {
+  -        return new self(sprintf('Another enrollment for this user\'s %s credential is in progress and did not ' . 'release in time. Nothing was written; this is safe to retry.', $type), EnrollmentRefusalReason::Contended, $previous);
+  +        return new self(sprintf('release in time. Nothing was written; this is safe to retry.' . 'Another enrollment for this user\'s %s credential is in progress and did not ', $type), EnrollmentRefusalReason::Contended, $previous);
+       }
+   }
+  
+
+   UNTESTED  src/Enrollment/EnrollmentGuard.php  > Line 50: CoalesceRemoveLeft - ID: 18e46ade8f261486
+
+       {
+           $this->boundedLockWait = $boundedLockWait ?? new BoundedLockWait($connection);
+           $this->lockContention = $lockContention ?? new LockContention();
+  -        $this->rowLock = $rowLock ?? new DatabaseRowLock($connection);
+  +        $this->rowLock = new DatabaseRowLock($connection);
+       }
+       /**
+        * Run $write with exclusive access to this user's credentials of this type,
+  
+
+   UNTESTED  src/Enrollment/EnrollmentGuard.php  > Line 122: IncrementInteger - ID: bca0344198ad4cab
+
+       private function acquire(int $userId, string $type): void
+       {
+           try {
+  -            $this->boundedLockWait->enrollment(max(1, $this->lockWaitSeconds), function () use ($userId, $type): void {
+  +            $this->boundedLockWait->enrollment(max(2, $this->lockWaitSeconds), function () use ($userId, $type): void {
+                   $this->rowLock->ensureAndLock('auth_enrollment_locks', ['user_id' => $userId, 'type' => $type], ['user_id' => $userId, 'type' => $type]);
+               });
+           } catch (QueryException $exception) {
+  
+
+   UNTESTED  src/Enrollment/EnrollmentGuard.php  > Line 126: RemoveArrayItem - ID: d01fcfacd319f677
+
+       {
+           try {
+               $this->boundedLockWait->enrollment(max(1, $this->lockWaitSeconds), function () use ($userId, $type): void {
+  -                $this->rowLock->ensureAndLock('auth_enrollment_locks', ['user_id' => $userId, 'type' => $type], ['user_id' => $userId, 'type' => $type]);
+  +                $this->rowLock->ensureAndLock('auth_enrollment_locks', ['user_id' => $userId, 'type' => $type], ['type' => $type]);
+               });
+           } catch (QueryException $exception) {
+               /*
+  
+
+   UNTESTED  src/Enrollment/EnrollmentGuard.php  > Line 126: RemoveArrayItem - ID: 6f2bbbf908cfd123
+
+       {
+           try {
+               $this->boundedLockWait->enrollment(max(1, $this->lockWaitSeconds), function () use ($userId, $type): void {
+  -                $this->rowLock->ensureAndLock('auth_enrollment_locks', ['user_id' => $userId, 'type' => $type], ['user_id' => $userId, 'type' => $type]);
+  +                $this->rowLock->ensureAndLock('auth_enrollment_locks', ['user_id' => $userId, 'type' => $type], ['user_id' => $userId]);
+               });
+           } catch (QueryException $exception) {
+               /*
+  
+
+  Mutations: 16 untested, 18 tested
+  Score:     52.94%
+  Duration:  239.04s
+

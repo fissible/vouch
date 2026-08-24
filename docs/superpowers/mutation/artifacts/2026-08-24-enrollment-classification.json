@@ -1,0 +1,178 @@
+[
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentRefused.php",
+        "line": 25,
+        "mutator": "DecrementInteger",
+        "id": "292cd184bf37a560",
+        "expression": "parent::__construct($message, 0, $previous);",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentRefused.php",
+        "line": 25,
+        "mutator": "IncrementInteger",
+        "id": "65d3477af7df5e68",
+        "expression": "parent::__construct($message, 0, $previous);",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentRefused.php",
+        "line": 25,
+        "mutator": "RemoveMethodCall",
+        "id": "bf723229c4433210",
+        "expression": "parent::__construct($message, 0, $previous);",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentRefused.php",
+        "line": 32,
+        "mutator": "ConcatRemoveLeft",
+        "id": "15f20773d121ae66",
+        "expression": "'Enrolling this %s credential would leave %d active, but at most %d is allowed. '",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentRefused.php",
+        "line": 32,
+        "mutator": "ConcatRemoveLeft",
+        "id": "3d6be94c0a120cf0",
+        "expression": "'Enrolling this %s credential would leave %d active, but at most %d is allowed. '",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentRefused.php",
+        "line": 32,
+        "mutator": "ConcatRemoveRight",
+        "id": "aef5a8d9faf53cc8",
+        "expression": "'Enrolling this %s credential would leave %d active, but at most %d is allowed. '",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentRefused.php",
+        "line": 32,
+        "mutator": "ConcatRemoveRight",
+        "id": "b9de9bb73a932798",
+        "expression": "'Enrolling this %s credential would leave %d active, but at most %d is allowed. '",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentRefused.php",
+        "line": 32,
+        "mutator": "ConcatSwitchSides",
+        "id": "8a49b5a2700578c5",
+        "expression": "'Enrolling this %s credential would leave %d active, but at most %d is allowed. '",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentRefused.php",
+        "line": 32,
+        "mutator": "ConcatSwitchSides",
+        "id": "242ea18cc9074d8e",
+        "expression": "'Enrolling this %s credential would leave %d active, but at most %d is allowed. '",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentRefused.php",
+        "line": 47,
+        "mutator": "ConcatRemoveLeft",
+        "id": "8c23b95089241a67",
+        "expression": "'Another enrollment for this user\\'s %s credential is in progress and did not '",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentRefused.php",
+        "line": 47,
+        "mutator": "ConcatRemoveRight",
+        "id": "d2183157768a96dc",
+        "expression": "'Another enrollment for this user\\'s %s credential is in progress and did not '",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentRefused.php",
+        "line": 47,
+        "mutator": "ConcatSwitchSides",
+        "id": "db4785940dcb4538",
+        "expression": "'Another enrollment for this user\\'s %s credential is in progress and did not '",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentGuard.php",
+        "line": 50,
+        "mutator": "CoalesceRemoveLeft",
+        "id": "18e46ade8f261486",
+        "expression": "$this->rowLock = $rowLock ?? new DatabaseRowLock($connection);",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentGuard.php",
+        "line": 122,
+        "mutator": "IncrementInteger",
+        "id": "bca0344198ad4cab",
+        "expression": "$this->boundedLockWait->enrollment(max(1, $this->lockWaitSeconds), function () use ($userId, $type): void {",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentGuard.php",
+        "line": 126,
+        "mutator": "RemoveArrayItem",
+        "id": "d01fcfacd319f677",
+        "expression": "['user_id' => $userId, 'type' => $type],",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Enrollment/EnrollmentGuard.php",
+        "line": 126,
+        "mutator": "RemoveArrayItem",
+        "id": "6f2bbbf908cfd123",
+        "expression": "['user_id' => $userId, 'type' => $type],",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    }
+]
