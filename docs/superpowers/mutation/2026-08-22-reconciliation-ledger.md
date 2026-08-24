@@ -295,6 +295,15 @@ executed survivors.
   tool reproduces 25 instrument-unroutable, 1 never-executed, and 5
   executed-and-survived rows with no contested entries.
 
+## Reconciled disposition totals
+
+The 19 committed classification artifacts contain 629 rows in total: 480
+executed-and-survived, 88 never-executed, 45 instrument-unroutable, 10
+engine-gated, and 6 separately retained timeouts. Of these, 235 are
+exception-message concatenation mutants covered by the standing no-action
+rule. The totals are a reconciliation check, not a mutation score; timeouts
+remain unresolved until individually classified.
+
 ## Queued cross-chunk findings
 
 These are recorded before the remaining chunks run and must not be silently
@@ -661,7 +670,7 @@ without failing. Queue one focused ruling requiring output assertions per mode
 and explicit assertions for all doctor exit codes. The six `CommandExit` enum
 declaration rows remain instrument-unroutable and are not part of this ruling.
 
-### Queued mechanism ruling: throttle row locks
+### Queued mechanism ruling: pessimistic row locks
 
 The corrected classifier exposed one design question rather than a test-only
 gap. Fifteen `DatabaseAuthThrottleStore` survivors collectively remove the
@@ -672,6 +681,13 @@ gap. Fifteen `DatabaseAuthThrottleStore` survivors collectively remove the
   false)` at 839.
 - Twelve `TrueToFalse` call-site rows passing `lock: true` (lines 108, 116,
   123, 174, 183, 198, 355, 359, 386, 390, 732, and 820).
+
+`DatabaseDeliveryEconomics` contributes a fourth file to this same ruling.
+Its `row()` lock guard (`:251`/`:252`) survives both condition negation and
+removal of `lockForUpdate()`, and all three call-site `lock: true` arguments
+(`:97`, `:178`, `:211`) survive switching off. Its constructor coalesce at
+`:38` also repeats the injected-row-lock dependency gap seen in
+EnrollmentGuard.
 
 The full suite and all three engines preserve the throttle invariant with each
 mutant, while the two unconditional `lockForUpdate()` sites are killed. This
@@ -689,6 +705,18 @@ the wait-floor increment at `EnrollmentGuard:122`. They are lock identity and
 bounded-wait mechanism rows, not a separate Enrollment finding. Its
 constructor coalesce survivor at `EnrollmentGuard:50` is instead a dependency
 injection test gap and remains separately classified.
+
+### Queued mechanism ruling: Delivery reservation contract
+
+Four DeliveryEconomics survivors form one contract-level finding. The
+reservation short-circuit at `DatabaseDeliveryEconomics:88` has six surviving
+mutants, including decoy and zero-cost branches; `:197` survives changing the
+failed reservation claim's `continue` to `break`, which drops the tenant scope;
+`:137` survives changing the release exactly-one-row invariant; and `:117`
+survives removing the timestamp string cast from the cross-window release
+guard. These are one reservation mechanism—scope coverage, release safety,
+and cross-engine window ownership—not four independent test requests. Keep
+stable row identities and defer resolution to the test-design pass.
 
 ### Full parallel smoke (non-authoritative)
 
