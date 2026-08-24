@@ -87,6 +87,11 @@ are absent from all three maps. Their future `UNCOVERED` rows are therefore
   distinguish structural non-termination (source-decidable), bounded-but-slow
   execution (a kill once the targeted test completes), and genuinely
   environmental timing noise.
+- Six timeout rows have now been examined: five structural non-terminations and
+  one bounded-but-slow contention-bound removal; all six were kills. This does
+  not authorize crediting the 53 compact-smoke timeouts, whose identities and
+  causes are unavailable, but it does mean the smoke's 80.66% verified figure
+  must not be described as a likely lower bound on the true score.
 - Do not land tests or source changes revealed while ruling chunks. Queue them
   and apply them only after all chunks have been measured, followed by one
   confirming full run at a new, explicitly recorded SHA.
