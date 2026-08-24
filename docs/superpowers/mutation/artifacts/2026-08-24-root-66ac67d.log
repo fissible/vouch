@@ -1,0 +1,591 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  .....................
+
+  Tests:    1161 passed (4092 assertions)
+  Duration: 30.51s
+
+  Mutating application files...
+  [90m148 Mutations for 2 Files created[39m
+
+  [39;100;1m RUN [39;49;22m src/Vouch.php
+  [32;1m✓[39;22m [90mLine 32: CoalesceEqualToEqual[39m
+  [32;1m✓[39;22m [90mLine 40: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 40: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 40: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 40: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 40: EmptyStringToNotEmpty[39m
+  [32;1m✓[39;22m [90mLine 42: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 42: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 42: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 42: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 42: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 42: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 42: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 42: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 42: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 42: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 42: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 42: ConcatSwitchSides[39m
+  [31;1m⨯[39;22m [90mLine 42: ConcatSwitchSides[39m
+  [31;1m⨯[39;22m [90mLine 42: ConcatSwitchSides[39m
+  [31;1m⨯[39;22m [90mLine 42: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 50: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 50: RemoveMethodCall[39m
+
+  [39;100;1m RUN [39;49;22m src/VouchServiceProvider.php
+  [32;1m✓[39;22m [90mLine 54: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 54: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 54: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 54: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 56: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 58: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 65: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 66: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 67: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 69: RemoveMethodCall[39m
+  [31;1m⨯[39;22m [90mLine 74: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 81: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 90: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 98: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 99: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 104: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 112: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 117: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 119: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 129: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 130: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 131: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 132: RemoveMethodCall[39m
+  [31;1m⨯[39;22m [90mLine 133: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 138: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 147: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 158: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 170: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 178: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 191: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 196: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 218: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 226: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 233: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 242: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 243: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 244: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 245: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 247: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 250: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 260: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 277: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 285: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 297: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 299: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 310: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 323: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 336: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 339: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 340: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 341: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 342: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 343: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 344: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 346: RemoveMethodCall[39m
+  [31;1m⨯[39;22m [90mLine 357: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 359: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 359: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 359: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 359: RemoveNot[39m
+  [31;1m⨯[39;22m [90mLine 361: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 361: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 363: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 363: ConcatRemoveLeft[39m
+  [31;1m⨯[39;22m [90mLine 363: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 363: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 363: ConcatSwitchSides[39m
+  [31;1m⨯[39;22m [90mLine 363: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 369: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 369: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 369: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 369: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 370: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 370: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 370: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 370: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 373: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 374: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 375: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 383: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 383: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 385: CoalesceRemoveLeft[39m
+  [33;1m-[39;22m [90mLine 389: ConcatRemoveLeft[39m
+  [33;1m-[39;22m [90mLine 389: ConcatRemoveLeft[39m
+  [33;1m-[39;22m [90mLine 389: ConcatRemoveRight[39m
+  [33;1m-[39;22m [90mLine 389: ConcatRemoveRight[39m
+  [33;1m-[39;22m [90mLine 389: ConcatSwitchSides[39m
+  [33;1m-[39;22m [90mLine 389: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 395: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 396: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 397: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 397: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 397: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 397: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 400: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 401: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 401: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 401: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 401: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 404: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 405: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 406: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 407: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 408: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 409: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 420: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 421: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 421: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 430: AlwaysReturnEmptyArray[39m
+  [31;1m⨯[39;22m [90mLine 435: CoalesceRemoveLeft[39m
+  [31;1m⨯[39;22m [90mLine 437: IfNegated[39m
+  [31;1m⨯[39;22m [90mLine 437: RemoveNot[39m
+  [33;1m-[39;22m [90mLine 438: FalseToTrue[39m
+  [33;1m-[39;22m [90mLine 438: RemoveEarlyReturn[39m
+  [31;1m⨯[39;22m [90mLine 441: UnwrapArraySlice[39m
+  [31;1m⨯[39;22m [90mLine 441: ForeachEmptyIterable[39m
+  [31;1m⨯[39;22m [90mLine 441: DecrementInteger[39m
+  [31;1m⨯[39;22m [90mLine 441: IncrementInteger[39m
+  [31;1m⨯[39;22m [90mLine 442: IfNegated[39m
+  [31;1m⨯[39;22m [90mLine 442: BooleanAndToBooleanOr[39m
+  [31;1m⨯[39;22m [90mLine 442: RemoveNot[39m
+  [31;1m⨯[39;22m [90mLine 442: StrStartsWithToStrEndsWith[39m
+  [32;1m✓[39;22m [90mLine 443: IdenticalToNotIdentical[39m
+  [31;1m⨯[39;22m [90mLine 443: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 447: FalseToTrue[39m
+  [39;41;1m UNTESTED [39;49;22m [39;1msrc/Vouch.php [39;22m[90m > Line 42: ConcatRemoveRight - ID: 70158b81a740db68[39m
+[39;1m
+  [39;22m[90m          * JSON endpoint issues a GET and receives 405.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!is_string($presentation) || $presentation === '') {[39m[39;1m
+  [39;22m[31m-            throw new RuntimeException('Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be ' . 'configured. 2.3 ships no routeable step-up page; Phase 3 supplies the ' . 'standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[32m+            throw new RuntimeException('Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be ' . 'standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Never a client-supplied return_to: that is an open-redirect primitive.[39m[39;1m
+  [39;22m[90m         (new IntendedDestination($request->session()))->remember($intended ?? $request->getRequestUri());[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Vouch.php [39;22m[90m > Line 42: ConcatRemoveRight - ID: 29e08b8edee83c54[39m
+[39;1m
+  [39;22m[90m          * JSON endpoint issues a GET and receives 405.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!is_string($presentation) || $presentation === '') {[39m[39;1m
+  [39;22m[31m-            throw new RuntimeException('Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be ' . 'configured. 2.3 ships no routeable step-up page; Phase 3 supplies the ' . 'standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[32m+            throw new RuntimeException('Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be ' . 'configured. 2.3 ships no routeable step-up page; Phase 3 supplies the ' . 'only answers POST.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Never a client-supplied return_to: that is an open-redirect primitive.[39m[39;1m
+  [39;22m[90m         (new IntendedDestination($request->session()))->remember($intended ?? $request->getRequestUri());[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Vouch.php [39;22m[90m > Line 42: ConcatRemoveRight - ID: e46ec93dd17342bd[39m
+[39;1m
+  [39;22m[90m          * JSON endpoint issues a GET and receives 405.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!is_string($presentation) || $presentation === '') {[39m[39;1m
+  [39;22m[31m-            throw new RuntimeException('Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be ' . 'configured. 2.3 ships no routeable step-up page; Phase 3 supplies the ' . 'standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[32m+            throw new RuntimeException('Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be ' . 'configured. 2.3 ships no routeable step-up page; Phase 3 supplies the ' . 'standard adapter. Refusing rather than redirecting to an endpoint that ');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Never a client-supplied return_to: that is an open-redirect primitive.[39m[39;1m
+  [39;22m[90m         (new IntendedDestination($request->session()))->remember($intended ?? $request->getRequestUri());[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Vouch.php [39;22m[90m > Line 42: ConcatSwitchSides - ID: 0d74f9f9b8392b8c[39m
+[39;1m
+  [39;22m[90m          * JSON endpoint issues a GET and receives 405.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!is_string($presentation) || $presentation === '') {[39m[39;1m
+  [39;22m[31m-            throw new RuntimeException('Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be ' . 'configured. 2.3 ships no routeable step-up page; Phase 3 supplies the ' . 'standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[32m+            throw new RuntimeException('configured. 2.3 ships no routeable step-up page; Phase 3 supplies the ' . ('Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be ') . 'standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Never a client-supplied return_to: that is an open-redirect primitive.[39m[39;1m
+  [39;22m[90m         (new IntendedDestination($request->session()))->remember($intended ?? $request->getRequestUri());[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Vouch.php [39;22m[90m > Line 42: ConcatSwitchSides - ID: 92603e91ccaa3a97[39m
+[39;1m
+  [39;22m[90m          * JSON endpoint issues a GET and receives 405.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!is_string($presentation) || $presentation === '') {[39m[39;1m
+  [39;22m[31m-            throw new RuntimeException('Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be ' . 'configured. 2.3 ships no routeable step-up page; Phase 3 supplies the ' . 'standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[32m+            throw new RuntimeException('standard adapter. Refusing rather than redirecting to an endpoint that ' . ('Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be ' . 'configured. 2.3 ships no routeable step-up page; Phase 3 supplies the ') . 'only answers POST.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Never a client-supplied return_to: that is an open-redirect primitive.[39m[39;1m
+  [39;22m[90m         (new IntendedDestination($request->session()))->remember($intended ?? $request->getRequestUri());[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Vouch.php [39;22m[90m > Line 42: ConcatSwitchSides - ID: bed924ecd1f40a82[39m
+[39;1m
+  [39;22m[90m          * JSON endpoint issues a GET and receives 405.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!is_string($presentation) || $presentation === '') {[39m[39;1m
+  [39;22m[31m-            throw new RuntimeException('Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be ' . 'configured. 2.3 ships no routeable step-up page; Phase 3 supplies the ' . 'standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');[39m[39;1m
+  [39;22m[32m+            throw new RuntimeException('only answers POST.' . ('Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be ' . 'configured. 2.3 ships no routeable step-up page; Phase 3 supplies the ' . 'standard adapter. Refusing rather than redirecting to an endpoint that '));[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         // Never a client-supplied return_to: that is an open-redirect primitive.[39m[39;1m
+  [39;22m[90m         (new IntendedDestination($request->session()))->remember($intended ?? $request->getRequestUri());[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 74: TernaryNegated - ID: 8a0e31e407066206[39m
+[39;1m
+  [39;22m[90m         $this->app->bind(OtpDelivery::class, UnconfiguredOtpDelivery::class);[39m[39;1m
+  [39;22m[90m         $this->app->bind(DeliveryEconomics::class, UnconfiguredDeliveryEconomics::class);[39m[39;1m
+  [39;22m[90m         $this->app->bind(CaptchaVerifier::class, UnconfiguredCaptchaVerifier::class);[39m[39;1m
+  [39;22m[31m-        $this->app->singleton(OtpQueueDispatcher::class, fn($app): OtpQueueDispatcher => new OtpQueueDispatcher($app->make(\Illuminate\Contracts\Queue\Factory::class), $app->make(\Fissible\Vouch\Support\DatabaseTime::class), is_string(config('vouch.otp.queue_connection')) ? config('vouch.otp.queue_connection') : null, config()->string('vouch.otp.queue')));[39m[39;1m
+  [39;22m[32m+        $this->app->singleton(OtpQueueDispatcher::class, fn($app): OtpQueueDispatcher => new OtpQueueDispatcher($app->make(\Illuminate\Contracts\Queue\Factory::class), $app->make(\Fissible\Vouch\Support\DatabaseTime::class), !is_string(config('vouch.otp.queue_connection')) ? config('vouch.otp.queue_connection') : null, config()->string('vouch.otp.queue')));[39m[39;1m
+  [39;22m[90m         $this->app->singleton(OtpChallengeOutbox::class, fn($app): OtpChallengeOutbox => new OtpChallengeOutbox($app['db']->connection(), $app->make(OtpQueueDispatcher::class), $app->make(\Fissible\Vouch\Support\DatabaseTime::class)));[39m[39;1m
+  [39;22m[90m         $this->app->bind(OtpOutboxDelivery::class, fn($app): OtpOutboxDelivery => new OtpOutboxDelivery($app->make(OtpDelivery::class), $app->make(\Fissible\Vouch\Contracts\DeliveryEconomics::class), $app->make(SmsCountryNormalizer::class), $app->make(\Fissible\Vouch\Support\DatabaseTime::class), ['email' => config()->integer('vouch.delivery.economics.email_cost_minor'), 'sms' => config()->integer('vouch.delivery.economics.sms_cost_minor')]));[39m[39;1m
+  [39;22m[90m         $this->app->singleton(AttemptStore::class, fn($app): DatabaseAttemptStore => new DatabaseAttemptStore($app['db']->connection(), new TransitionRules()));[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 133: RemoveMethodCall - ID: e6b5b9fe6949968d[39m
+[39;1m
+  [39;22m[90m         $this->app->singleton(IpCanonicalizer::class);[39m[39;1m
+  [39;22m[90m         $this->app->singleton(ThrottleKey::class);[39m[39;1m
+  [39;22m[90m         $this->app->singleton(SmsCountryNormalizer::class, static fn(): SmsCountryNormalizer => SmsCountryNormalizer::defaults());[39m[39;1m
+  [39;22m[31m-        $this->app->singleton(SmsIdentifierAudit::class, static fn($app): SmsIdentifierAudit => new SmsIdentifierAudit($app->make(SmsCountryNormalizer::class)));[39m[39;1m
+  [39;22m[32m+        [39m[39;1m
+  [39;22m[90m         $this->app->singleton(ThrottleReporter::class, fn($app): ThrottleReporter => new ThrottleReporter($app['db']->connection(), $app->make(\Fissible\Vouch\Support\DatabaseTime::class), $app->make(ThrottleConfiguration::class)));[39m[39;1m
+  [39;22m[90m         $this->app->singleton(AuthThrottleStore::class, fn($app): DatabaseAuthThrottleStore => new DatabaseAuthThrottleStore($app['db']->connection(), new \Fissible\Vouch\Support\DatabaseTime($app['db']->connection()), $app->make(ThrottleConfiguration::class), $app->make(BoundedLockWait::class), $app->make(LockContention::class)));[39m[39;1m
+  [39;22m[90m         $this->app->singleton(EnrollmentGuard::class, fn($app): EnrollmentGuard => new EnrollmentGuard([39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 357: RemoveMethodCall - ID: 5aad54f476f0b879[39m
+[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     public function boot(): void[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        // Validation is eager: an invalid security budget must fail package boot,[39m[39;1m
+  [39;22m[31m-        // not wait for the first attacker-controlled request to reach a store.[39m[39;1m
+  [39;22m[31m-        $this->app->make(ThrottleConfiguration::class);[39m[39;1m
+  [39;22m[32m+        [39m[39;1m
+  [39;22m[90m         if (!$this->isDoctorCommand() && $this->app->make(ThrottleConfiguration::class)->captchaEnabled && $this->app->make(CaptchaVerifier::class) instanceof UnconfiguredCaptchaVerifier) {[39m[39;1m
+  [39;22m[90m             throw new \RuntimeException('CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. ' . 'Bind Fissible\Vouch\Contracts\CaptchaVerifier before enabling ' . 'shared-throttle enforcement.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 361: InstanceOfToTrue - ID: 07e63f2acb872129[39m
+[39;1m
+  [39;22m[90m         // Validation is eager: an invalid security budget must fail package boot,[39m[39;1m
+  [39;22m[90m         // not wait for the first attacker-controlled request to reach a store.[39m[39;1m
+  [39;22m[90m         $this->app->make(ThrottleConfiguration::class);[39m[39;1m
+  [39;22m[31m-        if (!$this->isDoctorCommand() && $this->app->make(ThrottleConfiguration::class)->captchaEnabled && $this->app->make(CaptchaVerifier::class) instanceof UnconfiguredCaptchaVerifier) {[39m[39;1m
+  [39;22m[32m+        if (!$this->isDoctorCommand() && $this->app->make(ThrottleConfiguration::class)->captchaEnabled && true) {[39m[39;1m
+  [39;22m[90m             throw new \RuntimeException('CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. ' . 'Bind Fissible\Vouch\Contracts\CaptchaVerifier before enabling ' . 'shared-throttle enforcement.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 363: ConcatRemoveRight - ID: 1a0f774885c2d6ad[39m
+[39;1m
+  [39;22m[90m         // not wait for the first attacker-controlled request to reach a store.[39m[39;1m
+  [39;22m[90m         $this->app->make(ThrottleConfiguration::class);[39m[39;1m
+  [39;22m[90m         if (!$this->isDoctorCommand() && $this->app->make(ThrottleConfiguration::class)->captchaEnabled && $this->app->make(CaptchaVerifier::class) instanceof UnconfiguredCaptchaVerifier) {[39m[39;1m
+  [39;22m[31m-            throw new \RuntimeException('CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. ' . 'Bind Fissible\Vouch\Contracts\CaptchaVerifier before enabling ' . 'shared-throttle enforcement.');[39m[39;1m
+  [39;22m[32m+            throw new \RuntimeException('CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. ' . 'shared-throttle enforcement.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');[39m[39;1m
+  [39;22m[90m         $this->loadRoutesFrom(__DIR__ . '/../routes/vouch.php');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 363: ConcatRemoveRight - ID: b6831c3aa573d539[39m
+[39;1m
+  [39;22m[90m         // not wait for the first attacker-controlled request to reach a store.[39m[39;1m
+  [39;22m[90m         $this->app->make(ThrottleConfiguration::class);[39m[39;1m
+  [39;22m[90m         if (!$this->isDoctorCommand() && $this->app->make(ThrottleConfiguration::class)->captchaEnabled && $this->app->make(CaptchaVerifier::class) instanceof UnconfiguredCaptchaVerifier) {[39m[39;1m
+  [39;22m[31m-            throw new \RuntimeException('CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. ' . 'Bind Fissible\Vouch\Contracts\CaptchaVerifier before enabling ' . 'shared-throttle enforcement.');[39m[39;1m
+  [39;22m[32m+            throw new \RuntimeException('CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. ' . 'Bind Fissible\Vouch\Contracts\CaptchaVerifier before enabling ');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');[39m[39;1m
+  [39;22m[90m         $this->loadRoutesFrom(__DIR__ . '/../routes/vouch.php');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 363: ConcatSwitchSides - ID: 394890d7dc0bcc3b[39m
+[39;1m
+  [39;22m[90m         // not wait for the first attacker-controlled request to reach a store.[39m[39;1m
+  [39;22m[90m         $this->app->make(ThrottleConfiguration::class);[39m[39;1m
+  [39;22m[90m         if (!$this->isDoctorCommand() && $this->app->make(ThrottleConfiguration::class)->captchaEnabled && $this->app->make(CaptchaVerifier::class) instanceof UnconfiguredCaptchaVerifier) {[39m[39;1m
+  [39;22m[31m-            throw new \RuntimeException('CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. ' . 'Bind Fissible\Vouch\Contracts\CaptchaVerifier before enabling ' . 'shared-throttle enforcement.');[39m[39;1m
+  [39;22m[32m+            throw new \RuntimeException('Bind Fissible\Vouch\Contracts\CaptchaVerifier before enabling ' . 'CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. ' . 'shared-throttle enforcement.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');[39m[39;1m
+  [39;22m[90m         $this->loadRoutesFrom(__DIR__ . '/../routes/vouch.php');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 363: ConcatSwitchSides - ID: 1aa1c7a0092f4442[39m
+[39;1m
+  [39;22m[90m         // not wait for the first attacker-controlled request to reach a store.[39m[39;1m
+  [39;22m[90m         $this->app->make(ThrottleConfiguration::class);[39m[39;1m
+  [39;22m[90m         if (!$this->isDoctorCommand() && $this->app->make(ThrottleConfiguration::class)->captchaEnabled && $this->app->make(CaptchaVerifier::class) instanceof UnconfiguredCaptchaVerifier) {[39m[39;1m
+  [39;22m[31m-            throw new \RuntimeException('CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. ' . 'Bind Fissible\Vouch\Contracts\CaptchaVerifier before enabling ' . 'shared-throttle enforcement.');[39m[39;1m
+  [39;22m[32m+            throw new \RuntimeException('shared-throttle enforcement.' . ('CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. ' . 'Bind Fissible\Vouch\Contracts\CaptchaVerifier before enabling '));[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');[39m[39;1m
+  [39;22m[90m         $this->loadRoutesFrom(__DIR__ . '/../routes/vouch.php');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 389: ConcatRemoveLeft - ID: fb41a5fe1d5a5377[39m
+[39;1m
+  [39;22m[90m          * absence is a hard failure rather than a silently unguarded app.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!in_array(\Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class, $router->getMiddlewareGroups()['web'] ?? [], true)) {[39m[39;1m
+  [39;22m[31m-            throw new \RuntimeException('Vouch requires ValidatesVouchSession in the "web" middleware group. Without ' . 'it, revoking a session sets a column nobody reads and the revoked session ' . 'keeps working.');[39m[39;1m
+  [39;22m[32m+            throw new \RuntimeException('it, revoking a session sets a column nobody reads and the revoked session ' . 'keeps working.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         if ($this->app->runningInConsole()) {[39m[39;1m
+  [39;22m[90m             $this->publishes([__DIR__ . '/../config/vouch.php' => $this->app->configPath('vouch.php')], 'vouch-config');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 389: ConcatRemoveLeft - ID: fc4cef4a4a2841de[39m
+[39;1m
+  [39;22m[90m          * absence is a hard failure rather than a silently unguarded app.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!in_array(\Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class, $router->getMiddlewareGroups()['web'] ?? [], true)) {[39m[39;1m
+  [39;22m[31m-            throw new \RuntimeException('Vouch requires ValidatesVouchSession in the "web" middleware group. Without ' . 'it, revoking a session sets a column nobody reads and the revoked session ' . 'keeps working.');[39m[39;1m
+  [39;22m[32m+            throw new \RuntimeException('keeps working.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         if ($this->app->runningInConsole()) {[39m[39;1m
+  [39;22m[90m             $this->publishes([__DIR__ . '/../config/vouch.php' => $this->app->configPath('vouch.php')], 'vouch-config');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 389: ConcatRemoveRight - ID: 80a7b1f4573c4d16[39m
+[39;1m
+  [39;22m[90m          * absence is a hard failure rather than a silently unguarded app.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!in_array(\Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class, $router->getMiddlewareGroups()['web'] ?? [], true)) {[39m[39;1m
+  [39;22m[31m-            throw new \RuntimeException('Vouch requires ValidatesVouchSession in the "web" middleware group. Without ' . 'it, revoking a session sets a column nobody reads and the revoked session ' . 'keeps working.');[39m[39;1m
+  [39;22m[32m+            throw new \RuntimeException('Vouch requires ValidatesVouchSession in the "web" middleware group. Without ' . 'keeps working.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         if ($this->app->runningInConsole()) {[39m[39;1m
+  [39;22m[90m             $this->publishes([__DIR__ . '/../config/vouch.php' => $this->app->configPath('vouch.php')], 'vouch-config');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 389: ConcatRemoveRight - ID: 292355ec710ce0fc[39m
+[39;1m
+  [39;22m[90m          * absence is a hard failure rather than a silently unguarded app.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!in_array(\Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class, $router->getMiddlewareGroups()['web'] ?? [], true)) {[39m[39;1m
+  [39;22m[31m-            throw new \RuntimeException('Vouch requires ValidatesVouchSession in the "web" middleware group. Without ' . 'it, revoking a session sets a column nobody reads and the revoked session ' . 'keeps working.');[39m[39;1m
+  [39;22m[32m+            throw new \RuntimeException('Vouch requires ValidatesVouchSession in the "web" middleware group. Without ' . 'it, revoking a session sets a column nobody reads and the revoked session ');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         if ($this->app->runningInConsole()) {[39m[39;1m
+  [39;22m[90m             $this->publishes([__DIR__ . '/../config/vouch.php' => $this->app->configPath('vouch.php')], 'vouch-config');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 389: ConcatSwitchSides - ID: e27b50a92cf69431[39m
+[39;1m
+  [39;22m[90m          * absence is a hard failure rather than a silently unguarded app.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!in_array(\Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class, $router->getMiddlewareGroups()['web'] ?? [], true)) {[39m[39;1m
+  [39;22m[31m-            throw new \RuntimeException('Vouch requires ValidatesVouchSession in the "web" middleware group. Without ' . 'it, revoking a session sets a column nobody reads and the revoked session ' . 'keeps working.');[39m[39;1m
+  [39;22m[32m+            throw new \RuntimeException('it, revoking a session sets a column nobody reads and the revoked session ' . 'Vouch requires ValidatesVouchSession in the "web" middleware group. Without ' . 'keeps working.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         if ($this->app->runningInConsole()) {[39m[39;1m
+  [39;22m[90m             $this->publishes([__DIR__ . '/../config/vouch.php' => $this->app->configPath('vouch.php')], 'vouch-config');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 389: ConcatSwitchSides - ID: c7d5bb9e97bc6207[39m
+[39;1m
+  [39;22m[90m          * absence is a hard failure rather than a silently unguarded app.[39m[39;1m
+  [39;22m[90m          */[39m[39;1m
+  [39;22m[90m         if (!in_array(\Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class, $router->getMiddlewareGroups()['web'] ?? [], true)) {[39m[39;1m
+  [39;22m[31m-            throw new \RuntimeException('Vouch requires ValidatesVouchSession in the "web" middleware group. Without ' . 'it, revoking a session sets a column nobody reads and the revoked session ' . 'keeps working.');[39m[39;1m
+  [39;22m[32m+            throw new \RuntimeException('keeps working.' . ('Vouch requires ValidatesVouchSession in the "web" middleware group. Without ' . 'it, revoking a session sets a column nobody reads and the revoked session '));[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         if ($this->app->runningInConsole()) {[39m[39;1m
+  [39;22m[90m             $this->publishes([__DIR__ . '/../config/vouch.php' => $this->app->configPath('vouch.php')], 'vouch-config');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 435: CoalesceRemoveLeft - ID: 31340eb53b2a1d71[39m
+[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     private function isDoctorCommand(): bool[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        $argv = $_SERVER['argv'] ?? [];[39m[39;1m
+  [39;22m[32m+        $argv = [];[39m[39;1m
+  [39;22m[90m         if (!is_array($argv)) {[39m[39;1m
+  [39;22m[90m             return false;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 437: IfNegated - ID: 6a77539f344bb2a9[39m
+[39;1m
+  [39;22m[90m     private function isDoctorCommand(): bool[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         $argv = $_SERVER['argv'] ?? [];[39m[39;1m
+  [39;22m[31m-        if (!is_array($argv)) {[39m[39;1m
+  [39;22m[32m+        if (!!is_array($argv)) {[39m[39;1m
+  [39;22m[90m             return false;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         foreach (array_slice($argv, 1) as $argument) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 437: RemoveNot - ID: 3098debc215909a8[39m
+[39;1m
+  [39;22m[90m     private function isDoctorCommand(): bool[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         $argv = $_SERVER['argv'] ?? [];[39m[39;1m
+  [39;22m[31m-        if (!is_array($argv)) {[39m[39;1m
+  [39;22m[32m+        if (is_array($argv)) {[39m[39;1m
+  [39;22m[90m             return false;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         foreach (array_slice($argv, 1) as $argument) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 438: FalseToTrue - ID: b12639fc6164dae0[39m
+[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         $argv = $_SERVER['argv'] ?? [];[39m[39;1m
+  [39;22m[90m         if (!is_array($argv)) {[39m[39;1m
+  [39;22m[31m-            return false;[39m[39;1m
+  [39;22m[32m+            return true;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         foreach (array_slice($argv, 1) as $argument) {[39m[39;1m
+  [39;22m[90m             if (is_string($argument) && !str_starts_with($argument, '-')) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 438: RemoveEarlyReturn - ID: ac01ac3c8f38727b[39m
+[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         $argv = $_SERVER['argv'] ?? [];[39m[39;1m
+  [39;22m[90m         if (!is_array($argv)) {[39m[39;1m
+  [39;22m[31m-            return false;[39m[39;1m
+  [39;22m[32m+            [39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         foreach (array_slice($argv, 1) as $argument) {[39m[39;1m
+  [39;22m[90m             if (is_string($argument) && !str_starts_with($argument, '-')) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 441: UnwrapArraySlice - ID: 1e884b4fbe460a79[39m
+[39;1m
+  [39;22m[90m         if (!is_array($argv)) {[39m[39;1m
+  [39;22m[90m             return false;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[31m-        foreach (array_slice($argv, 1) as $argument) {[39m[39;1m
+  [39;22m[32m+        foreach ($argv as $argument) {[39m[39;1m
+  [39;22m[90m             if (is_string($argument) && !str_starts_with($argument, '-')) {[39m[39;1m
+  [39;22m[90m                 return $argument === 'vouch:doctor';[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 441: ForeachEmptyIterable - ID: eb7e14bea08e5eea[39m
+[39;1m
+  [39;22m[90m         if (!is_array($argv)) {[39m[39;1m
+  [39;22m[90m             return false;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[31m-        foreach (array_slice($argv, 1) as $argument) {[39m[39;1m
+  [39;22m[32m+        foreach ([] as $argument) {[39m[39;1m
+  [39;22m[90m             if (is_string($argument) && !str_starts_with($argument, '-')) {[39m[39;1m
+  [39;22m[90m                 return $argument === 'vouch:doctor';[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 441: DecrementInteger - ID: a2439821e6253399[39m
+[39;1m
+  [39;22m[90m         if (!is_array($argv)) {[39m[39;1m
+  [39;22m[90m             return false;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[31m-        foreach (array_slice($argv, 1) as $argument) {[39m[39;1m
+  [39;22m[32m+        foreach (array_slice($argv, 0) as $argument) {[39m[39;1m
+  [39;22m[90m             if (is_string($argument) && !str_starts_with($argument, '-')) {[39m[39;1m
+  [39;22m[90m                 return $argument === 'vouch:doctor';[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 441: IncrementInteger - ID: b575f99d4ed1df41[39m
+[39;1m
+  [39;22m[90m         if (!is_array($argv)) {[39m[39;1m
+  [39;22m[90m             return false;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[31m-        foreach (array_slice($argv, 1) as $argument) {[39m[39;1m
+  [39;22m[32m+        foreach (array_slice($argv, 2) as $argument) {[39m[39;1m
+  [39;22m[90m             if (is_string($argument) && !str_starts_with($argument, '-')) {[39m[39;1m
+  [39;22m[90m                 return $argument === 'vouch:doctor';[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 442: IfNegated - ID: e6927eec9df0c7aa[39m
+[39;1m
+  [39;22m[90m             return false;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         foreach (array_slice($argv, 1) as $argument) {[39m[39;1m
+  [39;22m[31m-            if (is_string($argument) && !str_starts_with($argument, '-')) {[39m[39;1m
+  [39;22m[32m+            if (!(is_string($argument) && !str_starts_with($argument, '-'))) {[39m[39;1m
+  [39;22m[90m                 return $argument === 'vouch:doctor';[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 442: BooleanAndToBooleanOr - ID: 26b6e70b2c12ae2c[39m
+[39;1m
+  [39;22m[90m             return false;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         foreach (array_slice($argv, 1) as $argument) {[39m[39;1m
+  [39;22m[31m-            if (is_string($argument) && !str_starts_with($argument, '-')) {[39m[39;1m
+  [39;22m[32m+            if (is_string($argument) || !str_starts_with($argument, '-')) {[39m[39;1m
+  [39;22m[90m                 return $argument === 'vouch:doctor';[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 442: RemoveNot - ID: c514c65124410df2[39m
+[39;1m
+  [39;22m[90m             return false;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         foreach (array_slice($argv, 1) as $argument) {[39m[39;1m
+  [39;22m[31m-            if (is_string($argument) && !str_starts_with($argument, '-')) {[39m[39;1m
+  [39;22m[32m+            if (is_string($argument) && str_starts_with($argument, '-')) {[39m[39;1m
+  [39;22m[90m                 return $argument === 'vouch:doctor';[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 442: StrStartsWithToStrEndsWith - ID: fea950b4f4b4a1dd[39m
+[39;1m
+  [39;22m[90m             return false;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         foreach (array_slice($argv, 1) as $argument) {[39m[39;1m
+  [39;22m[31m-            if (is_string($argument) && !str_starts_with($argument, '-')) {[39m[39;1m
+  [39;22m[32m+            if (is_string($argument) && !str_ends_with($argument, '-')) {[39m[39;1m
+  [39;22m[90m                 return $argument === 'vouch:doctor';[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/VouchServiceProvider.php [39;22m[90m > Line 443: RemoveEarlyReturn - ID: ad17cdf25492c81b[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         foreach (array_slice($argv, 1) as $argument) {[39m[39;1m
+  [39;22m[90m             if (is_string($argument) && !str_starts_with($argument, '-')) {[39m[39;1m
+  [39;22m[31m-                return $argument === 'vouch:doctor';[39m[39;1m
+  [39;22m[32m+                [39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         return false;[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[90mMutations:[39m[39;1m [39;22m[31;1m26 untested[39;22m[90m,[39m[39m [39m[33;1m8 uncovered[39;22m[90m,[39m[39m [39m[32;1m114 tested[39;22m
+[39m  [39m[90mScore:[39m[39m     [39m[39m77.03%[39m
+[39m  [39m[90mDuration:[39m[39m  [39m[39m1,942.50s[39m
+

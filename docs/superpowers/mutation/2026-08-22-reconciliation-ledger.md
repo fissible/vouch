@@ -148,7 +148,7 @@ Core sub-runs are deliberately itemized because routing breadth makes one
 | Sessions | 5 | measured: 46 mutations; 38 tested, 8 untested, 0 uncovered, 0 timeouts |
 | Support | 6 | measured: 119 mutations; 79 tested, 25 untested, 14 uncovered, 1 timeout |
 | Tenancy | 1 | measured: 0 mutations / 1 zero-mutant file |
-| root (`Vouch.php`, `VouchServiceProvider.php`) | 2 | pending |
+| root (`Vouch.php`, `VouchServiceProvider.php`) | 2 | measured: 148 mutations; 114 tested, 26 untested, 8 never-executed, 0 timeouts |
 
 The assignment covers all 162 source files and therefore cannot silently omit
 the nine remaining Flow files. The **91-file figure is provisional**: the
@@ -542,6 +542,29 @@ as unexplained uncovered rows.
   `cf0693abf56afdf3136e2a53028e5f88870ae1fe5ec5e70203765d35b05ec007`) and
   `artifacts/2026-08-24-attempts-classification.json` (SHA-256
   `f3bfcd50e45b364afd0bee3cbc0d3e1f3fbd66c065379b3b4fa06c7dc72f65d4`).
+
+### Core / root
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Vouch.php,src/VouchServiceProvider.php --no-cache --min=0`
+- SHA/source-equivalence guard: `e6f1a1b`, with no guarded-path diff from
+  `66ac67d` immediately before the run.
+- Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 30.51s;
+  timeout threshold 36.61s.
+- Result: 148 mutations / 2 RUN files; 114 tested, 26 untested, 8
+  never-executed, 0 timeouts; elapsed 1,942.50s; verified score 77.03%.
+- The middleware-group guard's line-389 rows are message prose only and join
+  the standing no-action rule. The `challengeFactors()` type guard at
+  lines 422–424 produced no mutation rows because it is a bare throw; it is
+  coverage-dead and mutation-invisible, so it remains an `unmutatable`
+  security/configuration contract. The two line-438 `return false` rows are
+  genuine never-executed doctor-argv handling. The remaining 26 survivors
+  include doctor-command argument scanning, queue configuration, and existing
+  API/configuration behavior; they require row-level review rather than a
+  blanket disposition.
+- Artifacts: `artifacts/2026-08-24-root-66ac67d.log` (SHA-256
+  `a54f8918fabb3257d607ef0c05f911489a881848bba54197e73d8be5293b49f6`) and
+  `artifacts/2026-08-24-root-classification.json` (SHA-256
+  `045f75db760468e4bd2206704b739adfecaf3a52c499b68f7988974dc76635c66`).
 
 ### Queued mechanism ruling: console contracts
 
