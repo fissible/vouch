@@ -125,10 +125,10 @@ are absent from all three maps. Their future `UNCOVERED` rows are therefore
 | Delivery | `src/Delivery/` | 14 | 137.63s / 37.69s | measured: 229 mutations / 7 RUN files; 164 tested, 64 untested, 1 uncovered, 0 timeouts |
 | Flow | `src/Flow/` | 10 assigned / 5 mutant-bearing | 239.82s + 70.97s / 37.50s | measured: AuthFlow plus 9-file remainder; 354 mutations total, 333 tested, 20 untested, 1 uncovered; remainder has 61 tested, 8 untested, 0 uncovered, 0 timeouts |
 | Throttle | `src/Throttle/` | 13 assigned / 7 mutant-bearing | 3,047.11s / 38.52s | rerun measured: 865 mutations; 739 tested, 86 untested, 40 uncovered, 0 timeouts; verified score 85.43% |
-| Kernel | `src/Kernel/` | 26 | pending | pending; disclosure-sensitive (`ErrorShaper`, `ScreenSpec`, `RetryPolicy`) |
+| Kernel | `src/Kernel/` | 26 | 161.87s / 37.85s | measured: 236 mutations / 13 RUN files; 205 tested, 5 untested, 26 uncovered, 0 timeouts |
 | Console | `src/Console/` | 8 | 88.94s / 38.03s | measured: 181 mutations / 8 RUN files; 125 tested, 34 untested, 22 uncovered, 0 timeouts |
 | Notifications | `src/Notifications/` | 9 assigned / 4 mutant-bearing | 153.02s / 38.52s | measured: 183 mutations; 150 tested, 24 untested, 8 uncovered, 1 timeout |
-| Core / data and boundaries | explicit sub-runs below | 82 | pending | pending; no aggregate run may stand in for its sub-runs |
+| Core / data and boundaries | explicit sub-runs below | 82 | measured by sub-run | all 14 sub-runs measured; no aggregate run substituted for a sub-run |
 
 Core sub-runs are deliberately itemized because routing breadth makes one
 82-file estimate misleading:
