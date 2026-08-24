@@ -136,7 +136,7 @@ Core sub-runs are deliberately itemized because routing breadth makes one
 | sub-run | source files | status |
 |---|---:|---|
 | Attempts | 10 | pending |
-| Contracts | 9 | pending |
+| Contracts | 9 | measured: 0 mutations / 9 zero-mutant files |
 | Enrollment | 3 | pending |
 | Factors | 16 | measured: 485 mutations; 395 tested, 80 untested, 6 uncovered, 4 timeouts |
 | Http | 7 | pending |
@@ -420,6 +420,17 @@ as unexplained uncovered rows.
   `bae57b4f5d5893e1860dc73a428eb6e7d8a4c881fe2c129aafe1ae09b3539ec0`) and
   `artifacts/2026-08-23-support-classification.json` (SHA-256
   `7c9e4fcad72859eb9fd5a2ae0c23e34d3e8d1d8f4faa1dbf50a8af4a32315558`).
+
+### Core / Contracts
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Contracts --no-cache --min=0`
+- SHA/source-equivalence guard: `dc6c022`, with no guarded-path diff from
+  `66ac67d` immediately before the run.
+- Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 30.86s.
+- Result: 0 mutations / 0 RUN files; all 9 assigned contract files retained as
+  explicit zero-mutant evidence. There are no mutation rows to classify.
+- Artifact: `artifacts/2026-08-24-contracts-66ac67d.log` (SHA-256
+  `4742fbf169448ee73770eeaf5ab4ee9d0f511f1a00e65904afe8604a1f825349`).
 
 ### Queued mechanism ruling: console contracts
 
