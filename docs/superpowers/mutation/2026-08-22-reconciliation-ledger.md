@@ -141,7 +141,7 @@ Core sub-runs are deliberately itemized because routing breadth makes one
 | Factors | 16 | measured: 485 mutations; 395 tested, 80 untested, 6 uncovered, 4 timeouts |
 | Http | 7 | measured: 167 mutations; 140 tested, 18 untested, 9 uncovered, 0 timeouts |
 | Jobs | 1 | measured: 13 mutations; 8 tested, 3 untested, 2 uncovered; 0 timeouts |
-| Models | 15 | pending; expected high routing breadth |
+| Models | 15 | measured: 142 mutations; 135 tested, 4 untested, 3 instrument-unroutable, 0 timeouts |
 | Persistence | 3 | measured: 42 mutations; 9 tested, 30 untested, 3 never-executed, 0 timeouts |
 | Recovery | 2 | measured: 43 mutations; 43 tested, 0 untested, 0 uncovered, 0 timeouts |
 | Secrets | 2 | measured: 17 mutations; 5 tested, 12 untested, 0 uncovered, 0 timeouts |
@@ -607,6 +607,27 @@ as unexplained uncovered rows.
   `3c99d9fbb24dfabc695094b387fd7b7730c04273b092a01df05f3acc66b0c31e`) and
   `artifacts/2026-08-24-persistence-classification.json` (SHA-256
   `2bac85515813fbab7965a515764f89a6c907a09d33e121b5ac5e55dc2e7386aa`).
+
+### Core / Models
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Models --no-cache --min=0`
+- SHA/source-equivalence guard: `43d6d07`, with no guarded-path diff from
+  `66ac67d` immediately before the run.
+- Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 31.68s;
+  timeout threshold 38.02s.
+- Result: 142 mutations / 15 RUN files; 135 tested, 4 untested, 3
+  instrument-unroutable, 0 timeouts; elapsed 175.70s; verified score 95.07%.
+- The three coverage-negative rows are the model `$hidden` declarations in
+  `AuthCredential`, `AuthConnection`, and `AuthChallengeOutbox`; they are
+  declaration-line instrumentation limits, but their secret/payload-redaction
+  contracts still need ordinary serialization assertions. The four survivors
+  are cast-map rows in `AuthChallenge`, `AuthCredential`, `AuthChallengeOutbox`,
+  and `AuthAttempt`, requiring row-level review rather than being dismissed by
+  the aggregate score.
+- Artifacts: `artifacts/2026-08-24-models-66ac67d.log` (SHA-256
+  `7c7c13033661913ac4be3ec625d15a9beb00e5a8518ba504ba750d34cd4cbbf8`) and
+  `artifacts/2026-08-24-models-classification.json` (SHA-256
+  `e58c45406a375259efdc9b54f0dbd2a7b5369878419b0dcf9baf42cfd3dfd581`).
 
 ### Queued mechanism ruling: console contracts
 

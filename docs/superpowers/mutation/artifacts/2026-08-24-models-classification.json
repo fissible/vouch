@@ -1,0 +1,79 @@
+[
+    {
+        "state": "UNTESTED",
+        "file": "src/Models/AuthChallenge.php",
+        "line": 40,
+        "mutator": "RemoveArrayItem",
+        "id": "e9f2a18bfd530c85",
+        "expression": "'attempts' => 'integer',",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNCOVERED",
+        "file": "src/Models/AuthCredential.php",
+        "line": 44,
+        "mutator": "RemoveArrayItem",
+        "id": "4b830fff1cbb9221",
+        "expression": "protected $hidden = ['secret'];",
+        "disposition": "instrument-unroutable",
+        "coverage": "absent",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Models/AuthCredential.php",
+        "line": 57,
+        "mutator": "RemoveArrayItem",
+        "id": "91733c3c295cd58c",
+        "expression": "'last_used_timestep' => 'integer',",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNCOVERED",
+        "file": "src/Models/AuthConnection.php",
+        "line": 34,
+        "mutator": "RemoveArrayItem",
+        "id": "6119ed96b64ca157",
+        "expression": "protected $hidden = ['client_secret'];",
+        "disposition": "instrument-unroutable",
+        "coverage": "absent",
+        "contested": false
+    },
+    {
+        "state": "UNCOVERED",
+        "file": "src/Models/AuthChallengeOutbox.php",
+        "line": 32,
+        "mutator": "RemoveArrayItem",
+        "id": "0dfcbddd1b3e4882",
+        "expression": "protected $hidden = ['payload'];",
+        "disposition": "instrument-unroutable",
+        "coverage": "absent",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Models/AuthChallengeOutbox.php",
+        "line": 41,
+        "mutator": "RemoveArrayItem",
+        "id": "6973339f417d4f6d",
+        "expression": "'provider_attempted_at' => 'datetime',",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Models/AuthAttempt.php",
+        "line": 42,
+        "mutator": "RemoveArrayItem",
+        "id": "76e9c7df97f78ca1",
+        "expression": "'version' => 'integer',",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    }
+]

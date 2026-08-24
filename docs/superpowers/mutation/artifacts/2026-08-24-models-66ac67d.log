@@ -1,0 +1,280 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  .....................
+
+  Tests:    1161 passed (4092 assertions)
+  Duration: 31.68s
+
+  Mutating application files...
+  [90m142 Mutations for 15 Files created[39m
+
+  [39;100;1m RUN [39;49;22m src/Models/AuthChallenge.php
+  [32;1m✓[39;22m [90mLine 39: AlwaysReturnEmptyArray[39m
+  [31;1m⨯[39;22m [90mLine 40: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 41: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 42: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 43: RemoveArrayItem[39m
+
+  [39;100;1m RUN [39;49;22m src/Models/AuthCredential.php
+  [33;1m-[39;22m [90mLine 44: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 51: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 52: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 53: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 54: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 55: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 56: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 57: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 58: RemoveArrayItem[39m
+
+  [39;100;1m RUN [39;49;22m src/Models/AuthTokenAssurance.php
+  [32;1m✓[39;22m [90mLine 32: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 33: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 34: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 35: RemoveArrayItem[39m
+
+  [39;100;1m RUN [39;49;22m src/Models/AuthConnection.php
+  [33;1m-[39;22m [90mLine 34: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 41: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 42: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 43: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 44: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 45: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 46: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 55: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 59: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 59: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 59: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 59: RemoveArrayItem[39m
+
+  [39;100;1m RUN [39;49;22m src/Models/AuthSession.php
+  [32;1m✓[39;22m [90mLine 36: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 37: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 38: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 39: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 40: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 41: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 42: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 58: NotIdenticalToIdentical[39m
+
+  [39;100;1m RUN [39;49;22m src/Models/AuthIdentifier.php
+  [32;1m✓[39;22m [90mLine 36: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 37: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 38: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 47: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 50: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 50: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 50: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 50: RemoveArrayItem[39m
+
+  [39;100;1m RUN [39;49;22m src/Models/AuthChallengeOutbox.php
+  [33;1m-[39;22m [90mLine 32: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 37: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 38: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 39: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 40: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 41: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 42: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 43: RemoveArrayItem[39m
+
+  [39;100;1m RUN [39;49;22m src/Models/AuthFederatedIdentity.php
+  [32;1m✓[39;22m [90mLine 34: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 34: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 42: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 45: TrueToFalse[39m
+  [32;1m✓[39;22m [90mLine 45: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 45: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 45: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 45: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 45: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 51: TrueToFalse[39m
+  [32;1m✓[39;22m [90mLine 51: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 51: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 51: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 51: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 51: RemoveArrayItem[39m
+
+  [39;100;1m RUN [39;49;22m src/Models/AuthPolicy.php
+  [32;1m✓[39;22m [90mLine 33: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 33: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 41: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 45: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 45: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 45: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 45: RemoveArrayItem[39m
+
+  [39;100;1m RUN [39;49;22m src/Models/AuthLinkRequest.php
+  [32;1m✓[39;22m [90mLine 30: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 31: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 32: RemoveArrayItem[39m
+
+  [39;100;1m RUN [39;49;22m src/Models/AuthAttempt.php
+  [32;1m✓[39;22m [90mLine 40: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 41: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 42: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 43: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 44: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 61: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 65: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 65: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 65: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 65: RemoveArrayItem[39m
+
+  [39;100;1m RUN [39;49;22m src/Models/Concerns/GuardsIdentifierLinkage.php
+  [32;1m✓[39;22m [90mLine 21: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 24: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 24: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 30: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 30: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 30: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 30: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 36: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 36: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 40: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 40: IdenticalToNotIdentical[39m
+
+  [39;100;1m RUN [39;49;22m src/Models/Concerns/GuardsChallengeTarget.php
+  [32;1m✓[39;22m [90mLine 24: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 32: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 33: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 33: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 40: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 40: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 40: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 41: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 46: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 46: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 47: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 56: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 56: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 56: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 56: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 60: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 60: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 65: RemoveNullSafeOperator[39m
+  [32;1m✓[39;22m [90mLine 67: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 67: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 67: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 67: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 76: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 76: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 76: BooleanAndToBooleanOr[39m
+
+  [39;100;1m RUN [39;49;22m src/Models/Concerns/FreezesReferencedValue.php
+  [32;1m✓[39;22m [90mLine 28: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 29: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 29: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 37: IfNegated[39m
+
+  [39;100;1m RUN [39;49;22m src/Models/Concerns/EnforcesValueBounds.php
+  [32;1m✓[39;22m [90mLine 39: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 40: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 43: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 43: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 44: ContinueToBreak[39m
+  [32;1m✓[39;22m [90mLine 47: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 47: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 47: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 47: FalseToTrue[39m
+  [32;1m✓[39;22m [90mLine 47: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 53: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 53: GreaterToGreaterOrEqual[39m
+  [32;1m✓[39;22m [90mLine 53: GreaterToSmallerOrEqual[39m
+  [39;41;1m UNTESTED [39;49;22m [39;1msrc/Models/AuthChallenge.php [39;22m[90m > Line 40: RemoveArrayItem - ID: e9f2a18bfd530c85[39m
+[39;1m
+  [39;22m[90m      */[39m[39;1m
+  [39;22m[90m     protected function casts(): array[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return ['attempts' => 'integer', 'is_decoy' => 'boolean', 'expires_at' => 'datetime', 'consumed_at' => 'datetime'];[39m[39;1m
+  [39;22m[32m+        return ['is_decoy' => 'boolean', 'expires_at' => 'datetime', 'consumed_at' => 'datetime'];[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/Models/AuthCredential.php [39;22m[90m > Line 44: RemoveArrayItem - ID: 4b830fff1cbb9221[39m
+[39;1m
+  [39;22m[90m      *[39m[39;1m
+  [39;22m[90m      * @var list<string>[39m[39;1m
+  [39;22m[90m      */[39m[39;1m
+  [39;22m[31m-    protected $hidden = ['secret'];[39m[39;1m
+  [39;22m[32m+    protected $hidden = [];[39m[39;1m
+  [39;22m[90m     /**[39m[39;1m
+  [39;22m[90m      * @return array<string, string>[39m[39;1m
+  [39;22m[90m      */[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Models/AuthCredential.php [39;22m[90m > Line 57: RemoveArrayItem - ID: 91733c3c295cd58c[39m
+[39;1m
+  [39;22m[90m      */[39m[39;1m
+  [39;22m[90m     protected function casts(): array[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return ['secret' => 'encrypted', 'is_multi_factor' => 'boolean', 'user_verified' => 'boolean', 'phishing_resistant' => 'boolean', 'last_used_at' => 'datetime', 'last_used_timestep' => 'integer', 'disabled_at' => 'datetime'];[39m[39;1m
+  [39;22m[32m+        return ['secret' => 'encrypted', 'is_multi_factor' => 'boolean', 'user_verified' => 'boolean', 'phishing_resistant' => 'boolean', 'last_used_at' => 'datetime', 'disabled_at' => 'datetime'];[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/Models/AuthConnection.php [39;22m[90m > Line 34: RemoveArrayItem - ID: 6119ed96b64ca157[39m
+[39;1m
+  [39;22m[90m     protected $table = 'auth_connections';[39m[39;1m
+  [39;22m[90m     protected $guarded = [];[39m[39;1m
+  [39;22m[90m     /** @var list<string> */[39m[39;1m
+  [39;22m[31m-    protected $hidden = ['client_secret'];[39m[39;1m
+  [39;22m[32m+    protected $hidden = [];[39m[39;1m
+  [39;22m[90m     /**[39m[39;1m
+  [39;22m[90m      * @return array<string, string>[39m[39;1m
+  [39;22m[90m      */[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/Models/AuthChallengeOutbox.php [39;22m[90m > Line 32: RemoveArrayItem - ID: 0dfcbddd1b3e4882[39m
+[39;1m
+  [39;22m[90m     protected $table = 'auth_challenge_outbox';[39m[39;1m
+  [39;22m[90m     protected $guarded = [];[39m[39;1m
+  [39;22m[90m     /** @var list<string> */[39m[39;1m
+  [39;22m[31m-    protected $hidden = ['payload'];[39m[39;1m
+  [39;22m[32m+    protected $hidden = [];[39m[39;1m
+  [39;22m[90m     /** @return array<string, string> */[39m[39;1m
+  [39;22m[90m     protected function casts(): array[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Models/AuthChallengeOutbox.php [39;22m[90m > Line 41: RemoveArrayItem - ID: 6973339f417d4f6d[39m
+[39;1m
+  [39;22m[90m     /** @return array<string, string> */[39m[39;1m
+  [39;22m[90m     protected function casts(): array[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return ['payload' => 'encrypted:array', 'expires_at' => 'datetime', 'dispatched_at' => 'datetime', 'provider_attempted_at' => 'datetime', 'delivered_at' => 'datetime', 'undeliverable_at' => 'datetime'];[39m[39;1m
+  [39;22m[32m+        return ['payload' => 'encrypted:array', 'expires_at' => 'datetime', 'dispatched_at' => 'datetime', 'delivered_at' => 'datetime', 'undeliverable_at' => 'datetime'];[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Models/AuthAttempt.php [39;22m[90m > Line 42: RemoveArrayItem - ID: 76e9c7df97f78ca1[39m
+[39;1m
+  [39;22m[90m      */[39m[39;1m
+  [39;22m[90m     protected function casts(): array[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return ['state' => AttemptState::class, 'version' => 'integer', 'satisfied_factors' => 'array', 'expires_at' => 'datetime'];[39m[39;1m
+  [39;22m[32m+        return ['state' => AttemptState::class, 'satisfied_factors' => 'array', 'expires_at' => 'datetime'];[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     /**[39m[39;1m
+  [39;22m[90m      * @return HasMany<AuthChallenge, $this>[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[90mMutations:[39m[39;1m [39;22m[31;1m4 untested[39;22m[90m,[39m[39m [39m[33;1m3 uncovered[39;22m[90m,[39m[39m [39m[32;1m135 tested[39;22m
+[39m  [39m[90mScore:[39m[39m     [39m[39m95.07%[39m
+[39m  [39m[90mDuration:[39m[39m  [39m[39m175.70s[39m
+
