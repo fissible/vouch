@@ -1,0 +1,1058 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  .....................
+
+  Tests:    1161 passed (4092 assertions)
+  Duration: 31.97s
+
+  Mutating application files...
+  [90m229 Mutations for 7 Files created[39m
+
+  [39;100;1m RUN [39;49;22m src/Delivery/DeliveryEconomicsConfiguration.php
+  [31;1m⨯[39;22m [90mLine 20: ForeachEmptyIterable[39m
+  [31;1m⨯[39;22m [90mLine 21: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 22: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 24: IfNegated[39m
+  [31;1m⨯[39;22m [90mLine 24: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 24: SmallerToGreaterOrEqual[39m
+  [31;1m⨯[39;22m [90mLine 24: SmallerToSmallerOrEqual[39m
+  [32;1m✓[39;22m [90mLine 24: BooleanAndToBooleanOr[39m
+  [31;1m⨯[39;22m [90mLine 24: DecrementInteger[39m
+  [31;1m⨯[39;22m [90mLine 24: IncrementInteger[39m
+  [31;1m⨯[39;22m [90mLine 29: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 30: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 30: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 30: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 30: IncrementInteger[39m
+
+  [39;100;1m RUN [39;49;22m src/Delivery/DeliveryEconomicsRequest.php
+  [32;1m✓[39;22m [90mLine 22: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 22: SmallerToGreaterOrEqual[39m
+  [32;1m✓[39;22m [90mLine 22: SmallerToSmallerOrEqual[39m
+  [31;1m⨯[39;22m [90mLine 22: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 22: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 26: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 26: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 26: BooleanAndToBooleanOr[39m
+
+  [39;100;1m RUN [39;49;22m src/Delivery/UnconfiguredDeliveryEconomics.php
+  [32;1m✓[39;22m [90mLine 16: ConcatRemoveLeft[39m
+  [31;1m⨯[39;22m [90mLine 16: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 16: ConcatSwitchSides[39m
+
+  [39;100;1m RUN [39;49;22m src/Delivery/SmsIdentifierAudit.php
+  [32;1m✓[39;22m [90mLine 23: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 23: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 23: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 24: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 24: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 24: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 25: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 25: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 25: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 26: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 26: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 26: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 27: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 30: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 31: PostIncrementToPostDecrement[39m
+  [32;1m✓[39;22m [90mLine 36: PostIncrementToPostDecrement[39m
+  [32;1m✓[39;22m [90mLine 38: ContinueToBreak[39m
+  [31;1m⨯[39;22m [90mLine 41: IfNegated[39m
+  [31;1m⨯[39;22m [90mLine 41: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 42: PostIncrementToPostDecrement[39m
+  [32;1m✓[39;22m [90mLine 44: PostIncrementToPostDecrement[39m
+  [32;1m✓[39;22m [90mLine 47: PlusToMinus[39m
+  [31;1m⨯[39;22m [90mLine 47: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 47: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 47: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 47: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 47: IncrementInteger[39m
+  [31;1m⨯[39;22m [90mLine 50: RemoveFunctionCall[39m
+  [32;1m✓[39;22m [90mLine 52: AlwaysReturnEmptyArray[39m
+
+  [39;100;1m RUN [39;49;22m src/Delivery/DatabaseDeliveryEconomics.php
+  [31;1m⨯[39;22m [90mLine 38: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 52: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 53: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 56: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 56: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 56: BooleanAndToBooleanOr[39m
+  [31;1m⨯[39;22m [90mLine 57: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 57: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 58: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 59: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 62: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 62: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 62: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 62: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 63: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 75: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 88: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 88: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 88: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 88: IdenticalToNotIdentical[39m
+  [31;1m⨯[39;22m [90mLine 88: BooleanOrToBooleanAnd[39m
+  [31;1m⨯[39;22m [90mLine 88: BooleanOrToBooleanAnd[39m
+  [31;1m⨯[39;22m [90mLine 88: BooleanOrToBooleanAnd[39m
+  [31;1m⨯[39;22m [90mLine 88: DecrementInteger[39m
+  [31;1m⨯[39;22m [90mLine 88: IncrementInteger[39m
+  [31;1m⨯[39;22m [90mLine 88: EmptyStringToNotEmpty[39m
+  [32;1m✓[39;22m [90mLine 92: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 93: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 94: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 94: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 94: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 95: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 95: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 95: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 96: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 96: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 97: RemoveStringCast[39m
+  [31;1m⨯[39;22m [90mLine 97: RemoveStringCast[39m
+  [31;1m⨯[39;22m [90mLine 97: TrueToFalse[39m
+  [32;1m✓[39;22m [90mLine 99: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 99: IdenticalToNotIdentical[39m
+  [31;1m⨯[39;22m [90mLine 105: RemoveStringCast[39m
+  [32;1m✓[39;22m [90mLine 109: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 109: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 110: ContinueToBreak[39m
+  [32;1m✓[39;22m [90mLine 113: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 113: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 114: ContinueToBreak[39m
+  [31;1m⨯[39;22m [90mLine 117: RemoveStringCast[39m
+  [32;1m✓[39;22m [90mLine 117: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 117: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 118: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 120: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 122: ContinueToBreak[39m
+  [32;1m✓[39;22m [90mLine 127: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 127: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 127: RemoveNot[39m
+  [31;1m⨯[39;22m [90mLine 127: RemoveNot[39m
+  [31;1m⨯[39;22m [90mLine 131: RemoveIntegerCast[39m
+  [31;1m⨯[39;22m [90mLine 135: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 137: IfNegated[39m
+  [31;1m⨯[39;22m [90mLine 137: NotIdenticalToIdentical[39m
+  [31;1m⨯[39;22m [90mLine 137: DecrementInteger[39m
+  [31;1m⨯[39;22m [90mLine 137: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 138: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 140: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 142: ContinueToBreak[39m
+  [32;1m✓[39;22m [90mLine 145: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 147: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 154: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 154: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 154: IdenticalToNotIdentical[39m
+  [31;1m⨯[39;22m [90mLine 154: BooleanOrToBooleanAnd[39m
+  [31;1m⨯[39;22m [90mLine 154: EmptyStringToNotEmpty[39m
+  [32;1m✓[39;22m [90mLine 161: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 161: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 161: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 161: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 162: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 162: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 162: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 162: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 165: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 165: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 165: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 165: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 166: RemoveMethodCall[39m
+  [31;1m⨯[39;22m [90mLine 169: RemoveStringCast[39m
+  [32;1m✓[39;22m [90mLine 169: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 170: RemoveStringCast[39m
+  [32;1m✓[39;22m [90mLine 170: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 171: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 172: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 172: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 172: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 173: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 174: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 176: RemoveStringCast[39m
+  [31;1m⨯[39;22m [90mLine 176: RemoveStringCast[39m
+  [31;1m⨯[39;22m [90mLine 176: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 176: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 178: RemoveStringCast[39m
+  [31;1m⨯[39;22m [90mLine 178: RemoveStringCast[39m
+  [31;1m⨯[39;22m [90mLine 178: TrueToFalse[39m
+  [32;1m✓[39;22m [90mLine 180: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 180: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 188: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 189: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 190: RemoveStringCast[39m
+  [32;1m✓[39;22m [90mLine 190: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 191: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 192: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 193: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 196: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 196: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 196: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 196: IncrementInteger[39m
+  [31;1m⨯[39;22m [90mLine 197: ContinueToBreak[39m
+  [32;1m✓[39;22m [90mLine 201: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 201: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 201: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 201: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 201: UnwrapSubstr[39m
+  [32;1m✓[39;22m [90mLine 203: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 203: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 204: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 207: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 207: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 207: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 207: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 208: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 208: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 208: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 209: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 211: RemoveStringCast[39m
+  [31;1m⨯[39;22m [90mLine 211: RemoveStringCast[39m
+  [31;1m⨯[39;22m [90mLine 211: TrueToFalse[39m
+  [32;1m✓[39;22m [90mLine 213: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 213: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 221: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 221: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 222: MinusToPlus[39m
+  [31;1m⨯[39;22m [90mLine 222: RemoveIntegerCast[39m
+  [32;1m✓[39;22m [90mLine 222: RemoveMethodCall[39m
+  [31;1m⨯[39;22m [90mLine 228: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 231: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 231: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 231: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 231: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 232: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 232: NotIdenticalToIdentical[39m
+  [31;1m⨯[39;22m [90mLine 251: IfNegated[39m
+  [31;1m⨯[39;22m [90mLine 252: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 257: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 257: IdenticalToNotIdentical[39m
+  [33;1m-[39;22m [90mLine 258: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 261: RemoveArrayCast[39m
+  [32;1m✓[39;22m [90mLine 263: AlwaysReturnNull[39m
+  [31;1m⨯[39;22m [90mLine 264: RemoveIntegerCast[39m
+  [32;1m✓[39;22m [90mLine 264: RemoveArrayItem[39m
+  [31;1m⨯[39;22m [90mLine 265: RemoveStringCast[39m
+  [32;1m✓[39;22m [90mLine 265: RemoveArrayItem[39m
+
+  [39;100;1m RUN [39;49;22m src/Delivery/SmsCountryNormalizer.php
+  [32;1m✓[39;22m [90mLine 40: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 40: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 48: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 48: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 48: IdenticalToNotIdentical[39m
+  [31;1m⨯[39;22m [90mLine 48: BooleanOrToBooleanAnd[39m
+  [31;1m⨯[39;22m [90mLine 48: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 48: RemoveNot[39m
+  [31;1m⨯[39;22m [90mLine 48: EmptyStringToNotEmpty[39m
+
+  [39;100;1m RUN [39;49;22m src/Delivery/UnconfiguredCaptchaVerifier.php
+  [32;1m✓[39;22m [90mLine 16: ConcatRemoveLeft[39m
+  [31;1m⨯[39;22m [90mLine 16: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 16: ConcatSwitchSides[39m
+  [39;41;1m UNTESTED [39;49;22m [39;1msrc/Delivery/DeliveryEconomicsConfiguration.php [39;22m[90m > Line 20: ForeachEmptyIterable - ID: e5085a876b5bccaa[39m
+[39;1m
+  [39;22m[90m      */[39m[39;1m
+  [39;22m[90m     public function __construct(public ?int $dailyCeilingMinor, public ?int $tenantCeilingMinor, public array $smsAllowedCountries)[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor, 'tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {[39m[39;1m
+  [39;22m[32m+        foreach ([] as $name => $ceiling) {[39m[39;1m
+  [39;22m[90m             if ($ceiling !== null && $ceiling < 1) {[39m[39;1m
+  [39;22m[90m                 throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DeliveryEconomicsConfiguration.php [39;22m[90m > Line 21: RemoveArrayItem - ID: 038a7a26c551f256[39m
+[39;1m
+  [39;22m[90m      */[39m[39;1m
+  [39;22m[90m     public function __construct(public ?int $dailyCeilingMinor, public ?int $tenantCeilingMinor, public array $smsAllowedCountries)[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor, 'tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {[39m[39;1m
+  [39;22m[32m+        foreach (['tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {[39m[39;1m
+  [39;22m[90m             if ($ceiling !== null && $ceiling < 1) {[39m[39;1m
+  [39;22m[90m                 throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DeliveryEconomicsConfiguration.php [39;22m[90m > Line 22: RemoveArrayItem - ID: d8a42b2aede48d5f[39m
+[39;1m
+  [39;22m[90m      */[39m[39;1m
+  [39;22m[90m     public function __construct(public ?int $dailyCeilingMinor, public ?int $tenantCeilingMinor, public array $smsAllowedCountries)[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor, 'tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {[39m[39;1m
+  [39;22m[32m+        foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor] as $name => $ceiling) {[39m[39;1m
+  [39;22m[90m             if ($ceiling !== null && $ceiling < 1) {[39m[39;1m
+  [39;22m[90m                 throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DeliveryEconomicsConfiguration.php [39;22m[90m > Line 24: NotIdenticalToIdentical - ID: 5f2d8410059c1eca[39m
+[39;1m
+  [39;22m[90m     public function __construct(public ?int $dailyCeilingMinor, public ?int $tenantCeilingMinor, public array $smsAllowedCountries)[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor, 'tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {[39m[39;1m
+  [39;22m[31m-            if ($ceiling !== null && $ceiling < 1) {[39m[39;1m
+  [39;22m[32m+            if ($ceiling === null && $ceiling < 1) {[39m[39;1m
+  [39;22m[90m                 throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DeliveryEconomicsConfiguration.php [39;22m[90m > Line 24: SmallerToSmallerOrEqual - ID: 5ac520ba19c88f2f[39m
+[39;1m
+  [39;22m[90m     public function __construct(public ?int $dailyCeilingMinor, public ?int $tenantCeilingMinor, public array $smsAllowedCountries)[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor, 'tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {[39m[39;1m
+  [39;22m[31m-            if ($ceiling !== null && $ceiling < 1) {[39m[39;1m
+  [39;22m[32m+            if ($ceiling !== null && $ceiling <= 1) {[39m[39;1m
+  [39;22m[90m                 throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DeliveryEconomicsConfiguration.php [39;22m[90m > Line 24: DecrementInteger - ID: d7b6b130f2ef8d5f[39m
+[39;1m
+  [39;22m[90m     public function __construct(public ?int $dailyCeilingMinor, public ?int $tenantCeilingMinor, public array $smsAllowedCountries)[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor, 'tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {[39m[39;1m
+  [39;22m[31m-            if ($ceiling !== null && $ceiling < 1) {[39m[39;1m
+  [39;22m[32m+            if ($ceiling !== null && $ceiling < 0) {[39m[39;1m
+  [39;22m[90m                 throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DeliveryEconomicsConfiguration.php [39;22m[90m > Line 24: IncrementInteger - ID: f5bc07a864607bb8[39m
+[39;1m
+  [39;22m[90m     public function __construct(public ?int $dailyCeilingMinor, public ?int $tenantCeilingMinor, public array $smsAllowedCountries)[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor, 'tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {[39m[39;1m
+  [39;22m[31m-            if ($ceiling !== null && $ceiling < 1) {[39m[39;1m
+  [39;22m[32m+            if ($ceiling !== null && $ceiling < 2) {[39m[39;1m
+  [39;22m[90m                 throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DeliveryEconomicsConfiguration.php [39;22m[90m > Line 29: ForeachEmptyIterable - ID: d21e2fca82a763fb[39m
+[39;1m
+  [39;22m[90m                 throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[31m-        foreach ($this->smsAllowedCountries as $country) {[39m[39;1m
+  [39;22m[32m+        foreach ([] as $country) {[39m[39;1m
+  [39;22m[90m             if (preg_match('/\A[A-Z]{2}\z/D', $country) !== 1) {[39m[39;1m
+  [39;22m[90m                 throw new InvalidArgumentException(sprintf('SMS country allow-list entries must be ISO uppercase pairs; got %s.', $country));[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DeliveryEconomicsRequest.php [39;22m[90m > Line 22: DecrementInteger - ID: c51d4c3deaf76b20[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public function __construct(public string $factorId, public string $channel, public ?string $tenantId, public ?string $country, public int $costMinor, public bool $decoy, public ?string $reservationKey = null)[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        if ($this->costMinor < 0) {[39m[39;1m
+  [39;22m[32m+        if ($this->costMinor < -1) {[39m[39;1m
+  [39;22m[90m             throw new \InvalidArgumentException('Delivery cost cannot be negative.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         if ($this->decoy && $this->country !== null) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/UnconfiguredDeliveryEconomics.php [39;22m[90m > Line 16: ConcatRemoveRight - ID: 489b743442a89cbe[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function exception(): RuntimeException[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new RuntimeException('No OTP delivery economics is configured. Bind ' . 'Fissible\Vouch\Contracts\DeliveryEconomics before enabling email or SMS OTP.');[39m[39;1m
+  [39;22m[32m+        return new RuntimeException('No OTP delivery economics is configured. Bind ');[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     public function preflight(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/UnconfiguredDeliveryEconomics.php [39;22m[90m > Line 16: ConcatSwitchSides - ID: 4b3a99ed209593ab[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function exception(): RuntimeException[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new RuntimeException('No OTP delivery economics is configured. Bind ' . 'Fissible\Vouch\Contracts\DeliveryEconomics before enabling email or SMS OTP.');[39m[39;1m
+  [39;22m[32m+        return new RuntimeException('Fissible\Vouch\Contracts\DeliveryEconomics before enabling email or SMS OTP.' . 'No OTP delivery economics is configured. Bind ');[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     public function preflight(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/SmsIdentifierAudit.php [39;22m[90m > Line 27: RemoveArrayItem - ID: bec03c1fab525a64[39m
+[39;1m
+  [39;22m[90m      */[39m[39;1m
+  [39;22m[90m     public function report(): array[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        $report = ['total' => 0, 'canonical' => 0, 'needs_normalization' => 0, 'invalid' => 0, 'countries' => []];[39m[39;1m
+  [39;22m[32m+        $report = ['total' => 0, 'canonical' => 0, 'needs_normalization' => 0, 'invalid' => 0];[39m[39;1m
+  [39;22m[90m         foreach (AuthIdentifier::query()->where('type', 'phone')->cursor() as $identifier) {[39m[39;1m
+  [39;22m[90m             $report['total']++;[39m[39;1m
+  [39;22m[90m             try {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/SmsIdentifierAudit.php [39;22m[90m > Line 41: IfNegated - ID: 5e5b2508e1f2bb2e[39m
+[39;1m
+  [39;22m[90m                 $report['invalid']++;[39m[39;1m
+  [39;22m[90m                 continue;[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[31m-            if ($normalized->e164 === $identifier->value) {[39m[39;1m
+  [39;22m[32m+            if (!($normalized->e164 === $identifier->value)) {[39m[39;1m
+  [39;22m[90m                 $report['canonical']++;[39m[39;1m
+  [39;22m[90m             } else {[39m[39;1m
+  [39;22m[90m                 $report['needs_normalization']++;[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/SmsIdentifierAudit.php [39;22m[90m > Line 41: IdenticalToNotIdentical - ID: 01374239c5821dd8[39m
+[39;1m
+  [39;22m[90m                 $report['invalid']++;[39m[39;1m
+  [39;22m[90m                 continue;[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[31m-            if ($normalized->e164 === $identifier->value) {[39m[39;1m
+  [39;22m[32m+            if ($normalized->e164 !== $identifier->value) {[39m[39;1m
+  [39;22m[90m                 $report['canonical']++;[39m[39;1m
+  [39;22m[90m             } else {[39m[39;1m
+  [39;22m[90m                 $report['needs_normalization']++;[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/SmsIdentifierAudit.php [39;22m[90m > Line 47: CoalesceRemoveLeft - ID: 810df9416f6c5563[39m
+[39;1m
+  [39;22m[90m             } else {[39m[39;1m
+  [39;22m[90m                 $report['needs_normalization']++;[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[31m-            $report['countries'][$normalized->country] = ($report['countries'][$normalized->country] ?? 0) + 1;[39m[39;1m
+  [39;22m[32m+            $report['countries'][$normalized->country] = 0 + 1;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         ksort($report['countries']);[39m[39;1m
+  [39;22m[90m         return $report;[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/SmsIdentifierAudit.php [39;22m[90m > Line 50: RemoveFunctionCall - ID: 876e408e0022e732[39m
+[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m             $report['countries'][$normalized->country] = ($report['countries'][$normalized->country] ?? 0) + 1;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[31m-        ksort($report['countries']);[39m[39;1m
+  [39;22m[32m+        [39m[39;1m
+  [39;22m[90m         return $report;[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 38: CoalesceRemoveLeft - ID: f82eedfc4a4ad108[39m
+[39;1m
+  [39;22m[90m     private const string TENANT = 'tenant';[39m[39;1m
+  [39;22m[90m     public function __construct(private Connection $connection, private DatabaseTime $time, private ThrottleKey $keys, private DeliveryEconomicsConfiguration $configuration, private BoundedLockWait $boundedLockWait, private LockContention $lockContention, ?DatabaseRowLock $rowLock = null)[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        $this->rowLock = $rowLock ?? new DatabaseRowLock($connection);[39m[39;1m
+  [39;22m[32m+        $this->rowLock = new DatabaseRowLock($connection);[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     private readonly DatabaseRowLock $rowLock;[39m[39;1m
+  [39;22m[90m     public function preflight(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 57: IdenticalToNotIdentical - ID: ab2f926ad3a78713[39m
+[39;1m
+  [39;22m[90m         if ($request->decoy) {[39m[39;1m
+  [39;22m[90m             return DeliveryReservationDecision::Permitted;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[31m-        if ($request->channel === 'sms' && ($request->country === null || !in_array($request->country, $this->configuration->smsAllowedCountries, true))) {[39m[39;1m
+  [39;22m[32m+        if ($request->channel === 'sms' && ($request->country !== null || !in_array($request->country, $this->configuration->smsAllowedCountries, true))) {[39m[39;1m
+  [39;22m[90m             return DeliveryReservationDecision::CountryNotAllowed;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         if ($request->costMinor === 0) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 88: BooleanOrToBooleanAnd - ID: 750ab30f1c855203[39m
+[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     public function release(DeliveryEconomicsRequest $request): void[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        if ($request->decoy || $request->costMinor === 0 || $request->reservationKey === null || $request->reservationKey === '') {[39m[39;1m
+  [39;22m[32m+        if ($request->decoy && $request->costMinor === 0 || $request->reservationKey === null || $request->reservationKey === '') {[39m[39;1m
+  [39;22m[90m             return;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $this->connection->transaction(function () use ($request): void {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 88: BooleanOrToBooleanAnd - ID: abbbd488db954def[39m
+[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     public function release(DeliveryEconomicsRequest $request): void[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        if ($request->decoy || $request->costMinor === 0 || $request->reservationKey === null || $request->reservationKey === '') {[39m[39;1m
+  [39;22m[32m+        if (($request->decoy || $request->costMinor === 0) && $request->reservationKey === null || $request->reservationKey === '') {[39m[39;1m
+  [39;22m[90m             return;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $this->connection->transaction(function () use ($request): void {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 88: BooleanOrToBooleanAnd - ID: ea3a585eb828412c[39m
+[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     public function release(DeliveryEconomicsRequest $request): void[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        if ($request->decoy || $request->costMinor === 0 || $request->reservationKey === null || $request->reservationKey === '') {[39m[39;1m
+  [39;22m[32m+        if (($request->decoy || $request->costMinor === 0 || $request->reservationKey === null) && $request->reservationKey === '') {[39m[39;1m
+  [39;22m[90m             return;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $this->connection->transaction(function () use ($request): void {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 88: DecrementInteger - ID: ad3ac0fcfbb608fb[39m
+[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     public function release(DeliveryEconomicsRequest $request): void[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        if ($request->decoy || $request->costMinor === 0 || $request->reservationKey === null || $request->reservationKey === '') {[39m[39;1m
+  [39;22m[32m+        if ($request->decoy || $request->costMinor === -1 || $request->reservationKey === null || $request->reservationKey === '') {[39m[39;1m
+  [39;22m[90m             return;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $this->connection->transaction(function () use ($request): void {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 88: IncrementInteger - ID: 735ea5adda97d453[39m
+[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     public function release(DeliveryEconomicsRequest $request): void[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        if ($request->decoy || $request->costMinor === 0 || $request->reservationKey === null || $request->reservationKey === '') {[39m[39;1m
+  [39;22m[32m+        if ($request->decoy || $request->costMinor === 1 || $request->reservationKey === null || $request->reservationKey === '') {[39m[39;1m
+  [39;22m[90m             return;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $this->connection->transaction(function () use ($request): void {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 88: EmptyStringToNotEmpty - ID: 03cb54f172076a17[39m
+[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     public function release(DeliveryEconomicsRequest $request): void[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        if ($request->decoy || $request->costMinor === 0 || $request->reservationKey === null || $request->reservationKey === '') {[39m[39;1m
+  [39;22m[32m+        if ($request->decoy || $request->costMinor === 0 || $request->reservationKey === null || $request->reservationKey === 'PEST Mutator was here!') {[39m[39;1m
+  [39;22m[90m             return;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $this->connection->transaction(function () use ($request): void {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 97: RemoveStringCast - ID: 22f254f99522d77f[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $this->connection->transaction(function () use ($request): void {[39m[39;1m
+  [39;22m[90m             foreach ([[self::GLOBAL, $this->keys->global()->digest], [self::TENANT, $this->keys->tenant($request->tenantId)->digest]] as [$scope, $digest]) {[39m[39;1m
+  [39;22m[31m-                $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[32m+                $row = $this->row($scope, (string) $digest, true);[39m[39;1m
+  [39;22m[90m                 if ($row === null) {[39m[39;1m
+  [39;22m[90m                     throw new \RuntimeException('The delivery spend row vanished during release.');[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 97: RemoveStringCast - ID: 27e3a2756523ba50[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $this->connection->transaction(function () use ($request): void {[39m[39;1m
+  [39;22m[90m             foreach ([[self::GLOBAL, $this->keys->global()->digest], [self::TENANT, $this->keys->tenant($request->tenantId)->digest]] as [$scope, $digest]) {[39m[39;1m
+  [39;22m[31m-                $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[32m+                $row = $this->row((string) $scope, $digest, true);[39m[39;1m
+  [39;22m[90m                 if ($row === null) {[39m[39;1m
+  [39;22m[90m                     throw new \RuntimeException('The delivery spend row vanished during release.');[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 97: TrueToFalse - ID: 8cc28c3a7fab3333[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $this->connection->transaction(function () use ($request): void {[39m[39;1m
+  [39;22m[90m             foreach ([[self::GLOBAL, $this->keys->global()->digest], [self::TENANT, $this->keys->tenant($request->tenantId)->digest]] as [$scope, $digest]) {[39m[39;1m
+  [39;22m[31m-                $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[32m+                $row = $this->row((string) $scope, (string) $digest, false);[39m[39;1m
+  [39;22m[90m                 if ($row === null) {[39m[39;1m
+  [39;22m[90m                     throw new \RuntimeException('The delivery spend row vanished during release.');[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 105: RemoveStringCast - ID: 9ab121064dad7758[39m
+[39;1m
+  [39;22m[90m                 if ($row === null) {[39m[39;1m
+  [39;22m[90m                     throw new \RuntimeException('The delivery spend row vanished during release.');[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[31m-                $reservation = $this->connection->table('auth_delivery_spend_reservations')->where('reservation_key', $request->reservationKey)->where('scope', (string) $scope)->lockForUpdate()->first();[39m[39;1m
+  [39;22m[32m+                $reservation = $this->connection->table('auth_delivery_spend_reservations')->where('reservation_key', $request->reservationKey)->where('scope', $scope)->lockForUpdate()->first();[39m[39;1m
+  [39;22m[90m                 if ($reservation === null) {[39m[39;1m
+  [39;22m[90m                     continue;[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 117: RemoveStringCast - ID: fc882d0c78d6c4c1[39m
+[39;1m
+  [39;22m[90m                 if ($reservation->released_at !== null) {[39m[39;1m
+  [39;22m[90m                     continue;[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[31m-                if ((string) $reservation->window_started_at !== $row['window_started_at']) {[39m[39;1m
+  [39;22m[32m+                if ($reservation->window_started_at !== $row['window_started_at']) {[39m[39;1m
+  [39;22m[90m                     $this->connection->table('auth_delivery_spend_reservations')->where('id', $reservation->id)->update(['released_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[90m                     continue;[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 127: RemoveNot - ID: 7c57de4274fc302f[39m
+[39;1m
+  [39;22m[90m                     continue;[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[90m                 $value = $reservation->amount_minor;[39m[39;1m
+  [39;22m[31m-                if (!is_int($value) && !is_string($value)) {[39m[39;1m
+  [39;22m[32m+                if (!is_int($value) && is_string($value)) {[39m[39;1m
+  [39;22m[90m                     throw new \RuntimeException('The delivery reservation amount has an invalid type.');[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[90m                 $amount = (int) $value;[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 131: RemoveIntegerCast - ID: f12b9cae013a4e7d[39m
+[39;1m
+  [39;22m[90m                 if (!is_int($value) && !is_string($value)) {[39m[39;1m
+  [39;22m[90m                     throw new \RuntimeException('The delivery reservation amount has an invalid type.');[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[31m-                $amount = (int) $value;[39m[39;1m
+  [39;22m[32m+                $amount = $value;[39m[39;1m
+  [39;22m[90m                 $updated = $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->where('spent_minor', '>=', $amount)->decrement('spent_minor', $amount, ['updated_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[90m                 if ($updated !== 1) {[39m[39;1m
+  [39;22m[90m                     $this->connection->table('auth_delivery_spend_reservations')->where('id', $reservation->id)->update(['released_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 135: RemoveArrayItem - ID: 5d8486a3ba429a7d[39m
+[39;1m
+  [39;22m[90m                     throw new \RuntimeException('The delivery reservation amount has an invalid type.');[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[90m                 $amount = (int) $value;[39m[39;1m
+  [39;22m[31m-                $updated = $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->where('spent_minor', '>=', $amount)->decrement('spent_minor', $amount, ['updated_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[32m+                $updated = $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->where('spent_minor', '>=', $amount)->decrement('spent_minor', $amount, []);[39m[39;1m
+  [39;22m[90m                 if ($updated !== 1) {[39m[39;1m
+  [39;22m[90m                     $this->connection->table('auth_delivery_spend_reservations')->where('id', $reservation->id)->update(['released_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[90m                     continue;[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 137: IfNegated - ID: 7214abee72a6621f[39m
+[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[90m                 $amount = (int) $value;[39m[39;1m
+  [39;22m[90m                 $updated = $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->where('spent_minor', '>=', $amount)->decrement('spent_minor', $amount, ['updated_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[31m-                if ($updated !== 1) {[39m[39;1m
+  [39;22m[32m+                if (!($updated !== 1)) {[39m[39;1m
+  [39;22m[90m                     $this->connection->table('auth_delivery_spend_reservations')->where('id', $reservation->id)->update(['released_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[90m                     continue;[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 137: NotIdenticalToIdentical - ID: 7f1dab535a280f28[39m
+[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[90m                 $amount = (int) $value;[39m[39;1m
+  [39;22m[90m                 $updated = $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->where('spent_minor', '>=', $amount)->decrement('spent_minor', $amount, ['updated_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[31m-                if ($updated !== 1) {[39m[39;1m
+  [39;22m[32m+                if ($updated === 1) {[39m[39;1m
+  [39;22m[90m                     $this->connection->table('auth_delivery_spend_reservations')->where('id', $reservation->id)->update(['released_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[90m                     continue;[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 137: DecrementInteger - ID: 38e95a78120cc09c[39m
+[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[90m                 $amount = (int) $value;[39m[39;1m
+  [39;22m[90m                 $updated = $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->where('spent_minor', '>=', $amount)->decrement('spent_minor', $amount, ['updated_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[31m-                if ($updated !== 1) {[39m[39;1m
+  [39;22m[32m+                if ($updated !== 0) {[39m[39;1m
+  [39;22m[90m                     $this->connection->table('auth_delivery_spend_reservations')->where('id', $reservation->id)->update(['released_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[90m                     continue;[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 137: IncrementInteger - ID: f46d8773ab682d67[39m
+[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[90m                 $amount = (int) $value;[39m[39;1m
+  [39;22m[90m                 $updated = $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->where('spent_minor', '>=', $amount)->decrement('spent_minor', $amount, ['updated_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[31m-                if ($updated !== 1) {[39m[39;1m
+  [39;22m[32m+                if ($updated !== 2) {[39m[39;1m
+  [39;22m[90m                     $this->connection->table('auth_delivery_spend_reservations')->where('id', $reservation->id)->update(['released_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[90m                     continue;[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 154: BooleanOrToBooleanAnd - ID: 8da172f5d107a265[39m
+[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     private function reserveAtomically(DeliveryEconomicsRequest $request): DeliveryReservationDecision[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        if ($request->reservationKey === null || $request->reservationKey === '') {[39m[39;1m
+  [39;22m[32m+        if ($request->reservationKey === null && $request->reservationKey === '') {[39m[39;1m
+  [39;22m[90m             throw new \InvalidArgumentException('A real delivery reservation requires its opaque outbox key.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 154: EmptyStringToNotEmpty - ID: 10aa2873266c68d2[39m
+[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     private function reserveAtomically(DeliveryEconomicsRequest $request): DeliveryReservationDecision[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        if ($request->reservationKey === null || $request->reservationKey === '') {[39m[39;1m
+  [39;22m[32m+        if ($request->reservationKey === null || $request->reservationKey === 'PEST Mutator was here!') {[39m[39;1m
+  [39;22m[90m             throw new \InvalidArgumentException('A real delivery reservation requires its opaque outbox key.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 169: RemoveStringCast - ID: 52d31db4acd6a582[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];[39m[39;1m
+  [39;22m[90m         foreach ($scopes as [$scope, $digest, $ceiling]) {[39m[39;1m
+  [39;22m[31m-            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);[39m[39;1m
+  [39;22m[32m+            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);[39m[39;1m
+  [39;22m[90m             $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[90m             if ($row === null) {[39m[39;1m
+  [39;22m[90m                 throw new \RuntimeException('The delivery spend row vanished after creation.');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 170: RemoveStringCast - ID: fbff655507cc59ab[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];[39m[39;1m
+  [39;22m[90m         foreach ($scopes as [$scope, $digest, $ceiling]) {[39m[39;1m
+  [39;22m[31m-            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);[39m[39;1m
+  [39;22m[32m+            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);[39m[39;1m
+  [39;22m[90m             $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[90m             if ($row === null) {[39m[39;1m
+  [39;22m[90m                 throw new \RuntimeException('The delivery spend row vanished after creation.');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 176: RemoveStringCast - ID: 416a4f724f7d3ff1[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];[39m[39;1m
+  [39;22m[90m         foreach ($scopes as [$scope, $digest, $ceiling]) {[39m[39;1m
+  [39;22m[31m-            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);[39m[39;1m
+  [39;22m[32m+            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => $scope, 'subject_digest' => (string) $digest]);[39m[39;1m
+  [39;22m[90m             $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[90m             if ($row === null) {[39m[39;1m
+  [39;22m[90m                 throw new \RuntimeException('The delivery spend row vanished after creation.');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 176: RemoveStringCast - ID: 7e6dd484b28776b8[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];[39m[39;1m
+  [39;22m[90m         foreach ($scopes as [$scope, $digest, $ceiling]) {[39m[39;1m
+  [39;22m[31m-            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);[39m[39;1m
+  [39;22m[32m+            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => $digest]);[39m[39;1m
+  [39;22m[90m             $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[90m             if ($row === null) {[39m[39;1m
+  [39;22m[90m                 throw new \RuntimeException('The delivery spend row vanished after creation.');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 176: RemoveArrayItem - ID: f8ec350ed135800e[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];[39m[39;1m
+  [39;22m[90m         foreach ($scopes as [$scope, $digest, $ceiling]) {[39m[39;1m
+  [39;22m[31m-            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);[39m[39;1m
+  [39;22m[32m+            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['subject_digest' => (string) $digest]);[39m[39;1m
+  [39;22m[90m             $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[90m             if ($row === null) {[39m[39;1m
+  [39;22m[90m                 throw new \RuntimeException('The delivery spend row vanished after creation.');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 176: RemoveArrayItem - ID: 04d4692ba2eff73e[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];[39m[39;1m
+  [39;22m[90m         foreach ($scopes as [$scope, $digest, $ceiling]) {[39m[39;1m
+  [39;22m[31m-            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);[39m[39;1m
+  [39;22m[32m+            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope]);[39m[39;1m
+  [39;22m[90m             $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[90m             if ($row === null) {[39m[39;1m
+  [39;22m[90m                 throw new \RuntimeException('The delivery spend row vanished after creation.');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 178: RemoveStringCast - ID: 9033a2aa972ab1f5[39m
+[39;1m
+  [39;22m[90m         $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];[39m[39;1m
+  [39;22m[90m         foreach ($scopes as [$scope, $digest, $ceiling]) {[39m[39;1m
+  [39;22m[90m             $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);[39m[39;1m
+  [39;22m[31m-            $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[32m+            $row = $this->row($scope, (string) $digest, true);[39m[39;1m
+  [39;22m[90m             if ($row === null) {[39m[39;1m
+  [39;22m[90m                 throw new \RuntimeException('The delivery spend row vanished after creation.');[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 178: RemoveStringCast - ID: 46a63f066bfaa722[39m
+[39;1m
+  [39;22m[90m         $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];[39m[39;1m
+  [39;22m[90m         foreach ($scopes as [$scope, $digest, $ceiling]) {[39m[39;1m
+  [39;22m[90m             $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);[39m[39;1m
+  [39;22m[31m-            $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[32m+            $row = $this->row((string) $scope, $digest, true);[39m[39;1m
+  [39;22m[90m             if ($row === null) {[39m[39;1m
+  [39;22m[90m                 throw new \RuntimeException('The delivery spend row vanished after creation.');[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 178: TrueToFalse - ID: aea435a7bbcba3cc[39m
+[39;1m
+  [39;22m[90m         $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];[39m[39;1m
+  [39;22m[90m         foreach ($scopes as [$scope, $digest, $ceiling]) {[39m[39;1m
+  [39;22m[90m             $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);[39m[39;1m
+  [39;22m[31m-            $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[32m+            $row = $this->row((string) $scope, (string) $digest, false);[39m[39;1m
+  [39;22m[90m             if ($row === null) {[39m[39;1m
+  [39;22m[90m                 throw new \RuntimeException('The delivery spend row vanished after creation.');[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 190: RemoveStringCast - ID: 7bb29a462aa84014[39m
+[39;1m
+  [39;22m[90m             // exists() followed by insert(): the spend-row lock protects the[39m[39;1m
+  [39;22m[90m             // current accounting transaction, but it is not the reservation's[39m[39;1m
+  [39;22m[90m             // correctness boundary and may be removed for an unceilinged scope.[39m[39;1m
+  [39;22m[31m-            $claimed = $this->connection->table('auth_delivery_spend_reservations')->insertOrIgnore([['reservation_key' => $request->reservationKey, 'scope' => (string) $scope, 'amount_minor' => $request->costMinor, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'created_at' => $this->time->now()]]);[39m[39;1m
+  [39;22m[32m+            $claimed = $this->connection->table('auth_delivery_spend_reservations')->insertOrIgnore([['reservation_key' => $request->reservationKey, 'scope' => $scope, 'amount_minor' => $request->costMinor, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'created_at' => $this->time->now()]]);[39m[39;1m
+  [39;22m[90m             if ($claimed === 0) {[39m[39;1m
+  [39;22m[90m                 continue;[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 197: ContinueToBreak - ID: 81f570c1a621df0f[39m
+[39;1m
+  [39;22m[90m             // correctness boundary and may be removed for an unceilinged scope.[39m[39;1m
+  [39;22m[90m             $claimed = $this->connection->table('auth_delivery_spend_reservations')->insertOrIgnore([['reservation_key' => $request->reservationKey, 'scope' => (string) $scope, 'amount_minor' => $request->costMinor, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'created_at' => $this->time->now()]]);[39m[39;1m
+  [39;22m[90m             if ($claimed === 0) {[39m[39;1m
+  [39;22m[31m-                continue;[39m[39;1m
+  [39;22m[32m+                break;[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m             $today = $this->time->current()->format('Y-m-d');[39m[39;1m
+  [39;22m[90m             $started = substr($row['window_started_at'], 0, 10);[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 209: RemoveArrayItem - ID: 6ecf305265995d14[39m
+[39;1m
+  [39;22m[90m             $today = $this->time->current()->format('Y-m-d');[39m[39;1m
+  [39;22m[90m             $started = substr($row['window_started_at'], 0, 10);[39m[39;1m
+  [39;22m[90m             if ($started !== $today) {[39m[39;1m
+  [39;22m[31m-                $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->update(['window_started_at' => $today . ' 00:00:00', 'spent_minor' => 0, 'updated_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[32m+                $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->update(['window_started_at' => $today . ' 00:00:00', 'spent_minor' => 0]);[39m[39;1m
+  [39;22m[90m                 $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[90m                 if ($row === null) {[39m[39;1m
+  [39;22m[90m                     throw new \RuntimeException('The delivery spend row vanished after rollover.');[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 211: RemoveStringCast - ID: 90fdfa7ba0171eab[39m
+[39;1m
+  [39;22m[90m             $started = substr($row['window_started_at'], 0, 10);[39m[39;1m
+  [39;22m[90m             if ($started !== $today) {[39m[39;1m
+  [39;22m[90m                 $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->update(['window_started_at' => $today . ' 00:00:00', 'spent_minor' => 0, 'updated_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[31m-                $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[32m+                $row = $this->row($scope, (string) $digest, true);[39m[39;1m
+  [39;22m[90m                 if ($row === null) {[39m[39;1m
+  [39;22m[90m                     throw new \RuntimeException('The delivery spend row vanished after rollover.');[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 211: RemoveStringCast - ID: fa8dde8fe66af0f7[39m
+[39;1m
+  [39;22m[90m             $started = substr($row['window_started_at'], 0, 10);[39m[39;1m
+  [39;22m[90m             if ($started !== $today) {[39m[39;1m
+  [39;22m[90m                 $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->update(['window_started_at' => $today . ' 00:00:00', 'spent_minor' => 0, 'updated_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[31m-                $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[32m+                $row = $this->row((string) $scope, $digest, true);[39m[39;1m
+  [39;22m[90m                 if ($row === null) {[39m[39;1m
+  [39;22m[90m                     throw new \RuntimeException('The delivery spend row vanished after rollover.');[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 211: TrueToFalse - ID: efac358c03c1d3ba[39m
+[39;1m
+  [39;22m[90m             $started = substr($row['window_started_at'], 0, 10);[39m[39;1m
+  [39;22m[90m             if ($started !== $today) {[39m[39;1m
+  [39;22m[90m                 $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->update(['window_started_at' => $today . ' 00:00:00', 'spent_minor' => 0, 'updated_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[31m-                $row = $this->row((string) $scope, (string) $digest, true);[39m[39;1m
+  [39;22m[32m+                $row = $this->row((string) $scope, (string) $digest, false);[39m[39;1m
+  [39;22m[90m                 if ($row === null) {[39m[39;1m
+  [39;22m[90m                     throw new \RuntimeException('The delivery spend row vanished after rollover.');[39m[39;1m
+  [39;22m[90m                 }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 222: RemoveIntegerCast - ID: 532f2e0ce57df3f4[39m
+[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m             $update = $this->connection->table('auth_delivery_spend')->where('id', $row['id']);[39m[39;1m
+  [39;22m[90m             if ($ceiling !== null) {[39m[39;1m
+  [39;22m[31m-                $update->where('spent_minor', '<=', (int) $ceiling - $request->costMinor);[39m[39;1m
+  [39;22m[32m+                $update->where('spent_minor', '<=', $ceiling - $request->costMinor);[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[90m             $updated = $update->increment('spent_minor', $request->costMinor, ['updated_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[90m             if ($updated !== 1) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 228: RemoveArrayItem - ID: 3fc7cb3221ec59a9[39m
+[39;1m
+  [39;22m[90m             if ($ceiling !== null) {[39m[39;1m
+  [39;22m[90m                 $update->where('spent_minor', '<=', (int) $ceiling - $request->costMinor);[39m[39;1m
+  [39;22m[90m             }[39m[39;1m
+  [39;22m[31m-            $updated = $update->increment('spent_minor', $request->costMinor, ['updated_at' => $this->time->now()]);[39m[39;1m
+  [39;22m[32m+            $updated = $update->increment('spent_minor', $request->costMinor, []);[39m[39;1m
+  [39;22m[90m             if ($updated !== 1) {[39m[39;1m
+  [39;22m[90m                 if ($ceiling !== null) {[39m[39;1m
+  [39;22m[90m                     throw new DeliverySpendRefused();[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 251: IfNegated - ID: f8208ba138c45499[39m
+[39;1m
+  [39;22m[90m     private function row(string $scope, string $digest, bool $lock): ?array[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         $query = $this->connection->table('auth_delivery_spend')->where('scope', $scope)->where('subject_digest', $digest);[39m[39;1m
+  [39;22m[31m-        if ($lock) {[39m[39;1m
+  [39;22m[32m+        if (!$lock) {[39m[39;1m
+  [39;22m[90m             $query->lockForUpdate();[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $row = $query->first();[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 252: RemoveMethodCall - ID: 130b693922990aa1[39m
+[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         $query = $this->connection->table('auth_delivery_spend')->where('scope', $scope)->where('subject_digest', $digest);[39m[39;1m
+  [39;22m[90m         if ($lock) {[39m[39;1m
+  [39;22m[31m-            $query->lockForUpdate();[39m[39;1m
+  [39;22m[32m+            [39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $row = $query->first();[39m[39;1m
+  [39;22m[90m         if ($row === null) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 258: RemoveEarlyReturn - ID: d04dddbbb7300727[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $row = $query->first();[39m[39;1m
+  [39;22m[90m         if ($row === null) {[39m[39;1m
+  [39;22m[31m-            return null;[39m[39;1m
+  [39;22m[32m+            [39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $values = (array) $row;[39m[39;1m
+  [39;22m[90m         return ['id' => (int) $values['id'], 'window_started_at' => (string) $values['window_started_at']];[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 264: RemoveIntegerCast - ID: f9ff2c57894a37e5[39m
+[39;1m
+  [39;22m[90m             return null;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $values = (array) $row;[39m[39;1m
+  [39;22m[31m-        return ['id' => (int) $values['id'], 'window_started_at' => (string) $values['window_started_at']];[39m[39;1m
+  [39;22m[32m+        return ['id' => $values['id'], 'window_started_at' => (string) $values['window_started_at']];[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/DatabaseDeliveryEconomics.php [39;22m[90m > Line 265: RemoveStringCast - ID: 8985f9a67c034336[39m
+[39;1m
+  [39;22m[90m             return null;[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $values = (array) $row;[39m[39;1m
+  [39;22m[31m-        return ['id' => (int) $values['id'], 'window_started_at' => (string) $values['window_started_at']];[39m[39;1m
+  [39;22m[32m+        return ['id' => (int) $values['id'], 'window_started_at' => $values['window_started_at']];[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/SmsCountryNormalizer.php [39;22m[90m > Line 48: BooleanOrToBooleanAnd - ID: 23b06af99cd6767f[39m
+[39;1m
+  [39;22m[90m             throw new InvalidArgumentException('The SMS identifier is not a valid international phone number.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $country = $this->phoneNumbers->getRegionCodeForNumber($number);[39m[39;1m
+  [39;22m[31m-        if (!is_string($country) || $country === '' || $country === '001') {[39m[39;1m
+  [39;22m[32m+        if (!is_string($country) && $country === '' || $country === '001') {[39m[39;1m
+  [39;22m[90m             throw new InvalidArgumentException('The SMS identifier has no unambiguous ISO country.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         return new NormalizedPhoneNumber($this->phoneNumbers->format($number, PhoneNumberFormat::E164), $country);[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/SmsCountryNormalizer.php [39;22m[90m > Line 48: BooleanOrToBooleanAnd - ID: bbb20acb24c2dea2[39m
+[39;1m
+  [39;22m[90m             throw new InvalidArgumentException('The SMS identifier is not a valid international phone number.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $country = $this->phoneNumbers->getRegionCodeForNumber($number);[39m[39;1m
+  [39;22m[31m-        if (!is_string($country) || $country === '' || $country === '001') {[39m[39;1m
+  [39;22m[32m+        if ((!is_string($country) || $country === '') && $country === '001') {[39m[39;1m
+  [39;22m[90m             throw new InvalidArgumentException('The SMS identifier has no unambiguous ISO country.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         return new NormalizedPhoneNumber($this->phoneNumbers->format($number, PhoneNumberFormat::E164), $country);[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/SmsCountryNormalizer.php [39;22m[90m > Line 48: EmptyStringToNotEmpty - ID: f76c2ff0bac6d436[39m
+[39;1m
+  [39;22m[90m             throw new InvalidArgumentException('The SMS identifier is not a valid international phone number.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $country = $this->phoneNumbers->getRegionCodeForNumber($number);[39m[39;1m
+  [39;22m[31m-        if (!is_string($country) || $country === '' || $country === '001') {[39m[39;1m
+  [39;22m[32m+        if (!is_string($country) || $country === 'PEST Mutator was here!' || $country === '001') {[39m[39;1m
+  [39;22m[90m             throw new InvalidArgumentException('The SMS identifier has no unambiguous ISO country.');[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         return new NormalizedPhoneNumber($this->phoneNumbers->format($number, PhoneNumberFormat::E164), $country);[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/UnconfiguredCaptchaVerifier.php [39;22m[90m > Line 16: ConcatRemoveRight - ID: 09a85be575396208[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function exception(): RuntimeException[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new RuntimeException('No CAPTCHA verifier is configured. Bind ' . 'Fissible\Vouch\Contracts\CaptchaVerifier before enabling CAPTCHA escalation.');[39m[39;1m
+  [39;22m[32m+        return new RuntimeException('No CAPTCHA verifier is configured. Bind ');[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     public function verify(CaptchaRequest $request): CaptchaDecision[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Delivery/UnconfiguredCaptchaVerifier.php [39;22m[90m > Line 16: ConcatSwitchSides - ID: e69d7c5b1e3d4ab2[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function exception(): RuntimeException[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new RuntimeException('No CAPTCHA verifier is configured. Bind ' . 'Fissible\Vouch\Contracts\CaptchaVerifier before enabling CAPTCHA escalation.');[39m[39;1m
+  [39;22m[32m+        return new RuntimeException('Fissible\Vouch\Contracts\CaptchaVerifier before enabling CAPTCHA escalation.' . 'No CAPTCHA verifier is configured. Bind ');[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     public function verify(CaptchaRequest $request): CaptchaDecision[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[90mMutations:[39m[39;1m [39;22m[31;1m64 untested[39;22m[90m,[39m[39m [39m[33;1m1 uncovered[39;22m[90m,[39m[39m [39m[32;1m164 tested[39;22m
+[39m  [39m[90mScore:[39m[39m     [39m[39m71.62%[39m
+[39m  [39m[90mDuration:[39m[39m  [39m[39m134.51s[39m
+

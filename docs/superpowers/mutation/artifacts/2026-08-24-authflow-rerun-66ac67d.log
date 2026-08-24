@@ -1,0 +1,470 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  .....................
+
+  Tests:    1161 passed (4092 assertions)
+  Duration: 32.10s
+
+  Mutating application files...
+  [90m285 Mutations for 1 Files created[39m
+
+  [39;100;1m RUN [39;49;22m src/Flow/AuthFlow.php
+  [32;1m✓[39;22m [90mLine 85: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 85: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 86: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 96: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 96: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 96: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 96: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 96: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 96: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 97: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 122: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 122: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 122: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 123: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 124: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 124: IncrementInteger[39m
+  [31;1m⨯[39;22m [90mLine 124: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 125: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 126: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 127: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 138: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 138: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 138: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 138: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 138: EmptyStringToNotEmpty[39m
+  [32;1m✓[39;22m [90mLine 139: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 146: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 146: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 146: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 147: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 154: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 164: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 164: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 164: RemoveNullSafeOperator[39m
+  [32;1m✓[39;22m [90mLine 165: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 184: RemoveNullSafeOperator[39m
+  [32;1m✓[39;22m [90mLine 186: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 186: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 186: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 195: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 195: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 195: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 196: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 197: RemoveEarlyReturn[39m
+  [31;1m⨯[39;22m [90mLine 203: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 205: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 205: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 205: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 206: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 217: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 217: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 217: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 217: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 217: EmptyStringToNotEmpty[39m
+  [32;1m✓[39;22m [90mLine 218: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 220: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 225: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 225: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 226: IfNegated[39m
+  [31;1m⨯[39;22m [90mLine 226: BooleanAndToBooleanOr[39m
+  [31;1m⨯[39;22m [90mLine 226: BooleanAndToBooleanOr[39m
+  [31;1m⨯[39;22m [90mLine 226: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 226: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 227: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 233: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 233: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 233: NotIdenticalToIdentical[39m
+  [31;1m⨯[39;22m [90mLine 233: BooleanAndToBooleanOr[39m
+  [31;1m⨯[39;22m [90mLine 233: EmptyStringToNotEmpty[39m
+  [32;1m✓[39;22m [90mLine 240: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 240: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 240: InstanceOfToFalse[39m
+  [31;1m⨯[39;22m [90mLine 244: RemoveFunctionCall[39m
+  [32;1m✓[39;22m [90mLine 251: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 251: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 256: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 256: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 266: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 266: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 266: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 267: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 267: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 270: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 270: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 279: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 279: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 280: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 283: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 285: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 301: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 301: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 301: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 308: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 308: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 308: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 308: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 308: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 308: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 314: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 316: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 326: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 326: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 331: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 331: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 332: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 335: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 338: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 338: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 339: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 346: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 346: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 347: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 350: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 350: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 352: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 353: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 364: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 364: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 366: RemoveMethodCall[39m
+  [31;1m⨯[39;22m [90mLine 368: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 369: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 369: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 369: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 371: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 380: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 380: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 381: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 384: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 387: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 393: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 393: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 394: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 400: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 424: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 424: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 424: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 424: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 425: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 436: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 436: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 436: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 437: InstanceOfToTrue[39m
+  [32;1m✓[39;22m [90mLine 437: InstanceOfToFalse[39m
+  [32;1m✓[39;22m [90mLine 438: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 439: TrueToFalse[39m
+  [32;1m✓[39;22m [90mLine 451: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 451: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 456: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 456: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 457: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 464: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 465: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 466: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 472: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 475: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 475: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 476: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 493: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 493: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 511: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 511: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 511: NotIdenticalToIdentical[39m
+  [31;1m⨯[39;22m [90mLine 511: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 514: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 514: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 519: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 520: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 521: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 525: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 525: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 525: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 525: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 530: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 530: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 530: RemoveNullSafeOperator[39m
+  [32;1m✓[39;22m [90mLine 531: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 534: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 534: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 534: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 535: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 538: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 538: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 538: RemoveNullSafeOperator[39m
+  [32;1m✓[39;22m [90mLine 539: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 542: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 542: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 542: RemoveNullSafeOperator[39m
+  [32;1m✓[39;22m [90mLine 543: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 546: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 546: AlwaysReturnNull[39m
+  [32;1m✓[39;22m [90mLine 555: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 555: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 562: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 603: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 603: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 604: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 607: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 614: AlwaysReturnNull[39m
+  [32;1m✓[39;22m [90mLine 623: RemoveNullSafeOperator[39m
+  [32;1m✓[39;22m [90mLine 625: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 625: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 658: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 658: IdenticalToNotIdentical[39m
+  [31;1m⨯[39;22m [90mLine 659: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 662: UnwrapArrayMap[39m
+  [32;1m✓[39;22m [90mLine 669: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 673: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 673: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 673: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 673: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 673: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 673: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 674: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 675: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 678: ContinueToBreak[39m
+  [32;1m✓[39;22m [90mLine 684: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 701: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 701: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 702: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 707: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 707: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 707: NotIdenticalToIdentical[39m
+  [32;1m✓[39;22m [90mLine 707: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 707: EmptyStringToNotEmpty[39m
+  [32;1m✓[39;22m [90mLine 708: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 708: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 711: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 711: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 711: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 711: AlwaysReturnNull[39m
+  [32;1m✓[39;22m [90mLine 716: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 716: IdenticalToNotIdentical[39m
+  [33;1m-[39;22m [90mLine 717: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 726: TernaryNegated[39m
+  [31;1m⨯[39;22m [90mLine 726: BooleanAndToBooleanOr[39m
+  [32;1m✓[39;22m [90mLine 736: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 739: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 750: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 750: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 750: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 750: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 750: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 750: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 750: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 751: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 751: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 752: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 752: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 753: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 753: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 754: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 754: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 755: ContinueToBreak[39m
+  [32;1m✓[39;22m [90mLine 760: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 762: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 762: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 762: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 762: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 763: ContinueToBreak[39m
+  [32;1m✓[39;22m [90mLine 779: ContinueToBreak[39m
+  [32;1m✓[39;22m [90mLine 787: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 787: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 787: FalseToTrue[39m
+  [32;1m✓[39;22m [90mLine 787: TrueToFalse[39m
+  [32;1m✓[39;22m [90mLine 788: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 788: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 788: FalseToTrue[39m
+  [32;1m✓[39;22m [90mLine 788: TrueToFalse[39m
+  [32;1m✓[39;22m [90mLine 789: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 789: CoalesceRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 789: FalseToTrue[39m
+  [32;1m✓[39;22m [90mLine 789: TrueToFalse[39m
+  [32;1m✓[39;22m [90mLine 790: TernaryNegated[39m
+  [32;1m✓[39;22m [90mLine 795: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 804: UnwrapArrayMap[39m
+  [32;1m✓[39;22m [90mLine 804: AlwaysReturnEmptyArray[39m
+  [32;1m✓[39;22m [90mLine 805: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 806: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 807: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 808: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 809: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 810: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 811: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 812: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 813: RemoveArrayItem[39m
+  [39;41;1m UNTESTED [39;49;22m [39;1msrc/Flow/AuthFlow.php [39;22m[90m > Line 124: RemoveArrayItem - ID: a9df78187e5e0b76[39m
+[39;1m
+  [39;22m[90m      */[39m[39;1m
+  [39;22m[90m     private function begin(FlowRequest $request): FlowResult[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        $attempt = AuthAttempt::create(['handle' => bin2hex(random_bytes(32)), 'state' => AttemptState::Initiated, 'version' => 1, 'bound_context' => $request->boundContext, 'tenant_id' => $this->tenants->currentTenantId(), 'expires_at' => $this->clock->now()->modify(sprintf('+%d seconds', $this->attemptTtlSeconds))]);[39m[39;1m
+  [39;22m[32m+        $attempt = AuthAttempt::create(['handle' => bin2hex(random_bytes(32)), 'state' => AttemptState::Initiated, 'bound_context' => $request->boundContext, 'tenant_id' => $this->tenants->currentTenantId(), 'expires_at' => $this->clock->now()->modify(sprintf('+%d seconds', $this->attemptTtlSeconds))]);[39m[39;1m
+  [39;22m[90m         return new Continuing($this->screens->identify($this->posture(null)), $attempt->handle);[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     private function identify(AuthAttempt $attempt, FlowRequest $request): FlowResult[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Flow/AuthFlow.php [39;22m[90m > Line 203: RemoveMethodCall - ID: 9a4b26b7f25653fa[39m
+[39;1m
+  [39;22m[90m         if ($this->store->transition($attempt, AttemptState::Identified) !== TransitionOutcome::Succeeded || $this->store->transition($attempt->refresh(), AttemptState::FactorPending) !== TransitionOutcome::Succeeded) {[39m[39;1m
+  [39;22m[90m             return new Continuing($this->screens->refused(AuthStep::Identify, Outcome::CredentialRejected, $posture), $attempt->handle);[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[31m-        $attempt->refresh();[39m[39;1m
+  [39;22m[32m+        [39m[39;1m
+  [39;22m[90m         if ($issuance instanceof ChallengeIssuanceTicket) {[39m[39;1m
+  [39;22m[90m             $this->issuer->complete($issuance, $attempt);[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Flow/AuthFlow.php [39;22m[90m > Line 226: BooleanAndToBooleanOr - ID: adb2bb1bade8951a[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $preflight = $this->preflightThrottle($attempt, $request, $submittedIdentifier);[39m[39;1m
+  [39;22m[90m         if ($preflight !== null) {[39m[39;1m
+  [39;22m[31m-            if ($preflight instanceof SharedThrottle && $preflight->decision === ThrottleDecision::BackedOff && $this->throttleConfiguration->captchaEnabled) {[39m[39;1m
+  [39;22m[32m+            if (($preflight instanceof SharedThrottle || $preflight->decision === ThrottleDecision::BackedOff) && $this->throttleConfiguration->captchaEnabled) {[39m[39;1m
+  [39;22m[90m                 $token = $request->string('captcha');[39m[39;1m
+  [39;22m[90m                 $captcha = CaptchaDecision::Failed;[39m[39;1m
+  [39;22m[90m                 if ($token !== null && $token !== '') {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Flow/AuthFlow.php [39;22m[90m > Line 226: BooleanAndToBooleanOr - ID: a6bb00e2f5b6b921[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $preflight = $this->preflightThrottle($attempt, $request, $submittedIdentifier);[39m[39;1m
+  [39;22m[90m         if ($preflight !== null) {[39m[39;1m
+  [39;22m[31m-            if ($preflight instanceof SharedThrottle && $preflight->decision === ThrottleDecision::BackedOff && $this->throttleConfiguration->captchaEnabled) {[39m[39;1m
+  [39;22m[32m+            if ($preflight instanceof SharedThrottle && $preflight->decision === ThrottleDecision::BackedOff || $this->throttleConfiguration->captchaEnabled) {[39m[39;1m
+  [39;22m[90m                 $token = $request->string('captcha');[39m[39;1m
+  [39;22m[90m                 $captcha = CaptchaDecision::Failed;[39m[39;1m
+  [39;22m[90m                 if ($token !== null && $token !== '') {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Flow/AuthFlow.php [39;22m[90m > Line 226: InstanceOfToTrue - ID: b8444eb1d19b0d66[39m
+[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $preflight = $this->preflightThrottle($attempt, $request, $submittedIdentifier);[39m[39;1m
+  [39;22m[90m         if ($preflight !== null) {[39m[39;1m
+  [39;22m[31m-            if ($preflight instanceof SharedThrottle && $preflight->decision === ThrottleDecision::BackedOff && $this->throttleConfiguration->captchaEnabled) {[39m[39;1m
+  [39;22m[32m+            if (true && $preflight->decision === ThrottleDecision::BackedOff && $this->throttleConfiguration->captchaEnabled) {[39m[39;1m
+  [39;22m[90m                 $token = $request->string('captcha');[39m[39;1m
+  [39;22m[90m                 $captcha = CaptchaDecision::Failed;[39m[39;1m
+  [39;22m[90m                 if ($token !== null && $token !== '') {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Flow/AuthFlow.php [39;22m[90m > Line 233: BooleanAndToBooleanOr - ID: 6b419612df43e1a7[39m
+[39;1m
+  [39;22m[90m             if ($preflight instanceof SharedThrottle && $preflight->decision === ThrottleDecision::BackedOff && $this->throttleConfiguration->captchaEnabled) {[39m[39;1m
+  [39;22m[90m                 $token = $request->string('captcha');[39m[39;1m
+  [39;22m[90m                 $captcha = CaptchaDecision::Failed;[39m[39;1m
+  [39;22m[31m-                if ($token !== null && $token !== '') {[39m[39;1m
+  [39;22m[32m+                if ($token !== null || $token !== '') {[39m[39;1m
+  [39;22m[90m                     try {[39m[39;1m
+  [39;22m[90m                         $captcha = $this->captcha->verify(new CaptchaRequest($token, $request->clientIp));[39m[39;1m
+  [39;22m[90m                     } catch (Throwable $exception) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Flow/AuthFlow.php [39;22m[90m > Line 233: EmptyStringToNotEmpty - ID: 7437d765113eba35[39m
+[39;1m
+  [39;22m[90m             if ($preflight instanceof SharedThrottle && $preflight->decision === ThrottleDecision::BackedOff && $this->throttleConfiguration->captchaEnabled) {[39m[39;1m
+  [39;22m[90m                 $token = $request->string('captcha');[39m[39;1m
+  [39;22m[90m                 $captcha = CaptchaDecision::Failed;[39m[39;1m
+  [39;22m[31m-                if ($token !== null && $token !== '') {[39m[39;1m
+  [39;22m[32m+                if ($token !== null && $token !== 'PEST Mutator was here!') {[39m[39;1m
+  [39;22m[90m                     try {[39m[39;1m
+  [39;22m[90m                         $captcha = $this->captcha->verify(new CaptchaRequest($token, $request->clientIp));[39m[39;1m
+  [39;22m[90m                     } catch (Throwable $exception) {[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Flow/AuthFlow.php [39;22m[90m > Line 244: RemoveFunctionCall - ID: 299664cf8266287a[39m
+[39;1m
+  [39;22m[90m                         if ($this->captcha instanceof UnconfiguredCaptchaVerifier) {[39m[39;1m
+  [39;22m[90m                             throw $exception;[39m[39;1m
+  [39;22m[90m                         }[39m[39;1m
+  [39;22m[31m-                        report($exception);[39m[39;1m
+  [39;22m[32m+                        [39m[39;1m
+  [39;22m[90m                         // A provider outage must not turn shared backoff into[39m[39;1m
+  [39;22m[90m                         // a 500; failure is the safe, target-independent result.[39m[39;1m
+  [39;22m[90m                     }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Flow/AuthFlow.php [39;22m[90m > Line 368: RemoveMethodCall - ID: 026e41582118ad69[39m
+[39;1m
+  [39;22m[90m         if ($this->targetState($attempt, $satisfied) !== AttemptState::Authenticated) {[39m[39;1m
+  [39;22m[90m             // Back to FactorPending: another factor is being offered.[39m[39;1m
+  [39;22m[90m             $this->store->transition($attempt->refresh(), AttemptState::FactorPending);[39m[39;1m
+  [39;22m[31m-            $attempt->refresh();[39m[39;1m
+  [39;22m[32m+            [39m[39;1m
+  [39;22m[90m             $next = $this->offeredFactorsFor($attempt)[0] ?? $this->defaultFactorFor($userId);[39m[39;1m
+  [39;22m[90m             if ($this->issuer->supports($next)) {[39m[39;1m
+  [39;22m[90m                 $ticket = $this->issuer->permit($this->issuanceIntent($attempt, $request, $submittedIdentifier, $next, 'continue'));[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Flow/AuthFlow.php [39;22m[90m > Line 511: BooleanAndToBooleanOr - ID: f05236f539e4fdef[39m
+[39;1m
+  [39;22m[90m         $sharedBackoff = null;[39m[39;1m
+  [39;22m[90m         $ip = $this->throttleKey->ip($request->clientIp, $attempt->tenant_id);[39m[39;1m
+  [39;22m[90m         $ipIdentifier = $this->throttleKey->ipIdentifier($request->clientIp, $submittedIdentifier, $attempt->tenant_id);[39m[39;1m
+  [39;22m[31m-        if ($ip !== null && $ipIdentifier !== null) {[39m[39;1m
+  [39;22m[32m+        if ($ip !== null || $ipIdentifier !== null) {[39m[39;1m
+  [39;22m[90m             $state = $this->throttles->recordIpFailure($ip, $ipIdentifier);[39m[39;1m
+  [39;22m[90m             if ($state->decision === ThrottleDecision::BackedOff) {[39m[39;1m
+  [39;22m[90m                 $sharedBackoff = $state;[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Flow/AuthFlow.php [39;22m[90m > Line 659: RemoveEarlyReturn - ID: 487f863ce6c915ad[39m
+[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         $userId = $attempt->user_id;[39m[39;1m
+  [39;22m[90m         if ($userId === null) {[39m[39;1m
+  [39;22m[31m-            return [];[39m[39;1m
+  [39;22m[32m+            [39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $satisfied = array_map(static fn(SatisfiedFactor $factor): string => $factor->factorId, $this->existingFactors($attempt));[39m[39;1m
+  [39;22m[90m         $offered = [];[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;101;1m UNCOVERED [39;49;22m[39;1m [39;22m[39;1msrc/Flow/AuthFlow.php [39;22m[90m > Line 717: RemoveEarlyReturn - ID: 71aa0b3fdd3b1cd5[39m
+[39;1m
+  [39;22m[90m     private function defaultFactorFor(?int $userId): string[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[90m         if ($userId === null) {[39m[39;1m
+  [39;22m[31m-            return 'password';[39m[39;1m
+  [39;22m[32m+            [39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $type = AuthCredential::query()->where('user_id', $userId)->whereNull('disabled_at')->where('type', '!=', 'recovery_code')->value('type');[39m[39;1m
+  [39;22m[90m         return is_string($type) && $this->registry->has($type) ? $type : 'password';[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Flow/AuthFlow.php [39;22m[90m > Line 726: BooleanAndToBooleanOr - ID: bc3da4b2853584f2[39m
+[39;1m
+  [39;22m[90m             return 'password';[39m[39;1m
+  [39;22m[90m         }[39m[39;1m
+  [39;22m[90m         $type = AuthCredential::query()->where('user_id', $userId)->whereNull('disabled_at')->where('type', '!=', 'recovery_code')->value('type');[39m[39;1m
+  [39;22m[31m-        return is_string($type) && $this->registry->has($type) ? $type : 'password';[39m[39;1m
+  [39;22m[32m+        return is_string($type) || $this->registry->has($type) ? $type : 'password';[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m     /**[39m[39;1m
+  [39;22m[90m      * Rehydrate the evidence already gathered on this attempt.[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[90mMutations:[39m[39;1m [39;22m[31;1m12 untested[39;22m[90m,[39m[39m [39m[33;1m1 uncovered[39;22m[90m,[39m[39m [39m[32;1m272 tested[39;22m
+[39m  [39m[90mScore:[39m[39m     [39m[39m95.44%[39m
+[39m  [39m[90mDuration:[39m[39m  [39m[39m243.64s[39m
+

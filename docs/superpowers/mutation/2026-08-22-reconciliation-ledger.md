@@ -122,8 +122,8 @@ are absent from all three maps. Their future `UNCOVERED` rows are therefore
 
 | chunk | assigned source directories | source files | elapsed / timeout | status at `66ac67d` |
 |---|---|---:|---|---|
-| Delivery | `src/Delivery/` | 14 | 137.63s / 37.69s | measured: 229 mutations / 7 RUN files; 164 tested, 64 untested, 1 uncovered, 0 timeouts |
-| Flow | `src/Flow/` | 10 assigned / 5 mutant-bearing | 239.82s + 70.97s / 37.50s | measured: AuthFlow plus 9-file remainder; 354 mutations total, 333 tested, 20 untested, 1 uncovered; remainder has 61 tested, 8 untested, 0 uncovered, 0 timeouts |
+| Delivery | `src/Delivery/` | 14 | 134.51s / 38.36s | rerun classified: 229 mutations / 7 RUN files; 164 tested, 64 executed survivors, 1 never-executed, 0 timeouts |
+| Flow | `src/Flow/` | 10 assigned / 5 mutant-bearing | 243.64s + 70.97s / 38.52s | rerun classified: AuthFlow plus 9-file remainder; 354 mutations total, 333 tested, 20 executed survivors, 1 never-executed; remainder has 61 tested, 8 survivors, 0 gaps/timeouts |
 | Throttle | `src/Throttle/` | 13 assigned / 7 mutant-bearing | 3,047.11s / 38.52s | rerun measured: 865 mutations; 739 tested, 86 untested, 40 uncovered, 0 timeouts; verified score 85.43% |
 | Kernel | `src/Kernel/` | 26 | 161.87s / 37.85s | measured: 236 mutations / 13 RUN files; 205 tested, 5 untested, 26 uncovered, 0 timeouts |
 | Console | `src/Console/` | 8 | 88.94s / 38.03s | measured: 181 mutations / 8 RUN files; 125 tested, 34 untested, 22 uncovered, 0 timeouts |
@@ -174,6 +174,13 @@ executed survivors.
 - Timeout threshold: 37.69s (baseline + `max(5s, 20%)`)
 - Result: 229 mutations / 7 files; 164 tested, 64 untested, 1 uncovered,
   0 timeouts; verified score 71.62%
+- Classification rerun: 64 executed-and-survived and 1 never-executed. The
+  never-executed row is `DatabaseDeliveryEconomics.php:258`; the committed
+  union line-set also excludes that line, so it is not engine-gated.
+- Rerun artifacts: `artifacts/2026-08-24-delivery-rerun-66ac67d.log`
+  (SHA-256 `abd311e70d4f441fa1e82ad9ad6d4d6f04bf2516af7b6a237451f45d025472f2`)
+  and `artifacts/2026-08-24-delivery-rerun-classification.json` (SHA-256
+  `a9dfaf8e8e99b501e6794199d727b1830d09ef2d7a1ee871f9717d7dab1904c6`).
 
 ### Flow / AuthFlow
 
@@ -183,6 +190,13 @@ executed survivors.
 - Timeout threshold: 36.82s
 - Result: 285 mutations / 1 file; 272 tested, 12 untested, 1 uncovered,
   0 timeouts; verified score 95.44%
+- Classification rerun: 12 executed-and-survived and 1 never-executed. The
+  never-executed row is `AuthFlow.php:717`; the committed union line-set also
+  excludes it, confirming the dead path on all three measured engines.
+- Rerun artifacts: `artifacts/2026-08-24-authflow-rerun-66ac67d.log`
+  (SHA-256 `3e6d21e81c2a1bc56e6c20ddcba2f2fb8c9b9108121f29b56db8f184d670ea49`)
+  and `artifacts/2026-08-24-authflow-rerun-classification.json` (SHA-256
+  `9c8f2fd67a7d638d95d41fd9a9f774a5bed5f6d36ace643093227e3fa1663760`).
 - This does **not** close Flow. `VerificationEqualizer`, `ScreenBuilder`, and
   the seven remaining result/request classes require their own RUN evidence.
 
@@ -274,6 +288,12 @@ executed survivors.
   for it, but do not land it during measurement.
 - The five untested rows are on executed lines and remain genuine survivor
   candidates for individual classification.
+- Mechanical classification artifacts: `artifacts/2026-08-24-kernel-66ac67d.log`
+  (SHA-256 `c1344591f4657c44667a7b5277f07abcd70aafa8402b8726bcb065cc55a80228`)
+  and `artifacts/2026-08-24-kernel-classification.json` (SHA-256
+  `4a03f5b8b7d7d28a3b035a4f85ac826fa16381f1539a0aa429add6ab3fd956bb`). The
+  tool reproduces 25 instrument-unroutable, 1 never-executed, and 5
+  executed-and-survived rows with no contested entries.
 
 ## Queued cross-chunk findings
 

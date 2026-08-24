@@ -1,0 +1,666 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  .....................
+
+  Tests:    1161 passed (4092 assertions)
+  Duration: 31.54s
+
+  Mutating application files...
+  236 Mutations for 13 Files created
+
+   RUN  src/Kernel/Assurance/NistAssuranceVocabulary.php
+  ✓ Line 26: IfNegated
+  ✓ Line 26: IdenticalToNotIdentical
+  ✓ Line 26: DecrementInteger
+  ✓ Line 26: IncrementInteger
+  ✓ Line 27: RemoveEarlyReturn
+  ✓ Line 32: IfNegated
+  ✓ Line 32: GreaterOrEqualToGreater
+  ✓ Line 32: GreaterOrEqualToSmaller
+  ✓ Line 32: BooleanOrToBooleanAnd
+  ✓ Line 32: DecrementInteger
+  ✓ Line 32: IncrementInteger
+  ✓ Line 33: RemoveEarlyReturn
+
+   RUN  src/Kernel/Assurance/AssuranceFacts.php
+  ✓ Line 37: UnwrapArrayFilter
+  ⨯ Line 37: UnwrapArrayValues
+  ✓ Line 39: NotIdenticalToIdentical
+  ✓ Line 42: IfNegated
+  ✓ Line 42: IdenticalToNotIdentical
+  ✓ Line 43: FalseToTrue
+  ✓ Line 43: FalseToTrue
+  ✓ Line 43: DecrementInteger
+  ✓ Line 43: IncrementInteger
+  ✓ Line 43: RemoveEarlyReturn
+  ✓ Line 48: TrueToFalse
+  ✓ Line 49: FalseToTrue
+  ✓ Line 52: ForeachEmptyIterable
+  ⨯ Line 53: TrueToFalse
+  ✓ Line 55: IfNegated
+  ✓ Line 59: IfNegated
+  ✓ Line 59: RemoveNot
+  ✓ Line 60: FalseToTrue
+  ✓ Line 63: IfNegated
+  ✓ Line 64: TrueToFalse
+  ✓ Line 69: IfNegated
+  ✓ Line 69: IdenticalToNotIdentical
+  ✓ Line 69: SmallerToGreaterOrEqual
+  ✓ Line 69: SmallerToSmallerOrEqual
+  ✓ Line 69: BooleanOrToBooleanAnd
+
+   RUN  src/Kernel/Assurance/AssuranceLevel.php
+  ✓ Line 21: IfNegated
+  ✓ Line 21: IdenticalToNotIdentical
+  ✓ Line 22: FalseToTrue
+  ⨯ Line 22: RemoveEarlyReturn
+  ✓ Line 25: GreaterOrEqualToGreater
+  ✓ Line 25: GreaterOrEqualToSmaller
+
+   RUN  src/Kernel/Enumeration/ErrorShaper.php
+  ✓ Line 19: IfNegated
+  ✓ Line 19: IdenticalToNotIdentical
+  ✓ Line 43: TernaryNegated
+  ✓ Line 43: IdenticalToNotIdentical
+  ✓ Line 47: RemoveArrayItem
+  ✓ Line 47: RemoveEarlyReturn
+  ✓ Line 50: IfNegated
+  ✓ Line 50: IdenticalToNotIdentical
+  ✓ Line 58: RemoveArrayItem
+  ✓ Line 58: RemoveEarlyReturn
+  ✓ Line 66: RemoveArrayItem
+  ✓ Line 67: RemoveArrayItem
+  ✓ Line 76: IfNegated
+  ✓ Line 76: IdenticalToNotIdentical
+  ✓ Line 76: RemoveNullSafeOperator
+  ✓ Line 77: RemoveEarlyReturn
+  ✓ Line 80: AlwaysReturnNull
+  ✓ Line 89: IfNegated
+  ✓ Line 89: IdenticalToNotIdentical
+  - Line 90: RemoveEarlyReturn
+  ✓ Line 93: AlwaysReturnNull
+
+   RUN  src/Kernel/Enumeration/EnumerationPosture.php
+  ✓ Line 14: IdenticalToNotIdentical
+  ✓ Line 14: IdenticalToNotIdentical
+  ✓ Line 14: BooleanOrToBooleanAnd
+
+   RUN  src/Kernel/Factor/FactorStrength.php
+  - Line 17: DecrementInteger
+  - Line 17: IncrementInteger
+  - Line 18: DecrementInteger
+  - Line 18: IncrementInteger
+  - Line 19: DecrementInteger
+  - Line 19: IncrementInteger
+  - Line 20: DecrementInteger
+  - Line 20: IncrementInteger
+  - Line 21: DecrementInteger
+  - Line 21: IncrementInteger
+  ✓ Line 25: GreaterOrEqualToGreater
+  ✓ Line 25: GreaterOrEqualToSmaller
+
+   RUN  src/Kernel/Attempt/TransitionRules.php
+  - Line 10: RemoveArrayItem
+  - Line 11: RemoveArrayItem
+  - Line 12: RemoveArrayItem
+  - Line 13: RemoveArrayItem
+  - Line 23: RemoveArrayItem
+  - Line 24: RemoveArrayItem
+  - Line 26: RemoveArrayItem
+  - Line 27: RemoveArrayItem
+  - Line 28: RemoveArrayItem
+  - Line 30: RemoveArrayItem
+  - Line 31: RemoveArrayItem
+  - Line 33: RemoveArrayItem
+  - Line 34: RemoveArrayItem
+  - Line 35: RemoveArrayItem
+  ✓ Line 41: IfNegated
+  ✓ Line 41: IdenticalToNotIdentical
+  ✓ Line 42: FalseToTrue
+  ⨯ Line 42: RemoveEarlyReturn
+  ✓ Line 45: IfNegated
+  ✓ Line 46: FalseToTrue
+  ✓ Line 46: RemoveEarlyReturn
+  ✓ Line 49: IfNegated
+  ✓ Line 49: IdenticalToNotIdentical
+  ✓ Line 49: IdenticalToNotIdentical
+  ✓ Line 49: BooleanOrToBooleanAnd
+  ✓ Line 50: TrueToFalse
+  ✓ Line 50: RemoveEarlyReturn
+  ✓ Line 53: CoalesceRemoveLeft
+
+   RUN  src/Kernel/Satisfiability/Verdict.php
+  ✓ Line 21: FalseToTrue
+  ✓ Line 29: TrueToFalse
+
+   RUN  src/Kernel/Satisfiability/SatisfiabilityEvaluator.php
+  ✓ Line 24: UnwrapArrayFilter
+  ⨯ Line 24: UnwrapArrayValues
+  ✓ Line 26: NotIdenticalToIdentical
+  ✓ Line 33: ForeachEmptyIterable
+  ✓ Line 34: RemoveEarlyReturn
+  - Line 52: TrueToFalse
+  ✓ Line 53: InstanceOfToTrue
+  ✓ Line 53: InstanceOfToFalse
+  ✓ Line 54: InstanceOfToTrue
+  ✓ Line 54: InstanceOfToFalse
+  ✓ Line 55: InstanceOfToTrue
+  ✓ Line 55: InstanceOfToFalse
+  ✓ Line 68: ForeachEmptyIterable
+  ✓ Line 69: IfNegated
+  ✓ Line 69: BooleanAndToBooleanOr
+  ✓ Line 70: RemoveArrayItem
+  ✓ Line 70: RemoveArrayItem
+  ✓ Line 77: IfNegated
+  ✓ Line 77: NotIdenticalToIdentical
+  ✓ Line 78: FalseToTrue
+  ✓ Line 78: RemoveEarlyReturn
+  ✓ Line 81: IfNegated
+  ✓ Line 81: NotIdenticalToIdentical
+  ✓ Line 81: NotIdenticalToIdentical
+  ✓ Line 81: BooleanAndToBooleanOr
+  ✓ Line 82: FalseToTrue
+  ✓ Line 82: RemoveEarlyReturn
+  ✓ Line 85: IfNegated
+  ✓ Line 85: NotIdenticalToIdentical
+  ✓ Line 85: NotIdenticalToIdentical
+  ✓ Line 85: BooleanAndToBooleanOr
+  ✓ Line 86: FalseToTrue
+  ✓ Line 86: RemoveEarlyReturn
+  ✓ Line 89: IfNegated
+  ✓ Line 89: NotIdenticalToIdentical
+  ✓ Line 89: BooleanAndToBooleanOr
+  ✓ Line 89: RemoveNot
+  ✓ Line 90: FalseToTrue
+  ✓ Line 90: RemoveEarlyReturn
+  ✓ Line 93: TrueToFalse
+  ✓ Line 104: ForeachEmptyIterable
+  ✓ Line 121: RemoveArrayItem
+  ✓ Line 121: RemoveArrayItem
+  ✓ Line 139: IfNegated
+  ✓ Line 139: IdenticalToNotIdentical
+  ✓ Line 145: ArrayShiftToArrayPop
+  ✓ Line 147: ForeachEmptyIterable
+  ✓ Line 162: ForeachEmptyIterable
+  ✓ Line 165: UnwrapArraySlice
+  ✓ Line 165: ForeachEmptyIterable
+  ✓ Line 166: IfNegated
+  ✓ Line 166: RemoveNot
+  ✓ Line 167: FalseToTrue
+  ✓ Line 167: RemoveEarlyReturn
+  ✓ Line 172: TrueToFalse
+  ✓ Line 177: IfNegated
+  ✓ Line 177: BooleanAndToBooleanOr
+  ✓ Line 178: IdenticalToNotIdentical
+  ✓ Line 179: FalseToTrue
+  ✓ Line 179: RemoveEarlyReturn
+  ✓ Line 182: IfNegated
+  ✓ Line 182: BooleanAndToBooleanOr
+  ✓ Line 182: BooleanAndToBooleanOr
+  ✓ Line 183: NotIdenticalToIdentical
+  ✓ Line 184: IdenticalToNotIdentical
+  ✓ Line 185: FalseToTrue
+  ✓ Line 185: RemoveEarlyReturn
+  ✓ Line 188: TrueToFalse
+
+   RUN  src/Kernel/Policy/PolicyParser.php
+  ✓ Line 20: IfNegated
+  ✓ Line 20: IdenticalToNotIdentical
+  ✓ Line 26: TernaryNegated
+  ✓ Line 29: IfNegated
+  ✓ Line 29: IdenticalToNotIdentical
+  ✓ Line 29: BooleanOrToBooleanAnd
+  ✓ Line 29: RemoveNot
+  ✓ Line 35: UnwrapArrayMap
+  ✓ Line 35: UnwrapArrayValues
+  ✓ Line 37: IfNegated
+  ✓ Line 38: RemoveEarlyReturn
+  ✓ Line 43: TrueToFalse
+  ✓ Line 44: FalseToTrue
+  ✓ Line 53: CoalesceRemoveLeft
+  ✓ Line 55: IfNegated
+  ✓ Line 55: IdenticalToNotIdentical
+  ✓ Line 56: RemoveEarlyReturn
+  ✓ Line 70: CoalesceRemoveLeft
+  ✓ Line 72: IfNegated
+  ✓ Line 72: IdenticalToNotIdentical
+  ✓ Line 73: RemoveEarlyReturn
+  ✓ Line 76: AlwaysReturnNull
+  ✓ Line 81: IfNegated
+  ✓ Line 81: RemoveNot
+  ✓ Line 92: IfNegated
+  ✓ Line 93: RemoveEarlyReturn
+  ✓ Line 96: IfNegated
+  ✓ Line 96: RemoveNot
+  ✓ Line 102: IfNegated
+  ✓ Line 102: BooleanOrToBooleanAnd
+  ✓ Line 103: RemoveEarlyReturn
+  ✓ Line 106: IfNegated
+  ✓ Line 106: BooleanOrToBooleanAnd
+  ✓ Line 106: RemoveNot
+  ✓ Line 106: RemoveNot
+  ✓ Line 115: CoalesceRemoveLeft
+  ✓ Line 122: IfNegated
+  ✓ Line 122: IdenticalToNotIdentical
+  ✓ Line 123: RemoveEarlyReturn
+  ✓ Line 135: IfNegated
+  ✓ Line 135: IdenticalToNotIdentical
+  ✓ Line 141: AlwaysReturnNull
+
+   RUN  src/Kernel/Policy/AllOf.php
+  ✓ Line 16: TrueToFalse
+  ✓ Line 17: FalseToTrue
+  ✓ Line 23: IfNegated
+  ✓ Line 23: IdenticalToNotIdentical
+
+   RUN  src/Kernel/Policy/AnyOf.php
+  ✓ Line 20: IfNegated
+  ✓ Line 20: IdenticalToNotIdentical
+
+   RUN  src/Kernel/Policy/PolicyResolver.php
+  ✓ Line 18: UnwrapArrayFilter
+  ✓ Line 18: UnwrapArrayValues
+  ✓ Line 20: InstanceOfToTrue
+  ✓ Line 20: InstanceOfToFalse
+  ✓ Line 23: IfNegated
+  ✓ Line 23: IdenticalToNotIdentical
+  ✓ Line 27: MinusToPlus
+  ✓ Line 27: DecrementInteger
+  ✓ Line 27: IncrementInteger
+  ✓ Line 42: ForeachEmptyIterable
+  ✓ Line 43: IfNegated
+   UNTESTED  src/Kernel/Assurance/AssuranceFacts.php  > Line 37: UnwrapArrayValues - ID: e6cc6dca90fe3aee
+
+           // assuming every caller pre-filtered. Without it a recovery-only set derives
+           // one distinct credential and the NIST vocabulary names it `aal1` — an
+           // ordinary single-factor level, indistinguishable from a password login.
+  -        $eligible = array_values(array_filter($factors, static fn(SatisfiedFactor $factor): bool => $factor->strength !== FactorStrength::Recovery));
+  +        $eligible = array_filter($factors, static fn(SatisfiedFactor $factor): bool => $factor->strength !== FactorStrength::Recovery);
+           if ($eligible === []) {
+               return new self(0, FactorStrength::Recovery, false, false, null);
+           }
+  
+
+   UNTESTED  src/Kernel/Assurance/AssuranceFacts.php  > Line 53: TrueToFalse - ID: 50944efb515843a1
+
+           $hasMultiFactorCredential = false;
+           $oldest = null;
+           foreach ($eligible as $factor) {
+  -            $credentialIds[$factor->credentialId] = true;
+  +            $credentialIds[$factor->credentialId] = false;
+               if ($factor->strength->atLeast($strongest)) {
+                   $strongest = $factor->strength;
+               }
+  
+
+   UNTESTED  src/Kernel/Assurance/AssuranceLevel.php  > Line 22: RemoveEarlyReturn - ID: a154790210570f76
+
+       {
+           $oldest = $this->facts->weakestSatisfiedAt;
+           if ($oldest === null) {
+  -            return false;
+  +            
+           }
+           return $oldest >= $clock->now()->sub($maxAge);
+       }
+   }
+  
+
+   UNCOVERED  src/Kernel/Enumeration/ErrorShaper.php  > Line 90: RemoveEarlyReturn - ID: 0e12c3feb98d51bc
+
+       private function strictLockRetry(?RetryPolicy $retry): ?RetryPolicy
+       {
+           if ($retry === null) {
+  -            return null;
+  +            
+           }
+           return new RetryPolicy(attemptsRemaining: null, lockedUntil: $retry->lockedUntil, retryAfter: $retry->retryAfter);
+       }
+  
+
+   UNCOVERED  src/Kernel/Factor/FactorStrength.php  > Line 17: DecrementInteger - ID: 1fdc5e14ebf6e85f
+
+    */
+   enum FactorStrength : int
+   {
+  -    case Recovery = 0;
+  +    case Recovery = -1;
+       case Knowledge = 10;
+       case PossessionWeak = 20;
+       case Possession = 30;
+  
+
+   UNCOVERED  src/Kernel/Factor/FactorStrength.php  > Line 17: IncrementInteger - ID: 46b1c6e33972b61f
+
+    */
+   enum FactorStrength : int
+   {
+  -    case Recovery = 0;
+  +    case Recovery = 1;
+       case Knowledge = 10;
+       case PossessionWeak = 20;
+       case Possession = 30;
+  
+
+   UNCOVERED  src/Kernel/Factor/FactorStrength.php  > Line 18: DecrementInteger - ID: 69b8a78b9fa942d8
+
+   enum FactorStrength : int
+   {
+       case Recovery = 0;
+  -    case Knowledge = 10;
+  +    case Knowledge = 9;
+       case PossessionWeak = 20;
+       case Possession = 30;
+       case PossessionStrong = 40;
+  
+
+   UNCOVERED  src/Kernel/Factor/FactorStrength.php  > Line 18: IncrementInteger - ID: 3e5a70376a336f94
+
+   enum FactorStrength : int
+   {
+       case Recovery = 0;
+  -    case Knowledge = 10;
+  +    case Knowledge = 11;
+       case PossessionWeak = 20;
+       case Possession = 30;
+       case PossessionStrong = 40;
+  
+
+   UNCOVERED  src/Kernel/Factor/FactorStrength.php  > Line 19: DecrementInteger - ID: bc5ecade1addbba7
+
+   {
+       case Recovery = 0;
+       case Knowledge = 10;
+  -    case PossessionWeak = 20;
+  +    case PossessionWeak = 19;
+       case Possession = 30;
+       case PossessionStrong = 40;
+       public function atLeast(self $minimum): bool
+  
+
+   UNCOVERED  src/Kernel/Factor/FactorStrength.php  > Line 19: IncrementInteger - ID: 977a77d27fbbfd96
+
+   {
+       case Recovery = 0;
+       case Knowledge = 10;
+  -    case PossessionWeak = 20;
+  +    case PossessionWeak = 21;
+       case Possession = 30;
+       case PossessionStrong = 40;
+       public function atLeast(self $minimum): bool
+  
+
+   UNCOVERED  src/Kernel/Factor/FactorStrength.php  > Line 20: DecrementInteger - ID: 41a7f212ace21ef2
+
+       case Recovery = 0;
+       case Knowledge = 10;
+       case PossessionWeak = 20;
+  -    case Possession = 30;
+  +    case Possession = 29;
+       case PossessionStrong = 40;
+       public function atLeast(self $minimum): bool
+       {
+  
+
+   UNCOVERED  src/Kernel/Factor/FactorStrength.php  > Line 20: IncrementInteger - ID: aad26844b4d35883
+
+       case Recovery = 0;
+       case Knowledge = 10;
+       case PossessionWeak = 20;
+  -    case Possession = 30;
+  +    case Possession = 31;
+       case PossessionStrong = 40;
+       public function atLeast(self $minimum): bool
+       {
+  
+
+   UNCOVERED  src/Kernel/Factor/FactorStrength.php  > Line 21: DecrementInteger - ID: c0ad9fe22d374f18
+
+       case Knowledge = 10;
+       case PossessionWeak = 20;
+       case Possession = 30;
+  -    case PossessionStrong = 40;
+  +    case PossessionStrong = 39;
+       public function atLeast(self $minimum): bool
+       {
+           return $this->value >= $minimum->value;
+       }
+   }
+  
+
+   UNCOVERED  src/Kernel/Factor/FactorStrength.php  > Line 21: IncrementInteger - ID: 2da20d9a62ba2293
+
+       case Knowledge = 10;
+       case PossessionWeak = 20;
+       case Possession = 30;
+  -    case PossessionStrong = 40;
+  +    case PossessionStrong = 41;
+       public function atLeast(self $minimum): bool
+       {
+           return $this->value >= $minimum->value;
+       }
+   }
+  
+
+   UNCOVERED  src/Kernel/Attempt/TransitionRules.php  > Line 10: RemoveArrayItem - ID: 6128e4c9e54e7c99
+
+   
+   final class TransitionRules
+   {
+  -    private const TERMINAL = [AttemptState::Authenticated->value, AttemptState::RegistrationRequired->value, AttemptState::Failed->value, AttemptState::Locked->value];
+  +    private const TERMINAL = [AttemptState::RegistrationRequired->value, AttemptState::Failed->value, AttemptState::Locked->value];
+       /**
+        * Legal forward transitions. Failed and Locked are reachable from any live
+        * state and are added at check time rather than repeated in every row.
+  
+
+   UNCOVERED  src/Kernel/Attempt/TransitionRules.php  > Line 11: RemoveArrayItem - ID: 109e528544c2bf37
+
+   
+   final class TransitionRules
+   {
+  -    private const TERMINAL = [AttemptState::Authenticated->value, AttemptState::RegistrationRequired->value, AttemptState::Failed->value, AttemptState::Locked->value];
+  +    private const TERMINAL = [AttemptState::Authenticated->value, AttemptState::Failed->value, AttemptState::Locked->value];
+       /**
+        * Legal forward transitions. Failed and Locked are reachable from any live
+        * state and are added at check time rather than repeated in every row.
+  
+
+   UNCOVERED  src/Kernel/Attempt/TransitionRules.php  > Line 12: RemoveArrayItem - ID: c675d5b06becda5c
+
+   
+   final class TransitionRules
+   {
+  -    private const TERMINAL = [AttemptState::Authenticated->value, AttemptState::RegistrationRequired->value, AttemptState::Failed->value, AttemptState::Locked->value];
+  +    private const TERMINAL = [AttemptState::Authenticated->value, AttemptState::RegistrationRequired->value, AttemptState::Locked->value];
+       /**
+        * Legal forward transitions. Failed and Locked are reachable from any live
+        * state and are added at check time rather than repeated in every row.
+  
+
+   UNCOVERED  src/Kernel/Attempt/TransitionRules.php  > Line 13: RemoveArrayItem - ID: 9891e82264c623fc
+
+   
+   final class TransitionRules
+   {
+  -    private const TERMINAL = [AttemptState::Authenticated->value, AttemptState::RegistrationRequired->value, AttemptState::Failed->value, AttemptState::Locked->value];
+  +    private const TERMINAL = [AttemptState::Authenticated->value, AttemptState::RegistrationRequired->value, AttemptState::Failed->value];
+       /**
+        * Legal forward transitions. Failed and Locked are reachable from any live
+        * state and are added at check time rather than repeated in every row.
+  
+
+   UNCOVERED  src/Kernel/Attempt/TransitionRules.php  > Line 23: RemoveArrayItem - ID: ec72064eedc4eaf8
+
+        *
+        * @var array<string, list<AttemptState>>
+        */
+  -    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+  +    private const FORWARD = [AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+       public function allows(AttemptState $from, AttemptState $to): bool
+       {
+           if ($from === $to) {
+  
+
+   UNCOVERED  src/Kernel/Attempt/TransitionRules.php  > Line 24: RemoveArrayItem - ID: 41c988edf5e9e99b
+
+        *
+        * @var array<string, list<AttemptState>>
+        */
+  -    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+  +    private const FORWARD = [AttemptState::Initiated->value => [], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+       public function allows(AttemptState $from, AttemptState $to): bool
+       {
+           if ($from === $to) {
+  
+
+   UNCOVERED  src/Kernel/Attempt/TransitionRules.php  > Line 26: RemoveArrayItem - ID: e591e63154a1ca3c
+
+        *
+        * @var array<string, list<AttemptState>>
+        */
+  -    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+  +    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+       public function allows(AttemptState $from, AttemptState $to): bool
+       {
+           if ($from === $to) {
+  
+
+   UNCOVERED  src/Kernel/Attempt/TransitionRules.php  > Line 27: RemoveArrayItem - ID: 440911e9bacccf52
+
+        *
+        * @var array<string, list<AttemptState>>
+        */
+  -    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+  +    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+       public function allows(AttemptState $from, AttemptState $to): bool
+       {
+           if ($from === $to) {
+  
+
+   UNCOVERED  src/Kernel/Attempt/TransitionRules.php  > Line 28: RemoveArrayItem - ID: 9eb5c122a320c3bf
+
+        *
+        * @var array<string, list<AttemptState>>
+        */
+  -    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+  +    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+       public function allows(AttemptState $from, AttemptState $to): bool
+       {
+           if ($from === $to) {
+  
+
+   UNCOVERED  src/Kernel/Attempt/TransitionRules.php  > Line 30: RemoveArrayItem - ID: df027354ddf27857
+
+        *
+        * @var array<string, list<AttemptState>>
+        */
+  -    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+  +    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+       public function allows(AttemptState $from, AttemptState $to): bool
+       {
+           if ($from === $to) {
+  
+
+   UNCOVERED  src/Kernel/Attempt/TransitionRules.php  > Line 31: RemoveArrayItem - ID: 1abf754fb5e63165
+
+        *
+        * @var array<string, list<AttemptState>>
+        */
+  -    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+  +    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+       public function allows(AttemptState $from, AttemptState $to): bool
+       {
+           if ($from === $to) {
+  
+
+   UNCOVERED  src/Kernel/Attempt/TransitionRules.php  > Line 33: RemoveArrayItem - ID: e54e1e652677b04a
+
+        *
+        * @var array<string, list<AttemptState>>
+        */
+  -    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+  +    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied]];
+       public function allows(AttemptState $from, AttemptState $to): bool
+       {
+           if ($from === $to) {
+  
+
+   UNCOVERED  src/Kernel/Attempt/TransitionRules.php  > Line 34: RemoveArrayItem - ID: 4cca69ccc1cefd95
+
+        *
+        * @var array<string, list<AttemptState>>
+        */
+  -    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+  +    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::Authenticated]];
+       public function allows(AttemptState $from, AttemptState $to): bool
+       {
+           if ($from === $to) {
+  
+
+   UNCOVERED  src/Kernel/Attempt/TransitionRules.php  > Line 35: RemoveArrayItem - ID: bc4e33a77a2c6ae2
+
+        *
+        * @var array<string, list<AttemptState>>
+        */
+  -    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending, AttemptState::Authenticated]];
+  +    private const FORWARD = [AttemptState::Initiated->value => [AttemptState::Identified], AttemptState::Identified->value => [AttemptState::FactorPending, AttemptState::RegistrationRequired], AttemptState::FactorPending->value => [AttemptState::FactorSatisfied], AttemptState::FactorSatisfied->value => [AttemptState::FactorPending]];
+       public function allows(AttemptState $from, AttemptState $to): bool
+       {
+           if ($from === $to) {
+  
+
+   UNTESTED  src/Kernel/Attempt/TransitionRules.php  > Line 42: RemoveEarlyReturn - ID: dd11f652d6a18bca
+
+       public function allows(AttemptState $from, AttemptState $to): bool
+       {
+           if ($from === $to) {
+  -            return false;
+  +            
+           }
+           if ($this->isTerminal($from)) {
+               return false;
+  
+
+   UNTESTED  src/Kernel/Satisfiability/SatisfiabilityEvaluator.php  > Line 24: UnwrapArrayValues - ID: 7bdd671ce57f0cf3
+
+           // Recovery grants a restricted recovery-grace session (spec §7.3); it never
+           // contributes to a policy. Filtered here rather than relying on strength
+           // ordering, so a policy with no minimum strength still cannot accept it.
+  -        $eligible = array_values(array_filter($satisfied, static fn(SatisfiedFactor $factor): bool => $factor->strength !== FactorStrength::Recovery));
+  +        $eligible = array_filter($satisfied, static fn(SatisfiedFactor $factor): bool => $factor->strength !== FactorStrength::Recovery);
+           // The search is depth-first and lazy: the first complete assignment wins and
+           // nothing beyond it is ever built. Materialising every assignment first cost
+           // 11.4 MB for 5 requirements over 10 factors and died outright at 6 over 12,
+  
+
+   UNCOVERED  src/Kernel/Satisfiability/SatisfiabilityEvaluator.php  > Line 52: TrueToFalse - ID: 39b55ec647f6f8f5
+
+        */
+       private function solve(Requirement $requirement, array $pool, array $chosen, array $scopes): iterable
+       {
+  -        return match (true) {
+  +        return match (false) {
+               $requirement instanceof FactorRequirement => $this->solveLeaf($requirement, $pool, $chosen, $scopes),
+               $requirement instanceof AnyOf => $this->solveAnyOf($requirement, $pool, $chosen, $scopes),
+               $requirement instanceof AllOf => $this->solveAllOf($requirement, $pool, $chosen, $scopes),
+  
+
+  Mutations: 5 untested, 26 uncovered, 205 tested
+  Score:     86.86%
+  Duration:  161.87s
+
