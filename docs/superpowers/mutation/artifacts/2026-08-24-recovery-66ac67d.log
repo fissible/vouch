@@ -1,0 +1,74 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  .....................
+
+  Tests:    1161 passed (4092 assertions)
+  Duration: 30.52s
+
+  Mutating application files...
+  [90m43 Mutations for 2 Files created[39m
+
+  [39;100;1m RUN [39;49;22m src/Recovery/GraceGuard.php
+  [32;1m✓[39;22m [90mLine 43: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 44: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 46: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 47: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 47: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 48: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 49: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 50: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 51: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 52: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 63: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 64: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 64: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 64: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 64: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 64: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 64: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 67: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 67: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 74: AlwaysReturnNull[39m
+  [32;1m✓[39;22m [90mLine 95: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 101: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 102: RemoveArrayItem[39m
+
+  [39;100;1m RUN [39;49;22m src/Recovery/GraceController.php
+  [32;1m✓[39;22m [90mLine 35: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 37: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 37: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 38: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 38: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 38: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 38: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 41: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 41: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 41: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 47: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 49: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 49: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 50: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 50: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 50: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 50: RemoveEarlyReturn[39m
+  [32;1m✓[39;22m [90mLine 53: DecrementInteger[39m
+  [32;1m✓[39;22m [90mLine 53: IncrementInteger[39m
+  [32;1m✓[39;22m [90mLine 53: RemoveArrayItem[39m
+  [90mMutations:[39m [32;1m43 tested[39;22m
+[39m  [39m[90mScore:[39m[39m     [39m[39m100.00%[39m
+[39m  [39m[90mDuration:[39m[39m  [39m[39m21.92s[39m
+

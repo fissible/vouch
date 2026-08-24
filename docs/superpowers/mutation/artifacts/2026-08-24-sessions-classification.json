@@ -1,0 +1,90 @@
+[
+    {
+        "state": "UNTESTED",
+        "file": "src/Sessions/SessionRotationFailed.php",
+        "line": 24,
+        "mutator": "ConcatRemoveLeft",
+        "id": "1e1909990d210867",
+        "expression": "'Vouch could not record the rotated session. The regenerated host session has '",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Sessions/SessionRotationFailed.php",
+        "line": 24,
+        "mutator": "ConcatRemoveLeft",
+        "id": "b5c9658042c66e43",
+        "expression": "'Vouch could not record the rotated session. The regenerated host session has '",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Sessions/SessionRotationFailed.php",
+        "line": 24,
+        "mutator": "ConcatRemoveRight",
+        "id": "2925bbcfcb243ee3",
+        "expression": "'Vouch could not record the rotated session. The regenerated host session has '",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Sessions/SessionRotationFailed.php",
+        "line": 24,
+        "mutator": "ConcatRemoveRight",
+        "id": "663108f87d7850be",
+        "expression": "'Vouch could not record the rotated session. The regenerated host session has '",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Sessions/SessionRotationFailed.php",
+        "line": 24,
+        "mutator": "ConcatSwitchSides",
+        "id": "bfe9e31ee08a6c95",
+        "expression": "'Vouch could not record the rotated session. The regenerated host session has '",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Sessions/SessionRotationFailed.php",
+        "line": 24,
+        "mutator": "ConcatSwitchSides",
+        "id": "0542b3c62c814a93",
+        "expression": "'Vouch could not record the rotated session. The regenerated host session has '",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Sessions/SessionRotationFailed.php",
+        "line": 27,
+        "mutator": "DecrementInteger",
+        "id": "dd995c1e9fbbec82",
+        "expression": "0,",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Sessions/SessionRotationFailed.php",
+        "line": 27,
+        "mutator": "IncrementInteger",
+        "id": "caf7632c28b9b279",
+        "expression": "0,",
+        "disposition": "executed-and-survived",
+        "coverage": "unmapped",
+        "contested": true
+    }
+]

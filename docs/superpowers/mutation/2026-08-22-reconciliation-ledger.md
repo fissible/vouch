@@ -143,11 +143,11 @@ Core sub-runs are deliberately itemized because routing breadth makes one
 | Jobs | 1 | measured: 13 mutations; 8 tested, 3 untested, 2 uncovered; 0 timeouts |
 | Models | 15 | pending; expected high routing breadth |
 | Persistence | 3 | pending |
-| Recovery | 2 | pending |
-| Secrets | 2 | pending |
-| Sessions | 5 | pending |
+| Recovery | 2 | measured: 43 mutations; 43 tested, 0 untested, 0 uncovered, 0 timeouts |
+| Secrets | 2 | measured: 17 mutations; 5 tested, 12 untested, 0 uncovered, 0 timeouts |
+| Sessions | 5 | measured: 46 mutations; 38 tested, 8 untested, 0 uncovered, 0 timeouts |
 | Support | 6 | measured: 119 mutations; 79 tested, 25 untested, 14 uncovered, 1 timeout |
-| Tenancy | 1 | pending |
+| Tenancy | 1 | measured: 0 mutations / 1 zero-mutant file |
 | root (`Vouch.php`, `VouchServiceProvider.php`) | 2 | pending |
 
 The assignment covers all 162 source files and therefore cannot silently omit
@@ -451,6 +451,67 @@ as unexplained uncovered rows.
   `52213ced456e484d25003c75ff6b22feac063c79618da4c5fc32dbee67325ffa`) and
   `artifacts/2026-08-24-enrollment-classification.json` (SHA-256
   `65d651fed95014c3be72c8c491806447f1a974ca950a4789c6f21e6db07c6976`).
+
+### Core / Recovery
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Recovery --no-cache --min=0`
+- SHA/source-equivalence guard: `dff29e8`, with no guarded-path diff from
+  `66ac67d` immediately before the run.
+- Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 30.52s;
+  timeout threshold 36.62s.
+- Result: 43 mutations / 2 RUN files; 43 tested, 0 untested, 0 uncovered,
+  0 timeouts; elapsed 21.92s; verified score 100.00%.
+- The seven-sub-run zero-gap prediction held: no coverage-negative rows or
+  survivors were emitted.
+- Artifacts: `artifacts/2026-08-24-recovery-66ac67d.log` (SHA-256
+  `5fc4f1b5db01da67fabba42ec58ea979a0c4bf99b316ec18bb2a6bf402c426df`) and
+  `artifacts/2026-08-24-recovery-classification.json` (SHA-256
+  `37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570`).
+
+### Core / Secrets
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Secrets --no-cache --min=0`
+- SHA/source-equivalence guard: `dff29e8`, with no guarded-path diff from
+  `66ac67d` immediately before the run.
+- Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 30.71s;
+  timeout threshold 36.85s.
+- Result: 17 mutations / 2 RUN files; 5 tested, 12 untested, 0 uncovered,
+  0 timeouts; elapsed 6.09s; verified score 29.41%.
+- All 12 survivors are exception-message concatenations in `OneTimeSecret`
+  and `SecretAlreadyRevealed`; they join the standing message-prose ruling.
+  The union map marks their lines unmapped, but plugin `UNTESTED` state takes
+  precedence and they remain executed-and-survived (contested).
+- Artifacts: `artifacts/2026-08-24-secrets-66ac67d.log` (SHA-256
+  `52537f20daac7a4ef20feaccc7f606fefda4a7a43a9b7392706f43a84cb56e2c`) and
+  `artifacts/2026-08-24-secrets-classification.json` (SHA-256
+  `01a4a5df55aa6dca01ffa4e0c9b8d17608e13cdd65d1da1f186c4ba20e5037bc`).
+
+### Core / Sessions
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Sessions --no-cache --min=0`
+- SHA/source-equivalence guard: `dff29e8`, with no guarded-path diff from
+  `66ac67d` immediately before the run.
+- Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 30.58s;
+  timeout threshold 36.70s.
+- Result: 46 mutations / 3 RUN files; 38 tested, 8 untested, 0 uncovered,
+  0 timeouts; elapsed 46.07s; verified score 82.61%.
+- The eight survivors are all concatenation/message-prose rows in
+  `SessionRotationFailed`; they join the standing message-prose ruling.
+- Artifacts: `artifacts/2026-08-24-sessions-66ac67d.log` (SHA-256
+  `a0d5d76fb566df3c5fecac12c2566058d692468ec78fd4d82c8bd13c2894886c`) and
+  `artifacts/2026-08-24-sessions-classification.json` (SHA-256
+  `8e7d82dadefad7c09b871d948d2a7c24d6a4324972744de77799277b205964f1`).
+
+### Core / Tenancy
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Tenancy --no-cache --min=0`
+- SHA/source-equivalence guard: `dff29e8`, with no guarded-path diff from
+  `66ac67d` immediately before the run.
+- Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 30.80s.
+- Result: 0 mutations / 0 RUN files; the assigned tenancy file is retained as
+  explicit zero-mutant evidence.
+- Artifact: `artifacts/2026-08-24-tenancy-66ac67d.log` (SHA-256
+  `3d623f547577a712eef3e101c1f11b8aac559d70f0729c8ebb988ab93c000f92`).
 
 ### Queued mechanism ruling: console contracts
 

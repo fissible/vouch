@@ -1,0 +1,167 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  .....................
+
+  Tests:    1161 passed (4092 assertions)
+  Duration: 30.58s
+
+  Mutating application files...
+  [90m46 Mutations for 3 Files created[39m
+
+  [39;100;1m RUN [39;49;22m src/Sessions/SessionLifecycle.php
+  [32;1m✓[39;22m [90mLine 38: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 46: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 47: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 47: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 49: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 50: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 51: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 52: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 58: RemoveMethodCall[39m
+  [32;1m✓[39;22m [90mLine 78: RemoveArrayItem[39m
+  [32;1m✓[39;22m [90mLine 78: RemoveArrayItem[39m
+
+  [39;100;1m RUN [39;49;22m src/Sessions/SessionBinding.php
+  [32;1m✓[39;22m [90mLine 35: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 35: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 35: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 35: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 35: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 35: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 48: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 48: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 54: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 54: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 54: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 54: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 54: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 54: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 56: ForeachEmptyIterable[39m
+  [32;1m✓[39;22m [90mLine 57: ConcatEqualToEqual[39m
+  [32;1m✓[39;22m [90mLine 57: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 57: ConcatRemoveLeft[39m
+  [32;1m✓[39;22m [90mLine 57: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 57: ConcatRemoveRight[39m
+  [32;1m✓[39;22m [90mLine 57: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 57: ConcatSwitchSides[39m
+  [32;1m✓[39;22m [90mLine 67: IfNegated[39m
+  [32;1m✓[39;22m [90mLine 67: IdenticalToNotIdentical[39m
+  [32;1m✓[39;22m [90mLine 67: BooleanOrToBooleanAnd[39m
+  [32;1m✓[39;22m [90mLine 67: RemoveNot[39m
+  [32;1m✓[39;22m [90mLine 67: EmptyStringToNotEmpty[39m
+
+  [39;100;1m RUN [39;49;22m src/Sessions/SessionRotationFailed.php
+  [31;1m⨯[39;22m [90mLine 24: ConcatRemoveLeft[39m
+  [31;1m⨯[39;22m [90mLine 24: ConcatRemoveLeft[39m
+  [31;1m⨯[39;22m [90mLine 24: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 24: ConcatRemoveRight[39m
+  [31;1m⨯[39;22m [90mLine 24: ConcatSwitchSides[39m
+  [31;1m⨯[39;22m [90mLine 24: ConcatSwitchSides[39m
+  [31;1m⨯[39;22m [90mLine 27: DecrementInteger[39m
+  [31;1m⨯[39;22m [90mLine 27: IncrementInteger[39m
+  [39;41;1m UNTESTED [39;49;22m [39;1msrc/Sessions/SessionRotationFailed.php [39;22m[90m > Line 24: ConcatRemoveLeft - ID: 1e1909990d210867[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function after(Throwable $previous): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self('Vouch could not record the rotated session. The regenerated host session has ' . 'been destroyed and authentication refused, because a guard-authenticated ' . 'session with no vouch record is worse than a failed login.', 0, $previous);[39m[39;1m
+  [39;22m[32m+        return new self('been destroyed and authentication refused, because a guard-authenticated ' . 'session with no vouch record is worse than a failed login.', 0, $previous);[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Sessions/SessionRotationFailed.php [39;22m[90m > Line 24: ConcatRemoveLeft - ID: b5c9658042c66e43[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function after(Throwable $previous): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self('Vouch could not record the rotated session. The regenerated host session has ' . 'been destroyed and authentication refused, because a guard-authenticated ' . 'session with no vouch record is worse than a failed login.', 0, $previous);[39m[39;1m
+  [39;22m[32m+        return new self('session with no vouch record is worse than a failed login.', 0, $previous);[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Sessions/SessionRotationFailed.php [39;22m[90m > Line 24: ConcatRemoveRight - ID: 2925bbcfcb243ee3[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function after(Throwable $previous): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self('Vouch could not record the rotated session. The regenerated host session has ' . 'been destroyed and authentication refused, because a guard-authenticated ' . 'session with no vouch record is worse than a failed login.', 0, $previous);[39m[39;1m
+  [39;22m[32m+        return new self('Vouch could not record the rotated session. The regenerated host session has ' . 'session with no vouch record is worse than a failed login.', 0, $previous);[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Sessions/SessionRotationFailed.php [39;22m[90m > Line 24: ConcatRemoveRight - ID: 663108f87d7850be[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function after(Throwable $previous): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self('Vouch could not record the rotated session. The regenerated host session has ' . 'been destroyed and authentication refused, because a guard-authenticated ' . 'session with no vouch record is worse than a failed login.', 0, $previous);[39m[39;1m
+  [39;22m[32m+        return new self('Vouch could not record the rotated session. The regenerated host session has ' . 'been destroyed and authentication refused, because a guard-authenticated ', 0, $previous);[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Sessions/SessionRotationFailed.php [39;22m[90m > Line 24: ConcatSwitchSides - ID: bfe9e31ee08a6c95[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function after(Throwable $previous): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self('Vouch could not record the rotated session. The regenerated host session has ' . 'been destroyed and authentication refused, because a guard-authenticated ' . 'session with no vouch record is worse than a failed login.', 0, $previous);[39m[39;1m
+  [39;22m[32m+        return new self('been destroyed and authentication refused, because a guard-authenticated ' . 'Vouch could not record the rotated session. The regenerated host session has ' . 'session with no vouch record is worse than a failed login.', 0, $previous);[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Sessions/SessionRotationFailed.php [39;22m[90m > Line 24: ConcatSwitchSides - ID: 0542b3c62c814a93[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function after(Throwable $previous): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self('Vouch could not record the rotated session. The regenerated host session has ' . 'been destroyed and authentication refused, because a guard-authenticated ' . 'session with no vouch record is worse than a failed login.', 0, $previous);[39m[39;1m
+  [39;22m[32m+        return new self('session with no vouch record is worse than a failed login.' . ('Vouch could not record the rotated session. The regenerated host session has ' . 'been destroyed and authentication refused, because a guard-authenticated '), 0, $previous);[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Sessions/SessionRotationFailed.php [39;22m[90m > Line 27: DecrementInteger - ID: dd995c1e9fbbec82[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function after(Throwable $previous): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self('Vouch could not record the rotated session. The regenerated host session has ' . 'been destroyed and authentication refused, because a guard-authenticated ' . 'session with no vouch record is worse than a failed login.', 0, $previous);[39m[39;1m
+  [39;22m[32m+        return new self('Vouch could not record the rotated session. The regenerated host session has ' . 'been destroyed and authentication refused, because a guard-authenticated ' . 'session with no vouch record is worse than a failed login.', -1, $previous);[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[39;41;1m UNTESTED [39;49;22m[39;1m [39;22m[39;1msrc/Sessions/SessionRotationFailed.php [39;22m[90m > Line 27: IncrementInteger - ID: caf7632c28b9b279[39m
+[39;1m
+  [39;22m[90m {[39m[39;1m
+  [39;22m[90m     public static function after(Throwable $previous): self[39m[39;1m
+  [39;22m[90m     {[39m[39;1m
+  [39;22m[31m-        return new self('Vouch could not record the rotated session. The regenerated host session has ' . 'been destroyed and authentication refused, because a guard-authenticated ' . 'session with no vouch record is worse than a failed login.', 0, $previous);[39m[39;1m
+  [39;22m[32m+        return new self('Vouch could not record the rotated session. The regenerated host session has ' . 'been destroyed and authentication refused, because a guard-authenticated ' . 'session with no vouch record is worse than a failed login.', 1, $previous);[39m[39;1m
+  [39;22m[90m     }[39m[39;1m
+  [39;22m[90m }[39m[39;1m
+  [39;22m[39;1m
+[39;22m
+[39;1m  [39;22m[90mMutations:[39m[39;1m [39;22m[31;1m8 untested[39;22m[90m,[39m[39m [39m[32;1m38 tested[39;22m
+[39m  [39m[90mScore:[39m[39m     [39m[39m82.61%[39m
+[39m  [39m[90mDuration:[39m[39m  [39m[39m46.07s[39m
+
