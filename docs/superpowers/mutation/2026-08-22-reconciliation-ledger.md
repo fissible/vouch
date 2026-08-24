@@ -83,7 +83,10 @@ are absent from all three maps. Their future `UNCOVERED` rows are therefore
 - Record the exact SHA (`66ac67d`) and the plugin timeout threshold in every
   chunk artifact.
 - Report verified kills separately from untested, uncovered, and timeout rows.
-  A timeout is unresolved until rerun under the recorded conditions.
+  A timeout is unresolved until rerun under the recorded conditions. Reruns
+  distinguish structural non-termination (source-decidable), bounded-but-slow
+  execution (a kill once the targeted test completes), and genuinely
+  environmental timing noise.
 - Do not land tests or source changes revealed while ruling chunks. Queue them
   and apply them only after all chunks have been measured, followed by one
   confirming full run at a new, explicitly recorded SHA.
@@ -149,6 +152,12 @@ authoritative subset will be the intersection of this inventory with the
 must replace the provisional total with that sum before reconciliation can
 close. Zero-mutant files are retained here as explicit zero-mutant evidence
 rather than disappearing from the ledger.
+
+The pending zero-gap confidence check covers seven sub-runs and 32 files:
+Attempts, Contracts, Enrollment, Recovery, Secrets, Sessions, and Tenancy.
+The union predicts no never-executed rows in those scopes; any uncovered rows
+should be instrument-unroutable, with substantive findings appearing only as
+executed survivors.
 
 ## Valid measurements
 
@@ -385,14 +394,17 @@ as unexplained uncovered rows.
 - Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 31.46s;
   timeout threshold 37.75s.
 - Result: 119 mutations / 4 RUN files; 79 tested, 25 untested, 14
-  uncovered, 1 timeout; elapsed 309.14s; verified score 66.39% excluding the
-  unresolved timeout.
+  uncovered, 1 timeout; elapsed 309.14s; verified score 67.23% after resolving
+  the bounded-but-slow timeout below.
 - The 14 uncovered rows are genuine never-executed branches: the PostgreSQL
   rollback-restoration predicate in `BoundedLockWait`, plus the unsupported
   driver and scalar/timestamp fallback paths. No row was engine-gated by the
   union. The one timeout is `BoundedLockWait:65 RemoveMethodCall`; removing
-  `writeSeconds()` allows the real contention path to wait without its bound,
-  so it remains timeout-unresolved pending a deliberate ruling.
+  `writeSeconds()` allows the real contention path to wait for the ambient
+  47-second setting. A targeted rerun of the mutated source against
+  `BoundedLockWaitContentionTest` completed in 49.15s and failed its explicit
+  `<10s` assertion, so this is `killed-by-bounded-slow`, not an unresolved or
+  structural timeout.
 - The 25 executed survivors include exception-message fragments (covered by
   the standing message-prose rule), the `DatabaseRowLock` predicate-building
   rows at lines 31–32, and behavioral/cast rows in `BoundedLockWait` and
