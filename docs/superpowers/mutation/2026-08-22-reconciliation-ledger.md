@@ -142,7 +142,7 @@ Core sub-runs are deliberately itemized because routing breadth makes one
 | Http | 7 | measured: 167 mutations; 140 tested, 18 untested, 9 uncovered, 0 timeouts |
 | Jobs | 1 | measured: 13 mutations; 8 tested, 3 untested, 2 uncovered; 0 timeouts |
 | Models | 15 | pending; expected high routing breadth |
-| Persistence | 3 | pending |
+| Persistence | 3 | measured: 42 mutations; 9 tested, 30 untested, 3 never-executed, 0 timeouts |
 | Recovery | 2 | measured: 43 mutations; 43 tested, 0 untested, 0 uncovered, 0 timeouts |
 | Secrets | 2 | measured: 17 mutations; 5 tested, 12 untested, 0 uncovered, 0 timeouts |
 | Sessions | 5 | measured: 46 mutations; 38 tested, 8 untested, 0 uncovered, 0 timeouts |
@@ -587,6 +587,26 @@ as unexplained uncovered rows.
   `74f65c6672e2056796b85df73018f64889415f0b1599ce08029dc1c83db094bd`) and
   `artifacts/2026-08-24-http-classification.json` (SHA-256
   `49d662d7b2976cb6a778f13348a1b129bb18c9fa547ffc235bd1802377045852`).
+
+### Core / Persistence
+
+- Literal command: `vendor/bin/pest --mutate --path=src/Persistence --no-cache --min=0`
+- SHA/source-equivalence guard: `fba0833`, with no guarded-path diff from
+  `66ac67d` immediately before the run.
+- Baseline: 1,161 tests, 4,092 assertions, file-backed SQLite, 31.94s;
+  timeout threshold 38.33s.
+- Result: 42 mutations / 3 RUN files; 9 tested, 30 untested, 3
+  never-executed, 0 timeouts; elapsed 21.97s; verified score 21.43%.
+- The three never-executed rows are the `ChallengeTargetViolation::decoyNamedTarget()`
+  message concatenations. The guard's bare throw at `GuardsChallengeTarget`
+  remains mutation-invisible; together they are the decoy-named-target
+  security contract and should be covered by one focused test rather than
+  inferred from the mutation score. The other 30 survivors are exception
+  message prose and join the standing no-action ruling.
+- Artifacts: `artifacts/2026-08-24-persistence-66ac67d.log` (SHA-256
+  `3c99d9fbb24dfabc695094b387fd7b7730c04273b092a01df05f3acc66b0c31e`) and
+  `artifacts/2026-08-24-persistence-classification.json` (SHA-256
+  `2bac85515813fbab7965a515764f89a6c907a09d33e121b5ac5e55dc2e7386aa`).
 
 ### Queued mechanism ruling: console contracts
 
