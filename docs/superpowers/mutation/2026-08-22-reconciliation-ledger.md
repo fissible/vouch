@@ -833,5 +833,12 @@ actionable test-design set; equivalent rows are not queued as test requests.
 
 Reconciliation is complete only after every assigned mutant-bearing file has a
 non-compact `RUN` membership, every emitted row has a stable disposition, all
-timeouts are separately resolved, queued tests have been applied, and a final
-full run at the post-test SHA confirms the resulting ledger.
+timeouts are separately resolved, and queued tests have been applied. The
+closing confirmation is a sequence of non-compact, path-scoped chunk runs at
+one explicitly recorded post-test SHA; a parallel compact invocation is
+smoke-only because it cannot provide the `RUN` headings and row identities the
+ledger requires. Before that sequence, regenerate the three-engine coverage
+union at the same SHA and compare it with the preceding union. Re-measure every
+chunk whose covered-line set changed; retain an explicit, evidence-backed
+exclusion record for unchanged chunks. The final chunk artifacts and union
+must together confirm the resulting ledger.
