@@ -96,6 +96,28 @@ rerun at this SHA. The old line set remains the classifier input for the
 historical artifacts; the new union must be emitted alongside the new logs
 before post-test dispositions are claimed.
 
+### Post-flake-fix routing check
+
+The CAPTCHA discriminator timing fix is committed at `62e51eb`; `77b257a` adds
+ledger documentation only, so the guarded source-and-test tree is
+source-equivalent to `62e51eb`. The three full-suite maps were regenerated at
+that state:
+
+| engine | result | Clover SHA-256 |
+|---|---|---|
+| file-backed SQLite | 1,171 passed / 4,108 assertions / 32.20s | `bda3beec044f7099e0b442131868f02e84b3e912498b279df34856554157f820` |
+| MySQL 8 | 1,171 passed / 4,110 assertions / 67.69s | `54990cb0a19151d5770fc7a5251cd1b4bd539b01fc39134aad0ae60aef923d4c` |
+| PostgreSQL 16 | 1,171 passed / 4,112 assertions / 69.82s | `ee1dd9f752333327a1c3c0d1a05733bb4b6b7fff52ffa82379eefd8e7323f673` |
+
+The emitted union contains 3,843 lines and has SHA-256
+`5408eb4fed643e96d9d4eb16bcb548106e10bc2b86b1fc9c890268c89e459313`, byte
+identical to `artifacts/2026-08-24-confirmation-union-lines.txt`. Therefore
+the backoff-only test change did not alter the covered-line set. Its durable
+maps and union are retained as `artifacts/2026-08-24-post-62e51eb-*`. The
+closing mutation sweep may consequently exclude unchanged chunks by evidence;
+Throttle and Flow remain the affected candidates, with each exclusion recorded
+against this unchanged union rather than inferred from elapsed cost.
+
 ### Factors confirmation at the post-test SHA
 
 The authoritative rerun used the exact baseline scope and literal command:
