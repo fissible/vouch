@@ -8,6 +8,10 @@ use Fissible\Vouch\Contracts\CaptchaVerifier;
 use Fissible\Vouch\Contracts\DeliveryEconomics;
 use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Models\AuthIdentifier;
+use Fissible\Vouch\Notifications\OtpQueueDispatcher;
+use Fissible\Vouch\Support\DatabaseTime;
+use Illuminate\Contracts\Queue\Factory as QueueFactory;
+use Illuminate\Queue\SyncQueue;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -135,4 +139,33 @@ it('renders the human-readable prerequisite table', function (): void {
         ->toContain('durable_queue')
         ->toContain('DeliveryEconomics')
         ->not->toContain('{"missing"');
+});
+
+it('returns literal exit 2 and reports an unguarded prerequisite failure', function (): void {
+    app()->bind(OtpDelivery::class, fn (): never => throw new RuntimeException('doctor delivery boom'));
+
+    expect(Artisan::call('vouch:doctor', ['--json' => true]))->toBe(2)
+        ->and(Artisan::output())->toContain('Vouch doctor could not complete: doctor delivery boom');
+});
+
+it('marks a guarded queue check missing without triggering diagnostic failure', function (): void {
+    app()->instance(OtpQueueDispatcher::class, new OtpQueueDispatcher(
+        new class implements QueueFactory {
+            public function connection($connection = null): \Illuminate\Contracts\Queue\Queue
+            {
+                return new SyncQueue(app());
+            }
+        },
+        app(DatabaseTime::class),
+        'sync',
+        'default',
+    ));
+
+    try {
+        expect(Artisan::call('vouch:doctor', ['--json' => true]))->toBe(CommandExit::Failure->value)
+            ->and(json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR)['prerequisites'][2])
+            ->toBe(['prerequisite' => 'durable_queue', 'status' => 'missing']);
+    } finally {
+        app()->forgetInstance(OtpQueueDispatcher::class);
+    }
 });
