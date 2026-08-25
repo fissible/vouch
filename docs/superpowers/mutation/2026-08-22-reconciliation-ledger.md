@@ -96,14 +96,20 @@ rerun at this SHA. The old line set remains the classifier input for the
 historical artifacts; the new union must be emitted alongside the new logs
 before post-test dispositions are claimed.
 
-### Invalid confirmation attempt
+### Factors confirmation at the post-test SHA
 
-The first post-test Factors attempt was scoped to `src/Factors/Drivers`, while
-the baseline Factors chunk was the full `src/Factors` scope. Its 435 mutations
-are not comparable with the baseline 485 and its result is discarded. The
-correct confirmation must use the full scope, assert positive mutation count
-and RUN membership against the ten baseline mutant-bearing files, and retain
-the literal command plus non-compact log before any Tier 2 result is recorded.
+The authoritative rerun used the exact baseline scope and literal command:
+`VOUCH_SQLITE_PATH=/tmp/vouch-confirm.sqlite vendor/bin/pest --mutate
+--path=src/Factors --no-cache --min=0 --colors=never`. It generated 485
+mutations across the same ten RUN files. The retained log is
+`artifacts/2026-08-24-factors-confirmation-c0d4677.log` (SHA-256
+`8568b4904e558f30870a40c01c6043bf8916fc9a353133cc5ac74fa9c2b5e63e`).
+
+Result: 402 tested, 80 untested, 0 uncovered, and 3 structural timeouts.
+Against the baseline's 395 tested, 80 untested, 6 uncovered, and 4 timeouts,
+the six Tier 2 target rows are killed and one additional coverage/timeout row
+also moves. The earlier 435-mutation `src/Factors/Drivers` run was narrower
+and remains discarded.
 
 ### Additional disposition
 
