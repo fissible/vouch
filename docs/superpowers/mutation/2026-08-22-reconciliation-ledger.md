@@ -402,6 +402,18 @@ log/classification SHA-256
 `0ed63292e5983d77b489cb3173ef82abd24e56c79f70e4af203405cc027a92fd` /
 `d0d0378d8a373eceb343a0b6333d2766c39dbebe4a0aa6079ba24b84ff4b0edd`.
 
+The first isolated follow-up batch (`57cc122`) added deterministic backoff
+schedule assertions. Its Throttle rerun still reports 865 mutations / 7 RUN
+files, 735 tested, 90 untested, 40 uncovered, and 0 timeouts. The baseline row
+diff is empty: the test executes the schedule but does not yet discriminate the
+survivors. `DatabaseAuthThrottleStore:638` therefore remains queued until the
+window-clamp case is confirmed in a subsequent rerun; `:642` is equivalent
+under the validated `min($delay, $cap)` arithmetic because `<` and `<=` produce
+the same capped delay. `DatabaseAuthThrottleStore:657` is likewise a
+language-semantic equivalent: PHP parses `modify('5 seconds')` and
+`modify('+5 seconds')` identically. The follow-up clamp assertion is committed
+separately as `a438e33` and requires its own baseline diff.
+
 ### Kernel
 
 - Literal command: `vendor/bin/pest --mutate --path=src/Kernel --no-cache --min=0`
