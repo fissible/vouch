@@ -460,6 +460,14 @@ it('treats absent and expired shared counters according to their dimension', fun
     'global is observed' => [ThrottleDimension::Global, SharedThrottle::observed()],
 ]);
 
+it('permits an expired recovery counter when recording a failure', function (): void {
+    $subject = scalarThrottleSubject(ThrottleDimension::Recovery, 13);
+    seedScalarCounter($subject, 100, ageSeconds: 900);
+
+    expect(scalarThrottleStore()->recordRecoveryFailure($subject))
+        ->toEqual(SharedThrottle::permitted());
+});
+
 it('recreates a counter deleted after each optimistic existence read', function (
     ThrottleDimension $dimension,
 ): void {
