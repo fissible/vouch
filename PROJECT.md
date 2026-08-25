@@ -9,6 +9,12 @@ fresh session with no prior context.
 sub-projects; **2.1 (persistence foundation) complete 2026-08-12**. Next: plan 2.2,
 factor drivers.
 
+### Current mutation-reconciliation handoff — 2026-08-24
+
+Resume from [`docs/superpowers/mutation/2026-08-22-reconciliation-ledger.md`](docs/superpowers/mutation/2026-08-22-reconciliation-ledger.md), not from the older phase summaries below. The current source/test state is pinned at `62e51eb`; the closing Flow/Throttle sweep is committed as `3210dad`, and the classifier tooling is at `3ecbc2e`. Every follow-up test batch must be remeasured with the classifier's `--baseline` row-identity diff.
+
+Outstanding batches are: deterministic `backoffOffsetFrom()` arithmetic; SQLite/MySQL/PostgreSQL driver-dispatch tests for `DatabaseAuthThrottleStore:409` and `:662`; the Recovery branch at `:583`; Delivery reservation-contract rows `:88`, `:137`, `:154`, `:197`, and `:57`; and the grouped console/jobs output, exit-code, retry, and missing-evidence tests. A non-blocking PostgreSQL/MySQL lock probe remains to validate load-bearing locks where `FOR UPDATE` emits SQL.
+
 ---
 
 ## What this is
