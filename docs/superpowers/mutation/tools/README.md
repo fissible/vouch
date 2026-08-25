@@ -65,6 +65,14 @@ stable aggregate can hide a survivor replacing a kill, while a row diff makes
 both directions explicit. JSON mode returns `{rows, baseline_diff}` when this
 option is supplied.
 
+This tool's dispositions are evidence-driven and have been corrected three
+times by real measurements: plugin state now outranks conflicting line
+coverage for `UNTESTED` rows; timeout glyphs are recovered positionally from
+their `RUN` heading; and confirmation changes are compared by row identity
+rather than aggregate counts. Those cases are part of the tool's authority
+boundary, not implementation trivia. A future classifier change must preserve
+their tests before its output is used as reconciliation evidence.
+
 ## Engine union
 
 A row is engine-gated only when another engine executes what the measuring
