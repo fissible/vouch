@@ -134,14 +134,6 @@ final readonly class DatabaseDeliveryEconomics implements DeliveryEconomics
                     ->where('spent_minor', '>=', $amount)
                     ->decrement('spent_minor', $amount, ['updated_at' => $this->time->now()]);
 
-                if ($updated !== 1) {
-                    $this->connection->table('auth_delivery_spend_reservations')
-                        ->where('id', $reservation->id)
-                        ->update(['released_at' => $this->time->now()]);
-
-                    continue;
-                }
-
                 $this->connection->table('auth_delivery_spend_reservations')
                     ->where('id', $reservation->id)
                     ->update(['released_at' => $this->time->now()]);

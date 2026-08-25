@@ -909,13 +909,15 @@ predicate at `:57`, the decoy/zero-cost/empty-key release predicate at `:88`,
 and the reservation-key guard at `:154`. The two-scope `continue` at `:197`
 and the four `:137` comparison mutants remain survivors.
 
-The `:137` survivors require a narrower disposition than the original
-reservation-contract ruling. `updated` is the row count from an update keyed
-by a unique spend-row id, so the reachable values are zero or one; the
-comparison mutants that distinguish two or otherwise invert the zero/one
-case do not change observable state under that cardinality. This is
-equivalent-under-result-cardinality unless a future implementation changes
-the update shape. The `:197` survivor remains a real two-scope contract gap.
+The `:137` survivors are equivalent for a stronger source-level reason than
+cardinality. Both the failed-decrement branch and its fall-through execute
+the same `released_at` update, and the update is the last statement in the
+loop body; the conditional and its `continue` have no observable consequence.
+`IncrementInteger` is also independently inert because the keyed update can
+only report zero or one, but the other three mutants are equivalent because
+the two arms are duplicated. This is an equivalent-by-duplicated-branch
+finding with a queued source simplification, not a test request. The `:197`
+survivor remains a real two-scope contract gap.
 
 ### Full parallel smoke (non-authoritative)
 
