@@ -1,0 +1,535 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ...............................
+
+  Tests:    1171 passed (4108 assertions)
+  Duration: 32.12s
+
+  Mutating application files...
+  167 Mutations for 7 Files created
+
+   RUN  src/Http/FlowResultHandler.php
+  - Line 40: TrueToFalse
+  ✓ Line 41: InstanceOfToTrue
+  ✓ Line 41: InstanceOfToFalse
+  ✓ Line 43: InstanceOfToTrue
+  ✓ Line 43: InstanceOfToFalse
+  ✓ Line 51: InstanceOfToTrue
+  ✓ Line 51: InstanceOfToFalse
+  ✓ Line 59: RemoveMethodCall
+  ✓ Line 62: RemoveMethodCall
+  ✓ Line 69: RemoveMethodCall
+
+   RUN  src/Http/Middleware/RequireAssurance.php
+  ✓ Line 37: IfNegated
+  ✓ Line 38: RemoveEarlyReturn
+  ✓ Line 49: IfNegated
+  ✓ Line 49: IdenticalToNotIdentical
+  ✓ Line 49: BooleanOrToBooleanAnd
+  ✓ Line 49: RemoveNot
+  ✓ Line 49: EmptyStringToNotEmpty
+  ✓ Line 51: ConcatRemoveLeft
+  ✓ Line 51: ConcatRemoveLeft
+  ✓ Line 51: ConcatRemoveLeft
+  ⨯ Line 51: ConcatRemoveRight
+  ⨯ Line 51: ConcatRemoveRight
+  ⨯ Line 51: ConcatRemoveRight
+  ⨯ Line 51: ConcatSwitchSides
+  ⨯ Line 51: ConcatSwitchSides
+  ⨯ Line 51: ConcatSwitchSides
+  ✓ Line 68: RemoveMethodCall
+
+   RUN  src/Http/Middleware/ValidatesVouchSession.php
+  ✓ Line 35: IfNegated
+  ✓ Line 35: RemoveNot
+  ✓ Line 36: RemoveEarlyReturn
+  ✓ Line 43: IfNegated
+  ✓ Line 43: InstanceOfToTrue
+  ✓ Line 43: InstanceOfToFalse
+  ✓ Line 43: RemoveNot
+  ✓ Line 44: RemoveEarlyReturn
+  ✓ Line 47: IfNegated
+  ✓ Line 47: NotIdenticalToIdentical
+  ✓ Line 48: RemoveMethodCall
+  ✓ Line 50: RemoveEarlyReturn
+
+   RUN  src/Http/FlowResultSerializer.php
+  - Line 35: TrueToFalse
+  ✓ Line 35: AlwaysReturnEmptyArray
+  ✓ Line 36: InstanceOfToTrue
+  ✓ Line 36: InstanceOfToFalse
+  ✓ Line 37: RemoveArrayItem
+  ✓ Line 38: RemoveArrayItem
+  ✓ Line 39: RemoveArrayItem
+  ✓ Line 41: InstanceOfToTrue
+  ✓ Line 41: InstanceOfToFalse
+  ✓ Line 42: RemoveArrayItem
+  ✓ Line 43: RemoveArrayItem
+  ✓ Line 44: RemoveArrayItem
+  ✓ Line 47: RemoveArrayItem
+  ✓ Line 49: InstanceOfToTrue
+  ✓ Line 49: InstanceOfToFalse
+  ✓ Line 50: RemoveArrayItem
+  ✓ Line 51: RemoveArrayItem
+  ✓ Line 52: RemoveArrayItem
+  ✓ Line 63: AlwaysReturnEmptyArray
+  ✓ Line 64: RemoveArrayItem
+  ✓ Line 65: UnwrapArrayMap
+  ✓ Line 65: RemoveArrayItem
+  ✓ Line 66: RemoveArrayItem
+  ✓ Line 67: RemoveArrayItem
+  ✓ Line 68: RemoveArrayItem
+  ✓ Line 69: RemoveArrayItem
+  ⨯ Line 71: UnwrapArrayMap
+  ✓ Line 71: RemoveArrayItem
+  ✓ Line 72: RemoveArrayItem
+  ✓ Line 73: RemoveArrayItem
+  ✓ Line 74: RemoveArrayItem
+  ✓ Line 75: RemoveArrayItem
+  ✓ Line 77: RemoveArrayItem
+  ✓ Line 78: RemoveArrayItem
+  ✓ Line 79: RemoveArrayItem
+  ✓ Line 80: RemoveArrayItem
+  ✓ Line 89: IfNegated
+  ✓ Line 89: IdenticalToNotIdentical
+  ✓ Line 90: RemoveEarlyReturn
+  ✓ Line 93: AlwaysReturnNull
+  ✓ Line 94: RemoveArrayItem
+  ✓ Line 95: RemoveArrayItem
+  ✓ Line 95: RemoveNullSafeOperator
+  ✓ Line 96: RemoveArrayItem
+  ✓ Line 96: RemoveNullSafeOperator
+
+   RUN  src/Http/AuthController.php
+  ✓ Line 42: TernaryNegated
+  ✓ Line 43: TernaryNegated
+  ✓ Line 44: TernaryNegated
+  ✓ Line 65: TernaryNegated
+  ✓ Line 65: InstanceOfToTrue
+  ✓ Line 65: InstanceOfToFalse
+  ✓ Line 66: CoalesceRemoveLeft
+
+   RUN  src/Http/IntendedDestination.php
+  ✓ Line 32: IfNegated
+  ✓ Line 32: IdenticalToNotIdentical
+  ✓ Line 33: RemoveMethodCall
+  ✓ Line 38: RemoveMethodCall
+  ✓ Line 46: RemoveMethodCall
+  ✓ Line 48: TernaryNegated
+  ✓ Line 48: AlwaysReturnNull
+  ✓ Line 58: IfNegated
+  ✓ Line 59: RemoveEarlyReturn
+  ✓ Line 68: TrueToFalse
+  ✓ Line 69: TernaryNegated
+  ✓ Line 69: IdenticalToNotIdentical
+  ✓ Line 69: FalseToTrue
+  ✓ Line 71: IfNegated
+  ✓ Line 71: IdenticalToNotIdentical
+  ✓ Line 71: DecrementInteger
+  ✓ Line 71: IncrementInteger
+  ✓ Line 72: RemoveEarlyReturn
+  ✓ Line 76: IfNegated
+  ⨯ Line 76: BooleanOrToBooleanAnd
+  ✓ Line 76: RemoveNot
+  ✓ Line 76: StrStartsWithToStrEndsWith
+  ⨯ Line 76: StrStartsWithToStrEndsWith
+  ⨯ Line 77: RemoveEarlyReturn
+  ✓ Line 82: IfNegated
+  ✓ Line 82: IdenticalToNotIdentical
+  ⨯ Line 82: FalseToTrue
+  ⨯ Line 83: RemoveEarlyReturn
+  ⨯ Line 87: ForeachEmptyIterable
+  ⨯ Line 87: RemoveArrayItem
+  ⨯ Line 87: RemoveArrayItem
+  ⨯ Line 87: RemoveArrayItem
+  ⨯ Line 87: RemoveArrayItem
+  ⨯ Line 87: RemoveArrayItem
+  ✓ Line 88: IfNegated
+  - Line 89: RemoveEarlyReturn
+  ✓ Line 93: CoalesceRemoveLeft
+  ✓ Line 95: IfNegated
+  ⨯ Line 95: BooleanOrToBooleanAnd
+  ✓ Line 95: RemoveNot
+  ✓ Line 95: RemoveNot
+  ✓ Line 95: StrStartsWithToStrEndsWith
+  - Line 96: RemoveEarlyReturn
+  ✓ Line 99: TernaryNegated
+  ✓ Line 99: AlwaysReturnNull
+  ✓ Line 99: ConcatRemoveLeft
+  ✓ Line 99: ConcatRemoveLeft
+  ✓ Line 99: ConcatRemoveRight
+  ✓ Line 99: ConcatRemoveRight
+  ✓ Line 99: ConcatSwitchSides
+  ✓ Line 99: ConcatSwitchSides
+
+   RUN  src/Http/AssuranceComparator.php
+  - Line 24: RemoveArrayItem
+  - Line 24: RemoveArrayItem
+  - Line 24: RemoveArrayItem
+  - Line 24: RemoveArrayItem
+  ✓ Line 28: IfNegated
+  ✓ Line 28: NotIdenticalToIdentical
+  ✓ Line 28: BooleanOrToBooleanAnd
+  ✓ Line 28: InstanceOfToTrue
+  ✓ Line 28: InstanceOfToFalse
+  ✓ Line 28: RemoveNot
+  ✓ Line 29: FalseToTrue
+  ✓ Line 29: RemoveEarlyReturn
+  ✓ Line 37: IfNegated
+  ✓ Line 38: FalseToTrue
+  ✓ Line 38: RemoveEarlyReturn
+  ✓ Line 44: IfNegated
+  ✓ Line 44: IdenticalToNotIdentical
+  ✓ Line 44: IdenticalToNotIdentical
+  ✓ Line 44: BooleanOrToBooleanAnd
+  ✓ Line 44: FalseToTrue
+  ✓ Line 44: FalseToTrue
+  ✓ Line 45: FalseToTrue
+  ✓ Line 45: RemoveEarlyReturn
+  ✓ Line 48: GreaterOrEqualToGreater
+  ✓ Line 48: GreaterOrEqualToSmaller
+   UNCOVERED  src/Http/FlowResultHandler.php  > Line 40: TrueToFalse - ID: f05b5809fd295180
+
+       }
+       public function handle(FlowResult $result): FlowResult
+       {
+  -        return match (true) {
+  +        return match (false) {
+               $result instanceof Continuing => $result,
+               $result instanceof Authenticated => $this->establish($result),
+               /*
+  
+
+   UNTESTED  src/Http/Middleware/RequireAssurance.php  > Line 51: ConcatRemoveRight - ID: c78968562c7929e0
+
+            * destination would be worse than refusing.
+            */
+           if (!is_string($presentation) || $presentation === '') {
+  -            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');
+  +            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');
+           }
+           /*
+            * Built from the REQUEST's session, not a container-resolved one. In
+  
+
+   UNTESTED  src/Http/Middleware/RequireAssurance.php  > Line 51: ConcatRemoveRight - ID: 119fc08faaae9e69
+
+            * destination would be worse than refusing.
+            */
+           if (!is_string($presentation) || $presentation === '') {
+  -            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');
+  +            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'only answers POST.');
+           }
+           /*
+            * Built from the REQUEST's session, not a container-resolved one. In
+  
+
+   UNTESTED  src/Http/Middleware/RequireAssurance.php  > Line 51: ConcatRemoveRight - ID: 7d0cf2a71995c867
+
+            * destination would be worse than refusing.
+            */
+           if (!is_string($presentation) || $presentation === '') {
+  -            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');
+  +            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ');
+           }
+           /*
+            * Built from the REQUEST's session, not a container-resolved one. In
+  
+
+   UNTESTED  src/Http/Middleware/RequireAssurance.php  > Line 51: ConcatSwitchSides - ID: 53b0ea8ef5cc0989
+
+            * destination would be worse than refusing.
+            */
+           if (!is_string($presentation) || $presentation === '') {
+  -            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');
+  +            throw new RuntimeException('can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');
+           }
+           /*
+            * Built from the REQUEST's session, not a container-resolved one. In
+  
+
+   UNTESTED  src/Http/Middleware/RequireAssurance.php  > Line 51: ConcatSwitchSides - ID: 62d088bb00f91aa3
+
+            * destination would be worse than refusing.
+            */
+           if (!is_string($presentation) || $presentation === '') {
+  -            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');
+  +            throw new RuntimeException('the standard adapter. Refusing rather than redirecting to an endpoint that ' . ('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ') . 'only answers POST.');
+           }
+           /*
+            * Built from the REQUEST's session, not a container-resolved one. In
+  
+
+   UNTESTED  src/Http/Middleware/RequireAssurance.php  > Line 51: ConcatSwitchSides - ID: bb1f29f5659446e1
+
+            * destination would be worse than refusing.
+            */
+           if (!is_string($presentation) || $presentation === '') {
+  -            throw new RuntimeException('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that ' . 'only answers POST.');
+  +            throw new RuntimeException('only answers POST.' . ('Vouch requires vouch.step_up.presentation_url to be configured before a route ' . 'can demand assurance. 2.3 ships no routeable step-up page; Phase 3 supplies ' . 'the standard adapter. Refusing rather than redirecting to an endpoint that '));
+           }
+           /*
+            * Built from the REQUEST's session, not a container-resolved one. In
+  
+
+   UNCOVERED  src/Http/FlowResultSerializer.php  > Line 35: TrueToFalse - ID: 3e81f7c526c6b1a4
+
+        */
+       public function toArray(FlowResult $result, ?string $returnTo = null): array
+       {
+  -        return match (true) {
+  +        return match (false) {
+               $result instanceof Continuing => ['result' => 'continuing', 'handle' => $result->handle, 'screen' => $this->screen($result->screen)],
+               $result instanceof Authenticated => [
+                   'result' => 'authenticated',
+  
+
+   UNTESTED  src/Http/FlowResultSerializer.php  > Line 71: UnwrapArrayMap - ID: 1678a73293843c3b
+
+        */
+       private function screen(ScreenSpec $screen): array
+       {
+  -        return ['step' => $screen->step->value, 'offeredFactors' => array_map(static fn(FactorOption $option): array => ['factorId' => $option->factorId, 'label' => $option->label, 'strength' => $option->strength->name, 'isDefault' => $option->isDefault], $screen->offeredFactors), 'fields' => array_map(static fn(FieldSpec $field): array => ['name' => $field->name, 'type' => $field->type, 'autocomplete' => $field->autocomplete, 'maxLength' => $field->maxLength], $screen->fields), 'challengePayload' => $screen->challengePayload, 'errors' => $screen->errors, 'retry' => $this->retry($screen->retry), 'captchaRequired' => $screen->captchaRequired];
+  +        return ['step' => $screen->step->value, 'offeredFactors' => array_map(static fn(FactorOption $option): array => ['factorId' => $option->factorId, 'label' => $option->label, 'strength' => $option->strength->name, 'isDefault' => $option->isDefault], $screen->offeredFactors), 'fields' => $screen->fields, 'challengePayload' => $screen->challengePayload, 'errors' => $screen->errors, 'retry' => $this->retry($screen->retry), 'captchaRequired' => $screen->captchaRequired];
+       }
+       /**
+        * @return array{attemptsRemaining: int|null, lockedUntil: string|null, retryAfter: string|null}|null
+  
+
+   UNTESTED  src/Http/IntendedDestination.php  > Line 76: BooleanOrToBooleanAnd - ID: 5240669a6894d8ef
+
+               return null;
+           }
+           // Exactly one leading slash. `//host` and `///host` are protocol-relative.
+  -        if (!str_starts_with($candidate, '/') || str_starts_with($candidate, '//')) {
+  +        if (!str_starts_with($candidate, '/') && str_starts_with($candidate, '//')) {
+               return null;
+           }
+           $parts = parse_url($candidate);
+  
+
+   UNTESTED  src/Http/IntendedDestination.php  > Line 76: StrStartsWithToStrEndsWith - ID: 12ff5467cc00c7b4
+
+               return null;
+           }
+           // Exactly one leading slash. `//host` and `///host` are protocol-relative.
+  -        if (!str_starts_with($candidate, '/') || str_starts_with($candidate, '//')) {
+  +        if (!str_starts_with($candidate, '/') || str_ends_with($candidate, '//')) {
+               return null;
+           }
+           $parts = parse_url($candidate);
+  
+
+   UNTESTED  src/Http/IntendedDestination.php  > Line 77: RemoveEarlyReturn - ID: 5dafcd2bce6202f8
+
+           }
+           // Exactly one leading slash. `//host` and `///host` are protocol-relative.
+           if (!str_starts_with($candidate, '/') || str_starts_with($candidate, '//')) {
+  -            return null;
+  +            
+           }
+           $parts = parse_url($candidate);
+           if ($parts === false) {
+  
+
+   UNTESTED  src/Http/IntendedDestination.php  > Line 82: FalseToTrue - ID: 05ab7e9abb839287
+
+               return null;
+           }
+           $parts = parse_url($candidate);
+  -        if ($parts === false) {
+  +        if ($parts === true) {
+               return null;
+           }
+           // Any authority component at all means it is not origin-form.
+  
+
+   UNTESTED  src/Http/IntendedDestination.php  > Line 83: RemoveEarlyReturn - ID: b5703b5474892050
+
+           }
+           $parts = parse_url($candidate);
+           if ($parts === false) {
+  -            return null;
+  +            
+           }
+           // Any authority component at all means it is not origin-form.
+           foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {
+  
+
+   UNTESTED  src/Http/IntendedDestination.php  > Line 87: ForeachEmptyIterable - ID: f4d5c20087a9d032
+
+               return null;
+           }
+           // Any authority component at all means it is not origin-form.
+  -        foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {
+  +        foreach ([] as $component) {
+               if (isset($parts[$component])) {
+                   return null;
+               }
+  
+
+   UNTESTED  src/Http/IntendedDestination.php  > Line 87: RemoveArrayItem - ID: 895ed1d8a81d6b25
+
+               return null;
+           }
+           // Any authority component at all means it is not origin-form.
+  -        foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {
+  +        foreach (['host', 'port', 'user', 'pass'] as $component) {
+               if (isset($parts[$component])) {
+                   return null;
+               }
+  
+
+   UNTESTED  src/Http/IntendedDestination.php  > Line 87: RemoveArrayItem - ID: 99ebca0c4d42f11b
+
+               return null;
+           }
+           // Any authority component at all means it is not origin-form.
+  -        foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {
+  +        foreach (['scheme', 'port', 'user', 'pass'] as $component) {
+               if (isset($parts[$component])) {
+                   return null;
+               }
+  
+
+   UNTESTED  src/Http/IntendedDestination.php  > Line 87: RemoveArrayItem - ID: 3396aa68f34ac230
+
+               return null;
+           }
+           // Any authority component at all means it is not origin-form.
+  -        foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {
+  +        foreach (['scheme', 'host', 'user', 'pass'] as $component) {
+               if (isset($parts[$component])) {
+                   return null;
+               }
+  
+
+   UNTESTED  src/Http/IntendedDestination.php  > Line 87: RemoveArrayItem - ID: 113d048b229bb648
+
+               return null;
+           }
+           // Any authority component at all means it is not origin-form.
+  -        foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {
+  +        foreach (['scheme', 'host', 'port', 'pass'] as $component) {
+               if (isset($parts[$component])) {
+                   return null;
+               }
+  
+
+   UNTESTED  src/Http/IntendedDestination.php  > Line 87: RemoveArrayItem - ID: 3e0ed98e18e36034
+
+               return null;
+           }
+           // Any authority component at all means it is not origin-form.
+  -        foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {
+  +        foreach (['scheme', 'host', 'port', 'user'] as $component) {
+               if (isset($parts[$component])) {
+                   return null;
+               }
+  
+
+   UNCOVERED  src/Http/IntendedDestination.php  > Line 89: RemoveEarlyReturn - ID: ecc9727c2eb89117
+
+           // Any authority component at all means it is not origin-form.
+           foreach (['scheme', 'host', 'port', 'user', 'pass'] as $component) {
+               if (isset($parts[$component])) {
+  -                return null;
+  +                
+               }
+           }
+           $safe = $parts['path'] ?? null;
+  
+
+   UNTESTED  src/Http/IntendedDestination.php  > Line 95: BooleanOrToBooleanAnd - ID: dfad39a51184ea74
+
+               }
+           }
+           $safe = $parts['path'] ?? null;
+  -        if (!is_string($safe) || !str_starts_with($safe, '/')) {
+  +        if (!is_string($safe) && !str_starts_with($safe, '/')) {
+               return null;
+           }
+           return isset($parts['query']) ? $safe . '?' . $parts['query'] : $safe;
+       }
+   }
+  
+
+   UNCOVERED  src/Http/IntendedDestination.php  > Line 96: RemoveEarlyReturn - ID: a328e9134f2d69da
+
+           }
+           $safe = $parts['path'] ?? null;
+           if (!is_string($safe) || !str_starts_with($safe, '/')) {
+  -            return null;
+  +            
+           }
+           return isset($parts['query']) ? $safe . '?' . $parts['query'] : $safe;
+       }
+   }
+  
+
+   UNCOVERED  src/Http/AssuranceComparator.php  > Line 24: RemoveArrayItem - ID: 98dc782578dcb775
+
+   final readonly class AssuranceComparator
+   {
+       /** @var list<string> Weakest first. */
+  -    private const ORDER = ['aal0', 'aal1', 'aal2', 'aal3'];
+  +    private const ORDER = ['aal1', 'aal2', 'aal3'];
+       public function isSufficient(?AuthSession $session, string $required): bool
+       {
+           if (!$session instanceof AuthSession || $session->revoked_at !== null) {
+  
+
+   UNCOVERED  src/Http/AssuranceComparator.php  > Line 24: RemoveArrayItem - ID: 9e86faf69f6b7f29
+
+   final readonly class AssuranceComparator
+   {
+       /** @var list<string> Weakest first. */
+  -    private const ORDER = ['aal0', 'aal1', 'aal2', 'aal3'];
+  +    private const ORDER = ['aal0', 'aal2', 'aal3'];
+       public function isSufficient(?AuthSession $session, string $required): bool
+       {
+           if (!$session instanceof AuthSession || $session->revoked_at !== null) {
+  
+
+   UNCOVERED  src/Http/AssuranceComparator.php  > Line 24: RemoveArrayItem - ID: 79f1ecf6f962d77a
+
+   final readonly class AssuranceComparator
+   {
+       /** @var list<string> Weakest first. */
+  -    private const ORDER = ['aal0', 'aal1', 'aal2', 'aal3'];
+  +    private const ORDER = ['aal0', 'aal1', 'aal3'];
+       public function isSufficient(?AuthSession $session, string $required): bool
+       {
+           if (!$session instanceof AuthSession || $session->revoked_at !== null) {
+  
+
+   UNCOVERED  src/Http/AssuranceComparator.php  > Line 24: RemoveArrayItem - ID: 5f55f93fd16860d4
+
+   final readonly class AssuranceComparator
+   {
+       /** @var list<string> Weakest first. */
+  -    private const ORDER = ['aal0', 'aal1', 'aal2', 'aal3'];
+  +    private const ORDER = ['aal0', 'aal1', 'aal2'];
+       public function isSufficient(?AuthSession $session, string $required): bool
+       {
+           if (!$session instanceof AuthSession || $session->revoked_at !== null) {
+  
+
+  Mutations: 19 untested, 8 uncovered, 140 tested
+  Score:     83.83%
+  Duration:  138.05s
+

@@ -1,0 +1,448 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ...............................
+
+  Tests:    1171 passed (4108 assertions)
+  Duration: 32.06s
+
+  Mutating application files...
+  42 Mutations for 3 Files created
+
+   RUN  src/Persistence/ChallengeTargetViolation.php
+  ✓ Line 21: ConcatRemoveLeft
+  ✓ Line 21: ConcatRemoveLeft
+  ⨯ Line 21: ConcatRemoveRight
+  ⨯ Line 21: ConcatRemoveRight
+  ⨯ Line 21: ConcatSwitchSides
+  ⨯ Line 21: ConcatSwitchSides
+  ✓ Line 31: ConcatRemoveLeft
+  ⨯ Line 31: ConcatRemoveRight
+  ⨯ Line 31: ConcatSwitchSides
+  ✓ Line 53: ConcatRemoveLeft
+  ⨯ Line 53: ConcatRemoveRight
+  ⨯ Line 53: ConcatSwitchSides
+  ⨯ Line 56: RemoveStringCast
+  ✓ Line 56: TernaryNegated
+  ✓ Line 56: IdenticalToNotIdentical
+
+   RUN  src/Persistence/ValueBoundViolation.php
+  ✓ Line 25: ConcatRemoveLeft
+  ⨯ Line 25: ConcatRemoveRight
+  ⨯ Line 25: ConcatSwitchSides
+  ✓ Line 37: ConcatRemoveLeft
+  ⨯ Line 37: ConcatRemoveRight
+  ⨯ Line 37: ConcatSwitchSides
+
+   RUN  src/Persistence/IdentifierLinkageViolation.php
+  ✓ Line 29: ConcatRemoveLeft
+  ✓ Line 29: ConcatRemoveLeft
+  ⨯ Line 29: ConcatRemoveRight
+  ⨯ Line 29: ConcatRemoveRight
+  ⨯ Line 29: ConcatSwitchSides
+  ⨯ Line 29: ConcatSwitchSides
+  ⨯ Line 40: ConcatRemoveLeft
+  ⨯ Line 40: ConcatRemoveLeft
+  ⨯ Line 40: ConcatRemoveRight
+  ⨯ Line 40: ConcatRemoveRight
+  ⨯ Line 40: ConcatSwitchSides
+  ⨯ Line 40: ConcatSwitchSides
+  ⨯ Line 50: ConcatRemoveLeft
+  ⨯ Line 50: ConcatRemoveLeft
+  ⨯ Line 50: ConcatRemoveLeft
+  ⨯ Line 50: ConcatRemoveRight
+  ⨯ Line 50: ConcatRemoveRight
+  ⨯ Line 50: ConcatRemoveRight
+  ⨯ Line 50: ConcatSwitchSides
+  ⨯ Line 50: ConcatSwitchSides
+  ⨯ Line 50: ConcatSwitchSides
+   UNTESTED  src/Persistence/ChallengeTargetViolation.php  > Line 21: ConcatRemoveRight - ID: 0638e135e4daccae
+
+   {
+       public static function targetRequired(string $factorType): self
+       {
+  -        return new self(sprintf('A %s challenge must name the credential it was delivered against. Without one, ' . 'the satisfied credential is chosen after the fact and kernel distinctness ' . 'describes a delivery that never happened.', $factorType));
+  +        return new self(sprintf('A %s challenge must name the credential it was delivered against. Without one, ' . 'describes a delivery that never happened.', $factorType));
+       }
+       public static function decoyNamedTarget(int $credentialId): self
+       {
+  
+
+   UNTESTED  src/Persistence/ChallengeTargetViolation.php  > Line 21: ConcatRemoveRight - ID: 73eaede08a769341
+
+   {
+       public static function targetRequired(string $factorType): self
+       {
+  -        return new self(sprintf('A %s challenge must name the credential it was delivered against. Without one, ' . 'the satisfied credential is chosen after the fact and kernel distinctness ' . 'describes a delivery that never happened.', $factorType));
+  +        return new self(sprintf('A %s challenge must name the credential it was delivered against. Without one, ' . 'the satisfied credential is chosen after the fact and kernel distinctness ', $factorType));
+       }
+       public static function decoyNamedTarget(int $credentialId): self
+       {
+  
+
+   UNTESTED  src/Persistence/ChallengeTargetViolation.php  > Line 21: ConcatSwitchSides - ID: 955268858e1baa14
+
+   {
+       public static function targetRequired(string $factorType): self
+       {
+  -        return new self(sprintf('A %s challenge must name the credential it was delivered against. Without one, ' . 'the satisfied credential is chosen after the fact and kernel distinctness ' . 'describes a delivery that never happened.', $factorType));
+  +        return new self(sprintf('the satisfied credential is chosen after the fact and kernel distinctness ' . 'A %s challenge must name the credential it was delivered against. Without one, ' . 'describes a delivery that never happened.', $factorType));
+       }
+       public static function decoyNamedTarget(int $credentialId): self
+       {
+  
+
+   UNTESTED  src/Persistence/ChallengeTargetViolation.php  > Line 21: ConcatSwitchSides - ID: 431a457fc0024074
+
+   {
+       public static function targetRequired(string $factorType): self
+       {
+  -        return new self(sprintf('A %s challenge must name the credential it was delivered against. Without one, ' . 'the satisfied credential is chosen after the fact and kernel distinctness ' . 'describes a delivery that never happened.', $factorType));
+  +        return new self(sprintf('describes a delivery that never happened.' . ('A %s challenge must name the credential it was delivered against. Without one, ' . 'the satisfied credential is chosen after the fact and kernel distinctness '), $factorType));
+       }
+       public static function decoyNamedTarget(int $credentialId): self
+       {
+  
+
+   UNTESTED  src/Persistence/ChallengeTargetViolation.php  > Line 31: ConcatRemoveRight - ID: 9bd9743a43360cb6
+
+       }
+       public static function decoyNamedTarget(int $credentialId): self
+       {
+  -        return new self(sprintf('Decoy challenge cannot name credential %d. A decoy with a real target could ' . 'contact a provider or satisfy verification while claiming to be inert.', $credentialId));
+  +        return new self(sprintf('Decoy challenge cannot name credential %d. A decoy with a real target could ', $credentialId));
+       }
+       public static function missing(int $credentialId): self
+       {
+  
+
+   UNTESTED  src/Persistence/ChallengeTargetViolation.php  > Line 31: ConcatSwitchSides - ID: 27582325ed46c714
+
+       }
+       public static function decoyNamedTarget(int $credentialId): self
+       {
+  -        return new self(sprintf('Decoy challenge cannot name credential %d. A decoy with a real target could ' . 'contact a provider or satisfy verification while claiming to be inert.', $credentialId));
+  +        return new self(sprintf('contact a provider or satisfy verification while claiming to be inert.' . 'Decoy challenge cannot name credential %d. A decoy with a real target could ', $credentialId));
+       }
+       public static function missing(int $credentialId): self
+       {
+  
+
+   UNTESTED  src/Persistence/ChallengeTargetViolation.php  > Line 53: ConcatRemoveRight - ID: fa34c20063ca93a9
+
+       }
+       public static function foreignUser(int $credentialId, ?int $attemptUserId): self
+       {
+  -        return new self(sprintf('Credential %d does not belong to the attempt user (%s). A challenge delivered ' . 'against another user credential would authenticate the wrong account.', $credentialId, $attemptUserId === null ? 'the attempt has no identified user' : (string) $attemptUserId));
+  +        return new self(sprintf('Credential %d does not belong to the attempt user (%s). A challenge delivered ', $credentialId, $attemptUserId === null ? 'the attempt has no identified user' : (string) $attemptUserId));
+       }
+       public static function notIdentifierLinked(int $credentialId): self
+       {
+  
+
+   UNTESTED  src/Persistence/ChallengeTargetViolation.php  > Line 53: ConcatSwitchSides - ID: 3cc4e22a3066b712
+
+       }
+       public static function foreignUser(int $credentialId, ?int $attemptUserId): self
+       {
+  -        return new self(sprintf('Credential %d does not belong to the attempt user (%s). A challenge delivered ' . 'against another user credential would authenticate the wrong account.', $credentialId, $attemptUserId === null ? 'the attempt has no identified user' : (string) $attemptUserId));
+  +        return new self(sprintf('against another user credential would authenticate the wrong account.' . 'Credential %d does not belong to the attempt user (%s). A challenge delivered ', $credentialId, $attemptUserId === null ? 'the attempt has no identified user' : (string) $attemptUserId));
+       }
+       public static function notIdentifierLinked(int $credentialId): self
+       {
+  
+
+   UNTESTED  src/Persistence/ChallengeTargetViolation.php  > Line 56: RemoveStringCast - ID: ef7fc76cd4407610
+
+       }
+       public static function foreignUser(int $credentialId, ?int $attemptUserId): self
+       {
+  -        return new self(sprintf('Credential %d does not belong to the attempt user (%s). A challenge delivered ' . 'against another user credential would authenticate the wrong account.', $credentialId, $attemptUserId === null ? 'the attempt has no identified user' : (string) $attemptUserId));
+  +        return new self(sprintf('Credential %d does not belong to the attempt user (%s). A challenge delivered ' . 'against another user credential would authenticate the wrong account.', $credentialId, $attemptUserId === null ? 'the attempt has no identified user' : $attemptUserId));
+       }
+       public static function notIdentifierLinked(int $credentialId): self
+       {
+  
+
+   UNTESTED  src/Persistence/ValueBoundViolation.php  > Line 25: ConcatRemoveRight - ID: 684c32b46bf4002d
+
+   {
+       public static function tooLong(string $model, string $attribute, int $max, int $actual): self
+       {
+  -        return new self(sprintf('%s::$%s exceeds its %d-character bound (%d given). Vouch refuses rather than ' . 'truncates: a truncated identity value can collide with another under a unique index.', $model, $attribute, $max, $actual));
+  +        return new self(sprintf('%s::$%s exceeds its %d-character bound (%d given). Vouch refuses rather than ', $model, $attribute, $max, $actual));
+       }
+       public static function notAscii(string $model, string $attribute): self
+       {
+  
+
+   UNTESTED  src/Persistence/ValueBoundViolation.php  > Line 25: ConcatSwitchSides - ID: ce7994fbc88de0c1
+
+   {
+       public static function tooLong(string $model, string $attribute, int $max, int $actual): self
+       {
+  -        return new self(sprintf('%s::$%s exceeds its %d-character bound (%d given). Vouch refuses rather than ' . 'truncates: a truncated identity value can collide with another under a unique index.', $model, $attribute, $max, $actual));
+  +        return new self(sprintf('truncates: a truncated identity value can collide with another under a unique index.' . '%s::$%s exceeds its %d-character bound (%d given). Vouch refuses rather than ', $model, $attribute, $max, $actual));
+       }
+       public static function notAscii(string $model, string $attribute): self
+       {
+  
+
+   UNTESTED  src/Persistence/ValueBoundViolation.php  > Line 37: ConcatRemoveRight - ID: a24a48ef184a80c2
+
+       }
+       public static function notAscii(string $model, string $attribute): self
+       {
+  -        return new self(sprintf('%s::$%s must be ASCII. Vouch refuses rather than normalises: two distinct ' . 'values normalising to one would collide under a unique index.', $model, $attribute));
+  +        return new self(sprintf('%s::$%s must be ASCII. Vouch refuses rather than normalises: two distinct ', $model, $attribute));
+       }
+   }
+  
+
+   UNTESTED  src/Persistence/ValueBoundViolation.php  > Line 37: ConcatSwitchSides - ID: 681a0a0946c0ed52
+
+       }
+       public static function notAscii(string $model, string $attribute): self
+       {
+  -        return new self(sprintf('%s::$%s must be ASCII. Vouch refuses rather than normalises: two distinct ' . 'values normalising to one would collide under a unique index.', $model, $attribute));
+  +        return new self(sprintf('values normalising to one would collide under a unique index.' . '%s::$%s must be ASCII. Vouch refuses rather than normalises: two distinct ', $model, $attribute));
+       }
+   }
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 29: ConcatRemoveRight - ID: d1ade2fbb1793e84
+
+       }
+       public static function crossUser(int $credentialUserId, int $identifierUserId): self
+       {
+  -        return new self(sprintf('Refusing to link a credential owned by user %d to an identifier owned by user %d. ' . 'An OTP credential delivers to its identifier, so a cross-user link routes ' . 'authentication codes to somebody else.', $credentialUserId, $identifierUserId));
+  +        return new self(sprintf('Refusing to link a credential owned by user %d to an identifier owned by user %d. ' . 'authentication codes to somebody else.', $credentialUserId, $identifierUserId));
+       }
+       public static function unverified(int $identifierId): self
+       {
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 29: ConcatRemoveRight - ID: 5e4463fc3d8d95f5
+
+       }
+       public static function crossUser(int $credentialUserId, int $identifierUserId): self
+       {
+  -        return new self(sprintf('Refusing to link a credential owned by user %d to an identifier owned by user %d. ' . 'An OTP credential delivers to its identifier, so a cross-user link routes ' . 'authentication codes to somebody else.', $credentialUserId, $identifierUserId));
+  +        return new self(sprintf('Refusing to link a credential owned by user %d to an identifier owned by user %d. ' . 'An OTP credential delivers to its identifier, so a cross-user link routes ', $credentialUserId, $identifierUserId));
+       }
+       public static function unverified(int $identifierId): self
+       {
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 29: ConcatSwitchSides - ID: c699efe37a3ed883
+
+       }
+       public static function crossUser(int $credentialUserId, int $identifierUserId): self
+       {
+  -        return new self(sprintf('Refusing to link a credential owned by user %d to an identifier owned by user %d. ' . 'An OTP credential delivers to its identifier, so a cross-user link routes ' . 'authentication codes to somebody else.', $credentialUserId, $identifierUserId));
+  +        return new self(sprintf('An OTP credential delivers to its identifier, so a cross-user link routes ' . 'Refusing to link a credential owned by user %d to an identifier owned by user %d. ' . 'authentication codes to somebody else.', $credentialUserId, $identifierUserId));
+       }
+       public static function unverified(int $identifierId): self
+       {
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 29: ConcatSwitchSides - ID: 41d754960b368403
+
+       }
+       public static function crossUser(int $credentialUserId, int $identifierUserId): self
+       {
+  -        return new self(sprintf('Refusing to link a credential owned by user %d to an identifier owned by user %d. ' . 'An OTP credential delivers to its identifier, so a cross-user link routes ' . 'authentication codes to somebody else.', $credentialUserId, $identifierUserId));
+  +        return new self(sprintf('authentication codes to somebody else.' . ('Refusing to link a credential owned by user %d to an identifier owned by user %d. ' . 'An OTP credential delivers to its identifier, so a cross-user link routes '), $credentialUserId, $identifierUserId));
+       }
+       public static function unverified(int $identifierId): self
+       {
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 40: ConcatRemoveLeft - ID: 91a79912aad87b14
+
+       }
+       public static function unverified(int $identifierId): self
+       {
+  -        return new self(sprintf('Identifier %d is not verified. An unverified identifier is attacker-supplied ' . 'until proven, and linking OTP delivery to one routes codes to an address ' . 'nobody has demonstrated control of.', $identifierId));
+  +        return new self(sprintf('until proven, and linking OTP delivery to one routes codes to an address ' . 'nobody has demonstrated control of.', $identifierId));
+       }
+       public static function frozen(int $identifierId): self
+       {
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 40: ConcatRemoveLeft - ID: 67fc8dc3af2236bd
+
+       }
+       public static function unverified(int $identifierId): self
+       {
+  -        return new self(sprintf('Identifier %d is not verified. An unverified identifier is attacker-supplied ' . 'until proven, and linking OTP delivery to one routes codes to an address ' . 'nobody has demonstrated control of.', $identifierId));
+  +        return new self(sprintf('nobody has demonstrated control of.', $identifierId));
+       }
+       public static function frozen(int $identifierId): self
+       {
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 40: ConcatRemoveRight - ID: b2b692f68f889738
+
+       }
+       public static function unverified(int $identifierId): self
+       {
+  -        return new self(sprintf('Identifier %d is not verified. An unverified identifier is attacker-supplied ' . 'until proven, and linking OTP delivery to one routes codes to an address ' . 'nobody has demonstrated control of.', $identifierId));
+  +        return new self(sprintf('Identifier %d is not verified. An unverified identifier is attacker-supplied ' . 'nobody has demonstrated control of.', $identifierId));
+       }
+       public static function frozen(int $identifierId): self
+       {
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 40: ConcatRemoveRight - ID: 0a3921464197b889
+
+       }
+       public static function unverified(int $identifierId): self
+       {
+  -        return new self(sprintf('Identifier %d is not verified. An unverified identifier is attacker-supplied ' . 'until proven, and linking OTP delivery to one routes codes to an address ' . 'nobody has demonstrated control of.', $identifierId));
+  +        return new self(sprintf('Identifier %d is not verified. An unverified identifier is attacker-supplied ' . 'until proven, and linking OTP delivery to one routes codes to an address ', $identifierId));
+       }
+       public static function frozen(int $identifierId): self
+       {
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 40: ConcatSwitchSides - ID: d34cf1f6cf7dad5f
+
+       }
+       public static function unverified(int $identifierId): self
+       {
+  -        return new self(sprintf('Identifier %d is not verified. An unverified identifier is attacker-supplied ' . 'until proven, and linking OTP delivery to one routes codes to an address ' . 'nobody has demonstrated control of.', $identifierId));
+  +        return new self(sprintf('until proven, and linking OTP delivery to one routes codes to an address ' . 'Identifier %d is not verified. An unverified identifier is attacker-supplied ' . 'nobody has demonstrated control of.', $identifierId));
+       }
+       public static function frozen(int $identifierId): self
+       {
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 40: ConcatSwitchSides - ID: 5c00e37c4b754904
+
+       }
+       public static function unverified(int $identifierId): self
+       {
+  -        return new self(sprintf('Identifier %d is not verified. An unverified identifier is attacker-supplied ' . 'until proven, and linking OTP delivery to one routes codes to an address ' . 'nobody has demonstrated control of.', $identifierId));
+  +        return new self(sprintf('nobody has demonstrated control of.' . ('Identifier %d is not verified. An unverified identifier is attacker-supplied ' . 'until proven, and linking OTP delivery to one routes codes to an address '), $identifierId));
+       }
+       public static function frozen(int $identifierId): self
+       {
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 50: ConcatRemoveLeft - ID: cbeead125270e74d
+
+       }
+       public static function frozen(int $identifierId): self
+       {
+  -        return new self(sprintf('Identifier %d is referenced by at least one credential, so its value is frozen. ' . 'Mutating it in place would silently redirect every OTP credential pointing at ' . 'this row — an account takeover requiring no credential change at all. Create ' . 'and verify a new identifier, then enroll a new credential against it.', $identifierId));
+  +        return new self(sprintf('Mutating it in place would silently redirect every OTP credential pointing at ' . 'this row — an account takeover requiring no credential change at all. Create ' . 'and verify a new identifier, then enroll a new credential against it.', $identifierId));
+       }
+   }
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 50: ConcatRemoveLeft - ID: 3f42da2a4779628d
+
+       }
+       public static function frozen(int $identifierId): self
+       {
+  -        return new self(sprintf('Identifier %d is referenced by at least one credential, so its value is frozen. ' . 'Mutating it in place would silently redirect every OTP credential pointing at ' . 'this row — an account takeover requiring no credential change at all. Create ' . 'and verify a new identifier, then enroll a new credential against it.', $identifierId));
+  +        return new self(sprintf('this row — an account takeover requiring no credential change at all. Create ' . 'and verify a new identifier, then enroll a new credential against it.', $identifierId));
+       }
+   }
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 50: ConcatRemoveLeft - ID: cfe2101f1d4424b0
+
+       }
+       public static function frozen(int $identifierId): self
+       {
+  -        return new self(sprintf('Identifier %d is referenced by at least one credential, so its value is frozen. ' . 'Mutating it in place would silently redirect every OTP credential pointing at ' . 'this row — an account takeover requiring no credential change at all. Create ' . 'and verify a new identifier, then enroll a new credential against it.', $identifierId));
+  +        return new self(sprintf('and verify a new identifier, then enroll a new credential against it.', $identifierId));
+       }
+   }
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 50: ConcatRemoveRight - ID: 77c44bc855d9c667
+
+       }
+       public static function frozen(int $identifierId): self
+       {
+  -        return new self(sprintf('Identifier %d is referenced by at least one credential, so its value is frozen. ' . 'Mutating it in place would silently redirect every OTP credential pointing at ' . 'this row — an account takeover requiring no credential change at all. Create ' . 'and verify a new identifier, then enroll a new credential against it.', $identifierId));
+  +        return new self(sprintf('Identifier %d is referenced by at least one credential, so its value is frozen. ' . 'this row — an account takeover requiring no credential change at all. Create ' . 'and verify a new identifier, then enroll a new credential against it.', $identifierId));
+       }
+   }
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 50: ConcatRemoveRight - ID: b4dcf2cc1ee8a72b
+
+       }
+       public static function frozen(int $identifierId): self
+       {
+  -        return new self(sprintf('Identifier %d is referenced by at least one credential, so its value is frozen. ' . 'Mutating it in place would silently redirect every OTP credential pointing at ' . 'this row — an account takeover requiring no credential change at all. Create ' . 'and verify a new identifier, then enroll a new credential against it.', $identifierId));
+  +        return new self(sprintf('Identifier %d is referenced by at least one credential, so its value is frozen. ' . 'Mutating it in place would silently redirect every OTP credential pointing at ' . 'and verify a new identifier, then enroll a new credential against it.', $identifierId));
+       }
+   }
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 50: ConcatRemoveRight - ID: 7fcc1f79c06c819d
+
+       }
+       public static function frozen(int $identifierId): self
+       {
+  -        return new self(sprintf('Identifier %d is referenced by at least one credential, so its value is frozen. ' . 'Mutating it in place would silently redirect every OTP credential pointing at ' . 'this row — an account takeover requiring no credential change at all. Create ' . 'and verify a new identifier, then enroll a new credential against it.', $identifierId));
+  +        return new self(sprintf('Identifier %d is referenced by at least one credential, so its value is frozen. ' . 'Mutating it in place would silently redirect every OTP credential pointing at ' . 'this row — an account takeover requiring no credential change at all. Create ', $identifierId));
+       }
+   }
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 50: ConcatSwitchSides - ID: 5bd6d589f667e224
+
+       }
+       public static function frozen(int $identifierId): self
+       {
+  -        return new self(sprintf('Identifier %d is referenced by at least one credential, so its value is frozen. ' . 'Mutating it in place would silently redirect every OTP credential pointing at ' . 'this row — an account takeover requiring no credential change at all. Create ' . 'and verify a new identifier, then enroll a new credential against it.', $identifierId));
+  +        return new self(sprintf('Mutating it in place would silently redirect every OTP credential pointing at ' . 'Identifier %d is referenced by at least one credential, so its value is frozen. ' . 'this row — an account takeover requiring no credential change at all. Create ' . 'and verify a new identifier, then enroll a new credential against it.', $identifierId));
+       }
+   }
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 50: ConcatSwitchSides - ID: 964ebac2b70cfb9c
+
+       }
+       public static function frozen(int $identifierId): self
+       {
+  -        return new self(sprintf('Identifier %d is referenced by at least one credential, so its value is frozen. ' . 'Mutating it in place would silently redirect every OTP credential pointing at ' . 'this row — an account takeover requiring no credential change at all. Create ' . 'and verify a new identifier, then enroll a new credential against it.', $identifierId));
+  +        return new self(sprintf('this row — an account takeover requiring no credential change at all. Create ' . ('Identifier %d is referenced by at least one credential, so its value is frozen. ' . 'Mutating it in place would silently redirect every OTP credential pointing at ') . 'and verify a new identifier, then enroll a new credential against it.', $identifierId));
+       }
+   }
+  
+
+   UNTESTED  src/Persistence/IdentifierLinkageViolation.php  > Line 50: ConcatSwitchSides - ID: aa465f4c91d91a32
+
+       }
+       public static function frozen(int $identifierId): self
+       {
+  -        return new self(sprintf('Identifier %d is referenced by at least one credential, so its value is frozen. ' . 'Mutating it in place would silently redirect every OTP credential pointing at ' . 'this row — an account takeover requiring no credential change at all. Create ' . 'and verify a new identifier, then enroll a new credential against it.', $identifierId));
+  +        return new self(sprintf('and verify a new identifier, then enroll a new credential against it.' . ('Identifier %d is referenced by at least one credential, so its value is frozen. ' . 'Mutating it in place would silently redirect every OTP credential pointing at ' . 'this row — an account takeover requiring no credential change at all. Create '), $identifierId));
+       }
+   }
+  
+
+  Mutations: 32 untested, 10 tested
+  Score:     23.81%
+  Duration:  33.00s
+
