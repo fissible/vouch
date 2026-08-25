@@ -187,23 +187,31 @@ it('derives the exact cumulative identifier backoff schedule', function (
 it('applies the configured backoff cap at the deterministic schedule boundary', function (): void {
     $uncapped = scalarThrottleSubject(ThrottleDimension::Recovery, 10);
     $capped = scalarThrottleSubject(ThrottleDimension::Recovery, 11);
+    $windowed = scalarThrottleSubject(ThrottleDimension::Recovery, 12);
     seedScalarCounter($uncapped, 10);
     seedScalarCounter($capped, 11);
+    seedScalarCounter($windowed, 100);
     $store = scalarThrottleStore();
 
     $uncappedState = $store->preflightShared($uncapped);
     $cappedState = $store->preflightShared($capped);
+    $windowedState = $store->preflightShared($windowed);
     $uncappedWindow = DB::table('auth_throttle_counters')
         ->where('subject_digest', $uncapped->digest)
         ->value('window_started_at');
     $cappedWindow = DB::table('auth_throttle_counters')
         ->where('subject_digest', $capped->digest)
         ->value('window_started_at');
+    $windowedWindow = DB::table('auth_throttle_counters')
+        ->where('subject_digest', $windowed->digest)
+        ->value('window_started_at');
 
     expect($uncappedState->retryAfter?->getTimestamp())
         ->toBe(scalarTimestamp($uncappedWindow)->modify('+63 seconds')->getTimestamp())
         ->and($cappedState->retryAfter?->getTimestamp())
-        ->toBe(scalarTimestamp($cappedWindow)->modify('+123 seconds')->getTimestamp());
+        ->toBe(scalarTimestamp($cappedWindow)->modify('+123 seconds')->getTimestamp())
+        ->and($windowedState->retryAfter?->getTimestamp())
+        ->toBe(scalarTimestamp($windowedWindow)->modify('+900 seconds')->getTimestamp());
 });
 
 it('stops incrementing during backoff and resumes only after its database deadline', function (): void {
