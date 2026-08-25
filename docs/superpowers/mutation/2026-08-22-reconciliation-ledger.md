@@ -405,14 +405,15 @@ log/classification SHA-256
 The first isolated follow-up batch (`57cc122`) added deterministic backoff
 schedule assertions. Its Throttle rerun still reports 865 mutations / 7 RUN
 files, 735 tested, 90 untested, 40 uncovered, and 0 timeouts. The baseline row
-diff is empty: the test executes the schedule but does not yet discriminate the
-survivors. `DatabaseAuthThrottleStore:638` therefore remains queued until the
-window-clamp case is confirmed in a subsequent rerun; `:642` is equivalent
-under the validated `min($delay, $cap)` arithmetic because `<` and `<=` produce
-the same capped delay. `DatabaseAuthThrottleStore:657` is likewise a
-language-semantic equivalent: PHP parses `modify('5 seconds')` and
-`modify('+5 seconds')` identically. The follow-up clamp assertion is committed
-separately as `a438e33` and requires its own baseline diff.
+diff is empty: the test executes the schedule but does not discriminate the
+survivors. `DatabaseAuthThrottleStore:638` and `:642` are now both classified
+as `idempotent-under-clamp`: widening either guard permits an extra iteration
+or assignment, but the following `min()` restores the same returned offset.
+No second 50-minute rerun is required to decide these rows. `:657` is likewise
+a language-semantic equivalent: PHP parses `modify('5 seconds')` and
+`modify('+5 seconds')` identically. The stronger window-clamp assertion is
+committed separately as `a438e33`; it remains useful schedule coverage even
+though these two mutants are observationally inert.
 
 ### Kernel
 
