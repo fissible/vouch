@@ -78,6 +78,33 @@ Three repo-wide predictions are now confirmed by the union: the lines for
 are absent from all three maps. Their future `UNCOVERED` rows are therefore
 `never-executed`, not engine-gated.
 
+### Post-test confirmation coverage union
+
+The Tier 1/2 test additions are pinned at
+`3f3b984b9acddb2b5fe1dc7a7621202b8eb7c89f`. The prior union remains historical
+evidence for the `66ac67d` disposition pass and must not be overwritten. A
+fresh three-engine coverage sitting was run at this SHA:
+
+| engine | result | Clover SHA-256 |
+|---|---|---|
+| file-backed SQLite | 1,171 passed / 4,108 assertions / 31.90s | `f2ebca6f48aa8857f184504fab22f1538fea4331f04bd51b8482e0ba13f2ec94` |
+| MySQL 8 | 1,171 passed / 4,110 assertions / 68.55s | `140a8413e1b3cb15756b0bd56d8fa36950a3ccebf8db5263593d0a3239c494c7` |
+| PostgreSQL 16 | 1,171 passed / 4,112 assertions / 64.15s | `a4cf55e775d8f73de19736a2c3d0b2a2d230c92cbcc7a03a91c60f6e7d2ad54b` |
+
+This is confirmation evidence only until the affected mutation chunks are
+rerun at this SHA. The old line set remains the classifier input for the
+historical artifacts; the new union must be emitted alongside the new logs
+before post-test dispositions are claimed.
+
+### Additional disposition
+
+`shadowed-by-earlier-guard` is distinct from `instrument-unroutable`,
+`never-executed`, and database invariant-unreachable. It applies when an
+earlier guard in the same function rejects every input that could reach a
+later executable branch. The later branch remains deliberate defensive code
+and is retained; the test asserts the earlier guard instead. The three
+IntendedDestination parse/authority/path rows are the first examples.
+
 ## Measurement rules
 
 - Record the exact SHA (`66ac67d`) and the plugin timeout threshold in every
