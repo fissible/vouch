@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 use Fissible\Vouch\Console\CommandExit;
 use Fissible\Vouch\VouchServiceProvider;
+use Fissible\Vouch\Contracts\CaptchaVerifier;
+use Fissible\Vouch\Contracts\DeliveryEconomics;
+use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
@@ -49,6 +52,35 @@ it('reports all adoption prerequisites without accepting subject input', functio
             ])
             ->and(array_keys(Artisan::all()['vouch:doctor']->getDefinition()->getArguments()))->toBe(['command'])
             ->and(array_keys(Artisan::all()['vouch:doctor']->getDefinition()->getOptions()))->toBe(['json', 'help', 'silent', 'quiet', 'verbose', 'version', 'ansi', 'no-interaction', 'env']);
+    } finally {
+        Config::set('vouch.throttle.captcha.enabled', false);
+        Config::set('vouch.throttle.global.mode', 'observe');
+        Config::set('vouch.throttle.global.enforce_at', null);
+        Config::set('vouch.throttle.global.backoff_seconds', null);
+        app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+    }
+});
+
+it('returns success when every configured prerequisite passes', function (): void {
+    Config::set('vouch.throttle.captcha.enabled', true);
+    Config::set('vouch.throttle.global.mode', 'enforce');
+    Config::set('vouch.throttle.global.enforce_at', 5);
+    Config::set('vouch.throttle.global.backoff_seconds', 1);
+    app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+    AuthIdentifier::create([
+        'user_id' => 1,
+        'type' => 'email',
+        'value' => 'doctor@example.test',
+        'verified_at' => now(),
+    ]);
+
+    app()->instance(OtpDelivery::class, Mockery::mock(OtpDelivery::class));
+    app()->instance(DeliveryEconomics::class, Mockery::mock(DeliveryEconomics::class));
+    app()->instance(CaptchaVerifier::class, Mockery::mock(CaptchaVerifier::class));
+    try {
+        expect(Artisan::call('vouch:doctor', ['--json' => true]))->toBe(CommandExit::Success->value)
+            ->and(json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR)['missing'])
+            ->toBe(0);
     } finally {
         Config::set('vouch.throttle.captcha.enabled', false);
         Config::set('vouch.throttle.global.mode', 'observe');
