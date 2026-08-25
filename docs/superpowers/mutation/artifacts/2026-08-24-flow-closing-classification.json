@@ -1,0 +1,233 @@
+[
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/ScreenBuilder.php",
+        "line": 91,
+        "mutator": "ConcatRemoveRight",
+        "id": "7c3de343d3c3fd11",
+        "expression": "'ScreenBuilder requires Outcome::Locked and a measured identifier lock '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/ScreenBuilder.php",
+        "line": 91,
+        "mutator": "ConcatRemoveRight",
+        "id": "76844c511eef979d",
+        "expression": "'ScreenBuilder requires Outcome::Locked and a measured identifier lock '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/ScreenBuilder.php",
+        "line": 91,
+        "mutator": "ConcatRemoveRight",
+        "id": "35f98ecd76baa179",
+        "expression": "'ScreenBuilder requires Outcome::Locked and a measured identifier lock '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/ScreenBuilder.php",
+        "line": 91,
+        "mutator": "ConcatSwitchSides",
+        "id": "736a01a6b4f0d446",
+        "expression": "'ScreenBuilder requires Outcome::Locked and a measured identifier lock '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/ScreenBuilder.php",
+        "line": 91,
+        "mutator": "ConcatSwitchSides",
+        "id": "b85191488ae9fcf9",
+        "expression": "'ScreenBuilder requires Outcome::Locked and a measured identifier lock '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/ScreenBuilder.php",
+        "line": 91,
+        "mutator": "ConcatSwitchSides",
+        "id": "7facb3953433e77b",
+        "expression": "'ScreenBuilder requires Outcome::Locked and a measured identifier lock '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/UnknownFlowResult.php",
+        "line": 23,
+        "mutator": "ConcatRemoveRight",
+        "id": "a9f247272595d581",
+        "expression": "'No handler for FlowResult variant %s. Every variant must be handled '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/UnknownFlowResult.php",
+        "line": 23,
+        "mutator": "ConcatSwitchSides",
+        "id": "a4f60546e4f0f817",
+        "expression": "'No handler for FlowResult variant %s. Every variant must be handled '",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/AuthFlow.php",
+        "line": 124,
+        "mutator": "RemoveArrayItem",
+        "id": "a9df78187e5e0b76",
+        "expression": "'version' => 1,",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/AuthFlow.php",
+        "line": 203,
+        "mutator": "RemoveMethodCall",
+        "id": "9a4b26b7f25653fa",
+        "expression": "$attempt->refresh();",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/AuthFlow.php",
+        "line": 226,
+        "mutator": "BooleanAndToBooleanOr",
+        "id": "adb2bb1bade8951a",
+        "expression": "if ($preflight instanceof SharedThrottle",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/AuthFlow.php",
+        "line": 226,
+        "mutator": "BooleanAndToBooleanOr",
+        "id": "a6bb00e2f5b6b921",
+        "expression": "if ($preflight instanceof SharedThrottle",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/AuthFlow.php",
+        "line": 226,
+        "mutator": "InstanceOfToTrue",
+        "id": "b8444eb1d19b0d66",
+        "expression": "if ($preflight instanceof SharedThrottle",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/AuthFlow.php",
+        "line": 233,
+        "mutator": "BooleanAndToBooleanOr",
+        "id": "6b419612df43e1a7",
+        "expression": "if ($token !== null && $token !== '') {",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/AuthFlow.php",
+        "line": 233,
+        "mutator": "EmptyStringToNotEmpty",
+        "id": "7437d765113eba35",
+        "expression": "if ($token !== null && $token !== '') {",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/AuthFlow.php",
+        "line": 244,
+        "mutator": "RemoveFunctionCall",
+        "id": "299664cf8266287a",
+        "expression": "report($exception);",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/AuthFlow.php",
+        "line": 368,
+        "mutator": "RemoveMethodCall",
+        "id": "026e41582118ad69",
+        "expression": "$attempt->refresh();",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/AuthFlow.php",
+        "line": 511,
+        "mutator": "BooleanAndToBooleanOr",
+        "id": "f05236f539e4fdef",
+        "expression": "if ($ip !== null && $ipIdentifier !== null) {",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/AuthFlow.php",
+        "line": 659,
+        "mutator": "RemoveEarlyReturn",
+        "id": "487f863ce6c915ad",
+        "expression": "return [];",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    },
+    {
+        "state": "UNCOVERED",
+        "file": "src/Flow/AuthFlow.php",
+        "line": 717,
+        "mutator": "RemoveEarlyReturn",
+        "id": "71aa0b3fdd3b1cd5",
+        "expression": "return 'password';",
+        "disposition": "never-executed",
+        "coverage": "zero",
+        "contested": false
+    },
+    {
+        "state": "UNTESTED",
+        "file": "src/Flow/AuthFlow.php",
+        "line": 726,
+        "mutator": "BooleanAndToBooleanOr",
+        "id": "bc3da4b2853584f2",
+        "expression": "return is_string($type) && $this->registry->has($type) ? $type : 'password';",
+        "disposition": "executed-and-survived",
+        "coverage": "hits",
+        "contested": false
+    }
+]
