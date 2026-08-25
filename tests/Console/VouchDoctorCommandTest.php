@@ -88,3 +88,19 @@ it('exempts only vouch:doctor from the CAPTCHA boot guard', function (): void {
         app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
     }
 });
+
+it('renders the human-readable prerequisite table', function (): void {
+    $exit = Artisan::call('vouch:doctor');
+    $output = Artisan::output();
+
+    expect($exit)->toBe(CommandExit::Failure->value)
+        ->and($output)
+        ->toContain('Prerequisite')
+        ->toContain('Status')
+        ->toContain('Details')
+        ->toContain('verified_at')
+        ->toContain('OtpDelivery')
+        ->toContain('durable_queue')
+        ->toContain('DeliveryEconomics')
+        ->not->toContain('{"missing"');
+});

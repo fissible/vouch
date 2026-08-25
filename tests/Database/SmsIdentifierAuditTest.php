@@ -50,6 +50,43 @@ it('renders aggregate SMS audit output without exposing identifier values', func
     [[]],
 ]);
 
+it('renders JSON audit output without table formatting', function (): void {
+    seedSmsAuditRows();
+
+    expect(Artisan::call('vouch:sms-identifiers:audit', ['--json' => true]))->toBe(0);
+
+    $output = Artisan::output();
+    $report = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
+
+    expect($report)->toBe([
+        'total' => 3,
+        'canonical' => 1,
+        'needs_normalization' => 1,
+        'invalid' => 1,
+        'countries' => ['CA' => 1, 'US' => 1],
+    ])
+        ->and($output)->not->toContain('Total')
+        ->and($output)->not->toContain('Country counts:');
+});
+
+it('renders the complete table and labeled country counts without JSON mode', function (): void {
+    seedSmsAuditRows();
+
+    expect(Artisan::call('vouch:sms-identifiers:audit'))->toBe(0);
+
+    $output = Artisan::output();
+
+    expect($output)
+        ->toContain('Total')
+        ->toContain('Canonical')
+        ->toContain('Needs normalization')
+        ->toContain('Invalid')
+        ->toContain('Country counts:')
+        ->toContain('"CA":1')
+        ->toContain('"US":1')
+        ->not->toContain('{"total"');
+});
+
 it('does not accept subject lookup options and treats invalid rows as a survey result', function (): void {
     seedSmsAuditRows();
 
