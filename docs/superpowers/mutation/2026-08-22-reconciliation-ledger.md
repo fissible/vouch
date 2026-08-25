@@ -392,8 +392,9 @@ The first three are the expected trade from replacing the one-second CAPTCHA
 test deadline with 30 seconds: the old test accidentally discriminated small
 backoff/driver changes through deadline expiry. They are now queued for direct,
 deterministic tests rather than restored to a flaky oracle. The Recovery branch
-at `DatabaseAuthThrottleStore:583` remains never-executed on all engines and is
-queued as an open coverage gap.
+at `DatabaseAuthThrottleStore:583` was still mechanically never-executed on
+all engines at this historical point; the later refactor and rerun below
+resolve its arm swaps and leave only the intentionally shadowed call site.
 
 Artifacts: Flow log/classification SHA-256
 `14dc8aec1ba5d02a9feef8029b74ee2969045c95b03a759e43664fa85e97f0d9` /
@@ -417,6 +418,15 @@ so its two arm-swap mutants are now expected to be killed. Only the separate
 remains equivalent-by-call-context. The earlier all-three-row equivalence
 disposition applied to the pre-refactor structure and is superseded by
 `212212a`.
+
+The post-refactor Throttle run confirmed the expected footprint: 863 mutations
+(`735 tested + 90 untested + 38 uncovered`) across the same 7 RUN files, with
+the two arm-swap mutants killed and the residual `sharedState()` removal at
+line 581 uncovered. That row is intentionally mechanically never-executed:
+all production callers either return the posture before `sharedState()` or
+discard its non-`BackedOff` result. Its human disposition remains
+shadowed-by-caller-guard / equivalent, so future `never-executed` output for
+this exact row is expected and must not be queued as a test gap.
 
 The first isolated follow-up batch (`57cc122`) added deterministic backoff
 schedule assertions. Its Throttle rerun still reports 865 mutations / 7 RUN
@@ -917,6 +927,14 @@ then-actionable Delivery logic set was the short-circuit at `:88`, the
 exactly-one-row release invariant at `:137`, the two-scope `continue` at `:197`,
 and the reservation-key/country predicates at `:154` and `:57`; later batches
 closed the predicates and the two-scope continuation.
+
+`ConsumeChallenge:26` was reviewed and retracted from the correctness queue.
+Its target prefix is observable only in the exception message under a
+single-mutant run: removing `challenge:` cannot collide with either existing
+`credential:` target because the other mutation is not applied simultaneously.
+It therefore remains within the narrowed message-prose ruling. The
+cross-type namespace observation is retained as design guidance for any future
+mutation type, not as a test request.
 
 ### Delivery refusal-batch confirmation (`6a86ad8`)
 
