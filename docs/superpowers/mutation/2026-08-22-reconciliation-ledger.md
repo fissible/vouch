@@ -374,6 +374,34 @@ executed survivors.
   compared with the final post-routing artifact rather than read as a trend in
   implementation quality.
 
+### Closing Flow and Throttle sweep
+
+Commit `3210dad` ran the two semantic candidates at the post-flake-fix source
+guard (`62e51eb`), using non-compact path-scoped commands and retained logs.
+Flow reproduced its baseline exactly: 354 mutations across 6 RUN files, 333
+tested, 20 untested, and 1 uncovered. Throttle reproduced the 865-mutation,
+7-RUN inventory and ended at 735 tested, 90 untested, and 40 uncovered, with no
+timeouts. The four tested-to-untested movements were:
+
+- `DatabaseAuthThrottleStore:409` SQLite driver dispatch;
+- `DatabaseAuthThrottleStore:662` SQLite driver dispatch;
+- `DatabaseAuthThrottleStore:642` backoff-cap comparison; and
+- `ThrottleConfiguration:364` validation-message prose.
+
+The first three are the expected trade from replacing the one-second CAPTCHA
+test deadline with 30 seconds: the old test accidentally discriminated small
+backoff/driver changes through deadline expiry. They are now queued for direct,
+deterministic tests rather than restored to a flaky oracle. The Recovery branch
+at `DatabaseAuthThrottleStore:583` remains never-executed on all engines and is
+queued as an open coverage gap.
+
+Artifacts: Flow log/classification SHA-256
+`14dc8aec1ba5d02a9feef8029b74ee2969045c95b03a759e43664fa85e97f0d9` /
+`2b8c08602f425d29db2a27debdde07ef48b1717a147462e34f7b45d03bc739fc`; Throttle
+log/classification SHA-256
+`0ed63292e5983d77b489cb3173ef82abd24e56c79f70e4af203405cc027a92fd` /
+`d0d0378d8a373eceb343a0b6333d2766c39dbebe4a0aa6079ba24b84ff4b0edd`.
+
 ### Kernel
 
 - Literal command: `vendor/bin/pest --mutate --path=src/Kernel --no-cache --min=0`
