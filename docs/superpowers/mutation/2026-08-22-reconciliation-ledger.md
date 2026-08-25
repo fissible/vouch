@@ -96,6 +96,16 @@ rerun at this SHA. The old line set remains the classifier input for the
 historical artifacts; the new union must be emitted alongside the new logs
 before post-test dispositions are claimed.
 
+### Tier 2 confirmation
+
+At the post-test source/test SHA, the Factors/Drivers rerun produced 435
+mutations: 358 tested, 73 untested, and 4 structural loop-counter timeouts.
+All six Tier 2 target rows were killed: OtpFactor's Consumed, Expired, and
+Unavailable mappings, plus the null-user NoCredential guards in PasswordFactor,
+RecoveryCodeFactor, and TotpFactor. The driver tests needed query-shape
+assertions in addition to the failure enum; outcome-only assertions left the
+early-return mutants equivalent.
+
 ### Additional disposition
 
 `shadowed-by-earlier-guard` is distinct from `instrument-unroutable`,
