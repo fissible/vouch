@@ -1,0 +1,2446 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  .......................................
+
+  Tests:    1179 passed (4137 assertions)
+  Duration: 31.98s
+
+  Mutating application files...
+  863 Mutations for 7 Files created
+
+   RUN  src/Throttle/ThrottleKey.php
+  ✓ Line 53: IfNegated
+  ✓ Line 53: IdenticalToNotIdentical
+  ✓ Line 54: RemoveEarlyReturn
+  ✓ Line 57: NotIdenticalToIdentical
+  ✓ Line 57: FalseToTrue
+  ✓ Line 59: AlwaysReturnNull
+  ✓ Line 60: TernaryNegated
+  ✓ Line 61: TernaryNegated
+  ✓ Line 73: IfNegated
+  ✓ Line 73: IdenticalToNotIdentical
+  ✓ Line 74: RemoveEarlyReturn
+  ✓ Line 77: AlwaysReturnNull
+  ✓ Line 102: RemoveArrayItem
+  ✓ Line 121: TernaryNegated
+  ✓ Line 121: IdenticalToNotIdentical
+  ✓ Line 121: AlwaysReturnEmptyArray
+  ✓ Line 122: RemoveArrayItem
+  ✓ Line 123: RemoveArrayItem
+  ✓ Line 123: RemoveArrayItem
+  ✓ Line 131: ForeachEmptyIterable
+  ✓ Line 135: AlwaysReturnEmptyArray
+
+   RUN  src/Throttle/ThrottleSubject.php
+  ✓ Line 23: IfNegated
+  ✓ Line 23: NotIdenticalToIdentical
+  ✓ Line 23: DecrementInteger
+  ✓ Line 23: IncrementInteger
+
+   RUN  src/Throttle/DatabaseAuthThrottleStore.php
+  ✓ Line 40: CoalesceRemoveLeft
+  ✓ Line 41: CoalesceRemoveLeft
+  ✓ Line 46: RemoveMethodCall
+  ✓ Line 50: IfNegated
+  ✓ Line 50: NotIdenticalToIdentical
+  ✓ Line 51: RemoveEarlyReturn
+  ✓ Line 56: IfNegated
+  ✓ Line 57: RemoveEarlyReturn
+  ✓ Line 62: TernaryNegated
+  ✓ Line 62: IdenticalToNotIdentical
+  ✓ Line 69: IfNegated
+  ✓ Line 70: RemoveArrayItem
+  ✓ Line 71: RemoveArrayItem
+  ✓ Line 75: TernaryNegated
+  ✓ Line 75: IdenticalToNotIdentical
+  ✓ Line 75: RemoveEarlyReturn
+  ✓ Line 80: RemoveMethodCall
+  ✓ Line 89: IfNegated
+  ✓ Line 89: IdenticalToNotIdentical
+  ✓ Line 89: BooleanOrToBooleanAnd
+  ✓ Line 90: RemoveEarlyReturn
+  ✓ Line 98: RemoveMethodCall
+  ⨯ Line 102: NotIdenticalToIdentical
+  ⨯ Line 105: RemoveMethodCall
+  ⨯ Line 106: TrueToFalse
+  ✓ Line 108: IfNegated
+  ✓ Line 108: IdenticalToNotIdentical
+  ✓ Line 113: RemoveMethodCall
+  ⨯ Line 114: TrueToFalse
+  ✓ Line 117: IfNegated
+  ✓ Line 117: IdenticalToNotIdentical
+  ⨯ Line 121: TrueToFalse
+  ✓ Line 123: IfNegated
+  ✓ Line 123: NotIdenticalToIdentical
+  ✓ Line 123: BooleanAndToBooleanOr
+  ✓ Line 127: NotIdenticalToIdentical
+  ✓ Line 129: IfNegated
+  ✓ Line 130: RemoveMethodCall
+  ✓ Line 134: IfNegated
+  ✓ Line 134: IdenticalToNotIdentical
+  ✓ Line 141: IfNegated
+  ✓ Line 141: GreaterOrEqualToGreater
+  ✓ Line 141: GreaterOrEqualToSmaller
+  ✓ Line 151: RemoveMethodCall
+  ✓ Line 160: RemoveMethodCall
+  ✓ Line 161: RemoveMethodCall
+  ⨯ Line 165: NotIdenticalToIdentical
+  ⨯ Line 171: RemoveMethodCall
+  ⨯ Line 172: TrueToFalse
+  ✓ Line 174: IfNegated
+  ✓ Line 174: IdenticalToNotIdentical
+  ✓ Line 180: RemoveMethodCall
+  ⨯ Line 181: TrueToFalse
+  ✓ Line 184: IfNegated
+  ✓ Line 184: IdenticalToNotIdentical
+  ✓ Line 188: IfNegated
+  ✓ Line 189: RemoveMethodCall
+  ✓ Line 192: RemoveArrayItem
+  ✓ Line 193: RemoveArrayItem
+  ⨯ Line 196: TrueToFalse
+  ✓ Line 198: IfNegated
+  ✓ Line 198: IdenticalToNotIdentical
+  ✓ Line 205: IfNegated
+  ✓ Line 205: IdenticalToNotIdentical
+  ✓ Line 211: RemoveArrayItem
+  ✓ Line 211: RemoveMethodCall
+  ✓ Line 212: RemoveArrayItem
+  ✓ Line 213: RemoveArrayItem
+  ✓ Line 214: RemoveArrayItem
+  ✓ Line 215: RemoveArrayItem
+  ✓ Line 216: RemoveArrayItem
+  ✓ Line 224: IfNegated
+  ✓ Line 234: RemoveMethodCall
+  ✓ Line 245: RemoveMethodCall
+  ✓ Line 247: RemoveMethodCall
+  ✓ Line 251: RemoveMethodCall
+  ✓ Line 253: RemoveMethodCall
+  ✓ Line 279: ConcatRemoveLeft
+  ✓ Line 279: ConcatRemoveLeft
+  ✓ Line 279: ConcatRemoveLeft
+  ✓ Line 279: ConcatRemoveLeft
+  ✓ Line 279: ConcatRemoveLeft
+  ✓ Line 279: ConcatRemoveLeft
+  ✓ Line 279: ConcatRemoveRight
+  ✓ Line 279: ConcatRemoveRight
+  ✓ Line 279: ConcatRemoveRight
+  ✓ Line 279: ConcatRemoveRight
+  ✓ Line 279: ConcatRemoveRight
+  ✓ Line 279: ConcatRemoveRight
+  ✓ Line 279: ConcatSwitchSides
+  ✓ Line 279: ConcatSwitchSides
+  ✓ Line 279: ConcatSwitchSides
+  ✓ Line 279: ConcatSwitchSides
+  ✓ Line 279: ConcatSwitchSides
+  ✓ Line 279: ConcatSwitchSides
+  ✓ Line 289: RemoveArrayItem
+  ✓ Line 289: RemoveArrayItem
+  ✓ Line 289: RemoveArrayItem
+  ✓ Line 292: IfNegated
+  ✓ Line 292: IdenticalToNotIdentical
+  ✓ Line 292: DecrementInteger
+  ✓ Line 292: IncrementInteger
+  ✓ Line 296: RemoveArrayItem
+  ✓ Line 298: IfNegated
+  ✓ Line 298: IdenticalToNotIdentical
+  ✓ Line 302: RemoveArrayCast
+  ✓ Line 304: IfNegated
+  ✓ Line 304: NotIdenticalToIdentical
+  ✓ Line 304: CoalesceRemoveLeft
+  ✓ Line 313: TernaryNegated
+  ✓ Line 318: IfNegated
+  ✓ Line 318: NotIdenticalToIdentical
+  ✓ Line 318: DecrementInteger
+  ✓ Line 318: IncrementInteger
+  ✓ Line 327: RemoveArrayItem
+  ✓ Line 327: RemoveArrayItem
+  ✓ Line 329: IfNegated
+  ✓ Line 329: IdenticalToNotIdentical
+  ✓ Line 333: RemoveArrayCast
+  ✓ Line 334: CoalesceRemoveLeft
+  ✓ Line 336: IfNegated
+  ✓ Line 336: GreaterToGreaterOrEqual
+  ✓ Line 336: GreaterToSmallerOrEqual
+  ✓ Line 336: SmallerToGreaterOrEqual
+  ✓ Line 336: SmallerToSmallerOrEqual
+  ✓ Line 336: BooleanOrToBooleanAnd
+  ✓ Line 336: BooleanOrToBooleanAnd
+  ✓ Line 336: RemoveNot
+  ✓ Line 336: DecrementInteger
+  ✓ Line 336: IncrementInteger
+  ✓ Line 340: TernaryNegated
+  ✓ Line 340: IdenticalToNotIdentical
+  ✓ Line 348: RemoveMethodCall
+  ⨯ Line 349: NotIdenticalToIdentical
+  ⨯ Line 352: RemoveMethodCall
+  ⨯ Line 353: TrueToFalse
+  ✓ Line 355: IfNegated
+  ✓ Line 355: IdenticalToNotIdentical
+  ✓ Line 356: RemoveMethodCall
+  ⨯ Line 357: TrueToFalse
+  ✓ Line 360: IfNegated
+  ✓ Line 360: IdenticalToNotIdentical
+  ✓ Line 366: IfNegated
+  ✓ Line 366: GreaterOrEqualToGreater
+  ✓ Line 366: GreaterOrEqualToSmaller
+  ✓ Line 366: BooleanAndToBooleanOr
+  ✓ Line 366: RemoveNot
+  ✓ Line 370: RemoveMethodCall
+  ⨯ Line 380: NotIdenticalToIdentical
+  ⨯ Line 383: RemoveMethodCall
+  ⨯ Line 384: TrueToFalse
+  ✓ Line 386: IfNegated
+  ✓ Line 386: IdenticalToNotIdentical
+  ✓ Line 387: RemoveMethodCall
+  ⨯ Line 388: TrueToFalse
+  ✓ Line 391: IfNegated
+  ✓ Line 391: IdenticalToNotIdentical
+  ✓ Line 397: IfNegated
+  ✓ Line 397: IdenticalToNotIdentical
+  ⨯ Line 407: IfNegated
+  ⨯ Line 407: IdenticalToNotIdentical
+  ⨯ Line 408: RemoveMethodCall
+  ⨯ Line 410: RemoveEarlyReturn
+  - Line 413: IfNegated
+  - Line 417: RemoveMethodCall
+  ✓ Line 424: RemoveArrayItem
+  ✓ Line 424: RemoveMethodCall
+  ✓ Line 425: RemoveArrayItem
+  ✓ Line 426: RemoveArrayItem
+  ✓ Line 427: RemoveArrayItem
+  ✓ Line 428: RemoveArrayItem
+  ✓ Line 429: RemoveArrayItem
+  ⨯ Line 434: FalseToTrue
+  ⨯ Line 438: IfNegated
+  ⨯ Line 439: RemoveMethodCall
+  ✓ Line 442: RemoveArrayItem
+  ✓ Line 442: RemoveArrayItem
+  ✓ Line 444: IfNegated
+  ✓ Line 444: IdenticalToNotIdentical
+  ✓ Line 445: RemoveEarlyReturn
+  ✓ Line 448: RemoveArrayCast
+  ✓ Line 449: CoalesceRemoveLeft
+  ✓ Line 451: IfNegated
+  ✓ Line 451: SmallerToGreaterOrEqual
+  ✓ Line 451: SmallerToSmallerOrEqual
+  ⨯ Line 451: BooleanOrToBooleanAnd
+  ✓ Line 451: RemoveNot
+  ⨯ Line 451: DecrementInteger
+  ✓ Line 451: IncrementInteger
+  ✓ Line 455: AlwaysReturnNull
+  ✓ Line 456: RemoveArrayItem
+  ✓ Line 457: CoalesceRemoveLeft
+  ✓ Line 457: RemoveArrayItem
+  ✓ Line 473: RemoveArrayItem
+  ✓ Line 483: IfNegated
+  ✓ Line 484: RemoveEarlyReturn
+  ✓ Line 487: IfNegated
+  ✓ Line 487: IdenticalToNotIdentical
+  ✓ Line 488: RemoveEarlyReturn
+  ✓ Line 491: TernaryNegated
+  ✓ Line 491: IdenticalToNotIdentical
+  ✓ Line 496: IfNegated
+  ✓ Line 496: IdenticalToNotIdentical
+  ✓ Line 496: IdenticalToNotIdentical
+  ⨯ Line 496: BooleanOrToBooleanAnd
+  ✓ Line 502: IfNegated
+  ✓ Line 502: SmallerToGreaterOrEqual
+  ✓ Line 502: SmallerToSmallerOrEqual
+  ✓ Line 503: RemoveEarlyReturn
+  ✓ Line 507: RemoveArrayItem
+  ✓ Line 510: IfNegated
+  ✓ Line 510: IdenticalToNotIdentical
+  ✓ Line 511: RemoveEarlyReturn
+  ⨯ Line 514: ConcatRemoveLeft
+  ✓ Line 514: ConcatRemoveLeft
+  ✓ Line 514: ConcatRemoveRight
+  ✓ Line 514: ConcatRemoveRight
+  ✓ Line 514: ConcatSwitchSides
+  ✓ Line 514: ConcatSwitchSides
+  ⨯ Line 516: ConcatRemoveLeft
+  ✓ Line 516: ConcatRemoveLeft
+  ✓ Line 516: ConcatRemoveRight
+  ✓ Line 516: ConcatRemoveRight
+  ✓ Line 516: ConcatSwitchSides
+  ✓ Line 516: ConcatSwitchSides
+  ✓ Line 519: TernaryNegated
+  ⨯ Line 519: GreaterToGreaterOrEqual
+  ✓ Line 519: GreaterToSmallerOrEqual
+  ✓ Line 525: TernaryNegated
+  ✓ Line 525: IdenticalToNotIdentical
+  ✓ Line 547: IfNegated
+  ✓ Line 548: RemoveEarlyReturn
+  ✓ Line 551: IfNegated
+  ✓ Line 551: GreaterOrEqualToGreater
+  ✓ Line 551: GreaterOrEqualToSmaller
+  ✓ Line 557: MinusToPlus
+  ✓ Line 559: IfNegated
+  ✓ Line 559: SmallerToGreaterOrEqual
+  ✓ Line 559: SmallerToSmallerOrEqual
+  ⨯ Line 560: RemoveEarlyReturn
+  ✓ Line 565: IfNegated
+  ✓ Line 565: RemoveNot
+  ✓ Line 566: RemoveEarlyReturn
+  ✓ Line 580: IfNegated
+  - Line 581: RemoveEarlyReturn
+  ✓ Line 584: IfNegated
+  ✓ Line 584: IdenticalToNotIdentical
+  ✓ Line 588: TernaryNegated
+  ✓ Line 588: IdenticalToNotIdentical
+  ✓ Line 592: IfNegated
+  ✓ Line 592: IdenticalToNotIdentical
+  ✓ Line 596: TernaryNegated
+  ✓ Line 596: IdenticalToNotIdentical
+  ✓ Line 599: TernaryNegated
+  ✓ Line 599: IdenticalToNotIdentical
+  ✓ Line 603: IfNegated
+  ✓ Line 603: IdenticalToNotIdentical
+  ✓ Line 603: IdenticalToNotIdentical
+  ⨯ Line 603: BooleanOrToBooleanAnd
+  ✓ Line 608: IfNegated
+  ✓ Line 608: SmallerToGreaterOrEqual
+  ✓ Line 608: SmallerToSmallerOrEqual
+  ⨯ Line 609: RemoveEarlyReturn
+  ✓ Line 614: TernaryNegated
+  ✓ Line 621: TernaryNegated
+  ✓ Line 621: IdenticalToNotIdentical
+  ✓ Line 637: DecrementInteger
+  ✓ Line 637: IncrementInteger
+  ✓ Line 641: WhileAlwaysFalse
+  ✓ Line 641: SmallerToGreaterOrEqual
+  ⨯ Line 641: SmallerToSmallerOrEqual
+  ✓ Line 641: SmallerOrEqualToGreater
+  ✓ Line 641: SmallerOrEqualToSmaller
+  ✓ Line 641: BooleanAndToBooleanOr
+  ✓ Line 642: PlusEqualToMinusEqual
+  ✓ Line 642: MinToMax
+  ✓ Line 643: MinToMax
+  ✓ Line 645: IfNegated
+  ✓ Line 645: SmallerToGreaterOrEqual
+  ⨯ Line 645: SmallerToSmallerOrEqual
+  ✓ Line 646: MinToMax
+  ✓ Line 648: MultiplicationToDivision
+  ✓ Line 652: PostIncrementToPostDecrement
+  ✓ Line 660: MinToMax
+  ⨯ Line 660: ConcatRemoveLeft
+  ✓ Line 660: ConcatRemoveLeft
+  ✓ Line 660: ConcatRemoveRight
+  ✓ Line 660: ConcatRemoveRight
+  ✓ Line 660: ConcatSwitchSides
+  ✓ Line 660: ConcatSwitchSides
+  ⨯ Line 665: IfNegated
+  ⨯ Line 665: IdenticalToNotIdentical
+  ⨯ Line 670: RemoveMethodCall
+  ⨯ Line 672: RemoveEarlyReturn
+  - Line 679: IfNegated
+  - Line 683: RemoveMethodCall
+  ✓ Line 690: RemoveArrayItem
+  ✓ Line 690: RemoveMethodCall
+  ✓ Line 691: RemoveArrayItem
+  ✓ Line 692: RemoveArrayItem
+  ✓ Line 693: RemoveArrayItem
+  ✓ Line 694: DecrementInteger
+  ✓ Line 694: IncrementInteger
+  ✓ Line 694: RemoveArrayItem
+  ✓ Line 695: RemoveArrayItem
+  ✓ Line 696: RemoveArrayItem
+  ✓ Line 703: FalseToTrue
+  ✓ Line 716: ConcatRemoveLeft
+  ✓ Line 716: ConcatRemoveLeft
+  ✓ Line 716: ConcatRemoveLeft
+  ✓ Line 716: ConcatRemoveLeft
+  ✓ Line 716: ConcatRemoveRight
+  ✓ Line 716: ConcatRemoveRight
+  ✓ Line 716: ConcatRemoveRight
+  ✓ Line 716: ConcatRemoveRight
+  ✓ Line 716: ConcatSwitchSides
+  ✓ Line 716: ConcatSwitchSides
+  ✓ Line 716: ConcatSwitchSides
+  ✓ Line 716: ConcatSwitchSides
+  ✓ Line 722: TernaryNegated
+  ✓ Line 722: DecrementInteger
+  ⨯ Line 722: DecrementInteger
+  ✓ Line 722: IncrementInteger
+  ✓ Line 722: IncrementInteger
+  ✓ Line 722: RemoveArrayItem
+  ✓ Line 723: RemoveArrayItem
+  ✓ Line 724: TernaryNegated
+  ✓ Line 724: DecrementInteger
+  ⨯ Line 724: DecrementInteger
+  ✓ Line 724: IncrementInteger
+  ✓ Line 724: IncrementInteger
+  ✓ Line 724: RemoveArrayItem
+  ✓ Line 725: RemoveArrayItem
+  ✓ Line 726: RemoveArrayItem
+  ✓ Line 727: RemoveArrayItem
+  ✓ Line 731: IfNegated
+  ✓ Line 731: NotIdenticalToIdentical
+  ✓ Line 731: DecrementInteger
+  ✓ Line 731: IncrementInteger
+  ⨯ Line 735: TrueToFalse
+  ✓ Line 737: IfNegated
+  ✓ Line 737: IdenticalToNotIdentical
+  ✓ Line 741: AlwaysReturnEmptyArray
+  ⨯ Line 745: FalseToTrue
+  ⨯ Line 749: IfNegated
+  ⨯ Line 750: RemoveMethodCall
+  ✓ Line 753: RemoveArrayItem
+  ✓ Line 753: RemoveArrayItem
+  ✓ Line 755: IfNegated
+  ✓ Line 755: IdenticalToNotIdentical
+  ✓ Line 756: RemoveEarlyReturn
+  ✓ Line 759: RemoveArrayCast
+  ✓ Line 760: CoalesceRemoveLeft
+  ✓ Line 762: IfNegated
+  ✓ Line 762: SmallerToGreaterOrEqual
+  ✓ Line 762: SmallerToSmallerOrEqual
+  ✓ Line 762: BooleanOrToBooleanAnd
+  ✓ Line 762: RemoveNot
+  ✓ Line 762: DecrementInteger
+  ✓ Line 762: IncrementInteger
+  ✓ Line 766: AlwaysReturnNull
+  ✓ Line 767: RemoveArrayItem
+  ✓ Line 768: CoalesceRemoveLeft
+  ✓ Line 768: RemoveArrayItem
+  ✓ Line 784: RemoveArrayItem
+  ✓ Line 792: RemoveArrayItem
+  ✓ Line 800: RemoveArrayItem
+  ✓ Line 800: RemoveMethodCall
+  ✓ Line 801: RemoveArrayItem
+  ✓ Line 802: RemoveArrayItem
+  ✓ Line 803: RemoveArrayItem
+  ✓ Line 804: RemoveArrayItem
+  ✓ Line 814: ConcatRemoveLeft
+  ✓ Line 814: ConcatRemoveRight
+  ✓ Line 814: ConcatSwitchSides
+  ✓ Line 816: RemoveArrayItem
+  ✓ Line 816: RemoveArrayItem
+  ✓ Line 819: IfNegated
+  ✓ Line 819: NotIdenticalToIdentical
+  ✓ Line 819: DecrementInteger
+  ✓ Line 819: IncrementInteger
+  ⨯ Line 823: TrueToFalse
+  ✓ Line 825: IfNegated
+  ✓ Line 825: IdenticalToNotIdentical
+  ✓ Line 836: DecrementInteger
+  ✓ Line 836: IncrementInteger
+  ✓ Line 836: RemoveArrayItem
+  ✓ Line 839: TernaryNegated
+  ✓ Line 839: IdenticalToNotIdentical
+  ✓ Line 839: AlwaysReturnNull
+  ⨯ Line 842: FalseToTrue
+  ⨯ Line 847: IfNegated
+  ⨯ Line 848: RemoveMethodCall
+  ✓ Line 853: TernaryNegated
+  ✓ Line 853: IdenticalToNotIdentical
+  ✓ Line 853: AlwaysReturnNull
+  ✓ Line 860: DecrementInteger
+  ✓ Line 860: IncrementInteger
+  ✓ Line 860: RemoveArrayItem
+  ✓ Line 873: RemoveMethodCall
+  ✓ Line 880: IfNegated
+  ✓ Line 880: InstanceOfToTrue
+  ⨯ Line 880: InstanceOfToFalse
+  - Line 881: RemoveEarlyReturn
+  ✓ Line 884: IfNegated
+  ✓ Line 895: IfNegated
+  ✓ Line 895: RemoveNot
+
+   RUN  src/Throttle/IdentifierThrottle.php
+  ✓ Line 28: RemoveMethodCall
+  ✓ Line 40: RemoveMethodCall
+  ✓ Line 54: DecrementInteger
+  ✓ Line 54: IncrementInteger
+  ✓ Line 62: IfNegated
+  ✓ Line 62: SmallerToGreaterOrEqual
+  ✓ Line 62: SmallerToSmallerOrEqual
+  ✓ Line 62: DecrementInteger
+  ✓ Line 62: IncrementInteger
+
+   RUN  src/Throttle/ThrottleConfiguration.php
+  - Line 18: DecrementInteger
+  - Line 18: IncrementInteger
+  ✓ Line 56: IfNegated
+  ✓ Line 56: RemoveNot
+  ✓ Line 91: SmallerToGreaterOrEqual
+  ✓ Line 91: SmallerToSmallerOrEqual
+  ✓ Line 91: RemoveMethodCall
+  ✓ Line 92: ConcatRemoveLeft
+  ⨯ Line 92: ConcatRemoveRight
+  ⨯ Line 92: ConcatSwitchSides
+  ✓ Line 94: GreaterOrEqualToGreater
+  ✓ Line 94: GreaterOrEqualToSmaller
+  ✓ Line 94: DecrementInteger
+  ✓ Line 94: IncrementInteger
+  ✓ Line 94: RemoveMethodCall
+  ✓ Line 96: SmallerOrEqualToGreater
+  ✓ Line 96: SmallerOrEqualToSmaller
+  ✓ Line 96: RemoveMethodCall
+  ✓ Line 97: ConcatRemoveLeft
+  ✓ Line 97: ConcatRemoveRight
+  ✓ Line 97: ConcatSwitchSides
+  ✓ Line 99: SmallerOrEqualToGreater
+  ✓ Line 99: SmallerOrEqualToSmaller
+  ✓ Line 99: RemoveMethodCall
+  ✓ Line 100: ConcatRemoveLeft
+  ✓ Line 100: ConcatRemoveRight
+  ✓ Line 100: ConcatSwitchSides
+  ✓ Line 102: PlusToMinus
+  ✓ Line 102: GreaterOrEqualToGreater
+  ✓ Line 102: GreaterOrEqualToSmaller
+  ✓ Line 102: RemoveMethodCall
+  ✓ Line 103: ConcatRemoveLeft
+  ⨯ Line 103: ConcatRemoveRight
+  ⨯ Line 103: ConcatSwitchSides
+  ✓ Line 105: GreaterToGreaterOrEqual
+  ✓ Line 105: GreaterToSmallerOrEqual
+  ✓ Line 105: RemoveMethodCall
+  ✓ Line 106: ConcatRemoveLeft
+  ⨯ Line 106: ConcatRemoveRight
+  ⨯ Line 106: ConcatSwitchSides
+  ✓ Line 108: RemoveMethodCall
+  ✓ Line 117: RemoveMethodCall
+  ✓ Line 118: RemoveMethodCall
+  ✓ Line 119: RemoveMethodCall
+  ✓ Line 120: RemoveMethodCall
+  ✓ Line 121: BooleanOrToBooleanAnd
+  ✓ Line 121: RemoveNot
+  ⨯ Line 121: RemoveArrayItem
+  ⨯ Line 121: RemoveArrayItem
+  ✓ Line 121: RemoveArrayItem
+  ✓ Line 122: ConcatRemoveLeft
+  ⨯ Line 122: ConcatRemoveRight
+  ⨯ Line 122: ConcatSwitchSides
+  ✓ Line 156: ConcatRemoveLeft
+  ✓ Line 156: ConcatRemoveRight
+  ✓ Line 156: ConcatSwitchSides
+  ✓ Line 161: IfNegated
+  ✓ Line 161: GreaterToGreaterOrEqual
+  ✓ Line 161: GreaterToSmallerOrEqual
+  ✓ Line 161: BooleanAndToBooleanOr
+  ✓ Line 161: DecrementInteger
+  ✓ Line 161: IncrementInteger
+  ✓ Line 162: RemoveEarlyReturn
+  ✓ Line 165: IfNegated
+  ✓ Line 165: IdenticalToNotIdentical
+  ✓ Line 165: BooleanAndToBooleanOr
+  ✓ Line 165: DecrementInteger
+  ✓ Line 165: IncrementInteger
+  ✓ Line 168: IfNegated
+  ⨯ Line 168: GreaterToGreaterOrEqual
+  ✓ Line 168: GreaterToSmallerOrEqual
+  ⨯ Line 168: BooleanAndToBooleanOr
+  ⨯ Line 168: DecrementInteger
+  ✓ Line 168: IncrementInteger
+  ✓ Line 182: IfNegated
+  ✓ Line 182: GreaterOrEqualToGreater
+  ✓ Line 182: GreaterOrEqualToSmaller
+  ✓ Line 182: BooleanAndToBooleanOr
+  ✓ Line 182: DecrementInteger
+  ✓ Line 182: IncrementInteger
+  ✓ Line 183: RemoveEarlyReturn
+  ✓ Line 186: IfNegated
+  ✓ Line 186: IdenticalToNotIdentical
+  ✓ Line 186: BooleanAndToBooleanOr
+  ✓ Line 186: DecrementInteger
+  ✓ Line 186: IncrementInteger
+  ✓ Line 189: IfNegated
+  ✓ Line 189: GreaterOrEqualToGreater
+  ✓ Line 189: GreaterOrEqualToSmaller
+  ✓ Line 189: BooleanAndToBooleanOr
+  ⨯ Line 189: DecrementInteger
+  ✓ Line 189: IncrementInteger
+  ✓ Line 206: TernaryNegated
+  ✓ Line 206: IdenticalToNotIdentical
+  ✓ Line 206: AlwaysReturnNull
+  ✓ Line 214: IfNegated
+  ✓ Line 214: IdenticalToNotIdentical
+  ✓ Line 214: IdenticalToNotIdentical
+  ✓ Line 214: BooleanOrToBooleanAnd
+  ✓ Line 231: IfNegated
+  ✓ Line 232: RemoveEarlyReturn
+  - Line 235: IfNegated
+  - Line 235: IdenticalToNotIdentical
+  - Line 235: IdenticalToNotIdentical
+  - Line 235: IdenticalToNotIdentical
+  - Line 235: BooleanOrToBooleanAnd
+  - Line 235: BooleanOrToBooleanAnd
+  - Line 235: DecrementInteger
+  - Line 235: IncrementInteger
+  - Line 236: TrueToFalse
+  - Line 236: RemoveEarlyReturn
+  - Line 239: IfNegated
+  - Line 239: IdenticalToNotIdentical
+  - Line 239: IdenticalToNotIdentical
+  - Line 239: IdenticalToNotIdentical
+  - Line 239: BooleanOrToBooleanAnd
+  - Line 239: BooleanOrToBooleanAnd
+  - Line 239: DecrementInteger
+  - Line 239: IncrementInteger
+  - Line 240: FalseToTrue
+  ✓ Line 257: MinusToPlus
+  ✓ Line 257: DecrementInteger
+  ✓ Line 257: IncrementInteger
+  ✓ Line 259: ForeachEmptyIterable
+  ✓ Line 260: IfNegated
+  ✓ Line 260: RemoveNot
+  ✓ Line 270: IfNegated
+  ✓ Line 270: IdenticalToNotIdentical
+  ✓ Line 274: IfNegated
+  ✓ Line 274: RemoveNot
+  ✓ Line 296: IfNegated
+  ✓ Line 296: IdenticalToNotIdentical
+  ✓ Line 297: RemoveMethodCall
+  ✓ Line 298: IdenticalToNotIdentical
+  ✓ Line 298: IdenticalToNotIdentical
+  ✓ Line 298: IdenticalToNotIdentical
+  ✓ Line 298: BooleanAndToBooleanOr
+  ✓ Line 298: BooleanAndToBooleanOr
+  ⨯ Line 299: ConcatRemoveLeft
+  ✓ Line 299: ConcatRemoveRight
+  ⨯ Line 299: ConcatSwitchSides
+  ✓ Line 306: NotIdenticalToIdentical
+  ✓ Line 306: RemoveMethodCall
+  ✓ Line 308: NotIdenticalToIdentical
+  ✓ Line 308: RemoveMethodCall
+  ✓ Line 310: NotIdenticalToIdentical
+  ✓ Line 310: RemoveMethodCall
+  ✓ Line 313: IfNegated
+  ✓ Line 313: NotIdenticalToIdentical
+  ✓ Line 313: NotIdenticalToIdentical
+  ⨯ Line 313: BooleanAndToBooleanOr
+  ✓ Line 314: GreaterToGreaterOrEqual
+  ✓ Line 314: GreaterToSmallerOrEqual
+  ✓ Line 314: RemoveMethodCall
+  ✓ Line 315: ConcatRemoveLeft
+  ⨯ Line 315: ConcatRemoveRight
+  ⨯ Line 315: ConcatSwitchSides
+  ✓ Line 319: IfNegated
+  ✓ Line 319: NotIdenticalToIdentical
+  ✓ Line 320: SmallerOrEqualToGreater
+  ✓ Line 320: SmallerOrEqualToSmaller
+  ✓ Line 320: RemoveMethodCall
+  ⨯ Line 321: ConcatRemoveLeft
+  ✓ Line 321: ConcatRemoveRight
+  ⨯ Line 321: ConcatSwitchSides
+  ✓ Line 334: DecrementFloat
+  ✓ Line 334: IncrementFloat
+  ✓ Line 335: DivisionToMultiplication
+  ✓ Line 335: MultiplicationToDivision
+  ✓ Line 335: MultiplicationToDivision
+  ✓ Line 335: DecrementFloat
+  ✓ Line 335: IncrementFloat
+  ✓ Line 336: PowerToMultiplication
+  ✓ Line 336: DecrementFloat
+  ✓ Line 336: IncrementFloat
+  ✓ Line 338: SmallerOrEqualToGreater
+  ✓ Line 338: SmallerOrEqualToSmaller
+  ✓ Line 338: RemoveMethodCall
+  ⨯ Line 339: ConcatRemoveLeft
+  ✓ Line 339: ConcatRemoveLeft
+  ✓ Line 339: ConcatRemoveRight
+  ✓ Line 339: ConcatRemoveRight
+  ✓ Line 339: ConcatSwitchSides
+  ✓ Line 339: ConcatSwitchSides
+  ✓ Line 343: PlusToMinus
+  ✓ Line 343: MultiplicationToDivision
+  ✓ Line 343: DecrementInteger
+  ✓ Line 343: DecrementInteger
+  ✓ Line 343: IncrementInteger
+  ✓ Line 343: IncrementInteger
+  ✓ Line 344: DivisionToMultiplication
+  ✓ Line 344: MultiplicationToDivision
+  ✓ Line 344: MultiplicationToDivision
+  ✓ Line 344: DecrementFloat
+  ✓ Line 344: IncrementFloat
+  ✓ Line 345: PowerToMultiplication
+  ✓ Line 345: DecrementFloat
+  ✓ Line 345: IncrementFloat
+  ✓ Line 347: SmallerOrEqualToGreater
+  ✓ Line 347: SmallerOrEqualToSmaller
+  ✓ Line 347: RemoveMethodCall
+  ✓ Line 348: ConcatRemoveLeft
+  ✓ Line 348: ConcatRemoveLeft
+  ✓ Line 348: ConcatRemoveRight
+  ✓ Line 348: ConcatRemoveRight
+  ✓ Line 348: ConcatSwitchSides
+  ✓ Line 348: ConcatSwitchSides
+  ✓ Line 360: IfNegated
+  ✓ Line 360: IdenticalToNotIdentical
+  ✓ Line 361: RemoveMethodCall
+  ✓ Line 362: IdenticalToNotIdentical
+  ✓ Line 362: IdenticalToNotIdentical
+  ✓ Line 362: BooleanAndToBooleanOr
+  ⨯ Line 364: ConcatRemoveLeft
+  ✓ Line 364: ConcatRemoveRight
+  ⨯ Line 364: ConcatSwitchSides
+  ✓ Line 373: NotIdenticalToIdentical
+  ✓ Line 373: RemoveMethodCall
+  ✓ Line 378: NotIdenticalToIdentical
+  ✓ Line 378: RemoveMethodCall
+  ✓ Line 384: IfNegated
+  ✓ Line 384: NotIdenticalToIdentical
+  ✓ Line 385: SmallerOrEqualToGreater
+  ✓ Line 385: SmallerOrEqualToSmaller
+  ✓ Line 385: RemoveMethodCall
+  ⨯ Line 386: ConcatRemoveLeft
+  ✓ Line 386: ConcatRemoveRight
+  ⨯ Line 386: ConcatSwitchSides
+  ✓ Line 395: IfNegated
+  ✓ Line 395: RemoveNot
+  - Line 402: TrueToFalse
+  ✓ Line 403: IdenticalToNotIdentical
+  ✓ Line 403: EmptyStringToNotEmpty
+  ✓ Line 404: ConcatRemoveLeft
+  ✓ Line 404: ConcatRemoveLeft
+  ✓ Line 404: ConcatRemoveRight
+  ✓ Line 404: ConcatRemoveRight
+  ✓ Line 404: ConcatSwitchSides
+  ✓ Line 404: ConcatSwitchSides
+  ✓ Line 405: RemoveStringCast
+  ✓ Line 406: IdenticalToNotIdentical
+
+   RUN  src/Throttle/ThrottleReporter.php
+  ✓ Line 46: AlwaysReturnEmptyArray
+  ✓ Line 47: RemoveArrayItem
+  ✓ Line 48: RemoveArrayItem
+  ✓ Line 49: RemoveArrayItem
+  ✓ Line 50: RemoveArrayItem
+  ✓ Line 54: RemoveArrayItem
+  ✓ Line 55: RemoveArrayItem
+  ✓ Line 58: RemoveArrayItem
+  ✓ Line 61: RemoveArrayItem
+  ✓ Line 63: RemoveArrayItem
+  ✓ Line 66: RemoveArrayItem
+  ✓ Line 68: RemoveArrayItem
+  ✓ Line 71: RemoveArrayItem
+  ✓ Line 73: RemoveArrayItem
+  ✓ Line 76: RemoveArrayItem
+  ✓ Line 78: RemoveArrayItem
+  ✓ Line 83: RemoveArrayItem
+  ✓ Line 89: RemoveArrayItem
+  ✓ Line 90: RemoveArrayItem
+  ⨯ Line 99: ConcatRemoveLeft
+  ⨯ Line 99: ConcatRemoveRight
+  ⨯ Line 99: ConcatSwitchSides
+  ✓ Line 100: RemoveArrayItem
+  ✓ Line 102: DecrementInteger
+  ✓ Line 102: IncrementInteger
+  ✓ Line 104: ForeachEmptyIterable
+  ✓ Line 105: PlusEqualToMinusEqual
+  ✓ Line 105: CoalesceRemoveLeft
+  ✓ Line 110: ConcatRemoveLeft
+  ⨯ Line 110: ConcatRemoveRight
+  ✓ Line 110: ConcatSwitchSides
+  ✓ Line 112: RemoveArrayItem
+  ✓ Line 113: RemoveArrayItem
+  ⨯ Line 114: RemoveArrayItem
+  ✓ Line 115: RemoveArrayItem
+  ✓ Line 116: RemoveArrayItem
+  ✓ Line 118: DecrementInteger
+  ✓ Line 118: IncrementInteger
+  ✓ Line 119: DecrementInteger
+  ✓ Line 119: IncrementInteger
+  ✓ Line 120: DecrementInteger
+  ✓ Line 120: IncrementInteger
+  ✓ Line 121: DecrementInteger
+  ✓ Line 121: IncrementInteger
+  ✓ Line 122: DecrementInteger
+  ✓ Line 122: IncrementInteger
+  ✓ Line 123: DecrementInteger
+  ✓ Line 123: IncrementInteger
+  ✓ Line 125: ForeachEmptyIterable
+  ✓ Line 126: CoalesceRemoveLeft
+  ✓ Line 127: PlusEqualToMinusEqual
+  ✓ Line 128: NotIdenticalToIdentical
+  ✓ Line 130: IfNegated
+  ✓ Line 131: PlusEqualToMinusEqual
+  ✓ Line 134: IfNegated
+  ✓ Line 134: IdenticalToNotIdentical
+  ⨯ Line 135: PostIncrementToPostDecrement
+  ✓ Line 136: ElseIfNegated
+  ✓ Line 136: IdenticalToNotIdentical
+  ✓ Line 137: PostIncrementToPostDecrement
+  ✓ Line 138: ElseIfNegated
+  ✓ Line 139: IdenticalToNotIdentical
+  ⨯ Line 139: BooleanAndToBooleanOr
+  ✓ Line 140: NotIdenticalToIdentical
+  ✓ Line 142: PostIncrementToPostDecrement
+  - Line 143: ElseIfNegated
+  - Line 143: IdenticalToNotIdentical
+  - Line 143: BooleanAndToBooleanOr
+  - Line 144: PostIncrementToPostDecrement
+  ✓ Line 149: AlwaysReturnEmptyArray
+  ✓ Line 150: RemoveArrayItem
+  ✓ Line 151: RemoveArrayItem
+  ✓ Line 152: RemoveArrayItem
+  ✓ Line 153: RemoveArrayItem
+  ✓ Line 154: RemoveArrayItem
+  ✓ Line 155: RemoveArrayItem
+  ✓ Line 156: MinusToPlus
+  ✓ Line 156: RemoveArrayItem
+  ✓ Line 157: RemoveArrayItem
+  ✓ Line 158: RemoveArrayItem
+  ✓ Line 159: RemoveArrayItem
+  ✓ Line 160: RemoveArrayItem
+  ✓ Line 179: AlwaysReturnEmptyArray
+  ✓ Line 192: RemoveArrayItem
+  ✓ Line 192: RemoveArrayItem
+  ✓ Line 198: RemoveMethodCall
+  ✓ Line 205: AlwaysReturnEmptyArray
+  ✓ Line 230: IfNegated
+  ✓ Line 230: IdenticalToNotIdentical
+  ✓ Line 234: RemoveArrayCast
+  ✓ Line 237: ForeachEmptyIterable
+  ✓ Line 239: RemoveArrayItem
+  ✓ Line 240: RemoveArrayItem
+  ✓ Line 241: RemoveArrayItem
+  ✓ Line 248: AlwaysReturnEmptyArray
+  ✓ Line 249: RemoveArrayItem
+  ✓ Line 250: CoalesceRemoveLeft
+  ✓ Line 250: RemoveArrayItem
+  ✓ Line 251: RemoveArrayItem
+  ✓ Line 252: CoalesceRemoveLeft
+  ✓ Line 252: RemoveArrayItem
+  ✓ Line 253: CoalesceRemoveLeft
+  ✓ Line 253: RemoveArrayItem
+  ✓ Line 254: CoalesceRemoveLeft
+  ✓ Line 254: RemoveArrayItem
+  ✓ Line 255: CoalesceRemoveLeft
+  ✓ Line 255: RemoveArrayItem
+  ✓ Line 256: CoalesceRemoveLeft
+  ✓ Line 256: RemoveArrayItem
+  ✓ Line 257: CoalesceRemoveLeft
+  ✓ Line 257: RemoveArrayItem
+  ✓ Line 258: RemoveArrayItem
+  ✓ Line 259: CoalesceRemoveLeft
+  ✓ Line 261: CoalesceRemoveLeft
+  ✓ Line 261: RemoveArrayItem
+  ✓ Line 263: RemoveArrayItem
+  ✓ Line 274: ForeachEmptyIterable
+  ✓ Line 279: TernaryNegated
+  ✓ Line 279: NotIdenticalToIdentical
+  ⨯ Line 279: BooleanAndToBooleanOr
+  ⨯ Line 279: EmptyStringToNotEmpty
+  ✓ Line 282: CoalesceRemoveLeft
+  ⨯ Line 285: RemoveFunctionCall
+  ✓ Line 287: AlwaysReturnEmptyArray
+  ✓ Line 288: RemoveArrayItem
+  ✓ Line 292: RemoveArrayItem
+  ✓ Line 296: RemoveArrayItem
+  ✓ Line 299: RemoveArrayItem
+  ✓ Line 302: RemoveArrayItem
+  ✓ Line 309: TernaryNegated
+  ✓ Line 309: IdenticalToNotIdentical
+  ✓ Line 309: RemoveArrayItem
+  ✓ Line 309: AlwaysReturnEmptyArray
+  ✓ Line 314: IfNegated
+  ✓ Line 314: IdenticalToNotIdentical
+  ✓ Line 315: DecrementInteger
+  ✓ Line 315: IncrementInteger
+  ✓ Line 315: RemoveEarlyReturn
+  ✓ Line 318: IfNegated
+  ✓ Line 319: RemoveEarlyReturn
+  - Line 322: IfNegated
+  - Line 322: IdenticalToNotIdentical
+  - Line 322: BooleanAndToBooleanOr
+  - Line 322: DecrementInteger
+  - Line 322: IncrementInteger
+  - Line 325: IfNegated
+
+   RUN  src/Throttle/IpCanonicalizer.php
+  ✓ Line 20: IfNegated
+  ✓ Line 20: IdenticalToNotIdentical
+  ✓ Line 21: RemoveEarlyReturn
+  ✓ Line 26: IfNegated
+  ✓ Line 26: IdenticalToNotIdentical
+  ✓ Line 26: FalseToTrue
+  ✓ Line 33: IfNegated
+  ✓ Line 34: IdenticalToNotIdentical
+  ✓ Line 34: BooleanAndToBooleanOr
+  ✓ Line 34: DecrementInteger
+  ✓ Line 34: IncrementInteger
+  ✓ Line 35: IdenticalToNotIdentical
+  ✓ Line 35: DecrementInteger
+  ✓ Line 35: DecrementInteger
+  ✓ Line 35: IncrementInteger
+  ✓ Line 35: IncrementInteger
+  ✓ Line 35: UnwrapSubstr
+  ✓ Line 37: DecrementInteger
+  ✓ Line 37: IncrementInteger
+  ✓ Line 37: UnwrapSubstr
+  ✓ Line 38: ElseIfNegated
+  ✓ Line 38: IdenticalToNotIdentical
+  ✓ Line 38: DecrementInteger
+  ✓ Line 38: IncrementInteger
+  ✓ Line 39: DecrementInteger
+  ✓ Line 39: DecrementInteger
+  ✓ Line 39: DecrementInteger
+  ✓ Line 39: IncrementInteger
+  ✓ Line 39: IncrementInteger
+  ⨯ Line 39: IncrementInteger
+  ✓ Line 39: UnwrapStrRepeat
+  ✓ Line 44: IfNegated
+  ✓ Line 44: IdenticalToNotIdentical
+  ⨯ Line 44: FalseToTrue
+  ✓ Line 48: AlwaysReturnNull
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 102: NotIdenticalToIdentical - ID: c907ac0921458951
+
+           // Read before opening the transaction. On InnoDB's default REPEATABLE
+           // READ isolation, doing this read inside the transaction fixes a stale
+           // snapshot before a concurrent writer releases the row lock.
+  -        $counterExists = $this->counter($identifier) !== null;
+  +        $counterExists = $this->counter($identifier) === null;
+           return $this->connection->transaction(function () use ($identifier, $counterExists): IdentifierThrottle {
+               $this->ensureCounter($identifier, $counterExists);
+               $counter = $this->counter($identifier, lock: true);
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 105: RemoveMethodCall - ID: f65c2d2007cd1614
+
+           // snapshot before a concurrent writer releases the row lock.
+           $counterExists = $this->counter($identifier) !== null;
+           return $this->connection->transaction(function () use ($identifier, $counterExists): IdentifierThrottle {
+  -            $this->ensureCounter($identifier, $counterExists);
+  +            
+               $counter = $this->counter($identifier, lock: true);
+               if ($counter === null) {
+                   // Full-auth reset may delete the row after the optimistic
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 106: TrueToFalse - ID: 824f1d5446b92624
+
+           $counterExists = $this->counter($identifier) !== null;
+           return $this->connection->transaction(function () use ($identifier, $counterExists): IdentifierThrottle {
+               $this->ensureCounter($identifier, $counterExists);
+  -            $counter = $this->counter($identifier, lock: true);
+  +            $counter = $this->counter($identifier, lock: false);
+               if ($counter === null) {
+                   // Full-auth reset may delete the row after the optimistic
+                   // existence read but before this lock. Recreate under the same
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 114: TrueToFalse - ID: dbaa0775a8579966
+
+                   // transaction rather than turning a benign success/failure
+                   // race into a request-triggerable 500.
+                   $this->insertCounterIfMissing($identifier);
+  -                $counter = $this->counter($identifier, lock: true);
+  +                $counter = $this->counter($identifier, lock: false);
+               }
+               if ($counter === null) {
+                   throw new RuntimeException('The identifier throttle counter vanished after recreation.');
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 121: TrueToFalse - ID: 8c084a3b9f0d6ac0
+
+               if ($counter === null) {
+                   throw new RuntimeException('The identifier throttle counter vanished after recreation.');
+               }
+  -            $lock = $this->lock($identifier, lock: true);
+  +            $lock = $this->lock($identifier, lock: false);
+               if ($lock !== null && $this->lockActive($identifier)) {
+                   return IdentifierThrottle::locked($lock);
+               }
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 165: NotIdenticalToIdentical - ID: 3933c82049c94e73
+
+           // This hint must come from autocommit. A transactional existence read
+           // would make the marker count after FOR UPDATE use InnoDB's earlier
+           // snapshot and admit two distinct subjects at the threshold.
+  -        $parentExists = $this->ipParent($ip) !== null;
+  +        $parentExists = $this->ipParent($ip) === null;
+           try {
+               return $this->boundedLockWait->shared(fn(): SharedThrottle => $this->connection->transaction(function () use ($ip, $ipIdentifier, $parentExists): SharedThrottle {
+                   $this->ensureIpParent($ip, $parentExists);
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 171: RemoveMethodCall - ID: 6bd0e423a7295a4f
+
+           $parentExists = $this->ipParent($ip) !== null;
+           try {
+               return $this->boundedLockWait->shared(fn(): SharedThrottle => $this->connection->transaction(function () use ($ip, $ipIdentifier, $parentExists): SharedThrottle {
+  -                $this->ensureIpParent($ip, $parentExists);
+  +                
+                   $parent = $this->ipParent($ip, lock: true);
+                   if ($parent === null) {
+                       // Pruning may delete an expired parent after the
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 172: TrueToFalse - ID: bad2422b0ef1d84e
+
+           try {
+               return $this->boundedLockWait->shared(fn(): SharedThrottle => $this->connection->transaction(function () use ($ip, $ipIdentifier, $parentExists): SharedThrottle {
+                   $this->ensureIpParent($ip, $parentExists);
+  -                $parent = $this->ipParent($ip, lock: true);
+  +                $parent = $this->ipParent($ip, lock: false);
+                   if ($parent === null) {
+                       // Pruning may delete an expired parent after the
+                       // optimistic existence read but before this lock.
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 181: TrueToFalse - ID: 64ed056985d3d0aa
+
+                       // counter paths rather than turning maintenance
+                       // concurrency into a request-triggerable 500.
+                       $this->insertIpParentIfMissing($ip);
+  -                    $parent = $this->ipParent($ip, lock: true);
+  +                    $parent = $this->ipParent($ip, lock: false);
+                   }
+                   if ($parent === null) {
+                       throw new RuntimeException('The IP throttle parent vanished after recreation.');
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 196: TrueToFalse - ID: 7383b26270142476
+
+                   }
+                   if ($this->ipWindowExpired($ip)) {
+                       $this->connection->table('auth_throttle_ip_windows')->where('id', $parent['id'])->update(['window_started_at' => $this->time->now(), 'updated_at' => $this->time->now()]);
+  -                    $parent = $this->ipParent($ip, lock: true);
+  +                    $parent = $this->ipParent($ip, lock: false);
+                       if ($parent === null) {
+                           throw new RuntimeException('The IP throttle parent vanished after rollover.');
+                       }
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 349: NotIdenticalToIdentical - ID: efc35211e2878b67
+
+       public function permitIssuance(ThrottleSubject $issuance): IssuancePermission
+       {
+           $this->requireDimension($issuance, ThrottleDimension::Issuance);
+  -        $counterExists = $this->counter($issuance) !== null;
+  +        $counterExists = $this->counter($issuance) === null;
+           return $this->connection->transaction(function () use ($issuance, $counterExists): IssuancePermission {
+               $this->ensureCounter($issuance, $counterExists);
+               $counter = $this->counter($issuance, lock: true);
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 352: RemoveMethodCall - ID: de6b927a4dd42bb5
+
+           $this->requireDimension($issuance, ThrottleDimension::Issuance);
+           $counterExists = $this->counter($issuance) !== null;
+           return $this->connection->transaction(function () use ($issuance, $counterExists): IssuancePermission {
+  -            $this->ensureCounter($issuance, $counterExists);
+  +            
+               $counter = $this->counter($issuance, lock: true);
+               if ($counter === null) {
+                   $this->insertCounterIfMissing($issuance);
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 353: TrueToFalse - ID: ff902942778e4e49
+
+           $counterExists = $this->counter($issuance) !== null;
+           return $this->connection->transaction(function () use ($issuance, $counterExists): IssuancePermission {
+               $this->ensureCounter($issuance, $counterExists);
+  -            $counter = $this->counter($issuance, lock: true);
+  +            $counter = $this->counter($issuance, lock: false);
+               if ($counter === null) {
+                   $this->insertCounterIfMissing($issuance);
+                   $counter = $this->counter($issuance, lock: true);
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 357: TrueToFalse - ID: f61cb071491ed928
+
+               $counter = $this->counter($issuance, lock: true);
+               if ($counter === null) {
+                   $this->insertCounterIfMissing($issuance);
+  -                $counter = $this->counter($issuance, lock: true);
+  +                $counter = $this->counter($issuance, lock: false);
+               }
+               if ($counter === null) {
+                   throw new RuntimeException('The issuance counter vanished after recreation.');
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 380: NotIdenticalToIdentical - ID: 3463ad5bb50051ec
+
+       {
+           // Keep the existence hint outside the transaction for the same InnoDB
+           // snapshot reason as the authoritative identifier counter.
+  -        $counterExists = $this->counter($subject) !== null;
+  +        $counterExists = $this->counter($subject) === null;
+           return $this->connection->transaction(function () use ($subject, $counterExists): SharedThrottle {
+               $this->ensureCounter($subject, $counterExists);
+               $counter = $this->counter($subject, lock: true);
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 383: RemoveMethodCall - ID: 142c2a4b941b5b8d
+
+           // snapshot reason as the authoritative identifier counter.
+           $counterExists = $this->counter($subject) !== null;
+           return $this->connection->transaction(function () use ($subject, $counterExists): SharedThrottle {
+  -            $this->ensureCounter($subject, $counterExists);
+  +            
+               $counter = $this->counter($subject, lock: true);
+               if ($counter === null) {
+                   $this->insertCounterIfMissing($subject);
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 384: TrueToFalse - ID: 667ddf9cf93d39f7
+
+           $counterExists = $this->counter($subject) !== null;
+           return $this->connection->transaction(function () use ($subject, $counterExists): SharedThrottle {
+               $this->ensureCounter($subject, $counterExists);
+  -            $counter = $this->counter($subject, lock: true);
+  +            $counter = $this->counter($subject, lock: false);
+               if ($counter === null) {
+                   $this->insertCounterIfMissing($subject);
+                   $counter = $this->counter($subject, lock: true);
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 388: TrueToFalse - ID: 1909dd4eac73e220
+
+               $counter = $this->counter($subject, lock: true);
+               if ($counter === null) {
+                   $this->insertCounterIfMissing($subject);
+  -                $counter = $this->counter($subject, lock: true);
+  +                $counter = $this->counter($subject, lock: false);
+               }
+               if ($counter === null) {
+                   throw new RuntimeException('The shared throttle counter vanished after recreation.');
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 407: IfNegated - ID: ab33f67548034c9e
+
+       }
+       private function ensureIpParent(ThrottleSubject $ip, bool $existedBeforeTransaction): void
+       {
+  -        if ($this->connection->getDriverName() === 'sqlite') {
+  +        if (!($this->connection->getDriverName() === 'sqlite')) {
+               $this->insertIpParentIfMissing($ip);
+               return;
+           }
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 407: IdenticalToNotIdentical - ID: 17d41ab7a644e85b
+
+       }
+       private function ensureIpParent(ThrottleSubject $ip, bool $existedBeforeTransaction): void
+       {
+  -        if ($this->connection->getDriverName() === 'sqlite') {
+  +        if ($this->connection->getDriverName() !== 'sqlite') {
+               $this->insertIpParentIfMissing($ip);
+               return;
+           }
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 408: RemoveMethodCall - ID: 238a27d56ef38efe
+
+       private function ensureIpParent(ThrottleSubject $ip, bool $existedBeforeTransaction): void
+       {
+           if ($this->connection->getDriverName() === 'sqlite') {
+  -            $this->insertIpParentIfMissing($ip);
+  +            
+               return;
+           }
+           if ($existedBeforeTransaction) {
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 410: RemoveEarlyReturn - ID: a9ab276982504866
+
+       {
+           if ($this->connection->getDriverName() === 'sqlite') {
+               $this->insertIpParentIfMissing($ip);
+  -            return;
+  +            
+           }
+           if ($existedBeforeTransaction) {
+               return;
+  
+
+   UNCOVERED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 413: IfNegated - ID: 8f74da65f833bb54
+
+               $this->insertIpParentIfMissing($ip);
+               return;
+           }
+  -        if ($existedBeforeTransaction) {
+  +        if (!$existedBeforeTransaction) {
+               return;
+           }
+           $this->insertIpParentIfMissing($ip);
+  
+
+   UNCOVERED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 417: RemoveMethodCall - ID: ee6f7532ab132cc0
+
+           if ($existedBeforeTransaction) {
+               return;
+           }
+  -        $this->insertIpParentIfMissing($ip);
+  +        
+       }
+       private function insertIpParentIfMissing(ThrottleSubject $ip): void
+       {
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 434: FalseToTrue - ID: 72b7cb73553b98d9
+
+           $this->connection->table('auth_throttle_ip_windows')->insertOrIgnore([['dimension' => $ip->dimension->value, 'ip_digest' => $ip->digest, 'window_started_at' => $now, 'created_at' => $now, 'updated_at' => $now]]);
+       }
+       /** @return array{id: int, windowStartedAt: DateTimeImmutable}|null */
+  -    private function ipParent(ThrottleSubject $ip, bool $lock = false): ?array
+  +    private function ipParent(ThrottleSubject $ip, bool $lock = true): ?array
+       {
+           $query = $this->ipParentQuery($ip);
+           if ($lock) {
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 438: IfNegated - ID: 57567c8bb0c1c082
+
+       private function ipParent(ThrottleSubject $ip, bool $lock = false): ?array
+       {
+           $query = $this->ipParentQuery($ip);
+  -        if ($lock) {
+  +        if (!$lock) {
+               $query->lockForUpdate();
+           }
+           $raw = $query->first(['id', 'window_started_at']);
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 439: RemoveMethodCall - ID: 2448ef1ed25fc775
+
+       {
+           $query = $this->ipParentQuery($ip);
+           if ($lock) {
+  -            $query->lockForUpdate();
+  +            
+           }
+           $raw = $query->first(['id', 'window_started_at']);
+           if ($raw === null) {
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 451: BooleanOrToBooleanAnd - ID: 57ffc72b7e0916e4
+
+           }
+           $row = (array) $raw;
+           $id = $row['id'] ?? null;
+  -        if (!is_int($id) || $id < 1) {
+  +        if (!is_int($id) && $id < 1) {
+               throw new RuntimeException('The database returned an invalid IP throttle parent id.');
+           }
+           return ['id' => $id, 'windowStartedAt' => $this->date($row['window_started_at'] ?? null)];
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 451: DecrementInteger - ID: 286fc4dfb9b3e134
+
+           }
+           $row = (array) $raw;
+           $id = $row['id'] ?? null;
+  -        if (!is_int($id) || $id < 1) {
+  +        if (!is_int($id) || $id < 0) {
+               throw new RuntimeException('The database returned an invalid IP throttle parent id.');
+           }
+           return ['id' => $id, 'windowStartedAt' => $this->date($row['window_started_at'] ?? null)];
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 496: BooleanOrToBooleanAnd - ID: f4b39f549ceb98eb
+
+           }
+           $threshold = $ip->dimension === ThrottleDimension::IpV4 ? $this->configuration->ipv4EnforceAt : $this->configuration->ipv6EnforceAt;
+           $backoff = $this->configuration->ipBackoffSeconds;
+  -        if ($threshold === null || $backoff === null) {
+  +        if ($threshold === null && $backoff === null) {
+               throw new RuntimeException('Validated IP enforcement configuration is incomplete.');
+           }
+           $markers = $this->tupleQuery($parent)->count();
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 514: ConcatRemoveLeft - ID: 8c8cab734a9073c7
+
+           if ($latest === null) {
+               return SharedThrottle::permitted();
+           }
+  -        $retryAfter = $this->date($latest)->modify('+' . $backoff . ' seconds');
+  +        $retryAfter = $this->date($latest)->modify($backoff . ' seconds');
+           $windowDeadline = $parent['windowStartedAt']->modify('+' . $this->configuration->windowSeconds . ' seconds');
+           return SharedThrottle::backedOff($retryAfter > $windowDeadline ? $windowDeadline : $retryAfter);
+       }
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 516: ConcatRemoveLeft - ID: 37e57cda963dbc32
+
+               return SharedThrottle::permitted();
+           }
+           $retryAfter = $this->date($latest)->modify('+' . $backoff . ' seconds');
+  -        $windowDeadline = $parent['windowStartedAt']->modify('+' . $this->configuration->windowSeconds . ' seconds');
+  +        $windowDeadline = $parent['windowStartedAt']->modify($this->configuration->windowSeconds . ' seconds');
+           return SharedThrottle::backedOff($retryAfter > $windowDeadline ? $windowDeadline : $retryAfter);
+       }
+       private function emptyIpState(ThrottleSubject $ip): SharedThrottle
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 519: GreaterToGreaterOrEqual - ID: 3fc33b637cac27f8
+
+           }
+           $retryAfter = $this->date($latest)->modify('+' . $backoff . ' seconds');
+           $windowDeadline = $parent['windowStartedAt']->modify('+' . $this->configuration->windowSeconds . ' seconds');
+  -        return SharedThrottle::backedOff($retryAfter > $windowDeadline ? $windowDeadline : $retryAfter);
+  +        return SharedThrottle::backedOff($retryAfter >= $windowDeadline ? $windowDeadline : $retryAfter);
+       }
+       private function emptyIpState(ThrottleSubject $ip): SharedThrottle
+       {
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 560: RemoveEarlyReturn - ID: 0199b24235329fde
+
+           }
+           $remaining = $this->configuration->lockAfter - $counter['count'];
+           if ($counter['count'] < $this->configuration->backoffAfter) {
+  -            return IdentifierThrottle::permitted($remaining);
+  +            
+           }
+           $offset = $this->backoffOffset($counter['count']);
+           if (!$this->deadlinePending($identifier, $offset)) {
+  
+
+   UNCOVERED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 581: RemoveEarlyReturn - ID: e2f94fbc031c1cf3
+
+       private function sharedState(ThrottleSubject $subject, array $counter): SharedThrottle
+       {
+           if ($this->windowExpired($subject)) {
+  -            return $this->expiredPosture($subject);
+  +            
+           }
+           if ($subject->dimension === ThrottleDimension::Recovery) {
+               $threshold = $this->configuration->backoffAfter;
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 603: BooleanOrToBooleanAnd - ID: 70f0d1bfd7e4b89d
+
+               }
+               $threshold = $subject->dimension === ThrottleDimension::Tenant ? $this->configuration->tenantEnforceAt : $this->configuration->globalEnforceAt;
+               $backoff = $subject->dimension === ThrottleDimension::Tenant ? $this->configuration->tenantBackoffSeconds : $this->configuration->globalBackoffSeconds;
+  -            if ($threshold === null || $backoff === null) {
+  +            if ($threshold === null && $backoff === null) {
+                   throw new RuntimeException('Validated shared enforcement configuration is incomplete.');
+               }
+           }
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 609: RemoveEarlyReturn - ID: 482e2ea95b6bd6ff
+
+               }
+           }
+           if ($counter['count'] < $threshold) {
+  -            return SharedThrottle::permitted();
+  +            
+           }
+           $offset = $this->backoffOffsetFrom($counter['count'], $threshold, $backoff);
+           return $this->deadlinePending($subject, $offset) ? SharedThrottle::backedOff($this->deadline($counter['windowStartedAt'], $offset)) : SharedThrottle::permitted();
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 641: SmallerToSmallerOrEqual - ID: fb7e00d8bf5bafe1
+
+           $offset = 0;
+           $delay = $initialBackoff;
+           $step = $threshold;
+  -        while ($step <= $count && $offset < $this->configuration->windowSeconds) {
+  +        while ($step <= $count && $offset <= $this->configuration->windowSeconds) {
+               $offset += min($delay, $this->configuration->backoffCapSeconds);
+               $offset = min($offset, $this->configuration->windowSeconds);
+               if ($delay < $this->configuration->backoffCapSeconds) {
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 645: SmallerToSmallerOrEqual - ID: 64c3c5b724ca55e9
+
+           while ($step <= $count && $offset < $this->configuration->windowSeconds) {
+               $offset += min($delay, $this->configuration->backoffCapSeconds);
+               $offset = min($offset, $this->configuration->windowSeconds);
+  -            if ($delay < $this->configuration->backoffCapSeconds) {
+  +            if ($delay <= $this->configuration->backoffCapSeconds) {
+                   $delay = min($this->configuration->backoffCapSeconds, $delay * $this->configuration->backoffBase);
+               }
+               $step++;
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 660: ConcatRemoveLeft - ID: 6afada1c95880a21
+
+       }
+       private function deadline(DateTimeImmutable $windowStartedAt, int $offset): DateTimeImmutable
+       {
+  -        return $windowStartedAt->modify('+' . min($offset, $this->configuration->windowSeconds) . ' seconds');
+  +        return $windowStartedAt->modify(min($offset, $this->configuration->windowSeconds) . ' seconds');
+       }
+       private function ensureCounter(ThrottleSubject $subject, bool $existedBeforeTransaction): void
+       {
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 665: IfNegated - ID: ea0dc7aa39a2979a
+
+       }
+       private function ensureCounter(ThrottleSubject $subject, bool $existedBeforeTransaction): void
+       {
+  -        if ($this->connection->getDriverName() === 'sqlite') {
+  +        if (!($this->connection->getDriverName() === 'sqlite')) {
+               // SQLite's FOR UPDATE is a bare SELECT. Make the unique insert the
+               // first statement so the transaction claims the global writer
+               // lock before any state-bearing read. A read-then-write upgrade
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 665: IdenticalToNotIdentical - ID: becd4bba3d4fe90d
+
+       }
+       private function ensureCounter(ThrottleSubject $subject, bool $existedBeforeTransaction): void
+       {
+  -        if ($this->connection->getDriverName() === 'sqlite') {
+  +        if ($this->connection->getDriverName() !== 'sqlite') {
+               // SQLite's FOR UPDATE is a bare SELECT. Make the unique insert the
+               // first statement so the transaction claims the global writer
+               // lock before any state-bearing read. A read-then-write upgrade
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 670: RemoveMethodCall - ID: be8ae8e1d3c4020f
+
+       private function ensureCounter(ThrottleSubject $subject, bool $existedBeforeTransaction): void
+       {
+           if ($this->connection->getDriverName() === 'sqlite') {
+  -            // SQLite's FOR UPDATE is a bare SELECT. Make the unique insert the
+  -            // first statement so the transaction claims the global writer
+  -            // lock before any state-bearing read. A read-then-write upgrade
+  -            // cannot wait safely while another writer is trying to commit.
+  -            $this->insertCounterIfMissing($subject);
+  +            
+               return;
+           }
+           // Do not issue INSERT IGNORE against a row that already exists. On
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 672: RemoveEarlyReturn - ID: 4bfcfd22c17a410f
+
+               // lock before any state-bearing read. A read-then-write upgrade
+               // cannot wait safely while another writer is trying to commit.
+               $this->insertCounterIfMissing($subject);
+  -            return;
+  +            
+           }
+           // Do not issue INSERT IGNORE against a row that already exists. On
+           // MySQL that duplicate-key path takes a shared record lock; two writers
+  
+
+   UNCOVERED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 679: IfNegated - ID: 1a8b9b9bd53264ce
+
+           // MySQL that duplicate-key path takes a shared record lock; two writers
+           // can then deadlock when both try to upgrade it through FOR UPDATE.
+           // The absent-row path still uses the unique insert as its serializer.
+  -        if ($existedBeforeTransaction) {
+  +        if (!$existedBeforeTransaction) {
+               return;
+           }
+           $this->insertCounterIfMissing($subject);
+  
+
+   UNCOVERED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 683: RemoveMethodCall - ID: e241dc75f44339cf
+
+           if ($existedBeforeTransaction) {
+               return;
+           }
+  -        $this->insertCounterIfMissing($subject);
+  +        
+       }
+       private function insertCounterIfMissing(ThrottleSubject $subject): void
+       {
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 722: DecrementInteger - ID: daa8ab2a72db3108
+
+           $digest = $grammar->wrap('subject_digest');
+           $deadline = $this->time->deadlineSqlHere();
+           $expired = "{$window} <= {$deadline}";
+  -        $affected = $this->connection->update("UPDATE {$table} SET " . "{$count} = CASE WHEN ? = 1 OR {$expired} THEN 1 ELSE {$count} + 1 END, " . "{$window} = CASE WHEN ? = 1 OR {$expired} THEN CURRENT_TIMESTAMP ELSE {$window} END, " . "{$updated} = CURRENT_TIMESTAMP " . "WHERE {$dimension} = ? AND {$digest} = ?", [$forceRollover ? 1 : 0, -$this->configuration->windowSeconds, $forceRollover ? 1 : 0, -$this->configuration->windowSeconds, $subject->dimension->value, $subject->digest]);
+  +        $affected = $this->connection->update("UPDATE {$table} SET " . "{$count} = CASE WHEN ? = 1 OR {$expired} THEN 1 ELSE {$count} + 1 END, " . "{$window} = CASE WHEN ? = 1 OR {$expired} THEN CURRENT_TIMESTAMP ELSE {$window} END, " . "{$updated} = CURRENT_TIMESTAMP " . "WHERE {$dimension} = ? AND {$digest} = ?", [$forceRollover ? 1 : -1, -$this->configuration->windowSeconds, $forceRollover ? 1 : 0, -$this->configuration->windowSeconds, $subject->dimension->value, $subject->digest]);
+           if ($affected !== 1) {
+               throw new RuntimeException('The throttle counter update did not affect exactly one row.');
+           }
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 724: DecrementInteger - ID: ac43042ff7adb385
+
+           $digest = $grammar->wrap('subject_digest');
+           $deadline = $this->time->deadlineSqlHere();
+           $expired = "{$window} <= {$deadline}";
+  -        $affected = $this->connection->update("UPDATE {$table} SET " . "{$count} = CASE WHEN ? = 1 OR {$expired} THEN 1 ELSE {$count} + 1 END, " . "{$window} = CASE WHEN ? = 1 OR {$expired} THEN CURRENT_TIMESTAMP ELSE {$window} END, " . "{$updated} = CURRENT_TIMESTAMP " . "WHERE {$dimension} = ? AND {$digest} = ?", [$forceRollover ? 1 : 0, -$this->configuration->windowSeconds, $forceRollover ? 1 : 0, -$this->configuration->windowSeconds, $subject->dimension->value, $subject->digest]);
+  +        $affected = $this->connection->update("UPDATE {$table} SET " . "{$count} = CASE WHEN ? = 1 OR {$expired} THEN 1 ELSE {$count} + 1 END, " . "{$window} = CASE WHEN ? = 1 OR {$expired} THEN CURRENT_TIMESTAMP ELSE {$window} END, " . "{$updated} = CURRENT_TIMESTAMP " . "WHERE {$dimension} = ? AND {$digest} = ?", [$forceRollover ? 1 : 0, -$this->configuration->windowSeconds, $forceRollover ? 1 : -1, -$this->configuration->windowSeconds, $subject->dimension->value, $subject->digest]);
+           if ($affected !== 1) {
+               throw new RuntimeException('The throttle counter update did not affect exactly one row.');
+           }
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 735: TrueToFalse - ID: 01dc2554ee6e3532
+
+           if ($affected !== 1) {
+               throw new RuntimeException('The throttle counter update did not affect exactly one row.');
+           }
+  -        $counter = $this->counter($subject, lock: true);
+  +        $counter = $this->counter($subject, lock: false);
+           if ($counter === null) {
+               throw new RuntimeException('The throttle counter vanished after its atomic update.');
+           }
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 745: FalseToTrue - ID: 86c3d87f7f8ecdea
+
+           return $counter;
+       }
+       /** @return array{count: int, windowStartedAt: DateTimeImmutable}|null */
+  -    private function counter(ThrottleSubject $subject, bool $lock = false): ?array
+  +    private function counter(ThrottleSubject $subject, bool $lock = true): ?array
+       {
+           $query = $this->counterQuery($subject);
+           if ($lock) {
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 749: IfNegated - ID: 9afbf6b788edf614
+
+       private function counter(ThrottleSubject $subject, bool $lock = false): ?array
+       {
+           $query = $this->counterQuery($subject);
+  -        if ($lock) {
+  +        if (!$lock) {
+               $query->lockForUpdate();
+           }
+           $raw = $query->first(['count', 'window_started_at']);
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 750: RemoveMethodCall - ID: 267348dceec85e32
+
+       {
+           $query = $this->counterQuery($subject);
+           if ($lock) {
+  -            $query->lockForUpdate();
+  +            
+           }
+           $raw = $query->first(['count', 'window_started_at']);
+           if ($raw === null) {
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 823: TrueToFalse - ID: ee70882664aa2ba1
+
+           if ($affected !== 1) {
+               throw new RuntimeException('The throttle lock write did not affect exactly one row.');
+           }
+  -        $lock = $this->lock($identifier, lock: true);
+  +        $lock = $this->lock($identifier, lock: false);
+           if ($lock === null) {
+               throw new RuntimeException('The throttle lock vanished after creation.');
+           }
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 842: FalseToTrue - ID: 5ddaf5120ad04281
+
+           $raw = $this->connection->table('auth_throttle_locks')->where('subject_digest', $identifier->digest)->whereRaw($this->time->lockedUntilAfterDeadlineSql(), [0])->value('locked_until');
+           return $raw === null ? null : $this->date($raw);
+       }
+  -    private function lock(ThrottleSubject $identifier, bool $lock = false): ?DateTimeImmutable
+  +    private function lock(ThrottleSubject $identifier, bool $lock = true): ?DateTimeImmutable
+       {
+           $query = $this->connection->table('auth_throttle_locks')->where('subject_digest', $identifier->digest);
+           if ($lock) {
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 847: IfNegated - ID: 104b203e641b5456
+
+       private function lock(ThrottleSubject $identifier, bool $lock = false): ?DateTimeImmutable
+       {
+           $query = $this->connection->table('auth_throttle_locks')->where('subject_digest', $identifier->digest);
+  -        if ($lock) {
+  +        if (!$lock) {
+               $query->lockForUpdate();
+           }
+           $raw = $query->value('locked_until');
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 848: RemoveMethodCall - ID: 63353e83df0ac527
+
+       {
+           $query = $this->connection->table('auth_throttle_locks')->where('subject_digest', $identifier->digest);
+           if ($lock) {
+  -            $query->lockForUpdate();
+  +            
+           }
+           $raw = $query->value('locked_until');
+           return $raw === null ? null : $this->date($raw);
+  
+
+   UNTESTED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 880: InstanceOfToFalse - ID: bee497f1927b3ec7
+
+       }
+       private function date(mixed $value): DateTimeImmutable
+       {
+  -        if ($value instanceof DateTimeInterface) {
+  +        if (false) {
+               return DateTimeImmutable::createFromInterface($value);
+           }
+           if (is_string($value)) {
+  
+
+   UNCOVERED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 881: RemoveEarlyReturn - ID: 36b7c49624a8a98d
+
+       private function date(mixed $value): DateTimeImmutable
+       {
+           if ($value instanceof DateTimeInterface) {
+  -            return DateTimeImmutable::createFromInterface($value);
+  +            
+           }
+           if (is_string($value)) {
+               return new DateTimeImmutable($value);
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 18: DecrementInteger - ID: 459883d428f933fa
+
+    */
+   final readonly class ThrottleConfiguration
+   {
+  -    public const int MAX_LOCK_DURATION_SECONDS = 3600;
+  +    public const int MAX_LOCK_DURATION_SECONDS = 3599;
+       private const string PREFIX = 'vouch.throttle.';
+       private function __construct(public int $windowSeconds, public int $retentionSeconds, public int $backoffAfter, public int $lockAfter, public int $backoffBase, public int $initialBackoffSeconds, public int $backoffCapSeconds, public int $lockDurationSeconds, public int $challengeAttempts, public int $issuancesPerIdentifier, public string $ipMode, public int $ipv6ObserveAt, public int $ipv4ObserveAt, public ?int $ipv6EnforceAt, public ?int $ipv4EnforceAt, public ?int $ipBackoffSeconds, public string $tenantMode, public ?int $tenantEnforceAt, public ?int $tenantBackoffSeconds, public string $globalMode, public ?int $globalEnforceAt, public ?int $globalBackoffSeconds, public bool $captchaEnabled)
+       {
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 18: IncrementInteger - ID: ea512af37b30f9c7
+
+    */
+   final readonly class ThrottleConfiguration
+   {
+  -    public const int MAX_LOCK_DURATION_SECONDS = 3600;
+  +    public const int MAX_LOCK_DURATION_SECONDS = 3601;
+       private const string PREFIX = 'vouch.throttle.';
+       private function __construct(public int $windowSeconds, public int $retentionSeconds, public int $backoffAfter, public int $lockAfter, public int $backoffBase, public int $initialBackoffSeconds, public int $backoffCapSeconds, public int $lockDurationSeconds, public int $challengeAttempts, public int $issuancesPerIdentifier, public string $ipMode, public int $ipv6ObserveAt, public int $ipv4ObserveAt, public ?int $ipv6EnforceAt, public ?int $ipv4EnforceAt, public ?int $ipBackoffSeconds, public string $tenantMode, public ?int $tenantEnforceAt, public ?int $tenantBackoffSeconds, public string $globalMode, public ?int $globalEnforceAt, public ?int $globalBackoffSeconds, public bool $captchaEnabled)
+       {
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 92: ConcatRemoveRight - ID: 045f49160ced0c3f
+
+           $globalEnforceAt = self::nullablePositive($value, 'global.enforce_at');
+           $globalBackoffSeconds = self::nullablePositive($value, 'global.backoff_seconds');
+           $captchaEnabled = self::boolean($value, 'captcha.enabled');
+  -        self::require($backoffAfter < $lockAfter, 'Configuration "vouch.throttle.identifier.backoff_after" must be less than ' . '"vouch.throttle.identifier.lock_after".');
+  +        self::require($backoffAfter < $lockAfter, 'Configuration "vouch.throttle.identifier.backoff_after" must be less than ');
+           self::require($backoffBase >= 2, 'Configuration "vouch.throttle.identifier.backoff_base" must be at least 2.');
+           self::require($backoffCapSeconds <= $windowSeconds, 'Configuration "vouch.throttle.identifier.backoff_cap_seconds" must be less than ' . 'or equal to "vouch.throttle.window_seconds".');
+           self::require($lockDurationSeconds <= self::MAX_LOCK_DURATION_SECONDS, 'Configuration "vouch.throttle.identifier.lock_duration_seconds" must not exceed ' . '3600 seconds. Longer locks require Phase 2.4 audited administrative unlock.');
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 92: ConcatSwitchSides - ID: a5b6ddea1910927e
+
+           $globalEnforceAt = self::nullablePositive($value, 'global.enforce_at');
+           $globalBackoffSeconds = self::nullablePositive($value, 'global.backoff_seconds');
+           $captchaEnabled = self::boolean($value, 'captcha.enabled');
+  -        self::require($backoffAfter < $lockAfter, 'Configuration "vouch.throttle.identifier.backoff_after" must be less than ' . '"vouch.throttle.identifier.lock_after".');
+  +        self::require($backoffAfter < $lockAfter, '"vouch.throttle.identifier.lock_after".' . 'Configuration "vouch.throttle.identifier.backoff_after" must be less than ');
+           self::require($backoffBase >= 2, 'Configuration "vouch.throttle.identifier.backoff_base" must be at least 2.');
+           self::require($backoffCapSeconds <= $windowSeconds, 'Configuration "vouch.throttle.identifier.backoff_cap_seconds" must be less than ' . 'or equal to "vouch.throttle.window_seconds".');
+           self::require($lockDurationSeconds <= self::MAX_LOCK_DURATION_SECONDS, 'Configuration "vouch.throttle.identifier.lock_duration_seconds" must not exceed ' . '3600 seconds. Longer locks require Phase 2.4 audited administrative unlock.');
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 103: ConcatRemoveRight - ID: d923bce78f91a46e
+
+           self::require($backoffBase >= 2, 'Configuration "vouch.throttle.identifier.backoff_base" must be at least 2.');
+           self::require($backoffCapSeconds <= $windowSeconds, 'Configuration "vouch.throttle.identifier.backoff_cap_seconds" must be less than ' . 'or equal to "vouch.throttle.window_seconds".');
+           self::require($lockDurationSeconds <= self::MAX_LOCK_DURATION_SECONDS, 'Configuration "vouch.throttle.identifier.lock_duration_seconds" must not exceed ' . '3600 seconds. Longer locks require Phase 2.4 audited administrative unlock.');
+  -        self::require($retentionSeconds >= $windowSeconds + self::MAX_LOCK_DURATION_SECONDS, 'Configuration "vouch.throttle.retention_seconds" must be at least ' . '"vouch.throttle.window_seconds" + 3600 so pruning cannot delete live lock state.');
+  +        self::require($retentionSeconds >= $windowSeconds + self::MAX_LOCK_DURATION_SECONDS, 'Configuration "vouch.throttle.retention_seconds" must be at least ');
+           self::require($ipv4ObserveAt > $ipv6ObserveAt, 'Configuration "vouch.throttle.ip.ipv4_observe_at" must be greater than ' . '"vouch.throttle.ip.ipv6_observe_at" because IPv4 buckets may contain CGNAT populations.');
+           self::guessBudgets($challengeAttempts, $issuancesPerIdentifier, $otpDigits, $lockAfter, $totpDigits, $totpWindow);
+           self::sharedIp($ipMode, $ipv6EnforceAt, $ipv4EnforceAt, $ipBackoffSeconds, $backoffCapSeconds);
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 103: ConcatSwitchSides - ID: 29d52bcd69930f68
+
+           self::require($backoffBase >= 2, 'Configuration "vouch.throttle.identifier.backoff_base" must be at least 2.');
+           self::require($backoffCapSeconds <= $windowSeconds, 'Configuration "vouch.throttle.identifier.backoff_cap_seconds" must be less than ' . 'or equal to "vouch.throttle.window_seconds".');
+           self::require($lockDurationSeconds <= self::MAX_LOCK_DURATION_SECONDS, 'Configuration "vouch.throttle.identifier.lock_duration_seconds" must not exceed ' . '3600 seconds. Longer locks require Phase 2.4 audited administrative unlock.');
+  -        self::require($retentionSeconds >= $windowSeconds + self::MAX_LOCK_DURATION_SECONDS, 'Configuration "vouch.throttle.retention_seconds" must be at least ' . '"vouch.throttle.window_seconds" + 3600 so pruning cannot delete live lock state.');
+  +        self::require($retentionSeconds >= $windowSeconds + self::MAX_LOCK_DURATION_SECONDS, '"vouch.throttle.window_seconds" + 3600 so pruning cannot delete live lock state.' . 'Configuration "vouch.throttle.retention_seconds" must be at least ');
+           self::require($ipv4ObserveAt > $ipv6ObserveAt, 'Configuration "vouch.throttle.ip.ipv4_observe_at" must be greater than ' . '"vouch.throttle.ip.ipv6_observe_at" because IPv4 buckets may contain CGNAT populations.');
+           self::guessBudgets($challengeAttempts, $issuancesPerIdentifier, $otpDigits, $lockAfter, $totpDigits, $totpWindow);
+           self::sharedIp($ipMode, $ipv6EnforceAt, $ipv4EnforceAt, $ipBackoffSeconds, $backoffCapSeconds);
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 106: ConcatRemoveRight - ID: bc0cce989fe5be6a
+
+           self::require($backoffCapSeconds <= $windowSeconds, 'Configuration "vouch.throttle.identifier.backoff_cap_seconds" must be less than ' . 'or equal to "vouch.throttle.window_seconds".');
+           self::require($lockDurationSeconds <= self::MAX_LOCK_DURATION_SECONDS, 'Configuration "vouch.throttle.identifier.lock_duration_seconds" must not exceed ' . '3600 seconds. Longer locks require Phase 2.4 audited administrative unlock.');
+           self::require($retentionSeconds >= $windowSeconds + self::MAX_LOCK_DURATION_SECONDS, 'Configuration "vouch.throttle.retention_seconds" must be at least ' . '"vouch.throttle.window_seconds" + 3600 so pruning cannot delete live lock state.');
+  -        self::require($ipv4ObserveAt > $ipv6ObserveAt, 'Configuration "vouch.throttle.ip.ipv4_observe_at" must be greater than ' . '"vouch.throttle.ip.ipv6_observe_at" because IPv4 buckets may contain CGNAT populations.');
+  +        self::require($ipv4ObserveAt > $ipv6ObserveAt, 'Configuration "vouch.throttle.ip.ipv4_observe_at" must be greater than ');
+           self::guessBudgets($challengeAttempts, $issuancesPerIdentifier, $otpDigits, $lockAfter, $totpDigits, $totpWindow);
+           self::sharedIp($ipMode, $ipv6EnforceAt, $ipv4EnforceAt, $ipBackoffSeconds, $backoffCapSeconds);
+           self::sharedOne('tenant', $tenantMode, $tenantEnforceAt, $tenantBackoffSeconds, $backoffCapSeconds);
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 106: ConcatSwitchSides - ID: 48d689c0f6043ada
+
+           self::require($backoffCapSeconds <= $windowSeconds, 'Configuration "vouch.throttle.identifier.backoff_cap_seconds" must be less than ' . 'or equal to "vouch.throttle.window_seconds".');
+           self::require($lockDurationSeconds <= self::MAX_LOCK_DURATION_SECONDS, 'Configuration "vouch.throttle.identifier.lock_duration_seconds" must not exceed ' . '3600 seconds. Longer locks require Phase 2.4 audited administrative unlock.');
+           self::require($retentionSeconds >= $windowSeconds + self::MAX_LOCK_DURATION_SECONDS, 'Configuration "vouch.throttle.retention_seconds" must be at least ' . '"vouch.throttle.window_seconds" + 3600 so pruning cannot delete live lock state.');
+  -        self::require($ipv4ObserveAt > $ipv6ObserveAt, 'Configuration "vouch.throttle.ip.ipv4_observe_at" must be greater than ' . '"vouch.throttle.ip.ipv6_observe_at" because IPv4 buckets may contain CGNAT populations.');
+  +        self::require($ipv4ObserveAt > $ipv6ObserveAt, '"vouch.throttle.ip.ipv6_observe_at" because IPv4 buckets may contain CGNAT populations.' . 'Configuration "vouch.throttle.ip.ipv4_observe_at" must be greater than ');
+           self::guessBudgets($challengeAttempts, $issuancesPerIdentifier, $otpDigits, $lockAfter, $totpDigits, $totpWindow);
+           self::sharedIp($ipMode, $ipv6EnforceAt, $ipv4EnforceAt, $ipBackoffSeconds, $backoffCapSeconds);
+           self::sharedOne('tenant', $tenantMode, $tenantEnforceAt, $tenantBackoffSeconds, $backoffCapSeconds);
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 121: RemoveArrayItem - ID: 06dd009d210a6914
+
+           self::sharedIp($ipMode, $ipv6EnforceAt, $ipv4EnforceAt, $ipBackoffSeconds, $backoffCapSeconds);
+           self::sharedOne('tenant', $tenantMode, $tenantEnforceAt, $tenantBackoffSeconds, $backoffCapSeconds);
+           self::sharedOne('global', $globalMode, $globalEnforceAt, $globalBackoffSeconds, $backoffCapSeconds);
+  -        self::require(!$captchaEnabled || in_array('enforce', [$ipMode, $tenantMode, $globalMode], true), 'Configuration "vouch.throttle.captcha.enabled" requires at least one shared ' . 'throttle dimension in "enforce" mode.');
+  +        self::require(!$captchaEnabled || in_array('enforce', [$tenantMode, $globalMode], true), 'Configuration "vouch.throttle.captcha.enabled" requires at least one shared ' . 'throttle dimension in "enforce" mode.');
+           return new self($windowSeconds, $retentionSeconds, $backoffAfter, $lockAfter, $backoffBase, $initialBackoffSeconds, $backoffCapSeconds, $lockDurationSeconds, $challengeAttempts, $issuancesPerIdentifier, $ipMode, $ipv6ObserveAt, $ipv4ObserveAt, $ipv6EnforceAt, $ipv4EnforceAt, $ipBackoffSeconds, $tenantMode, $tenantEnforceAt, $tenantBackoffSeconds, $globalMode, $globalEnforceAt, $globalBackoffSeconds, $captchaEnabled);
+       }
+       /** @param array<array-key, mixed> $config */
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 121: RemoveArrayItem - ID: 535404a1d8f080d7
+
+           self::sharedIp($ipMode, $ipv6EnforceAt, $ipv4EnforceAt, $ipBackoffSeconds, $backoffCapSeconds);
+           self::sharedOne('tenant', $tenantMode, $tenantEnforceAt, $tenantBackoffSeconds, $backoffCapSeconds);
+           self::sharedOne('global', $globalMode, $globalEnforceAt, $globalBackoffSeconds, $backoffCapSeconds);
+  -        self::require(!$captchaEnabled || in_array('enforce', [$ipMode, $tenantMode, $globalMode], true), 'Configuration "vouch.throttle.captcha.enabled" requires at least one shared ' . 'throttle dimension in "enforce" mode.');
+  +        self::require(!$captchaEnabled || in_array('enforce', [$ipMode, $globalMode], true), 'Configuration "vouch.throttle.captcha.enabled" requires at least one shared ' . 'throttle dimension in "enforce" mode.');
+           return new self($windowSeconds, $retentionSeconds, $backoffAfter, $lockAfter, $backoffBase, $initialBackoffSeconds, $backoffCapSeconds, $lockDurationSeconds, $challengeAttempts, $issuancesPerIdentifier, $ipMode, $ipv6ObserveAt, $ipv4ObserveAt, $ipv6EnforceAt, $ipv4EnforceAt, $ipBackoffSeconds, $tenantMode, $tenantEnforceAt, $tenantBackoffSeconds, $globalMode, $globalEnforceAt, $globalBackoffSeconds, $captchaEnabled);
+       }
+       /** @param array<array-key, mixed> $config */
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 122: ConcatRemoveRight - ID: 2bb1dbe305f6e0a4
+
+           self::sharedIp($ipMode, $ipv6EnforceAt, $ipv4EnforceAt, $ipBackoffSeconds, $backoffCapSeconds);
+           self::sharedOne('tenant', $tenantMode, $tenantEnforceAt, $tenantBackoffSeconds, $backoffCapSeconds);
+           self::sharedOne('global', $globalMode, $globalEnforceAt, $globalBackoffSeconds, $backoffCapSeconds);
+  -        self::require(!$captchaEnabled || in_array('enforce', [$ipMode, $tenantMode, $globalMode], true), 'Configuration "vouch.throttle.captcha.enabled" requires at least one shared ' . 'throttle dimension in "enforce" mode.');
+  +        self::require(!$captchaEnabled || in_array('enforce', [$ipMode, $tenantMode, $globalMode], true), 'Configuration "vouch.throttle.captcha.enabled" requires at least one shared ');
+           return new self($windowSeconds, $retentionSeconds, $backoffAfter, $lockAfter, $backoffBase, $initialBackoffSeconds, $backoffCapSeconds, $lockDurationSeconds, $challengeAttempts, $issuancesPerIdentifier, $ipMode, $ipv6ObserveAt, $ipv4ObserveAt, $ipv6EnforceAt, $ipv4EnforceAt, $ipBackoffSeconds, $tenantMode, $tenantEnforceAt, $tenantBackoffSeconds, $globalMode, $globalEnforceAt, $globalBackoffSeconds, $captchaEnabled);
+       }
+       /** @param array<array-key, mixed> $config */
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 122: ConcatSwitchSides - ID: 1c1100c3ae4b42e9
+
+           self::sharedIp($ipMode, $ipv6EnforceAt, $ipv4EnforceAt, $ipBackoffSeconds, $backoffCapSeconds);
+           self::sharedOne('tenant', $tenantMode, $tenantEnforceAt, $tenantBackoffSeconds, $backoffCapSeconds);
+           self::sharedOne('global', $globalMode, $globalEnforceAt, $globalBackoffSeconds, $backoffCapSeconds);
+  -        self::require(!$captchaEnabled || in_array('enforce', [$ipMode, $tenantMode, $globalMode], true), 'Configuration "vouch.throttle.captcha.enabled" requires at least one shared ' . 'throttle dimension in "enforce" mode.');
+  +        self::require(!$captchaEnabled || in_array('enforce', [$ipMode, $tenantMode, $globalMode], true), 'throttle dimension in "enforce" mode.' . 'Configuration "vouch.throttle.captcha.enabled" requires at least one shared ');
+           return new self($windowSeconds, $retentionSeconds, $backoffAfter, $lockAfter, $backoffBase, $initialBackoffSeconds, $backoffCapSeconds, $lockDurationSeconds, $challengeAttempts, $issuancesPerIdentifier, $ipMode, $ipv6ObserveAt, $ipv4ObserveAt, $ipv6EnforceAt, $ipv4EnforceAt, $ipBackoffSeconds, $tenantMode, $tenantEnforceAt, $tenantBackoffSeconds, $globalMode, $globalEnforceAt, $globalBackoffSeconds, $captchaEnabled);
+       }
+       /** @param array<array-key, mixed> $config */
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 168: GreaterToGreaterOrEqual - ID: 97b42762bd26dc39
+
+           }
+           if (is_string($value) && preg_match('/^[1-9][0-9]*$/D', $value) === 1) {
+               $integer = filter_var($value, FILTER_VALIDATE_INT);
+  -            if (is_int($integer) && $integer > 0) {
+  +            if (is_int($integer) && $integer >= 0) {
+                   return $integer;
+               }
+           }
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 168: BooleanAndToBooleanOr - ID: 9b2b7afd4badc418
+
+           }
+           if (is_string($value) && preg_match('/^[1-9][0-9]*$/D', $value) === 1) {
+               $integer = filter_var($value, FILTER_VALIDATE_INT);
+  -            if (is_int($integer) && $integer > 0) {
+  +            if (is_int($integer) || $integer > 0) {
+                   return $integer;
+               }
+           }
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 168: DecrementInteger - ID: 83630d09bd4ebc70
+
+           }
+           if (is_string($value) && preg_match('/^[1-9][0-9]*$/D', $value) === 1) {
+               $integer = filter_var($value, FILTER_VALIDATE_INT);
+  -            if (is_int($integer) && $integer > 0) {
+  +            if (is_int($integer) && $integer > -1) {
+                   return $integer;
+               }
+           }
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 189: DecrementInteger - ID: f8fe49fa79ae6cbb
+
+           }
+           if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 1) {
+               $integer = filter_var($value, FILTER_VALIDATE_INT);
+  -            if (is_int($integer) && $integer >= 0) {
+  +            if (is_int($integer) && $integer >= -1) {
+                   return $integer;
+               }
+           }
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 235: IfNegated - ID: dd189209327e7542
+
+           if (is_bool($value)) {
+               return $value;
+           }
+  -        if ($value === 'true' || $value === '1' || $value === 1) {
+  +        if (!($value === 'true' || $value === '1' || $value === 1)) {
+               return true;
+           }
+           if ($value === 'false' || $value === '0' || $value === 0) {
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 235: IdenticalToNotIdentical - ID: a2d5a378017d2824
+
+           if (is_bool($value)) {
+               return $value;
+           }
+  -        if ($value === 'true' || $value === '1' || $value === 1) {
+  +        if ($value !== 'true' || $value === '1' || $value === 1) {
+               return true;
+           }
+           if ($value === 'false' || $value === '0' || $value === 0) {
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 235: IdenticalToNotIdentical - ID: f18eec693cc8bfd5
+
+           if (is_bool($value)) {
+               return $value;
+           }
+  -        if ($value === 'true' || $value === '1' || $value === 1) {
+  +        if ($value === 'true' || $value !== '1' || $value === 1) {
+               return true;
+           }
+           if ($value === 'false' || $value === '0' || $value === 0) {
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 235: IdenticalToNotIdentical - ID: 97e9f1ea6910a585
+
+           if (is_bool($value)) {
+               return $value;
+           }
+  -        if ($value === 'true' || $value === '1' || $value === 1) {
+  +        if ($value === 'true' || $value === '1' || $value !== 1) {
+               return true;
+           }
+           if ($value === 'false' || $value === '0' || $value === 0) {
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 235: BooleanOrToBooleanAnd - ID: 083410b64f5177f9
+
+           if (is_bool($value)) {
+               return $value;
+           }
+  -        if ($value === 'true' || $value === '1' || $value === 1) {
+  +        if ($value === 'true' && $value === '1' || $value === 1) {
+               return true;
+           }
+           if ($value === 'false' || $value === '0' || $value === 0) {
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 235: BooleanOrToBooleanAnd - ID: d40d08716eedb607
+
+           if (is_bool($value)) {
+               return $value;
+           }
+  -        if ($value === 'true' || $value === '1' || $value === 1) {
+  +        if (($value === 'true' || $value === '1') && $value === 1) {
+               return true;
+           }
+           if ($value === 'false' || $value === '0' || $value === 0) {
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 235: DecrementInteger - ID: 001e6ba7f105de00
+
+           if (is_bool($value)) {
+               return $value;
+           }
+  -        if ($value === 'true' || $value === '1' || $value === 1) {
+  +        if ($value === 'true' || $value === '1' || $value === 0) {
+               return true;
+           }
+           if ($value === 'false' || $value === '0' || $value === 0) {
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 235: IncrementInteger - ID: 916577d53a4c9e49
+
+           if (is_bool($value)) {
+               return $value;
+           }
+  -        if ($value === 'true' || $value === '1' || $value === 1) {
+  +        if ($value === 'true' || $value === '1' || $value === 2) {
+               return true;
+           }
+           if ($value === 'false' || $value === '0' || $value === 0) {
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 236: TrueToFalse - ID: a1f29a7644a26bf6
+
+               return $value;
+           }
+           if ($value === 'true' || $value === '1' || $value === 1) {
+  -            return true;
+  +            return false;
+           }
+           if ($value === 'false' || $value === '0' || $value === 0) {
+               return false;
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 236: RemoveEarlyReturn - ID: 95c344b3e46b80d1
+
+               return $value;
+           }
+           if ($value === 'true' || $value === '1' || $value === 1) {
+  -            return true;
+  +            
+           }
+           if ($value === 'false' || $value === '0' || $value === 0) {
+               return false;
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 239: IfNegated - ID: 24e90b0942c766e6
+
+           if ($value === 'true' || $value === '1' || $value === 1) {
+               return true;
+           }
+  -        if ($value === 'false' || $value === '0' || $value === 0) {
+  +        if (!($value === 'false' || $value === '0' || $value === 0)) {
+               return false;
+           }
+           throw new InvalidArgumentException(sprintf('Configuration "%s%s" must be boolean; got %s.', self::PREFIX, $path, self::describe($value)));
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 239: IdenticalToNotIdentical - ID: a8deab2b7960a574
+
+           if ($value === 'true' || $value === '1' || $value === 1) {
+               return true;
+           }
+  -        if ($value === 'false' || $value === '0' || $value === 0) {
+  +        if ($value !== 'false' || $value === '0' || $value === 0) {
+               return false;
+           }
+           throw new InvalidArgumentException(sprintf('Configuration "%s%s" must be boolean; got %s.', self::PREFIX, $path, self::describe($value)));
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 239: IdenticalToNotIdentical - ID: 8d876e4588dd3740
+
+           if ($value === 'true' || $value === '1' || $value === 1) {
+               return true;
+           }
+  -        if ($value === 'false' || $value === '0' || $value === 0) {
+  +        if ($value === 'false' || $value !== '0' || $value === 0) {
+               return false;
+           }
+           throw new InvalidArgumentException(sprintf('Configuration "%s%s" must be boolean; got %s.', self::PREFIX, $path, self::describe($value)));
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 239: IdenticalToNotIdentical - ID: e05ee6acabf1c5fd
+
+           if ($value === 'true' || $value === '1' || $value === 1) {
+               return true;
+           }
+  -        if ($value === 'false' || $value === '0' || $value === 0) {
+  +        if ($value === 'false' || $value === '0' || $value !== 0) {
+               return false;
+           }
+           throw new InvalidArgumentException(sprintf('Configuration "%s%s" must be boolean; got %s.', self::PREFIX, $path, self::describe($value)));
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 239: BooleanOrToBooleanAnd - ID: af6991d031637da8
+
+           if ($value === 'true' || $value === '1' || $value === 1) {
+               return true;
+           }
+  -        if ($value === 'false' || $value === '0' || $value === 0) {
+  +        if ($value === 'false' && $value === '0' || $value === 0) {
+               return false;
+           }
+           throw new InvalidArgumentException(sprintf('Configuration "%s%s" must be boolean; got %s.', self::PREFIX, $path, self::describe($value)));
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 239: BooleanOrToBooleanAnd - ID: cced0f13c7712047
+
+           if ($value === 'true' || $value === '1' || $value === 1) {
+               return true;
+           }
+  -        if ($value === 'false' || $value === '0' || $value === 0) {
+  +        if (($value === 'false' || $value === '0') && $value === 0) {
+               return false;
+           }
+           throw new InvalidArgumentException(sprintf('Configuration "%s%s" must be boolean; got %s.', self::PREFIX, $path, self::describe($value)));
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 239: DecrementInteger - ID: 55b8c435267491fa
+
+           if ($value === 'true' || $value === '1' || $value === 1) {
+               return true;
+           }
+  -        if ($value === 'false' || $value === '0' || $value === 0) {
+  +        if ($value === 'false' || $value === '0' || $value === -1) {
+               return false;
+           }
+           throw new InvalidArgumentException(sprintf('Configuration "%s%s" must be boolean; got %s.', self::PREFIX, $path, self::describe($value)));
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 239: IncrementInteger - ID: 7353031e5717ea5a
+
+           if ($value === 'true' || $value === '1' || $value === 1) {
+               return true;
+           }
+  -        if ($value === 'false' || $value === '0' || $value === 0) {
+  +        if ($value === 'false' || $value === '0' || $value === 1) {
+               return false;
+           }
+           throw new InvalidArgumentException(sprintf('Configuration "%s%s" must be boolean; got %s.', self::PREFIX, $path, self::describe($value)));
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 240: FalseToTrue - ID: a2c0f640c6c3812b
+
+               return true;
+           }
+           if ($value === 'false' || $value === '0' || $value === 0) {
+  -            return false;
+  +            return true;
+           }
+           throw new InvalidArgumentException(sprintf('Configuration "%s%s" must be boolean; got %s.', self::PREFIX, $path, self::describe($value)));
+       }
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 299: ConcatRemoveLeft - ID: f0d868c4ed0f66c0
+
+       private static function sharedIp(string $mode, ?int $ipv6Threshold, ?int $ipv4Threshold, ?int $backoffSeconds, int $maximumBackoffSeconds): void
+       {
+           if ($mode === 'observe') {
+  -            self::require($ipv6Threshold === null && $ipv4Threshold === null && $backoffSeconds === null, 'Configuration "vouch.throttle.ip" is in observe mode; enforcement thresholds ' . 'and backoff must remain null until mode is explicitly "enforce".');
+  +            self::require($ipv6Threshold === null && $ipv4Threshold === null && $backoffSeconds === null, 'and backoff must remain null until mode is explicitly "enforce".');
+               return;
+           }
+           self::require($ipv6Threshold !== null, 'Configuration "vouch.throttle.ip.ipv6_enforce_at" is required when IP mode is "enforce".');
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 299: ConcatSwitchSides - ID: 324754c35bd70eb3
+
+       private static function sharedIp(string $mode, ?int $ipv6Threshold, ?int $ipv4Threshold, ?int $backoffSeconds, int $maximumBackoffSeconds): void
+       {
+           if ($mode === 'observe') {
+  -            self::require($ipv6Threshold === null && $ipv4Threshold === null && $backoffSeconds === null, 'Configuration "vouch.throttle.ip" is in observe mode; enforcement thresholds ' . 'and backoff must remain null until mode is explicitly "enforce".');
+  +            self::require($ipv6Threshold === null && $ipv4Threshold === null && $backoffSeconds === null, 'and backoff must remain null until mode is explicitly "enforce".' . 'Configuration "vouch.throttle.ip" is in observe mode; enforcement thresholds ');
+               return;
+           }
+           self::require($ipv6Threshold !== null, 'Configuration "vouch.throttle.ip.ipv6_enforce_at" is required when IP mode is "enforce".');
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 313: BooleanAndToBooleanOr - ID: 77601b3f67091410
+
+           self::require($ipv6Threshold !== null, 'Configuration "vouch.throttle.ip.ipv6_enforce_at" is required when IP mode is "enforce".');
+           self::require($ipv4Threshold !== null, 'Configuration "vouch.throttle.ip.ipv4_enforce_at" is required when IP mode is "enforce".');
+           self::require($backoffSeconds !== null, 'Configuration "vouch.throttle.ip.backoff_seconds" is required when IP mode is "enforce".');
+  -        if ($ipv6Threshold !== null && $ipv4Threshold !== null) {
+  +        if ($ipv6Threshold !== null || $ipv4Threshold !== null) {
+               self::require($ipv4Threshold > $ipv6Threshold, 'Configuration "vouch.throttle.ip.ipv4_enforce_at" must be greater than ' . '"vouch.throttle.ip.ipv6_enforce_at".');
+           }
+           if ($backoffSeconds !== null) {
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 315: ConcatRemoveRight - ID: 59bace892881eed8
+
+           self::require($ipv4Threshold !== null, 'Configuration "vouch.throttle.ip.ipv4_enforce_at" is required when IP mode is "enforce".');
+           self::require($backoffSeconds !== null, 'Configuration "vouch.throttle.ip.backoff_seconds" is required when IP mode is "enforce".');
+           if ($ipv6Threshold !== null && $ipv4Threshold !== null) {
+  -            self::require($ipv4Threshold > $ipv6Threshold, 'Configuration "vouch.throttle.ip.ipv4_enforce_at" must be greater than ' . '"vouch.throttle.ip.ipv6_enforce_at".');
+  +            self::require($ipv4Threshold > $ipv6Threshold, 'Configuration "vouch.throttle.ip.ipv4_enforce_at" must be greater than ');
+           }
+           if ($backoffSeconds !== null) {
+               self::require($backoffSeconds <= $maximumBackoffSeconds, 'Configuration "vouch.throttle.ip.backoff_seconds" must not exceed the ' . 'identifier backoff cap; shared-bucket delays stay seconds-scale.');
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 315: ConcatSwitchSides - ID: 727e7c9e95c048c3
+
+           self::require($ipv4Threshold !== null, 'Configuration "vouch.throttle.ip.ipv4_enforce_at" is required when IP mode is "enforce".');
+           self::require($backoffSeconds !== null, 'Configuration "vouch.throttle.ip.backoff_seconds" is required when IP mode is "enforce".');
+           if ($ipv6Threshold !== null && $ipv4Threshold !== null) {
+  -            self::require($ipv4Threshold > $ipv6Threshold, 'Configuration "vouch.throttle.ip.ipv4_enforce_at" must be greater than ' . '"vouch.throttle.ip.ipv6_enforce_at".');
+  +            self::require($ipv4Threshold > $ipv6Threshold, '"vouch.throttle.ip.ipv6_enforce_at".' . 'Configuration "vouch.throttle.ip.ipv4_enforce_at" must be greater than ');
+           }
+           if ($backoffSeconds !== null) {
+               self::require($backoffSeconds <= $maximumBackoffSeconds, 'Configuration "vouch.throttle.ip.backoff_seconds" must not exceed the ' . 'identifier backoff cap; shared-bucket delays stay seconds-scale.');
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 321: ConcatRemoveLeft - ID: f74ac415babc420f
+
+               self::require($ipv4Threshold > $ipv6Threshold, 'Configuration "vouch.throttle.ip.ipv4_enforce_at" must be greater than ' . '"vouch.throttle.ip.ipv6_enforce_at".');
+           }
+           if ($backoffSeconds !== null) {
+  -            self::require($backoffSeconds <= $maximumBackoffSeconds, 'Configuration "vouch.throttle.ip.backoff_seconds" must not exceed the ' . 'identifier backoff cap; shared-bucket delays stay seconds-scale.');
+  +            self::require($backoffSeconds <= $maximumBackoffSeconds, 'identifier backoff cap; shared-bucket delays stay seconds-scale.');
+           }
+       }
+       private static function guessBudgets(int $challengeAttempts, int $issuancesPerIdentifier, int $otpDigits, int $lockAfter, int $totpDigits, int $totpWindow): void
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 321: ConcatSwitchSides - ID: a94a5f02ea73a966
+
+               self::require($ipv4Threshold > $ipv6Threshold, 'Configuration "vouch.throttle.ip.ipv4_enforce_at" must be greater than ' . '"vouch.throttle.ip.ipv6_enforce_at".');
+           }
+           if ($backoffSeconds !== null) {
+  -            self::require($backoffSeconds <= $maximumBackoffSeconds, 'Configuration "vouch.throttle.ip.backoff_seconds" must not exceed the ' . 'identifier backoff cap; shared-bucket delays stay seconds-scale.');
+  +            self::require($backoffSeconds <= $maximumBackoffSeconds, 'identifier backoff cap; shared-bucket delays stay seconds-scale.' . 'Configuration "vouch.throttle.ip.backoff_seconds" must not exceed the ');
+           }
+       }
+       private static function guessBudgets(int $challengeAttempts, int $issuancesPerIdentifier, int $otpDigits, int $lockAfter, int $totpDigits, int $totpWindow): void
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 339: ConcatRemoveLeft - ID: 5fca84bf48807a37
+
+       {
+           $target = 0.0001;
+           $otpProbability = 2.0 * $challengeAttempts * $issuancesPerIdentifier / 10.0 ** $otpDigits;
+  -        self::require($otpProbability <= $target, 'Configuration "vouch.throttle.challenge.attempts" × ' . '"vouch.throttle.challenge.issuances_per_identifier" exceeds the 10^-4 ' . 'fixed-boundary online-guess target for "vouch.otp.length".');
+  +        self::require($otpProbability <= $target, '"vouch.throttle.challenge.issuances_per_identifier" exceeds the 10^-4 ' . 'fixed-boundary online-guess target for "vouch.otp.length".');
+           $validTotpCodes = $totpWindow * 2 + 1;
+           $totpProbability = 2.0 * $lockAfter * $validTotpCodes / 10.0 ** $totpDigits;
+           self::require($totpProbability <= $target, 'Configuration "vouch.throttle.identifier.lock_after" exceeds the 10^-4 ' . 'fixed-boundary online-guess target for "vouch.totp.digits" and ' . '"vouch.totp.window".');
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 364: ConcatRemoveLeft - ID: bb7eeca952ddc123
+
+       private static function sharedOne(string $dimension, string $mode, ?int $threshold, ?int $backoffSeconds, int $maximumBackoffSeconds): void
+       {
+           if ($mode === 'observe') {
+  -            self::require($threshold === null && $backoffSeconds === null, sprintf('Configuration "vouch.throttle.%s" is in observe mode; enforcement threshold ' . 'and backoff must remain null until mode is explicitly "enforce".', $dimension));
+  +            self::require($threshold === null && $backoffSeconds === null, sprintf('and backoff must remain null until mode is explicitly "enforce".', $dimension));
+               return;
+           }
+           self::require($threshold !== null, sprintf('Configuration "vouch.throttle.%s.enforce_at" is required when %s mode is "enforce".', $dimension, $dimension));
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 364: ConcatSwitchSides - ID: 8e7cd2c5766b4c5e
+
+       private static function sharedOne(string $dimension, string $mode, ?int $threshold, ?int $backoffSeconds, int $maximumBackoffSeconds): void
+       {
+           if ($mode === 'observe') {
+  -            self::require($threshold === null && $backoffSeconds === null, sprintf('Configuration "vouch.throttle.%s" is in observe mode; enforcement threshold ' . 'and backoff must remain null until mode is explicitly "enforce".', $dimension));
+  +            self::require($threshold === null && $backoffSeconds === null, sprintf('and backoff must remain null until mode is explicitly "enforce".' . 'Configuration "vouch.throttle.%s" is in observe mode; enforcement threshold ', $dimension));
+               return;
+           }
+           self::require($threshold !== null, sprintf('Configuration "vouch.throttle.%s.enforce_at" is required when %s mode is "enforce".', $dimension, $dimension));
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 386: ConcatRemoveLeft - ID: 5642ca30c9e2eeca
+
+           self::require($threshold !== null, sprintf('Configuration "vouch.throttle.%s.enforce_at" is required when %s mode is "enforce".', $dimension, $dimension));
+           self::require($backoffSeconds !== null, sprintf('Configuration "vouch.throttle.%s.backoff_seconds" is required when %s mode is "enforce".', $dimension, $dimension));
+           if ($backoffSeconds !== null) {
+  -            self::require($backoffSeconds <= $maximumBackoffSeconds, sprintf('Configuration "vouch.throttle.%s.backoff_seconds" must not exceed the identifier ' . 'backoff cap; shared-bucket delays stay seconds-scale.', $dimension));
+  +            self::require($backoffSeconds <= $maximumBackoffSeconds, sprintf('backoff cap; shared-bucket delays stay seconds-scale.', $dimension));
+           }
+       }
+       private static function require(bool $condition, string $message): void
+  
+
+   UNTESTED  src/Throttle/ThrottleConfiguration.php  > Line 386: ConcatSwitchSides - ID: 80724185c9d73f1d
+
+           self::require($threshold !== null, sprintf('Configuration "vouch.throttle.%s.enforce_at" is required when %s mode is "enforce".', $dimension, $dimension));
+           self::require($backoffSeconds !== null, sprintf('Configuration "vouch.throttle.%s.backoff_seconds" is required when %s mode is "enforce".', $dimension, $dimension));
+           if ($backoffSeconds !== null) {
+  -            self::require($backoffSeconds <= $maximumBackoffSeconds, sprintf('Configuration "vouch.throttle.%s.backoff_seconds" must not exceed the identifier ' . 'backoff cap; shared-bucket delays stay seconds-scale.', $dimension));
+  +            self::require($backoffSeconds <= $maximumBackoffSeconds, sprintf('backoff cap; shared-bucket delays stay seconds-scale.' . 'Configuration "vouch.throttle.%s.backoff_seconds" must not exceed the identifier ', $dimension));
+           }
+       }
+       private static function require(bool $condition, string $message): void
+  
+
+   UNCOVERED  src/Throttle/ThrottleConfiguration.php  > Line 402: TrueToFalse - ID: 6eb36ef6fb19d9a9
+
+       }
+       private static function describe(mixed $value): string
+       {
+  -        return match (true) {
+  +        return match (false) {
+               $value === '' => 'an empty string',
+               is_string($value) => 'string "' . $value . '"',
+               is_int($value) => (string) $value,
+  
+
+   UNTESTED  src/Throttle/ThrottleReporter.php  > Line 99: ConcatRemoveLeft - ID: 1589131532ec8dc9
+
+       private function economics(DateTimeImmutable $now): array
+       {
+           $today = $now->format('Y-m-d');
+  -        $spend = $this->connection->table('auth_delivery_spend')->where('window_started_at', '>=', $today . ' 00:00:00')->get(['spent_minor']);
+  +        $spend = $this->connection->table('auth_delivery_spend')->where('window_started_at', '>=', ' 00:00:00')->get(['spent_minor']);
+           $currentScopes = $spend->count();
+           $spentMinor = 0;
+           foreach ($spend as $row) {
+  
+
+   UNTESTED  src/Throttle/ThrottleReporter.php  > Line 99: ConcatRemoveRight - ID: 05ebafa83267923d
+
+       private function economics(DateTimeImmutable $now): array
+       {
+           $today = $now->format('Y-m-d');
+  -        $spend = $this->connection->table('auth_delivery_spend')->where('window_started_at', '>=', $today . ' 00:00:00')->get(['spent_minor']);
+  +        $spend = $this->connection->table('auth_delivery_spend')->where('window_started_at', '>=', $today)->get(['spent_minor']);
+           $currentScopes = $spend->count();
+           $spentMinor = 0;
+           foreach ($spend as $row) {
+  
+
+   UNTESTED  src/Throttle/ThrottleReporter.php  > Line 99: ConcatSwitchSides - ID: 65e223d2ed05d782
+
+       private function economics(DateTimeImmutable $now): array
+       {
+           $today = $now->format('Y-m-d');
+  -        $spend = $this->connection->table('auth_delivery_spend')->where('window_started_at', '>=', $today . ' 00:00:00')->get(['spent_minor']);
+  +        $spend = $this->connection->table('auth_delivery_spend')->where('window_started_at', '>=', ' 00:00:00' . $today)->get(['spent_minor']);
+           $currentScopes = $spend->count();
+           $spentMinor = 0;
+           foreach ($spend as $row) {
+  
+
+   UNTESTED  src/Throttle/ThrottleReporter.php  > Line 110: ConcatRemoveRight - ID: 345acefa51f74eed
+
+           foreach ($spend as $row) {
+               $spentMinor += $this->integer($row->spent_minor ?? null);
+           }
+  -        $reservations = $this->connection->table('auth_delivery_spend_reservations AS reservations')->leftJoin('auth_challenge_outbox AS outbox', 'outbox.opaque_id', '=', 'reservations.reservation_key')->where('reservations.window_started_at', '>=', $today . ' 00:00:00')->get(['reservations.amount_minor', 'reservations.released_at', 'reservations.window_started_at', 'outbox.status AS outbox_status', 'outbox.provider_attempted_at']);
+  +        $reservations = $this->connection->table('auth_delivery_spend_reservations AS reservations')->leftJoin('auth_challenge_outbox AS outbox', 'outbox.opaque_id', '=', 'reservations.reservation_key')->where('reservations.window_started_at', '>=', $today)->get(['reservations.amount_minor', 'reservations.released_at', 'reservations.window_started_at', 'outbox.status AS outbox_status', 'outbox.provider_attempted_at']);
+           $grossMinor = 0;
+           $releasedMinor = 0;
+           $delivered = 0;
+  
+
+   UNTESTED  src/Throttle/ThrottleReporter.php  > Line 114: RemoveArrayItem - ID: f834514d3bafc965
+
+           foreach ($spend as $row) {
+               $spentMinor += $this->integer($row->spent_minor ?? null);
+           }
+  -        $reservations = $this->connection->table('auth_delivery_spend_reservations AS reservations')->leftJoin('auth_challenge_outbox AS outbox', 'outbox.opaque_id', '=', 'reservations.reservation_key')->where('reservations.window_started_at', '>=', $today . ' 00:00:00')->get(['reservations.amount_minor', 'reservations.released_at', 'reservations.window_started_at', 'outbox.status AS outbox_status', 'outbox.provider_attempted_at']);
+  +        $reservations = $this->connection->table('auth_delivery_spend_reservations AS reservations')->leftJoin('auth_challenge_outbox AS outbox', 'outbox.opaque_id', '=', 'reservations.reservation_key')->where('reservations.window_started_at', '>=', $today . ' 00:00:00')->get(['reservations.amount_minor', 'reservations.released_at', 'outbox.status AS outbox_status', 'outbox.provider_attempted_at']);
+           $grossMinor = 0;
+           $releasedMinor = 0;
+           $delivered = 0;
+  
+
+   UNTESTED  src/Throttle/ThrottleReporter.php  > Line 135: PostIncrementToPostDecrement - ID: 4f985cb1d0e3693d
+
+                   $releasedMinor += $amount;
+               }
+               if ($reservation->outbox_status === null) {
+  -                $missingOutbox++;
+  +                $missingOutbox--;
+               } elseif ($reservation->outbox_status === OtpOutboxStatus::Delivered->value) {
+                   $delivered++;
+               } elseif ($reservation->outbox_status === OtpOutboxStatus::Undeliverable->value && $reservation->provider_attempted_at !== null) {
+  
+
+   UNTESTED  src/Throttle/ThrottleReporter.php  > Line 139: BooleanAndToBooleanOr - ID: 20fc5c84ff09bd7f
+
+                   $missingOutbox++;
+               } elseif ($reservation->outbox_status === OtpOutboxStatus::Delivered->value) {
+                   $delivered++;
+  -            } elseif ($reservation->outbox_status === OtpOutboxStatus::Undeliverable->value && $reservation->provider_attempted_at !== null) {
+  +            } elseif ($reservation->outbox_status === OtpOutboxStatus::Undeliverable->value || $reservation->provider_attempted_at !== null) {
+                   $attemptedFailed++;
+               } elseif ($released && $reservation->provider_attempted_at === null) {
+                   $neverAttemptedReleased++;
+  
+
+   UNCOVERED  src/Throttle/ThrottleReporter.php  > Line 143: ElseIfNegated - ID: 4eabae7f7dde9875
+
+                   $delivered++;
+               } elseif ($reservation->outbox_status === OtpOutboxStatus::Undeliverable->value && $reservation->provider_attempted_at !== null) {
+                   $attemptedFailed++;
+  -            } elseif ($released && $reservation->provider_attempted_at === null) {
+  +            } elseif (!($released && $reservation->provider_attempted_at === null)) {
+                   $neverAttemptedReleased++;
+               }
+           }
+  
+
+   UNCOVERED  src/Throttle/ThrottleReporter.php  > Line 143: IdenticalToNotIdentical - ID: 8dbb6dc056b1b57b
+
+                   $delivered++;
+               } elseif ($reservation->outbox_status === OtpOutboxStatus::Undeliverable->value && $reservation->provider_attempted_at !== null) {
+                   $attemptedFailed++;
+  -            } elseif ($released && $reservation->provider_attempted_at === null) {
+  +            } elseif ($released && $reservation->provider_attempted_at !== null) {
+                   $neverAttemptedReleased++;
+               }
+           }
+  
+
+   UNCOVERED  src/Throttle/ThrottleReporter.php  > Line 143: BooleanAndToBooleanOr - ID: 93beedeefddf085f
+
+                   $delivered++;
+               } elseif ($reservation->outbox_status === OtpOutboxStatus::Undeliverable->value && $reservation->provider_attempted_at !== null) {
+                   $attemptedFailed++;
+  -            } elseif ($released && $reservation->provider_attempted_at === null) {
+  +            } elseif ($released || $reservation->provider_attempted_at === null) {
+                   $neverAttemptedReleased++;
+               }
+           }
+  
+
+   UNCOVERED  src/Throttle/ThrottleReporter.php  > Line 144: PostIncrementToPostDecrement - ID: 1ed7d31ec3f9ef80
+
+               } elseif ($reservation->outbox_status === OtpOutboxStatus::Undeliverable->value && $reservation->provider_attempted_at !== null) {
+                   $attemptedFailed++;
+               } elseif ($released && $reservation->provider_attempted_at === null) {
+  -                $neverAttemptedReleased++;
+  +                $neverAttemptedReleased--;
+               }
+           }
+           return ['current_scopes' => $currentScopes, 'spent_minor' => $spentMinor, 'reservations' => ['records' => $reservations->count(), 'gross_minor' => $grossMinor, 'released_minor' => $releasedMinor, 'unreleased_minor' => $grossMinor - $releasedMinor, 'delivered' => $delivered, 'attempted_failed' => $attemptedFailed, 'never_attempted_released' => $neverAttemptedReleased, 'missing_outbox' => $missingOutbox]];
+  
+
+   UNTESTED  src/Throttle/ThrottleReporter.php  > Line 279: BooleanAndToBooleanOr - ID: f4988c55e27fd9ec
+
+           $outbox = $this->connection->table('auth_challenge_outbox');
+           $reasons = [];
+           foreach ((clone $outbox)->where('status', OtpOutboxStatus::Undeliverable->value)->selectRaw('failure_reason, COUNT(*) AS reason_count')->groupBy('failure_reason')->get() as $row) {
+  -            $reason = is_string($row->failure_reason) && $row->failure_reason !== '' ? $row->failure_reason : 'unknown';
+  +            $reason = is_string($row->failure_reason) || $row->failure_reason !== '' ? $row->failure_reason : 'unknown';
+               $reasons[$reason] = $this->integer($row->reason_count ?? null);
+           }
+           ksort($reasons);
+  
+
+   UNTESTED  src/Throttle/ThrottleReporter.php  > Line 279: EmptyStringToNotEmpty - ID: 2379785d821c329c
+
+           $outbox = $this->connection->table('auth_challenge_outbox');
+           $reasons = [];
+           foreach ((clone $outbox)->where('status', OtpOutboxStatus::Undeliverable->value)->selectRaw('failure_reason, COUNT(*) AS reason_count')->groupBy('failure_reason')->get() as $row) {
+  -            $reason = is_string($row->failure_reason) && $row->failure_reason !== '' ? $row->failure_reason : 'unknown';
+  +            $reason = is_string($row->failure_reason) && $row->failure_reason !== 'PEST Mutator was here!' ? $row->failure_reason : 'unknown';
+               $reasons[$reason] = $this->integer($row->reason_count ?? null);
+           }
+           ksort($reasons);
+  
+
+   UNTESTED  src/Throttle/ThrottleReporter.php  > Line 285: RemoveFunctionCall - ID: a2cdcb30fb5bc519
+
+               $reason = is_string($row->failure_reason) && $row->failure_reason !== '' ? $row->failure_reason : 'unknown';
+               $reasons[$reason] = $this->integer($row->reason_count ?? null);
+           }
+  -        ksort($reasons);
+  +        
+           return ['pending' => (clone $outbox)->where('status', OtpOutboxStatus::Pending->value)->where('expires_at', '>', $now)->count(), 'overdue' => (clone $outbox)->where('status', OtpOutboxStatus::Pending->value)->where('expires_at', '<=', $now)->count(), 'delivered' => (clone $outbox)->where('status', OtpOutboxStatus::Delivered->value)->count(), 'undeliverable' => (clone $outbox)->where('status', OtpOutboxStatus::Undeliverable->value)->count(), 'undeliverable_reasons' => $reasons];
+       }
+       /** @return array<string, int> */
+  
+
+   UNCOVERED  src/Throttle/ThrottleReporter.php  > Line 322: IfNegated - ID: 1a96970536b51dff
+
+           if (is_int($value)) {
+               return $value;
+           }
+  -        if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 1) {
+  +        if (!(is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 1)) {
+               $integer = filter_var($value, FILTER_VALIDATE_INT);
+               if (is_int($integer)) {
+                   return $integer;
+  
+
+   UNCOVERED  src/Throttle/ThrottleReporter.php  > Line 322: IdenticalToNotIdentical - ID: cd2ba4fbc2450316
+
+           if (is_int($value)) {
+               return $value;
+           }
+  -        if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 1) {
+  +        if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) !== 1) {
+               $integer = filter_var($value, FILTER_VALIDATE_INT);
+               if (is_int($integer)) {
+                   return $integer;
+  
+
+   UNCOVERED  src/Throttle/ThrottleReporter.php  > Line 322: BooleanAndToBooleanOr - ID: b5ef0e7c619a8f07
+
+           if (is_int($value)) {
+               return $value;
+           }
+  -        if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 1) {
+  +        if (is_string($value) || preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 1) {
+               $integer = filter_var($value, FILTER_VALIDATE_INT);
+               if (is_int($integer)) {
+                   return $integer;
+  
+
+   UNCOVERED  src/Throttle/ThrottleReporter.php  > Line 322: DecrementInteger - ID: c94c78c4931b287f
+
+           if (is_int($value)) {
+               return $value;
+           }
+  -        if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 1) {
+  +        if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 0) {
+               $integer = filter_var($value, FILTER_VALIDATE_INT);
+               if (is_int($integer)) {
+                   return $integer;
+  
+
+   UNCOVERED  src/Throttle/ThrottleReporter.php  > Line 322: IncrementInteger - ID: ac7304c2dc8abd5b
+
+           if (is_int($value)) {
+               return $value;
+           }
+  -        if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 1) {
+  +        if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 2) {
+               $integer = filter_var($value, FILTER_VALIDATE_INT);
+               if (is_int($integer)) {
+                   return $integer;
+  
+
+   UNCOVERED  src/Throttle/ThrottleReporter.php  > Line 325: IfNegated - ID: 5be5ba9f9b07e96b
+
+           }
+           if (is_string($value) && preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) === 1) {
+               $integer = filter_var($value, FILTER_VALIDATE_INT);
+  -            if (is_int($integer)) {
+  +            if (!is_int($integer)) {
+                   return $integer;
+               }
+           }
+  
+
+   UNTESTED  src/Throttle/IpCanonicalizer.php  > Line 39: IncrementInteger - ID: c183c2a8e9c65347
+
+           if (strlen($packed) === 16 && bin2hex(substr($packed, 0, 12)) === '00000000000000000000ffff') {
+               $packed = substr($packed, 12);
+           } elseif (strlen($packed) === 16) {
+  -            $packed = substr_replace($packed, str_repeat("\x00", 8), 8, 8);
+  +            $packed = substr_replace($packed, str_repeat("\x00", 8), 8, 9);
+           }
+           $canonical = inet_ntop($packed);
+           if ($canonical === false) {
+  
+
+   UNTESTED  src/Throttle/IpCanonicalizer.php  > Line 44: FalseToTrue - ID: d882b414399c8c6f
+
+               $packed = substr_replace($packed, str_repeat("\x00", 8), 8, 8);
+           }
+           $canonical = inet_ntop($packed);
+  -        if ($canonical === false) {
+  +        if ($canonical === true) {
+               throw new RuntimeException('The validated client IP could not be rendered.');
+           }
+           return $canonical;
+       }
+   }
+  
+
+  Mutations: 90 untested, 38 uncovered, 735 tested
+  Score:     85.17%
+  Duration:  3,367.01s
+
