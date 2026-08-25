@@ -38,7 +38,7 @@ function boundaryTotp(int $period = 30, int $digits = 6, int $window = 1, ?Clock
     );
 }
 
-function boundaryAttempt(int $userId = 7): AuthAttempt
+function boundaryAttempt(?int $userId = 7): AuthAttempt
 {
     return AuthAttempt::create([
         'handle' => bin2hex(random_bytes(32)),
@@ -252,6 +252,13 @@ it('reports no credential rather than dereferencing a missing one', function ():
     $result = boundaryTotp()->verify(new VerificationRequest(boundaryAttempt(), ['code' => '123456']));
 
     expect($result->failure)->toBe(FactorFailure::NoCredential);
+});
+
+it('equalizes a missing user identity as no credential', function (): void {
+    expect(boundaryTotp()->verify(new VerificationRequest(
+        boundaryAttempt(null),
+        ['code' => '123456'],
+    ))->failure)->toBe(FactorFailure::NoCredential);
 });
 
 it('reports no credential when the stored secret is blank', function (): void {

@@ -154,6 +154,22 @@ it('always discloses a lockout, because withholding it is useless and hostile', 
     expect($shaped->errors)->toBe(['Too many attempts. Try again later.']);
 });
 
+it('does not fabricate a retry policy when a strict lock has no measured retry', function (): void {
+    $base = identifyScreen();
+    $screen = new ScreenSpec(
+        step: $base->step,
+        offeredFactors: $base->offeredFactors,
+        fields: $base->fields,
+        challengePayload: $base->challengePayload,
+        errors: $base->errors,
+        retry: null,
+    );
+
+    $shaped = (new ErrorShaper())->shape($screen, Outcome::Locked, EnumerationPosture::Strict);
+
+    expect($shaped->retry)->toBeNull();
+});
+
 it('preserves a lock deadline but redacts its counter under strict posture', function (): void {
     $lockedUntil = new DateTimeImmutable('2026-08-16T12:15:00Z');
     $base = identifyScreen();

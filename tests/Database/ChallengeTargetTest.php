@@ -109,6 +109,15 @@ it('refuses an otp challenge with no credential target', function (): void {
     makeChallenge(['credential_id' => null]);
 })->throws(ChallengeTargetViolation::class);
 
+it('refuses a decoy challenge that names a real credential', function (): void {
+    $credential = targetCredential();
+
+    expect(fn () => makeChallenge([
+        'credential_id' => $credential->id,
+        'is_decoy' => true,
+    ]))->toThrow(ChallengeTargetViolation::class, 'cannot name credential');
+});
+
 it('permits a password challenge with no credential target', function (): void {
     // Password and TOTP issue no challenge and have no delivery target. A
     // NOT NULL column would be a lie; this is where the distinction lives.

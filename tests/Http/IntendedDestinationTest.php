@@ -83,3 +83,14 @@ it('discards a hostile value rather than leaving a previous one in place', funct
 
     expect($destination->consume())->toBeNull();
 });
+
+it('rejects malformed and authority-shaped origin candidates after parsing', function (string $candidate): void {
+    $destination = destination();
+    $destination->remember($candidate);
+
+    expect($destination->consume())->toBeNull();
+})->with([
+    'malformed port' => '/not-a-host:80',
+    'authority-shaped path' => '//user:pass@host/path',
+    'missing origin slash' => 'user:pass@host/path',
+]);

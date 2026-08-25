@@ -34,6 +34,8 @@ final class RecordingAuthThrottleStore implements AuthThrottleStore
 
     public ?string $throwOnOperation = null;
 
+    public ChallengeAttemptDecision $recordChallengeFailureResult = ChallengeAttemptDecision::Remaining;
+
     public function preflightIdentifier(ThrottleSubject $identifier): IdentifierThrottle
     {
         $this->record(__FUNCTION__, $identifier);
@@ -91,7 +93,7 @@ final class RecordingAuthThrottleStore implements AuthThrottleStore
     {
         $this->record(__FUNCTION__, $challengeId);
 
-        return ChallengeAttemptDecision::Remaining;
+        return $this->recordChallengeFailureResult;
     }
 
     public function permitIssuance(ThrottleSubject $issuance): IssuancePermission

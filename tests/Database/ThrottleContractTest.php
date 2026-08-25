@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Tests\Support\RecordingAuthThrottleStore;
 use Fissible\Vouch\Throttle\ChallengeAttemptDecision;
+use Fissible\Vouch\Throttle\DatabaseAuthThrottleStore;
 use Fissible\Vouch\Throttle\IdentifierThrottle;
 use Fissible\Vouch\Throttle\IssuancePermission;
 use Fissible\Vouch\Throttle\SharedThrottle;
@@ -163,6 +164,19 @@ it('keeps every write operation distinct in the recording contract', function ()
         'permitIssuance',
     ])->and($challenge)->toBe(ChallengeAttemptDecision::Remaining)
         ->and($permission)->toBe(IssuancePermission::Permitted);
+});
+
+it('permits a recovery bucket when its fixed window has expired', function (): void {
+    $subject = contractSubject(ThrottleDimension::Recovery);
+    $store = app(DatabaseAuthThrottleStore::class);
+
+    $store->recordRecoveryFailure($subject);
+    DB::table('auth_throttle_counters')
+        ->where('dimension', ThrottleDimension::Recovery->value)
+        ->where('subject_digest', $subject->digest)
+        ->update(['window_started_at' => now()->subDay()]);
+
+    expect($store->preflightShared($subject))->toEqual(SharedThrottle::permitted());
 });
 
 it('exposes no candidate lookup or digest-returning operation', function (): void {

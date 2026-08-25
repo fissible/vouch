@@ -218,3 +218,10 @@ it('reports no credential when the user has never enrolled', function (): void {
         input: ['code' => 'ABCDEFGHJK'],
     ))->failure)->toBe(FactorFailure::NoCredential);
 });
+
+it('equalizes a missing user identity as no credential', function (): void {
+    expect(recoveryFactor()->verify(new VerificationRequest(
+        attempt: recoveryAttempt(null),
+        input: ['code' => 'ABCDEFGHJK'],
+    ))->failure)->toBe(FactorFailure::NoCredential);
+});

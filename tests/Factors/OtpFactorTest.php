@@ -18,6 +18,8 @@ use Fissible\Vouch\Models\AuthChallenge;
 use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Tests\Support\ArrayOtpDelivery;
+use Fissible\Vouch\Tests\Support\RecordingAuthThrottleStore;
+use Fissible\Vouch\Throttle\ChallengeAttemptDecision;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 
@@ -421,6 +423,29 @@ it('refuses a live code once the credential it was delivered against is revoked'
     expect($result->isSatisfied())->toBeFalse()
         ->and($result->failure)->toBe(FactorFailure::NoCredential)
         ->and($result->mutations)->toBe([]);
+});
+
+it('equalizes every terminal challenge-attempt decision as the matching factor failure', function (): void {
+    $store = new RecordingAuthThrottleStore();
+    app()->instance(\Fissible\Vouch\Contracts\AuthThrottleStore::class, $store);
+    $credential = emailOtp()->enroll(7, ['identifier_id' => verifiedEmail()->id])->credentials[0];
+
+    foreach ([
+        [ChallengeAttemptDecision::Consumed, FactorFailure::Consumed],
+        [ChallengeAttemptDecision::Expired, FactorFailure::Expired],
+        [ChallengeAttemptDecision::Unavailable, FactorFailure::NoCredential],
+    ] as [$decision, $failure]) {
+        $attempt = otpAttempt();
+        $challenge = requireChallenge(emailOtp()->challenge(new ChallengeRequest($attempt, $credential)));
+        deliveredOtpCode();
+        $store->recordChallengeFailureResult = $decision;
+
+        expect(emailOtp()->verify(new VerificationRequest(
+            attempt: $attempt,
+            input: ['code' => '000001'],
+            challenge: $challenge,
+        ))->failure)->toBe($failure);
+    }
 });
 
 it('refuses to challenge a credential belonging to a different factor type', function (): void {

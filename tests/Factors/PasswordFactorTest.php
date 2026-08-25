@@ -93,6 +93,13 @@ it('distinguishes no credential from a wrong password', function (): void {
     ))->failure)->toBe(FactorFailure::NoCredential);
 });
 
+it('equalizes a missing user identity as no credential', function (): void {
+    expect(passwordFactor()->verify(new VerificationRequest(
+        attempt: driverAttempt(null),
+        input: ['password' => 'anything'],
+    ))->failure)->toBe(FactorFailure::NoCredential);
+});
+
 it('reports malformed input rather than treating it as a wrong password', function (): void {
     passwordFactor()->enroll(7, ['password' => 'correct horse battery staple']);
 
