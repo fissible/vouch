@@ -80,6 +80,11 @@ it('refuses an SMS delivery whose country was not normalized', function (): void
         ->and(DB::table('auth_delivery_spend')->count())->toBe(0);
 });
 
+it('permits an SMS delivery in an allowed country', function (): void {
+    expect(deliveryEconomics()->reserve(deliveryRequest(channel: 'sms', country: 'US')))
+        ->toBe(DeliveryReservationDecision::Permitted);
+});
+
 it('requires an opaque reservation key for a real delivery', function (): void {
     expect(fn (): DeliveryReservationDecision => deliveryEconomics()->reserve(
         deliveryRequest(reservationKey: ''),
@@ -176,6 +181,25 @@ it('does not charge a committed reservation twice', function (): void {
         ->and(DB::table('auth_delivery_spend_reservations')->count())->toBe(2);
 });
 
+it('continues to claim a missing tenant reservation after a global duplicate', function (): void {
+    $economics = deliveryEconomics(['daily' => null, 'tenant' => null]);
+    $request = deliveryRequest(reservationKey: str_repeat('q', 64));
+
+    expect($economics->reserve($request))->toBe(DeliveryReservationDecision::Permitted);
+    DB::table('auth_delivery_spend_reservations')
+        ->where('reservation_key', $request->reservationKey)
+        ->where('scope', 'tenant')
+        ->delete();
+
+    expect($economics->reserve($request))->toBe(DeliveryReservationDecision::Permitted)
+        ->and(DB::table('auth_delivery_spend')->where('scope', 'tenant')->value('spent_minor'))
+        ->toBeInt()->toBe(20)
+        ->and(DB::table('auth_delivery_spend_reservations')
+            ->where('reservation_key', $request->reservationKey)
+            ->where('scope', 'tenant')->count())
+        ->toBe(1);
+});
+
 it('releases a reservation when no provider delivery completed', function (): void {
     $economics = deliveryEconomics();
     $request = deliveryRequest(reservationKey: str_repeat('x', 64));
@@ -213,6 +237,21 @@ it('does not debit spend when releasing a zero-cost reservation request', functi
 
     expect($economics->reserve($reserved))->toBe(DeliveryReservationDecision::Permitted);
     $economics->release($zeroCost);
+
+    expect(DB::table('auth_delivery_spend')->where('scope', 'global')->value('spent_minor'))
+        ->toBeInt()->toBe(10)
+        ->and(DB::table('auth_delivery_spend_reservations')->whereNotNull('released_at')->count())
+        ->toBe(0);
+});
+
+it('does not release a reservation when only its key is empty', function (): void {
+    $economics = deliveryEconomics();
+    $reserved = deliveryRequest();
+    $emptyKey = deliveryRequest(reservationKey: '');
+
+    expect($economics->reserve($reserved))->toBe(DeliveryReservationDecision::Permitted);
+    DB::table('auth_delivery_spend_reservations')->update(['reservation_key' => '']);
+    $economics->release($emptyKey);
 
     expect(DB::table('auth_delivery_spend')->where('scope', 'global')->value('spent_minor'))
         ->toBeInt()->toBe(10)
