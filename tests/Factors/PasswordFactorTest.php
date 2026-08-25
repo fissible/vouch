@@ -13,6 +13,7 @@ use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Models\AuthCredential;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -94,10 +95,22 @@ it('distinguishes no credential from a wrong password', function (): void {
 });
 
 it('equalizes a missing user identity as no credential', function (): void {
-    expect(passwordFactor()->verify(new VerificationRequest(
-        attempt: driverAttempt(null),
-        input: ['password' => 'anything'],
-    ))->failure)->toBe(FactorFailure::NoCredential);
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    try {
+        $result = passwordFactor()->verify(new VerificationRequest(
+            attempt: driverAttempt(null),
+            input: ['password' => 'anything'],
+        ));
+        $queries = DB::getQueryLog();
+    } finally {
+        DB::disableQueryLog();
+    }
+
+    expect($result->failure)->toBe(FactorFailure::NoCredential)
+        ->and(array_filter($queries, static fn (array $query): bool => str_contains($query['query'], 'auth_credentials')))
+        ->toBe([]);
 });
 
 it('reports malformed input rather than treating it as a wrong password', function (): void {

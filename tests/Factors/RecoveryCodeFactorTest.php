@@ -15,6 +15,7 @@ use Fissible\Vouch\Kernel\Satisfiability\SatisfiabilityEvaluator;
 use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Models\AuthCredential;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -220,8 +221,13 @@ it('reports no credential when the user has never enrolled', function (): void {
 });
 
 it('equalizes a missing user identity as no credential', function (): void {
-    expect(recoveryFactor()->verify(new VerificationRequest(
-        attempt: recoveryAttempt(null),
-        input: ['code' => 'ABCDEFGHJK'],
-    ))->failure)->toBe(FactorFailure::NoCredential);
+    DB::flushQueryLog(); DB::enableQueryLog();
+    try {
+        $result = recoveryFactor()->verify(new VerificationRequest(
+            attempt: recoveryAttempt(null), input: ['code' => 'ABCDEFGHJK'],
+        ));
+        $queries = DB::getQueryLog();
+    } finally { DB::disableQueryLog(); }
+    expect($result->failure)->toBe(FactorFailure::NoCredential)
+        ->and(array_filter($queries, static fn (array $q): bool => str_contains($q['query'], 'auth_credentials')))->toBe([]);
 });

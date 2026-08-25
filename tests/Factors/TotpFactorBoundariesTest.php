@@ -9,6 +9,7 @@ use Fissible\Vouch\Factors\VerificationRequest;
 use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Models\AuthCredential;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Fissible\Vouch\Support\SystemClock;
 use OTPHP\TOTP;
 use Psr\Clock\ClockInterface;
@@ -255,10 +256,13 @@ it('reports no credential rather than dereferencing a missing one', function ():
 });
 
 it('equalizes a missing user identity as no credential', function (): void {
-    expect(boundaryTotp()->verify(new VerificationRequest(
-        boundaryAttempt(null),
-        ['code' => '123456'],
-    ))->failure)->toBe(FactorFailure::NoCredential);
+    DB::flushQueryLog(); DB::enableQueryLog();
+    try {
+        $result = boundaryTotp()->verify(new VerificationRequest(boundaryAttempt(null), ['code' => '123456']));
+        $queries = DB::getQueryLog();
+    } finally { DB::disableQueryLog(); }
+    expect($result->failure)->toBe(FactorFailure::NoCredential)
+        ->and(array_filter($queries, static fn (array $q): bool => str_contains($q['query'], 'auth_credentials')))->toBe([]);
 });
 
 it('reports no credential when the stored secret is blank', function (): void {
