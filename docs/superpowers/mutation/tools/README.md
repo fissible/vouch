@@ -40,7 +40,8 @@ untrustworthy map is worse than no disposition.
 ```
 php classify-survivors.php --log=FILE (--map=CLOVER | --lines=SET) \
     [--union=CLOVER]... [--source-root=DIR] [--emit-lines=FILE] \
-    [--baseline=CLASSIFICATION.json] [--json]
+    [--baseline=CLASSIFICATION.json]
+    [--baseline-identity=line|expression] [--json]
 ```
 
 Producing the inputs:
@@ -60,7 +61,12 @@ plugin's mutation ID as the tool-level key.
 
 For a confirmation run, pass the prior classification with `--baseline`. The
 report then includes `added` and `removed` row identities keyed by
-`(file, line, mutator)`. This identity diff is the required comparison: a
+`(file, line, mutator)` by default. When a baseline was taken at a different
+source SHA and code above a row moved, pass
+`--baseline-identity=expression` to compare `(file, mutator, expression)`
+instead. The expression mode is intentionally explicit: within one source
+state duplicate expressions can occur on distinct rows, so line-keying remains
+the safe default. This identity diff is the required comparison: a
 stable aggregate can hide a survivor replacing a kill, while a row diff makes
 both directions explicit. JSON mode returns `{rows, baseline_diff}` when this
 option is supplied.

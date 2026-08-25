@@ -33,7 +33,8 @@ declare(strict_types=1);
  * Usage:
  *   classify-survivors.php --log=FILE (--map=CLOVER | --lines=SET)
  *                          [--union=CLOVER]... [--source-root=DIR]
- *                          [--emit-lines=FILE] [--baseline=JSON] [--json]
+ *                          [--emit-lines=FILE] [--baseline=JSON]
+ *                          [--baseline-identity=line|expression] [--json]
  *
  *   --log          de-ANSI'd non-compact mutation log. Compact/parallel output
  *                  suppresses the row list and cannot be classified.
@@ -48,6 +49,8 @@ declare(strict_types=1);
  *   --emit-lines   write the unioned executed set to FILE for reuse.
  *   --baseline     prior classification JSON; report added/removed row
  *                  identities (file, line, mutator) against this run.
+ *   --baseline-identity  line (default) keeps duplicate expressions distinct;
+ *                        expression tolerates line shifts after a source edit.
  *   --json         emit rows as JSON instead of a grouped report.
  *
  * Exit codes: 0 classified, 1 usage error, 2 map inconsistency detected.
@@ -65,12 +68,14 @@ const DISPOSITIONS = [
 
 /**
  * @return array{log: string, map: ?string, union: list<string>, lines: ?string,
- *               root: string, emit: ?string, baseline: ?string, json: bool}
+ *               root: string, emit: ?string, baseline: ?string,
+ *               baselineIdentity: string, json: bool}
  */
 function parseArguments(array $argv): array
 {
     $options = ['log' => null, 'map' => null, 'union' => [], 'lines' => null,
-        'root' => getcwd(), 'emit' => null, 'baseline' => null, 'json' => false];
+        'root' => getcwd(), 'emit' => null, 'baseline' => null,
+        'baselineIdentity' => 'line', 'json' => false];
 
     foreach (array_slice($argv, 1) as $argument) {
         if ($argument === '--json') {
@@ -93,6 +98,7 @@ function parseArguments(array $argv): array
             'source-root' => $options['root'] = rtrim($value, '/'),
             'emit-lines' => $options['emit'] = $value,
             'baseline' => $options['baseline'] = $value,
+            'baseline-identity' => $options['baselineIdentity'] = $value,
             default => fail("Unrecognized option: --{$name}"),
         };
     }
@@ -103,6 +109,10 @@ function parseArguments(array $argv): array
 
     if ($options['map'] === null && $options['lines'] === null) {
         fail('Either --map or --lines is required.');
+    }
+
+    if (! in_array($options['baselineIdentity'], ['line', 'expression'], true)) {
+        fail('--baseline-identity must be line or expression.');
     }
 
     return $options;
@@ -399,15 +409,19 @@ function disposition(array $row, ?array $measuring, array $executedElsewhere): a
 /**
  * @param array{file: string, line: int, mutator: string} $row
  */
-function rowIdentity(array $row): string
+function rowIdentity(array $row, string $mode = 'line'): string
 {
+    if ($mode === 'expression') {
+        return $row['file'] . ':' . $row['mutator'] . ':' . ($row['expression'] ?? '');
+    }
+
     return $row['file'] . ':' . $row['line'] . ':' . $row['mutator'];
 }
 
 /**
  * @return array{added: list<array<string, mixed>>, removed: list<array<string, mixed>>}
  */
-function baselineDiff(string $path, array $classified): array
+function baselineDiff(string $path, array $classified, string $identityMode = 'line'): array
 {
     if (! is_file($path)) {
         fail("Baseline classification not found: {$path}");
@@ -421,18 +435,24 @@ function baselineDiff(string $path, array $classified): array
 
     $baselineRows = [];
 
+    // A classification produced with --baseline is wrapped so it can carry
+    // its diff. Accept both that form and the original bare row list.
+    if (array_key_exists('rows', $decoded) && is_array($decoded['rows'])) {
+        $decoded = $decoded['rows'];
+    }
+
     foreach ($decoded as $row) {
         if (! is_array($row) || ! isset($row['file'], $row['line'], $row['mutator'])) {
             fail("Baseline classification has an invalid row: {$path}");
         }
 
-        $baselineRows[rowIdentity($row)] = $row;
+        $baselineRows[rowIdentity($row, $identityMode)] = $row;
     }
 
     $currentRows = [];
 
     foreach ($classified as $row) {
-        $currentRows[rowIdentity($row)] = $row;
+        $currentRows[rowIdentity($row, $identityMode)] = $row;
     }
 
     $added = [];
@@ -487,7 +507,7 @@ foreach (readLog($options['log']) as $row) {
 }
 
 $diff = $options['baseline'] !== null
-    ? baselineDiff($options['baseline'], $classified)
+    ? baselineDiff($options['baseline'], $classified, $options['baselineIdentity'])
     : null;
 
 if ($options['json']) {

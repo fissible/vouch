@@ -919,6 +919,15 @@ the two arms are duplicated. This is an equivalent-by-duplicated-branch
 finding with a queued source simplification, not a test request. The `:197`
 survivor remains a real two-scope contract gap.
 
+The redundant `:137` branch was then simplified in `06d0153`. The source
+change removed seven generated mutations, as expected. The post-change rerun
+produced 222 mutations / 7 RUN files, with 171 tested, 50 survivors, 1
+uncovered, and 0 timeouts. Its expression-keyed baseline diff against the
+pre-simplification classification reported exactly four removed rows (the
+four former `:137` survivors) and no additions. Expression-keyed comparison
+was required because the source edit shifted every later line; line-keyed
+diffing would have produced spurious remove/add pairs.
+
 ### Full parallel smoke (non-authoritative)
 
 - Scope: non-Kernel `Fissible\\Vouch`, SHA `66ac67d`, 10 processes

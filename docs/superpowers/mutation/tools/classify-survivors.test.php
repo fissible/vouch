@@ -157,6 +157,23 @@ check('an identical classification has no added rows', ($diff['decoded']['baseli
 check('an identical classification has no removed rows', ($diff['decoded']['baseline_diff']['removed'] ?? null) === []);
 unlink($baseline);
 
+echo PHP_EOL, 'source-shift-tolerant baseline identity', PHP_EOL;
+$shifted = tempnam(sys_get_temp_dir(), 'vouch-baseline-shift-');
+$shiftedRows = array_values($single['rows']);
+$shiftedRows[0]['line']++;
+file_put_contents($shifted, json_encode($shiftedRows, JSON_PRETTY_PRINT));
+$shiftDiff = classify([
+    "--log={$fixtures}/survivors.log",
+    "--map={$fixtures}/sqlite.clover.xml",
+    "--baseline={$shifted}",
+    '--baseline-identity=expression',
+]);
+check('expression identity ignores a source line shift',
+    ($shiftDiff['decoded']['baseline_diff']['added'] ?? null) === []
+    && ($shiftDiff['decoded']['baseline_diff']['removed'] ?? null) === []
+);
+unlink($shifted);
+
 echo PHP_EOL, 'identity is preserved', PHP_EOL;
 $row = $union['rows']["{$store}:415"] ?? [];
 check('mutator is carried', ($row['mutator'] ?? null) === 'RemoveEarlyReturn');
