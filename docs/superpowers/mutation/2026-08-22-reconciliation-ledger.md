@@ -800,6 +800,23 @@ guard. These are one reservation mechanism—scope coverage, release safety,
 and cross-engine window ownership—not four independent test requests. Keep
 stable row identities and defer resolution to the test-design pass.
 
+### Delivery equivalence classification
+
+The Delivery survivor set is narrower than the raw 65-row count suggests.
+Seventeen cast survivors are equivalent without a test gap:
+
+- 13 are `redundant-cast`: `(string)` operands are typed string constants or
+  string properties, and `(int) $ceiling` is guarded by `?int !== null`.
+- 4 are `engine-equivalent`: SQLite returns native integers for the relevant
+  reads, while MySQL/PostgreSQL may return strings. These remain open to
+  cross-engine evidence, especially the reservation amount and window casts.
+
+Four message-prose rows remain under the standing no-action ruling. The
+remaining Delivery logic rows are the short-circuit at `:88`, the
+exactly-one-row release invariant at `:137`, the two-scope `continue` at `:197`,
+and the reservation-key/country predicates at `:154` and `:57`. This is the
+actionable test-design set; equivalent rows are not queued as test requests.
+
 ### Full parallel smoke (non-authoritative)
 
 - Scope: non-Kernel `Fissible\\Vouch`, SHA `66ac67d`, 10 processes
