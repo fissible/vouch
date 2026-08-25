@@ -301,7 +301,10 @@ it('reaches the shared CAPTCHA threshold identically for known and unknown ident
     Config::set('vouch.throttle.captcha.enabled', true);
     Config::set('vouch.throttle.global.mode', 'enforce');
     Config::set('vouch.throttle.global.enforce_at', 5);
-    Config::set('vouch.throttle.global.backoff_seconds', 1);
+    // The assertion is about threshold crossing and CAPTCHA disclosure, not a
+    // one-second deadline. Leave enough time for both five-submit loops on a
+    // cold database or under mutation instrumentation.
+    Config::set('vouch.throttle.global.backoff_seconds', 30);
     app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
     app()->forgetInstance(AuthThrottleStore::class);
     $screens = [];

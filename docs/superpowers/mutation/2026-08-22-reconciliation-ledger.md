@@ -772,14 +772,16 @@ removal of `lockForUpdate()`, and all three call-site `lock: true` arguments
 EnrollmentGuard.
 
 The full suite and all three engines preserve the throttle invariant with each
-mutant, while the two unconditional `lockForUpdate()` sites are killed. This
-does not yet establish whether the flagged locks are redundant under the
-constructed races (unique inserts may be carrying the invariant), or whether
-the tests fail to discriminate the pessimistic mechanism. Keep this as one
-mechanism-level ruling with stable row identities; do not add tests or remove
-locks during the measurement sequence. Resolution options remain: a
-mechanism-specific concurrency proof, a deliberately narrow SQL assertion, or
-removal if the unique-constraint design is shown sufficient.
+mutant. SQLite's grammar compiles `lockForUpdate()` to no SQL, so lock-removal,
+lock-negation, and the affected `lock: true` call-site/default-parameter rows
+are `engine-equivalent` under the measuring engine, not evidence that the
+mechanism is redundant. The two unconditional sites produced no mutation rows;
+their absence must not be read as kills. The source documents the workaround:
+SQLite's `FOR UPDATE` is a bare `SELECT`, so the unique insert is intentionally
+first to claim the writer lock before state-bearing reads. Keep this as one
+mechanism-level ruling with stable row identities. Behavioural evidence on
+MySQL/PostgreSQL may still validate the load-bearing paths, but it cannot move
+the SQLite mutation rows.
 
 EnrollmentGuard contributes three additional rows to this same ruling: the
 two predicate-key removals at `EnrollmentGuard:126` (`user_id` and `type`) and
