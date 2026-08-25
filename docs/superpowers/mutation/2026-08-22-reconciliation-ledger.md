@@ -402,6 +402,18 @@ log/classification SHA-256
 `0ed63292e5983d77b489cb3173ef82abd24e56c79f70e4af203405cc027a92fd` /
 `d0d0378d8a373eceb343a0b6333d2766c39dbebe4a0aa6079ba24b84ff4b0edd`.
 
+The first expiry follow-up briefly used a reflection test to invoke the
+private `sharedState()` method, but that was rejected: it can kill mutants by
+bypassing every production caller and would make the mutation score less
+truthful. The production call graph makes this branch
+`shadowed-by-caller-guard`: `preflightShared()` returns before `sharedState()`
+for expired rows, while `recordScalarFailure()` consults the result only for
+`BackedOff` and then discards it after incrementing. The observable expiry
+rule is already covered by `preflightShared()`'s data-provider test. The
+duplicated posture expression is now centralized in `expiredPosture()`; the
+three old `:583` rows remain equivalent-by-call-context rather than a test
+gap.
+
 The first isolated follow-up batch (`57cc122`) added deterministic backoff
 schedule assertions. Its Throttle rerun still reports 865 mutations / 7 RUN
 files, 735 tested, 90 untested, 40 uncovered, and 0 timeouts. The baseline row

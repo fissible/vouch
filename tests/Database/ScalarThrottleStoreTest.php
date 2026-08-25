@@ -14,7 +14,6 @@ use Fissible\Vouch\Throttle\ThrottleDimension;
 use Fissible\Vouch\Throttle\ThrottleSubject;
 use Illuminate\Database\Connection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
@@ -460,45 +459,6 @@ it('treats absent and expired shared counters according to their dimension', fun
     'tenant is observed' => [ThrottleDimension::Tenant, SharedThrottle::observed()],
     'global is observed' => [ThrottleDimension::Global, SharedThrottle::observed()],
 ]);
-
-it('expires recovery and shared enforcement state with distinct postures', function (): void {
-    $recovery = scalarThrottleSubject(ThrottleDimension::Recovery, 13);
-    $global = scalarThrottleSubject(ThrottleDimension::Global, 14);
-    seedScalarCounter($recovery, 100, ageSeconds: 1800);
-    seedScalarCounter($global, 100, ageSeconds: 1800);
-
-    Config::set('vouch.throttle.global.mode', 'enforce');
-    Config::set('vouch.throttle.global.enforce_at', 5);
-    Config::set('vouch.throttle.global.backoff_seconds', 1);
-    app()->forgetInstance(ThrottleConfiguration::class);
-
-    try {
-        $store = scalarThrottleStore();
-        $sharedState = new ReflectionMethod(DatabaseAuthThrottleStore::class, 'sharedState');
-        $sharedState->setAccessible(true);
-        $counter = static function (ThrottleSubject $subject): array {
-            $window = DB::table('auth_throttle_counters')
-                ->where('dimension', $subject->dimension->value)
-                ->where('subject_digest', $subject->digest)
-                ->value('window_started_at');
-
-            return [
-                'count' => 100,
-                'windowStartedAt' => new DateTimeImmutable((string) $window),
-            ];
-        };
-
-        expect($sharedState->invoke($store, $recovery, $counter($recovery)))
-            ->toEqual(SharedThrottle::permitted())
-            ->and($sharedState->invoke($store, $global, $counter($global)))
-            ->toEqual(SharedThrottle::observed());
-    } finally {
-        Config::set('vouch.throttle.global.mode', 'observe');
-        Config::set('vouch.throttle.global.enforce_at', null);
-        Config::set('vouch.throttle.global.backoff_seconds', null);
-        app()->forgetInstance(ThrottleConfiguration::class);
-    }
-});
 
 it('recreates a counter deleted after each optimistic existence read', function (
     ThrottleDimension $dimension,

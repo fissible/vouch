@@ -87,9 +87,7 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
         $counter = $this->counter($subject);
 
         if ($counter === null || $this->windowExpired($subject)) {
-            return $subject->dimension === ThrottleDimension::Recovery
-                ? SharedThrottle::permitted()
-                : SharedThrottle::observed();
+            return $this->expiredPosture($subject);
         }
 
         return $this->sharedState($subject, $counter);
@@ -580,9 +578,7 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
     private function sharedState(ThrottleSubject $subject, array $counter): SharedThrottle
     {
         if ($this->windowExpired($subject)) {
-            return $subject->dimension === ThrottleDimension::Recovery
-                ? SharedThrottle::permitted()
-                : SharedThrottle::observed();
+            return $this->expiredPosture($subject);
         }
 
         if ($subject->dimension === ThrottleDimension::Recovery) {
@@ -618,6 +614,13 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
         return $this->deadlinePending($subject, $offset)
             ? SharedThrottle::backedOff($this->deadline($counter['windowStartedAt'], $offset))
             : SharedThrottle::permitted();
+    }
+
+    private function expiredPosture(ThrottleSubject $subject): SharedThrottle
+    {
+        return $subject->dimension === ThrottleDimension::Recovery
+            ? SharedThrottle::permitted()
+            : SharedThrottle::observed();
     }
 
     private function backoffOffset(int $count): int
