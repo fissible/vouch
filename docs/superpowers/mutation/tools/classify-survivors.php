@@ -419,6 +419,29 @@ function rowIdentity(array $row, string $mode = 'line'): string
 }
 
 /**
+ * Build identities without collapsing duplicate expressions in expression
+ * mode. The ordinal is stable for the plugin's log order and preserves the
+ * distinction between repeated `continue;` or array-element mutations.
+ *
+ * @param list<array<string, mixed>> $rows
+ * @return array<string, array<string, mixed>>
+ */
+function keyedRows(array $rows, string $mode): array
+{
+    $keyed = [];
+    $occurrences = [];
+
+    foreach ($rows as $row) {
+        $base = rowIdentity($row, $mode);
+        $ordinal = $occurrences[$base] ?? 0;
+        $occurrences[$base] = $ordinal + 1;
+        $keyed[$base . ($mode === 'expression' ? ':' . $ordinal : '')] = $row;
+    }
+
+    return $keyed;
+}
+
+/**
  * @return array{added: list<array<string, mixed>>, removed: list<array<string, mixed>>}
  */
 function baselineDiff(string $path, array $classified, string $identityMode = 'line'): array
@@ -433,27 +456,24 @@ function baselineDiff(string $path, array $classified, string $identityMode = 'l
         fail("Baseline classification is not valid JSON: {$path}");
     }
 
-    $baselineRows = [];
-
     // A classification produced with --baseline is wrapped so it can carry
     // its diff. Accept both that form and the original bare row list.
     if (array_key_exists('rows', $decoded) && is_array($decoded['rows'])) {
         $decoded = $decoded['rows'];
     }
 
+    $baselineRows = [];
+
     foreach ($decoded as $row) {
         if (! is_array($row) || ! isset($row['file'], $row['line'], $row['mutator'])) {
             fail("Baseline classification has an invalid row: {$path}");
         }
 
-        $baselineRows[rowIdentity($row, $identityMode)] = $row;
+        $baselineRows[] = $row;
     }
 
-    $currentRows = [];
-
-    foreach ($classified as $row) {
-        $currentRows[rowIdentity($row, $identityMode)] = $row;
-    }
+    $baselineRows = keyedRows($baselineRows, $identityMode);
+    $currentRows = keyedRows($classified, $identityMode);
 
     $added = [];
 

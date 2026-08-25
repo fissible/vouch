@@ -917,7 +917,8 @@ loop body; the conditional and its `continue` have no observable consequence.
 only report zero or one, but the other three mutants are equivalent because
 the two arms are duplicated. This is an equivalent-by-duplicated-branch
 finding with a queued source simplification, not a test request. The `:197`
-survivor remains a real two-scope contract gap.
+survivor was already killed by the seeded partial-replay test in the preceding
+Delivery batch; no additional test is required.
 
 The redundant `:137` branch was then simplified in `06d0153`. The source
 change removed seven generated mutations, as expected. The post-change rerun
