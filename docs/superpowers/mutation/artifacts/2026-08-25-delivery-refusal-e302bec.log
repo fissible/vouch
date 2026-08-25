@@ -1,0 +1,974 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  .....................................
+
+  Tests:    1177 passed (4128 assertions)
+  Duration: 31.08s
+
+  Mutating application files...
+  229 Mutations for 7 Files created
+
+   RUN  src/Delivery/DeliveryEconomicsConfiguration.php
+  ⨯ Line 20: ForeachEmptyIterable
+  ⨯ Line 21: RemoveArrayItem
+  ⨯ Line 22: RemoveArrayItem
+  ✓ Line 24: IfNegated
+  ⨯ Line 24: NotIdenticalToIdentical
+  ✓ Line 24: SmallerToGreaterOrEqual
+  ⨯ Line 24: SmallerToSmallerOrEqual
+  ✓ Line 24: BooleanAndToBooleanOr
+  ⨯ Line 24: DecrementInteger
+  ⨯ Line 24: IncrementInteger
+  ⨯ Line 29: ForeachEmptyIterable
+  ✓ Line 30: IfNegated
+  ✓ Line 30: NotIdenticalToIdentical
+  ✓ Line 30: DecrementInteger
+  ✓ Line 30: IncrementInteger
+
+   RUN  src/Delivery/DeliveryEconomicsRequest.php
+  ✓ Line 22: IfNegated
+  ✓ Line 22: SmallerToGreaterOrEqual
+  ✓ Line 22: SmallerToSmallerOrEqual
+  ⨯ Line 22: DecrementInteger
+  ✓ Line 22: IncrementInteger
+  ✓ Line 26: IfNegated
+  ✓ Line 26: NotIdenticalToIdentical
+  ✓ Line 26: BooleanAndToBooleanOr
+
+   RUN  src/Delivery/UnconfiguredDeliveryEconomics.php
+  ✓ Line 16: ConcatRemoveLeft
+  ⨯ Line 16: ConcatRemoveRight
+  ⨯ Line 16: ConcatSwitchSides
+
+   RUN  src/Delivery/SmsIdentifierAudit.php
+  ✓ Line 23: DecrementInteger
+  ✓ Line 23: IncrementInteger
+  ✓ Line 23: RemoveArrayItem
+  ✓ Line 24: DecrementInteger
+  ✓ Line 24: IncrementInteger
+  ✓ Line 24: RemoveArrayItem
+  ✓ Line 25: DecrementInteger
+  ✓ Line 25: IncrementInteger
+  ✓ Line 25: RemoveArrayItem
+  ✓ Line 26: DecrementInteger
+  ✓ Line 26: IncrementInteger
+  ✓ Line 26: RemoveArrayItem
+  ⨯ Line 27: RemoveArrayItem
+  ✓ Line 30: ForeachEmptyIterable
+  ✓ Line 31: PostIncrementToPostDecrement
+  ✓ Line 36: PostIncrementToPostDecrement
+  ✓ Line 38: ContinueToBreak
+  ⨯ Line 41: IfNegated
+  ⨯ Line 41: IdenticalToNotIdentical
+  ✓ Line 42: PostIncrementToPostDecrement
+  ✓ Line 44: PostIncrementToPostDecrement
+  ✓ Line 47: PlusToMinus
+  ⨯ Line 47: CoalesceRemoveLeft
+  ✓ Line 47: DecrementInteger
+  ✓ Line 47: DecrementInteger
+  ✓ Line 47: IncrementInteger
+  ✓ Line 47: IncrementInteger
+  ⨯ Line 50: RemoveFunctionCall
+  ✓ Line 52: AlwaysReturnEmptyArray
+
+   RUN  src/Delivery/DatabaseDeliveryEconomics.php
+  ⨯ Line 38: CoalesceRemoveLeft
+  ✓ Line 52: IfNegated
+  ✓ Line 53: RemoveEarlyReturn
+  ✓ Line 56: IfNegated
+  ✓ Line 56: IdenticalToNotIdentical
+  ✓ Line 56: BooleanAndToBooleanOr
+  ⨯ Line 57: IdenticalToNotIdentical
+  ✓ Line 57: BooleanOrToBooleanAnd
+  ✓ Line 58: RemoveNot
+  ✓ Line 59: RemoveEarlyReturn
+  ✓ Line 62: IfNegated
+  ✓ Line 62: IdenticalToNotIdentical
+  ✓ Line 62: DecrementInteger
+  ✓ Line 62: IncrementInteger
+  ✓ Line 63: RemoveEarlyReturn
+  ✓ Line 75: IfNegated
+  ✓ Line 88: IfNegated
+  ✓ Line 88: IdenticalToNotIdentical
+  ✓ Line 88: IdenticalToNotIdentical
+  ✓ Line 88: IdenticalToNotIdentical
+  ✓ Line 88: BooleanOrToBooleanAnd
+  ✓ Line 88: BooleanOrToBooleanAnd
+  ✓ Line 88: BooleanOrToBooleanAnd
+  ✓ Line 88: DecrementInteger
+  ✓ Line 88: IncrementInteger
+  ⨯ Line 88: EmptyStringToNotEmpty
+  ✓ Line 92: RemoveMethodCall
+  ✓ Line 93: ForeachEmptyIterable
+  ✓ Line 94: RemoveArrayItem
+  ✓ Line 94: RemoveArrayItem
+  ✓ Line 94: RemoveArrayItem
+  ✓ Line 95: RemoveArrayItem
+  ✓ Line 95: RemoveArrayItem
+  ✓ Line 95: RemoveArrayItem
+  ✓ Line 96: RemoveArrayItem
+  ✓ Line 96: RemoveArrayItem
+  ⨯ Line 97: RemoveStringCast
+  ⨯ Line 97: RemoveStringCast
+  ⨯ Line 97: TrueToFalse
+  ✓ Line 99: IfNegated
+  ✓ Line 99: IdenticalToNotIdentical
+  ⨯ Line 105: RemoveStringCast
+  ✓ Line 109: IfNegated
+  ✓ Line 109: IdenticalToNotIdentical
+  ✓ Line 110: ContinueToBreak
+  ✓ Line 113: IfNegated
+  ✓ Line 113: NotIdenticalToIdentical
+  ✓ Line 114: ContinueToBreak
+  ⨯ Line 117: RemoveStringCast
+  ✓ Line 117: IfNegated
+  ✓ Line 117: NotIdenticalToIdentical
+  ✓ Line 118: RemoveMethodCall
+  ✓ Line 120: RemoveArrayItem
+  ✓ Line 122: ContinueToBreak
+  ✓ Line 127: IfNegated
+  ✓ Line 127: BooleanAndToBooleanOr
+  ✓ Line 127: RemoveNot
+  ⨯ Line 127: RemoveNot
+  ⨯ Line 131: RemoveIntegerCast
+  ⨯ Line 135: RemoveArrayItem
+  ⨯ Line 137: IfNegated
+  ⨯ Line 137: NotIdenticalToIdentical
+  ⨯ Line 137: DecrementInteger
+  ⨯ Line 137: IncrementInteger
+  ✓ Line 138: RemoveMethodCall
+  ✓ Line 140: RemoveArrayItem
+  ✓ Line 142: ContinueToBreak
+  ✓ Line 145: RemoveMethodCall
+  ✓ Line 147: RemoveArrayItem
+  ✓ Line 154: IfNegated
+  ✓ Line 154: IdenticalToNotIdentical
+  ✓ Line 154: IdenticalToNotIdentical
+  ✓ Line 154: BooleanOrToBooleanAnd
+  ✓ Line 154: EmptyStringToNotEmpty
+  ✓ Line 161: RemoveArrayItem
+  ✓ Line 161: RemoveArrayItem
+  ✓ Line 161: RemoveArrayItem
+  ✓ Line 161: RemoveArrayItem
+  ✓ Line 162: RemoveArrayItem
+  ✓ Line 162: RemoveArrayItem
+  ✓ Line 162: RemoveArrayItem
+  ✓ Line 162: RemoveArrayItem
+  ✓ Line 165: ForeachEmptyIterable
+  ✓ Line 165: RemoveArrayItem
+  ✓ Line 165: RemoveArrayItem
+  ✓ Line 165: RemoveArrayItem
+  ✓ Line 166: RemoveMethodCall
+  ⨯ Line 169: RemoveStringCast
+  ✓ Line 169: RemoveArrayItem
+  ⨯ Line 170: RemoveStringCast
+  ✓ Line 170: RemoveArrayItem
+  ✓ Line 171: RemoveArrayItem
+  ✓ Line 172: DecrementInteger
+  ✓ Line 172: IncrementInteger
+  ✓ Line 172: RemoveArrayItem
+  ✓ Line 173: RemoveArrayItem
+  ✓ Line 174: RemoveArrayItem
+  ⨯ Line 176: RemoveStringCast
+  ⨯ Line 176: RemoveStringCast
+  ⨯ Line 176: RemoveArrayItem
+  ⨯ Line 176: RemoveArrayItem
+  ⨯ Line 178: RemoveStringCast
+  ⨯ Line 178: RemoveStringCast
+  ⨯ Line 178: TrueToFalse
+  ✓ Line 180: IfNegated
+  ✓ Line 180: IdenticalToNotIdentical
+  ✓ Line 188: RemoveArrayItem
+  ✓ Line 189: RemoveArrayItem
+  ⨯ Line 190: RemoveStringCast
+  ✓ Line 190: RemoveArrayItem
+  ✓ Line 191: RemoveArrayItem
+  ✓ Line 192: RemoveArrayItem
+  ✓ Line 193: RemoveArrayItem
+  ✓ Line 196: IfNegated
+  ✓ Line 196: IdenticalToNotIdentical
+  ✓ Line 196: DecrementInteger
+  ✓ Line 196: IncrementInteger
+  ⨯ Line 197: ContinueToBreak
+  ✓ Line 201: DecrementInteger
+  ✓ Line 201: DecrementInteger
+  ✓ Line 201: IncrementInteger
+  ✓ Line 201: IncrementInteger
+  ✓ Line 201: UnwrapSubstr
+  ✓ Line 203: IfNegated
+  ✓ Line 203: NotIdenticalToIdentical
+  ✓ Line 204: RemoveMethodCall
+  ✓ Line 207: RemoveArrayItem
+  ✓ Line 207: ConcatRemoveLeft
+  ✓ Line 207: ConcatRemoveRight
+  ✓ Line 207: ConcatSwitchSides
+  ✓ Line 208: DecrementInteger
+  ✓ Line 208: IncrementInteger
+  ✓ Line 208: RemoveArrayItem
+  ⨯ Line 209: RemoveArrayItem
+  ⨯ Line 211: RemoveStringCast
+  ⨯ Line 211: RemoveStringCast
+  ⨯ Line 211: TrueToFalse
+  ✓ Line 213: IfNegated
+  ✓ Line 213: IdenticalToNotIdentical
+  ✓ Line 221: IfNegated
+  ✓ Line 221: NotIdenticalToIdentical
+  ✓ Line 222: MinusToPlus
+  ⨯ Line 222: RemoveIntegerCast
+  ✓ Line 222: RemoveMethodCall
+  ⨯ Line 228: RemoveArrayItem
+  ✓ Line 231: IfNegated
+  ✓ Line 231: NotIdenticalToIdentical
+  ✓ Line 231: DecrementInteger
+  ✓ Line 231: IncrementInteger
+  ✓ Line 232: IfNegated
+  ✓ Line 232: NotIdenticalToIdentical
+  ⨯ Line 251: IfNegated
+  ⨯ Line 252: RemoveMethodCall
+  ✓ Line 257: IfNegated
+  ✓ Line 257: IdenticalToNotIdentical
+  - Line 258: RemoveEarlyReturn
+  ✓ Line 261: RemoveArrayCast
+  ✓ Line 263: AlwaysReturnNull
+  ⨯ Line 264: RemoveIntegerCast
+  ✓ Line 264: RemoveArrayItem
+  ⨯ Line 265: RemoveStringCast
+  ✓ Line 265: RemoveArrayItem
+
+   RUN  src/Delivery/SmsCountryNormalizer.php
+  ✓ Line 40: IfNegated
+  ✓ Line 40: RemoveNot
+  ✓ Line 48: IfNegated
+  ✓ Line 48: IdenticalToNotIdentical
+  ✓ Line 48: IdenticalToNotIdentical
+  ⨯ Line 48: BooleanOrToBooleanAnd
+  ⨯ Line 48: BooleanOrToBooleanAnd
+  ✓ Line 48: RemoveNot
+  ⨯ Line 48: EmptyStringToNotEmpty
+
+   RUN  src/Delivery/UnconfiguredCaptchaVerifier.php
+  ✓ Line 16: ConcatRemoveLeft
+  ⨯ Line 16: ConcatRemoveRight
+  ⨯ Line 16: ConcatSwitchSides
+   UNTESTED  src/Delivery/DeliveryEconomicsConfiguration.php  > Line 20: ForeachEmptyIterable - ID: e5085a876b5bccaa
+
+        */
+       public function __construct(public ?int $dailyCeilingMinor, public ?int $tenantCeilingMinor, public array $smsAllowedCountries)
+       {
+  -        foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor, 'tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {
+  +        foreach ([] as $name => $ceiling) {
+               if ($ceiling !== null && $ceiling < 1) {
+                   throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));
+               }
+  
+
+   UNTESTED  src/Delivery/DeliveryEconomicsConfiguration.php  > Line 21: RemoveArrayItem - ID: 038a7a26c551f256
+
+        */
+       public function __construct(public ?int $dailyCeilingMinor, public ?int $tenantCeilingMinor, public array $smsAllowedCountries)
+       {
+  -        foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor, 'tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {
+  +        foreach (['tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {
+               if ($ceiling !== null && $ceiling < 1) {
+                   throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));
+               }
+  
+
+   UNTESTED  src/Delivery/DeliveryEconomicsConfiguration.php  > Line 22: RemoveArrayItem - ID: d8a42b2aede48d5f
+
+        */
+       public function __construct(public ?int $dailyCeilingMinor, public ?int $tenantCeilingMinor, public array $smsAllowedCountries)
+       {
+  -        foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor, 'tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {
+  +        foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor] as $name => $ceiling) {
+               if ($ceiling !== null && $ceiling < 1) {
+                   throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));
+               }
+  
+
+   UNTESTED  src/Delivery/DeliveryEconomicsConfiguration.php  > Line 24: NotIdenticalToIdentical - ID: 5f2d8410059c1eca
+
+       public function __construct(public ?int $dailyCeilingMinor, public ?int $tenantCeilingMinor, public array $smsAllowedCountries)
+       {
+           foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor, 'tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {
+  -            if ($ceiling !== null && $ceiling < 1) {
+  +            if ($ceiling === null && $ceiling < 1) {
+                   throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));
+               }
+           }
+  
+
+   UNTESTED  src/Delivery/DeliveryEconomicsConfiguration.php  > Line 24: SmallerToSmallerOrEqual - ID: 5ac520ba19c88f2f
+
+       public function __construct(public ?int $dailyCeilingMinor, public ?int $tenantCeilingMinor, public array $smsAllowedCountries)
+       {
+           foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor, 'tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {
+  -            if ($ceiling !== null && $ceiling < 1) {
+  +            if ($ceiling !== null && $ceiling <= 1) {
+                   throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));
+               }
+           }
+  
+
+   UNTESTED  src/Delivery/DeliveryEconomicsConfiguration.php  > Line 24: DecrementInteger - ID: d7b6b130f2ef8d5f
+
+       public function __construct(public ?int $dailyCeilingMinor, public ?int $tenantCeilingMinor, public array $smsAllowedCountries)
+       {
+           foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor, 'tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {
+  -            if ($ceiling !== null && $ceiling < 1) {
+  +            if ($ceiling !== null && $ceiling < 0) {
+                   throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));
+               }
+           }
+  
+
+   UNTESTED  src/Delivery/DeliveryEconomicsConfiguration.php  > Line 24: IncrementInteger - ID: f5bc07a864607bb8
+
+       public function __construct(public ?int $dailyCeilingMinor, public ?int $tenantCeilingMinor, public array $smsAllowedCountries)
+       {
+           foreach (['dailyCeilingMinor' => $this->dailyCeilingMinor, 'tenantCeilingMinor' => $this->tenantCeilingMinor] as $name => $ceiling) {
+  -            if ($ceiling !== null && $ceiling < 1) {
+  +            if ($ceiling !== null && $ceiling < 2) {
+                   throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));
+               }
+           }
+  
+
+   UNTESTED  src/Delivery/DeliveryEconomicsConfiguration.php  > Line 29: ForeachEmptyIterable - ID: d21e2fca82a763fb
+
+                   throw new InvalidArgumentException(sprintf('%s must be positive when configured.', $name));
+               }
+           }
+  -        foreach ($this->smsAllowedCountries as $country) {
+  +        foreach ([] as $country) {
+               if (preg_match('/\A[A-Z]{2}\z/D', $country) !== 1) {
+                   throw new InvalidArgumentException(sprintf('SMS country allow-list entries must be ISO uppercase pairs; got %s.', $country));
+               }
+  
+
+   UNTESTED  src/Delivery/DeliveryEconomicsRequest.php  > Line 22: DecrementInteger - ID: c51d4c3deaf76b20
+
+   {
+       public function __construct(public string $factorId, public string $channel, public ?string $tenantId, public ?string $country, public int $costMinor, public bool $decoy, public ?string $reservationKey = null)
+       {
+  -        if ($this->costMinor < 0) {
+  +        if ($this->costMinor < -1) {
+               throw new \InvalidArgumentException('Delivery cost cannot be negative.');
+           }
+           if ($this->decoy && $this->country !== null) {
+  
+
+   UNTESTED  src/Delivery/UnconfiguredDeliveryEconomics.php  > Line 16: ConcatRemoveRight - ID: 489b743442a89cbe
+
+   {
+       public static function exception(): RuntimeException
+       {
+  -        return new RuntimeException('No OTP delivery economics is configured. Bind ' . 'Fissible\Vouch\Contracts\DeliveryEconomics before enabling email or SMS OTP.');
+  +        return new RuntimeException('No OTP delivery economics is configured. Bind ');
+       }
+       public function preflight(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision
+       {
+  
+
+   UNTESTED  src/Delivery/UnconfiguredDeliveryEconomics.php  > Line 16: ConcatSwitchSides - ID: 4b3a99ed209593ab
+
+   {
+       public static function exception(): RuntimeException
+       {
+  -        return new RuntimeException('No OTP delivery economics is configured. Bind ' . 'Fissible\Vouch\Contracts\DeliveryEconomics before enabling email or SMS OTP.');
+  +        return new RuntimeException('Fissible\Vouch\Contracts\DeliveryEconomics before enabling email or SMS OTP.' . 'No OTP delivery economics is configured. Bind ');
+       }
+       public function preflight(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision
+       {
+  
+
+   UNTESTED  src/Delivery/SmsIdentifierAudit.php  > Line 27: RemoveArrayItem - ID: bec03c1fab525a64
+
+        */
+       public function report(): array
+       {
+  -        $report = ['total' => 0, 'canonical' => 0, 'needs_normalization' => 0, 'invalid' => 0, 'countries' => []];
+  +        $report = ['total' => 0, 'canonical' => 0, 'needs_normalization' => 0, 'invalid' => 0];
+           foreach (AuthIdentifier::query()->where('type', 'phone')->cursor() as $identifier) {
+               $report['total']++;
+               try {
+  
+
+   UNTESTED  src/Delivery/SmsIdentifierAudit.php  > Line 41: IfNegated - ID: 5e5b2508e1f2bb2e
+
+                   $report['invalid']++;
+                   continue;
+               }
+  -            if ($normalized->e164 === $identifier->value) {
+  +            if (!($normalized->e164 === $identifier->value)) {
+                   $report['canonical']++;
+               } else {
+                   $report['needs_normalization']++;
+  
+
+   UNTESTED  src/Delivery/SmsIdentifierAudit.php  > Line 41: IdenticalToNotIdentical - ID: 01374239c5821dd8
+
+                   $report['invalid']++;
+                   continue;
+               }
+  -            if ($normalized->e164 === $identifier->value) {
+  +            if ($normalized->e164 !== $identifier->value) {
+                   $report['canonical']++;
+               } else {
+                   $report['needs_normalization']++;
+  
+
+   UNTESTED  src/Delivery/SmsIdentifierAudit.php  > Line 47: CoalesceRemoveLeft - ID: 810df9416f6c5563
+
+               } else {
+                   $report['needs_normalization']++;
+               }
+  -            $report['countries'][$normalized->country] = ($report['countries'][$normalized->country] ?? 0) + 1;
+  +            $report['countries'][$normalized->country] = 0 + 1;
+           }
+           ksort($report['countries']);
+           return $report;
+       }
+   }
+  
+
+   UNTESTED  src/Delivery/SmsIdentifierAudit.php  > Line 50: RemoveFunctionCall - ID: 876e408e0022e732
+
+               }
+               $report['countries'][$normalized->country] = ($report['countries'][$normalized->country] ?? 0) + 1;
+           }
+  -        ksort($report['countries']);
+  +        
+           return $report;
+       }
+   }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 38: CoalesceRemoveLeft - ID: f82eedfc4a4ad108
+
+       private const string TENANT = 'tenant';
+       public function __construct(private Connection $connection, private DatabaseTime $time, private ThrottleKey $keys, private DeliveryEconomicsConfiguration $configuration, private BoundedLockWait $boundedLockWait, private LockContention $lockContention, ?DatabaseRowLock $rowLock = null)
+       {
+  -        $this->rowLock = $rowLock ?? new DatabaseRowLock($connection);
+  +        $this->rowLock = new DatabaseRowLock($connection);
+       }
+       private readonly DatabaseRowLock $rowLock;
+       public function preflight(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 57: IdenticalToNotIdentical - ID: ab2f926ad3a78713
+
+           if ($request->decoy) {
+               return DeliveryReservationDecision::Permitted;
+           }
+  -        if ($request->channel === 'sms' && ($request->country === null || !in_array($request->country, $this->configuration->smsAllowedCountries, true))) {
+  +        if ($request->channel === 'sms' && ($request->country !== null || !in_array($request->country, $this->configuration->smsAllowedCountries, true))) {
+               return DeliveryReservationDecision::CountryNotAllowed;
+           }
+           if ($request->costMinor === 0) {
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 88: EmptyStringToNotEmpty - ID: 03cb54f172076a17
+
+       }
+       public function release(DeliveryEconomicsRequest $request): void
+       {
+  -        if ($request->decoy || $request->costMinor === 0 || $request->reservationKey === null || $request->reservationKey === '') {
+  +        if ($request->decoy || $request->costMinor === 0 || $request->reservationKey === null || $request->reservationKey === 'PEST Mutator was here!') {
+               return;
+           }
+           $this->connection->transaction(function () use ($request): void {
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 97: RemoveStringCast - ID: 22f254f99522d77f
+
+           }
+           $this->connection->transaction(function () use ($request): void {
+               foreach ([[self::GLOBAL, $this->keys->global()->digest], [self::TENANT, $this->keys->tenant($request->tenantId)->digest]] as [$scope, $digest]) {
+  -                $row = $this->row((string) $scope, (string) $digest, true);
+  +                $row = $this->row($scope, (string) $digest, true);
+                   if ($row === null) {
+                       throw new \RuntimeException('The delivery spend row vanished during release.');
+                   }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 97: RemoveStringCast - ID: 27e3a2756523ba50
+
+           }
+           $this->connection->transaction(function () use ($request): void {
+               foreach ([[self::GLOBAL, $this->keys->global()->digest], [self::TENANT, $this->keys->tenant($request->tenantId)->digest]] as [$scope, $digest]) {
+  -                $row = $this->row((string) $scope, (string) $digest, true);
+  +                $row = $this->row((string) $scope, $digest, true);
+                   if ($row === null) {
+                       throw new \RuntimeException('The delivery spend row vanished during release.');
+                   }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 97: TrueToFalse - ID: 8cc28c3a7fab3333
+
+           }
+           $this->connection->transaction(function () use ($request): void {
+               foreach ([[self::GLOBAL, $this->keys->global()->digest], [self::TENANT, $this->keys->tenant($request->tenantId)->digest]] as [$scope, $digest]) {
+  -                $row = $this->row((string) $scope, (string) $digest, true);
+  +                $row = $this->row((string) $scope, (string) $digest, false);
+                   if ($row === null) {
+                       throw new \RuntimeException('The delivery spend row vanished during release.');
+                   }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 105: RemoveStringCast - ID: 9ab121064dad7758
+
+                   if ($row === null) {
+                       throw new \RuntimeException('The delivery spend row vanished during release.');
+                   }
+  -                $reservation = $this->connection->table('auth_delivery_spend_reservations')->where('reservation_key', $request->reservationKey)->where('scope', (string) $scope)->lockForUpdate()->first();
+  +                $reservation = $this->connection->table('auth_delivery_spend_reservations')->where('reservation_key', $request->reservationKey)->where('scope', $scope)->lockForUpdate()->first();
+                   if ($reservation === null) {
+                       continue;
+                   }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 117: RemoveStringCast - ID: fc882d0c78d6c4c1
+
+                   if ($reservation->released_at !== null) {
+                       continue;
+                   }
+  -                if ((string) $reservation->window_started_at !== $row['window_started_at']) {
+  +                if ($reservation->window_started_at !== $row['window_started_at']) {
+                       $this->connection->table('auth_delivery_spend_reservations')->where('id', $reservation->id)->update(['released_at' => $this->time->now()]);
+                       continue;
+                   }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 127: RemoveNot - ID: 7c57de4274fc302f
+
+                       continue;
+                   }
+                   $value = $reservation->amount_minor;
+  -                if (!is_int($value) && !is_string($value)) {
+  +                if (!is_int($value) && is_string($value)) {
+                       throw new \RuntimeException('The delivery reservation amount has an invalid type.');
+                   }
+                   $amount = (int) $value;
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 131: RemoveIntegerCast - ID: f12b9cae013a4e7d
+
+                   if (!is_int($value) && !is_string($value)) {
+                       throw new \RuntimeException('The delivery reservation amount has an invalid type.');
+                   }
+  -                $amount = (int) $value;
+  +                $amount = $value;
+                   $updated = $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->where('spent_minor', '>=', $amount)->decrement('spent_minor', $amount, ['updated_at' => $this->time->now()]);
+                   if ($updated !== 1) {
+                       $this->connection->table('auth_delivery_spend_reservations')->where('id', $reservation->id)->update(['released_at' => $this->time->now()]);
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 135: RemoveArrayItem - ID: 5d8486a3ba429a7d
+
+                       throw new \RuntimeException('The delivery reservation amount has an invalid type.');
+                   }
+                   $amount = (int) $value;
+  -                $updated = $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->where('spent_minor', '>=', $amount)->decrement('spent_minor', $amount, ['updated_at' => $this->time->now()]);
+  +                $updated = $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->where('spent_minor', '>=', $amount)->decrement('spent_minor', $amount, []);
+                   if ($updated !== 1) {
+                       $this->connection->table('auth_delivery_spend_reservations')->where('id', $reservation->id)->update(['released_at' => $this->time->now()]);
+                       continue;
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 137: IfNegated - ID: 7214abee72a6621f
+
+                   }
+                   $amount = (int) $value;
+                   $updated = $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->where('spent_minor', '>=', $amount)->decrement('spent_minor', $amount, ['updated_at' => $this->time->now()]);
+  -                if ($updated !== 1) {
+  +                if (!($updated !== 1)) {
+                       $this->connection->table('auth_delivery_spend_reservations')->where('id', $reservation->id)->update(['released_at' => $this->time->now()]);
+                       continue;
+                   }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 137: NotIdenticalToIdentical - ID: 7f1dab535a280f28
+
+                   }
+                   $amount = (int) $value;
+                   $updated = $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->where('spent_minor', '>=', $amount)->decrement('spent_minor', $amount, ['updated_at' => $this->time->now()]);
+  -                if ($updated !== 1) {
+  +                if ($updated === 1) {
+                       $this->connection->table('auth_delivery_spend_reservations')->where('id', $reservation->id)->update(['released_at' => $this->time->now()]);
+                       continue;
+                   }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 137: DecrementInteger - ID: 38e95a78120cc09c
+
+                   }
+                   $amount = (int) $value;
+                   $updated = $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->where('spent_minor', '>=', $amount)->decrement('spent_minor', $amount, ['updated_at' => $this->time->now()]);
+  -                if ($updated !== 1) {
+  +                if ($updated !== 0) {
+                       $this->connection->table('auth_delivery_spend_reservations')->where('id', $reservation->id)->update(['released_at' => $this->time->now()]);
+                       continue;
+                   }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 137: IncrementInteger - ID: f46d8773ab682d67
+
+                   }
+                   $amount = (int) $value;
+                   $updated = $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->where('spent_minor', '>=', $amount)->decrement('spent_minor', $amount, ['updated_at' => $this->time->now()]);
+  -                if ($updated !== 1) {
+  +                if ($updated !== 2) {
+                       $this->connection->table('auth_delivery_spend_reservations')->where('id', $reservation->id)->update(['released_at' => $this->time->now()]);
+                       continue;
+                   }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 169: RemoveStringCast - ID: 52d31db4acd6a582
+
+           }
+           $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];
+           foreach ($scopes as [$scope, $digest, $ceiling]) {
+  -            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);
+  +            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);
+               $row = $this->row((string) $scope, (string) $digest, true);
+               if ($row === null) {
+                   throw new \RuntimeException('The delivery spend row vanished after creation.');
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 170: RemoveStringCast - ID: fbff655507cc59ab
+
+           }
+           $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];
+           foreach ($scopes as [$scope, $digest, $ceiling]) {
+  -            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);
+  +            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);
+               $row = $this->row((string) $scope, (string) $digest, true);
+               if ($row === null) {
+                   throw new \RuntimeException('The delivery spend row vanished after creation.');
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 176: RemoveStringCast - ID: 416a4f724f7d3ff1
+
+           }
+           $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];
+           foreach ($scopes as [$scope, $digest, $ceiling]) {
+  -            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);
+  +            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => $scope, 'subject_digest' => (string) $digest]);
+               $row = $this->row((string) $scope, (string) $digest, true);
+               if ($row === null) {
+                   throw new \RuntimeException('The delivery spend row vanished after creation.');
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 176: RemoveStringCast - ID: 7e6dd484b28776b8
+
+           }
+           $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];
+           foreach ($scopes as [$scope, $digest, $ceiling]) {
+  -            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);
+  +            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => $digest]);
+               $row = $this->row((string) $scope, (string) $digest, true);
+               if ($row === null) {
+                   throw new \RuntimeException('The delivery spend row vanished after creation.');
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 176: RemoveArrayItem - ID: f8ec350ed135800e
+
+           }
+           $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];
+           foreach ($scopes as [$scope, $digest, $ceiling]) {
+  -            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);
+  +            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['subject_digest' => (string) $digest]);
+               $row = $this->row((string) $scope, (string) $digest, true);
+               if ($row === null) {
+                   throw new \RuntimeException('The delivery spend row vanished after creation.');
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 176: RemoveArrayItem - ID: 04d4692ba2eff73e
+
+           }
+           $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];
+           foreach ($scopes as [$scope, $digest, $ceiling]) {
+  -            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);
+  +            $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope]);
+               $row = $this->row((string) $scope, (string) $digest, true);
+               if ($row === null) {
+                   throw new \RuntimeException('The delivery spend row vanished after creation.');
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 178: RemoveStringCast - ID: 9033a2aa972ab1f5
+
+           $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];
+           foreach ($scopes as [$scope, $digest, $ceiling]) {
+               $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);
+  -            $row = $this->row((string) $scope, (string) $digest, true);
+  +            $row = $this->row($scope, (string) $digest, true);
+               if ($row === null) {
+                   throw new \RuntimeException('The delivery spend row vanished after creation.');
+               }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 178: RemoveStringCast - ID: 46a63f066bfaa722
+
+           $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];
+           foreach ($scopes as [$scope, $digest, $ceiling]) {
+               $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);
+  -            $row = $this->row((string) $scope, (string) $digest, true);
+  +            $row = $this->row((string) $scope, $digest, true);
+               if ($row === null) {
+                   throw new \RuntimeException('The delivery spend row vanished after creation.');
+               }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 178: TrueToFalse - ID: aea435a7bbcba3cc
+
+           $scopes = [[self::GLOBAL, $this->keys->global()->digest, $this->configuration->dailyCeilingMinor], [self::TENANT, $this->keys->tenant($request->tenantId)->digest, $this->configuration->tenantCeilingMinor]];
+           foreach ($scopes as [$scope, $digest, $ceiling]) {
+               $this->rowLock->ensureAndLock('auth_delivery_spend', ['scope' => (string) $scope, 'subject_digest' => (string) $digest, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $this->time->now(), 'updated_at' => $this->time->now()], ['scope' => (string) $scope, 'subject_digest' => (string) $digest]);
+  -            $row = $this->row((string) $scope, (string) $digest, true);
+  +            $row = $this->row((string) $scope, (string) $digest, false);
+               if ($row === null) {
+                   throw new \RuntimeException('The delivery spend row vanished after creation.');
+               }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 190: RemoveStringCast - ID: 7bb29a462aa84014
+
+               // exists() followed by insert(): the spend-row lock protects the
+               // current accounting transaction, but it is not the reservation's
+               // correctness boundary and may be removed for an unceilinged scope.
+  -            $claimed = $this->connection->table('auth_delivery_spend_reservations')->insertOrIgnore([['reservation_key' => $request->reservationKey, 'scope' => (string) $scope, 'amount_minor' => $request->costMinor, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'created_at' => $this->time->now()]]);
+  +            $claimed = $this->connection->table('auth_delivery_spend_reservations')->insertOrIgnore([['reservation_key' => $request->reservationKey, 'scope' => $scope, 'amount_minor' => $request->costMinor, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'created_at' => $this->time->now()]]);
+               if ($claimed === 0) {
+                   continue;
+               }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 197: ContinueToBreak - ID: 81f570c1a621df0f
+
+               // correctness boundary and may be removed for an unceilinged scope.
+               $claimed = $this->connection->table('auth_delivery_spend_reservations')->insertOrIgnore([['reservation_key' => $request->reservationKey, 'scope' => (string) $scope, 'amount_minor' => $request->costMinor, 'window_started_at' => $this->time->current()->format('Y-m-d 00:00:00'), 'created_at' => $this->time->now()]]);
+               if ($claimed === 0) {
+  -                continue;
+  +                break;
+               }
+               $today = $this->time->current()->format('Y-m-d');
+               $started = substr($row['window_started_at'], 0, 10);
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 209: RemoveArrayItem - ID: 6ecf305265995d14
+
+               $today = $this->time->current()->format('Y-m-d');
+               $started = substr($row['window_started_at'], 0, 10);
+               if ($started !== $today) {
+  -                $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->update(['window_started_at' => $today . ' 00:00:00', 'spent_minor' => 0, 'updated_at' => $this->time->now()]);
+  +                $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->update(['window_started_at' => $today . ' 00:00:00', 'spent_minor' => 0]);
+                   $row = $this->row((string) $scope, (string) $digest, true);
+                   if ($row === null) {
+                       throw new \RuntimeException('The delivery spend row vanished after rollover.');
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 211: RemoveStringCast - ID: 90fdfa7ba0171eab
+
+               $started = substr($row['window_started_at'], 0, 10);
+               if ($started !== $today) {
+                   $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->update(['window_started_at' => $today . ' 00:00:00', 'spent_minor' => 0, 'updated_at' => $this->time->now()]);
+  -                $row = $this->row((string) $scope, (string) $digest, true);
+  +                $row = $this->row($scope, (string) $digest, true);
+                   if ($row === null) {
+                       throw new \RuntimeException('The delivery spend row vanished after rollover.');
+                   }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 211: RemoveStringCast - ID: fa8dde8fe66af0f7
+
+               $started = substr($row['window_started_at'], 0, 10);
+               if ($started !== $today) {
+                   $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->update(['window_started_at' => $today . ' 00:00:00', 'spent_minor' => 0, 'updated_at' => $this->time->now()]);
+  -                $row = $this->row((string) $scope, (string) $digest, true);
+  +                $row = $this->row((string) $scope, $digest, true);
+                   if ($row === null) {
+                       throw new \RuntimeException('The delivery spend row vanished after rollover.');
+                   }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 211: TrueToFalse - ID: efac358c03c1d3ba
+
+               $started = substr($row['window_started_at'], 0, 10);
+               if ($started !== $today) {
+                   $this->connection->table('auth_delivery_spend')->where('id', $row['id'])->update(['window_started_at' => $today . ' 00:00:00', 'spent_minor' => 0, 'updated_at' => $this->time->now()]);
+  -                $row = $this->row((string) $scope, (string) $digest, true);
+  +                $row = $this->row((string) $scope, (string) $digest, false);
+                   if ($row === null) {
+                       throw new \RuntimeException('The delivery spend row vanished after rollover.');
+                   }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 222: RemoveIntegerCast - ID: 532f2e0ce57df3f4
+
+               }
+               $update = $this->connection->table('auth_delivery_spend')->where('id', $row['id']);
+               if ($ceiling !== null) {
+  -                $update->where('spent_minor', '<=', (int) $ceiling - $request->costMinor);
+  +                $update->where('spent_minor', '<=', $ceiling - $request->costMinor);
+               }
+               $updated = $update->increment('spent_minor', $request->costMinor, ['updated_at' => $this->time->now()]);
+               if ($updated !== 1) {
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 228: RemoveArrayItem - ID: 3fc7cb3221ec59a9
+
+               if ($ceiling !== null) {
+                   $update->where('spent_minor', '<=', (int) $ceiling - $request->costMinor);
+               }
+  -            $updated = $update->increment('spent_minor', $request->costMinor, ['updated_at' => $this->time->now()]);
+  +            $updated = $update->increment('spent_minor', $request->costMinor, []);
+               if ($updated !== 1) {
+                   if ($ceiling !== null) {
+                       throw new DeliverySpendRefused();
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 251: IfNegated - ID: f8208ba138c45499
+
+       private function row(string $scope, string $digest, bool $lock): ?array
+       {
+           $query = $this->connection->table('auth_delivery_spend')->where('scope', $scope)->where('subject_digest', $digest);
+  -        if ($lock) {
+  +        if (!$lock) {
+               $query->lockForUpdate();
+           }
+           $row = $query->first();
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 252: RemoveMethodCall - ID: 130b693922990aa1
+
+       {
+           $query = $this->connection->table('auth_delivery_spend')->where('scope', $scope)->where('subject_digest', $digest);
+           if ($lock) {
+  -            $query->lockForUpdate();
+  +            
+           }
+           $row = $query->first();
+           if ($row === null) {
+  
+
+   UNCOVERED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 258: RemoveEarlyReturn - ID: d04dddbbb7300727
+
+           }
+           $row = $query->first();
+           if ($row === null) {
+  -            return null;
+  +            
+           }
+           $values = (array) $row;
+           return ['id' => (int) $values['id'], 'window_started_at' => (string) $values['window_started_at']];
+       }
+   }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 264: RemoveIntegerCast - ID: f9ff2c57894a37e5
+
+               return null;
+           }
+           $values = (array) $row;
+  -        return ['id' => (int) $values['id'], 'window_started_at' => (string) $values['window_started_at']];
+  +        return ['id' => $values['id'], 'window_started_at' => (string) $values['window_started_at']];
+       }
+   }
+  
+
+   UNTESTED  src/Delivery/DatabaseDeliveryEconomics.php  > Line 265: RemoveStringCast - ID: 8985f9a67c034336
+
+               return null;
+           }
+           $values = (array) $row;
+  -        return ['id' => (int) $values['id'], 'window_started_at' => (string) $values['window_started_at']];
+  +        return ['id' => (int) $values['id'], 'window_started_at' => $values['window_started_at']];
+       }
+   }
+  
+
+   UNTESTED  src/Delivery/SmsCountryNormalizer.php  > Line 48: BooleanOrToBooleanAnd - ID: 23b06af99cd6767f
+
+               throw new InvalidArgumentException('The SMS identifier is not a valid international phone number.');
+           }
+           $country = $this->phoneNumbers->getRegionCodeForNumber($number);
+  -        if (!is_string($country) || $country === '' || $country === '001') {
+  +        if (!is_string($country) && $country === '' || $country === '001') {
+               throw new InvalidArgumentException('The SMS identifier has no unambiguous ISO country.');
+           }
+           return new NormalizedPhoneNumber($this->phoneNumbers->format($number, PhoneNumberFormat::E164), $country);
+       }
+   }
+  
+
+   UNTESTED  src/Delivery/SmsCountryNormalizer.php  > Line 48: BooleanOrToBooleanAnd - ID: bbb20acb24c2dea2
+
+               throw new InvalidArgumentException('The SMS identifier is not a valid international phone number.');
+           }
+           $country = $this->phoneNumbers->getRegionCodeForNumber($number);
+  -        if (!is_string($country) || $country === '' || $country === '001') {
+  +        if ((!is_string($country) || $country === '') && $country === '001') {
+               throw new InvalidArgumentException('The SMS identifier has no unambiguous ISO country.');
+           }
+           return new NormalizedPhoneNumber($this->phoneNumbers->format($number, PhoneNumberFormat::E164), $country);
+       }
+   }
+  
+
+   UNTESTED  src/Delivery/SmsCountryNormalizer.php  > Line 48: EmptyStringToNotEmpty - ID: f76c2ff0bac6d436
+
+               throw new InvalidArgumentException('The SMS identifier is not a valid international phone number.');
+           }
+           $country = $this->phoneNumbers->getRegionCodeForNumber($number);
+  -        if (!is_string($country) || $country === '' || $country === '001') {
+  +        if (!is_string($country) || $country === 'PEST Mutator was here!' || $country === '001') {
+               throw new InvalidArgumentException('The SMS identifier has no unambiguous ISO country.');
+           }
+           return new NormalizedPhoneNumber($this->phoneNumbers->format($number, PhoneNumberFormat::E164), $country);
+       }
+   }
+  
+
+   UNTESTED  src/Delivery/UnconfiguredCaptchaVerifier.php  > Line 16: ConcatRemoveRight - ID: 09a85be575396208
+
+   {
+       public static function exception(): RuntimeException
+       {
+  -        return new RuntimeException('No CAPTCHA verifier is configured. Bind ' . 'Fissible\Vouch\Contracts\CaptchaVerifier before enabling CAPTCHA escalation.');
+  +        return new RuntimeException('No CAPTCHA verifier is configured. Bind ');
+       }
+       public function verify(CaptchaRequest $request): CaptchaDecision
+       {
+  
+
+   UNTESTED  src/Delivery/UnconfiguredCaptchaVerifier.php  > Line 16: ConcatSwitchSides - ID: e69d7c5b1e3d4ab2
+
+   {
+       public static function exception(): RuntimeException
+       {
+  -        return new RuntimeException('No CAPTCHA verifier is configured. Bind ' . 'Fissible\Vouch\Contracts\CaptchaVerifier before enabling CAPTCHA escalation.');
+  +        return new RuntimeException('Fissible\Vouch\Contracts\CaptchaVerifier before enabling CAPTCHA escalation.' . 'No CAPTCHA verifier is configured. Bind ');
+       }
+       public function verify(CaptchaRequest $request): CaptchaDecision
+       {
+  
+
+  Mutations: 57 untested, 1 uncovered, 171 tested
+  Score:     74.67%
+  Duration:  152.75s
+

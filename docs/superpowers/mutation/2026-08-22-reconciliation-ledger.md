@@ -899,6 +899,24 @@ exactly-one-row release invariant at `:137`, the two-scope `continue` at `:197`,
 and the reservation-key/country predicates at `:154` and `:57`. This is the
 actionable test-design set; equivalent rows are not queued as test requests.
 
+### Delivery refusal-batch confirmation (`6a86ad8`)
+
+The second refusal-batch rerun used the same 229-mutation, 7-file scope and
+the current SQLite coverage map at the test SHA. It produced 174 tested, 54
+executed survivors, 1 never-executed row, and no timeouts. Against the prior
+Delivery classification, eight identities were removed (killed): the country
+predicate at `:57`, the decoy/zero-cost/empty-key release predicate at `:88`,
+and the reservation-key guard at `:154`. The two-scope `continue` at `:197`
+and the four `:137` comparison mutants remain survivors.
+
+The `:137` survivors require a narrower disposition than the original
+reservation-contract ruling. `updated` is the row count from an update keyed
+by a unique spend-row id, so the reachable values are zero or one; the
+comparison mutants that distinguish two or otherwise invert the zero/one
+case do not change observable state under that cardinality. This is
+equivalent-under-result-cardinality unless a future implementation changes
+the update shape. The `:197` survivor remains a real two-scope contract gap.
+
 ### Full parallel smoke (non-authoritative)
 
 - Scope: non-Kernel `Fissible\\Vouch`, SHA `66ac67d`, 10 processes
