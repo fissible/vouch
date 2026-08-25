@@ -114,9 +114,17 @@ The emitted union contains 3,843 lines and has SHA-256
 identical to `artifacts/2026-08-24-confirmation-union-lines.txt`. Therefore
 the backoff-only test change did not alter the covered-line set. Its durable
 maps and union are retained as `artifacts/2026-08-24-post-62e51eb-*`. The
-closing mutation sweep may consequently exclude unchanged chunks by evidence;
-Throttle and Flow remain the affected candidates, with each exclusion recorded
-against this unchanged union rather than inferred from elapsed cost.
+closing mutation sweep may consequently exclude unchanged chunks by evidence.
+`AuthThrottleFlowTest` executes files in 14 of the 16 chunk groups, so the
+exclusion is not based on namespace locality: the changed test is 25 tests and
+completes in 1.12 seconds, including both five-submission loops. Its roughly
+tenfold headroom over the former one-second deadline makes a false kill require
+a mutant to add approximately one second while still terminating; no such row
+was observed. Because the reconciliation's findings come from survivors and
+gaps, any residual false-kill risk is a missed finding rather than a fabricated
+one. The risk is accepted and recorded, not treated as eliminated. Flow and
+Throttle remain the semantic candidates for remeasurement; every other chunk
+is excluded against this unchanged union and the timing evidence above.
 
 ### Factors confirmation at the post-test SHA
 
