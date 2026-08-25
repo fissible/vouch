@@ -854,6 +854,15 @@ mechanism-level ruling with stable row identities. Behavioural evidence on
 MySQL/PostgreSQL may still validate the load-bearing paths, but it cannot move
 the SQLite mutation rows.
 
+The two SQLite driver-dispatch survivors at `DatabaseAuthThrottleStore:409`
+and `:662` belong to this same mechanism ruling. `insertCounterIfMissing()` is
+idempotent, so skipping an insert when the row already exists produces the
+same state; the observable difference is whether SQLite claims its writer lock
+before a state-bearing read. They require the same pre-existing-row,
+two-writer contention harness. If that harness cannot deterministically expose
+`SQLITE_BUSY` or a lost update under the mutant, classify these rows as
+`concurrency-observable-only` rather than introducing a flaky value assertion.
+
 EnrollmentGuard contributes three additional rows to this same ruling: the
 two predicate-key removals at `EnrollmentGuard:126` (`user_id` and `type`) and
 the wait-floor increment at `EnrollmentGuard:122`. They are lock identity and
