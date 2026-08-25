@@ -184,6 +184,28 @@ it('derives the exact cumulative identifier backoff schedule', function (
     'count 9 backs off to second 31' => [9, ThrottleDecision::BackedOff, 1, 31],
 ]);
 
+it('applies the configured backoff cap at the deterministic schedule boundary', function (): void {
+    $uncapped = scalarThrottleSubject(ThrottleDimension::Recovery, 10);
+    $capped = scalarThrottleSubject(ThrottleDimension::Recovery, 11);
+    seedScalarCounter($uncapped, 10);
+    seedScalarCounter($capped, 11);
+    $store = scalarThrottleStore();
+
+    $uncappedState = $store->preflightShared($uncapped);
+    $cappedState = $store->preflightShared($capped);
+    $uncappedWindow = DB::table('auth_throttle_counters')
+        ->where('subject_digest', $uncapped->digest)
+        ->value('window_started_at');
+    $cappedWindow = DB::table('auth_throttle_counters')
+        ->where('subject_digest', $capped->digest)
+        ->value('window_started_at');
+
+    expect($uncappedState->retryAfter?->getTimestamp())
+        ->toBe(scalarTimestamp($uncappedWindow)->modify('+63 seconds')->getTimestamp())
+        ->and($cappedState->retryAfter?->getTimestamp())
+        ->toBe(scalarTimestamp($cappedWindow)->modify('+123 seconds')->getTimestamp());
+});
+
 it('stops incrementing during backoff and resumes only after its database deadline', function (): void {
     $subject = scalarThrottleSubject();
     seedScalarCounter($subject, 5);
