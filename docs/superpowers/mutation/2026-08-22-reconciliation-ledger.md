@@ -872,13 +872,16 @@ injection test gap and remains separately classified.
 
 ### Queued mechanism ruling: Delivery reservation contract
 
-Four DeliveryEconomics survivors form one contract-level finding. The
+At the initial Delivery ruling point, four DeliveryEconomics survivors formed
+one contract-level finding. The
 reservation short-circuit at `DatabaseDeliveryEconomics:88` has six surviving
 mutants, including decoy and zero-cost branches; `:197` survives changing the
 failed reservation claim's `continue` to `break`, which drops the tenant scope;
 `:137` survives changing the release exactly-one-row invariant; and `:117`
 survives removing the timestamp string cast from the cross-window release
-guard. These are one reservation mechanism—scope coverage, release safety,
+guard. This was the historical queued set; subsequent artifacts show `:197`
+was already killed by the seeded partial-replay test in the preceding batch.
+These are one reservation mechanism—scope coverage, release safety,
 and cross-engine window ownership—not four independent test requests. Keep
 stable row identities and defer resolution to the test-design pass.
 
@@ -894,10 +897,10 @@ Seventeen cast survivors are equivalent without a test gap:
   cross-engine evidence, especially the reservation amount and window casts.
 
 Four message-prose rows remain under the standing no-action ruling. The
-remaining Delivery logic rows are the short-circuit at `:88`, the
+then-actionable Delivery logic set was the short-circuit at `:88`, the
 exactly-one-row release invariant at `:137`, the two-scope `continue` at `:197`,
-and the reservation-key/country predicates at `:154` and `:57`. This is the
-actionable test-design set; equivalent rows are not queued as test requests.
+and the reservation-key/country predicates at `:154` and `:57`; later batches
+closed the predicates and the two-scope continuation.
 
 ### Delivery refusal-batch confirmation (`6a86ad8`)
 

@@ -71,6 +71,11 @@ stable aggregate can hide a survivor replacing a kill, while a row diff makes
 both directions explicit. JSON mode returns `{rows, baseline_diff}` when this
 option is supplied.
 
+Classification artifacts therefore have two supported shapes: older runs are
+bare row lists, while runs made with `--baseline` are wrapped as
+`{rows, baseline_diff}`. Consumers must read `$decoded['rows'] ?? $decoded`
+rather than assuming one shape.
+
 This tool's dispositions are evidence-driven and have been corrected three
 times by real measurements: plugin state now outranks conflicting line
 coverage for `UNTESTED` rows; timeout glyphs are recovered positionally from
