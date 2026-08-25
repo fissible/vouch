@@ -408,11 +408,15 @@ bypassing every production caller and would make the mutation score less
 truthful. The production call graph makes this branch
 `shadowed-by-caller-guard`: `preflightShared()` returns before `sharedState()`
 for expired rows, while `recordScalarFailure()` consults the result only for
-`BackedOff` and then discards it after incrementing. The observable expiry
-rule is already covered by `preflightShared()`'s data-provider test. The
-duplicated posture expression is now centralized in `expiredPosture()`; the
-three old `:583` rows remain equivalent-by-call-context rather than a test
-gap.
+`BackedOff` and then discards it after incrementing. The duplicated posture
+expression is now centralized in `expiredPosture()`. That helper is returned
+through `preflightShared()` and is covered by its existing data-provider test,
+so its two arm-swap mutants are now expected to be killed. Only the separate
+`sharedState()` call site remains shadowed: its return is discarded by
+`recordScalarFailure()`, so a RemoveEarlyReturn/RemoveMethodCall mutant there
+remains equivalent-by-call-context. The earlier all-three-row equivalence
+disposition applied to the pre-refactor structure and is superseded by
+`212212a`.
 
 The first isolated follow-up batch (`57cc122`) added deterministic backoff
 schedule assertions. Its Throttle rerun still reports 865 mutations / 7 RUN
