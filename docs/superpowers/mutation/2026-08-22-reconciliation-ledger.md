@@ -118,6 +118,19 @@ RUN-count reconciliation rule fired on a confirmation run, where a
 comparable-looking aggregate would otherwise have been especially tempting to
 trust.
 
+### SQLite engine-equivalent lock mutations
+
+The retained Throttle artifact contains no mutation rows for
+`DatabaseAuthThrottleStore:297` or `:328`; the earlier claim that their lock
+mutants were killed was an inference from absence. SQLite's grammar compiles
+`lockForUpdate()` to an empty lock clause, so every lock call/default mutation
+in the affected paths is byte-equivalent under the measuring engine. This is
+distinct from `engine-gated`: the code executes, but SQLite cannot distinguish
+the original from the mutation. Record these rows as `engine-equivalent` when
+the disposition schema is extended, and validate the load-bearing behavior on
+PostgreSQL/MySQL separately rather than expecting the SQLite mutation score to
+move.
+
 ### Additional disposition
 
 `shadowed-by-earlier-guard` is distinct from `instrument-unroutable`,
