@@ -105,11 +105,18 @@ mutations across the same ten RUN files. The retained log is
 `artifacts/2026-08-24-factors-confirmation-c0d4677.log` (SHA-256
 `8568b4904e558f30870a40c01c6043bf8916fc9a353133cc5ac74fa9c2b5e63e`).
 
-Result: 402 tested, 80 untested, 0 uncovered, and 3 structural timeouts.
+Result: 402 tested, 80 untested, 0 uncovered, and 3 observed timeout rows.
 Against the baseline's 395 tested, 80 untested, 6 uncovered, and 4 timeouts,
 the six Tier 2 target rows are killed and one additional coverage/timeout row
 also moves. The earlier 435-mutation `src/Factors/Drivers` run was narrower
 and remains discarded.
+
+The discarded run is itself a measurement-rule example: its plausible
+435/358/73 result was rejected because its RUN inventory did not match the
+baseline's ten assigned mutant-bearing files. The positive mutation-count and
+RUN-count reconciliation rule fired on a confirmation run, where a
+comparable-looking aggregate would otherwise have been especially tempting to
+trust.
 
 ### Additional disposition
 
@@ -143,14 +150,17 @@ engine drift remains.
   chunk artifact.
 - Report verified kills separately from untested, uncovered, and timeout rows.
   A timeout is unresolved until rerun under the recorded conditions. Reruns
-  distinguish structural non-termination (source-decidable), bounded-but-slow
-  execution (a kill once the targeted test completes), and genuinely
-  environmental timing noise.
-- Six timeout rows have now been examined: five structural non-terminations and
-  one bounded-but-slow contention-bound removal; all six were kills. This does
-  not authorize crediting the 53 compact-smoke timeouts, whose identities and
-  causes are unavailable, but it does mean the smoke's 80.66% verified figure
-  must not be described as a likely lower bound on the true score.
+  distinguish observed non-termination under the recorded suite inputs,
+  bounded-but-slow execution (a kill once the targeted test completes), and
+  genuinely environmental timing noise. Non-termination is not source-only:
+  another routed test can throw or return before the loop runs away.
+- Six timeout rows have now been examined: five remain observed
+  non-termination cases and one was a bounded-but-slow contention-bound
+  removal; all six were kills. The Factors confirmation changed one former
+  timeout into an ordinary kill when a new routed test reached a terminating
+  path. Future confirmation reruns must re-examine timeout rows rather than
+  carry timeout rulings forward. This does not authorize crediting the 53
+  compact-smoke timeouts, whose identities and causes are unavailable.
 - Do not land tests or source changes revealed while ruling chunks. Queue them
   and apply them only after all chunks have been measured, followed by one
   confirming full run at a new, explicitly recorded SHA.
