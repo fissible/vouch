@@ -96,15 +96,14 @@ rerun at this SHA. The old line set remains the classifier input for the
 historical artifacts; the new union must be emitted alongside the new logs
 before post-test dispositions are claimed.
 
-### Tier 2 confirmation
+### Invalid confirmation attempt
 
-At the post-test source/test SHA, the Factors/Drivers rerun produced 435
-mutations: 358 tested, 73 untested, and 4 structural loop-counter timeouts.
-All six Tier 2 target rows were killed: OtpFactor's Consumed, Expired, and
-Unavailable mappings, plus the null-user NoCredential guards in PasswordFactor,
-RecoveryCodeFactor, and TotpFactor. The driver tests needed query-shape
-assertions in addition to the failure enum; outcome-only assertions left the
-early-return mutants equivalent.
+The first post-test Factors attempt was scoped to `src/Factors/Drivers`, while
+the baseline Factors chunk was the full `src/Factors` scope. Its 435 mutations
+are not comparable with the baseline 485 and its result is discarded. The
+correct confirmation must use the full scope, assert positive mutation count
+and RUN membership against the ten baseline mutant-bearing files, and retain
+the literal command plus non-compact log before any Tier 2 result is recorded.
 
 ### Additional disposition
 
