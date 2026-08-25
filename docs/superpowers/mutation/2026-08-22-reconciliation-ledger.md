@@ -105,6 +105,23 @@ later executable branch. The later branch remains deliberate defensive code
 and is retained; the test asserts the earlier guard instead. The three
 IntendedDestination parse/authority/path rows are the first examples.
 
+### Assertion-count ladder resolved
+
+The repeated full-suite totals are deliberate. Focused runs at the confirmation
+SHA isolated the arithmetic to three files (SQLite / MySQL / PostgreSQL):
+
+| file | SQLite | MySQL | PostgreSQL | reason |
+|---|---:|---:|---:|---|
+| `tests/Database/ThrottleSchemaTest.php` | 97 | 101 | 101 | four `char(64)` metadata assertions run on non-SQLite engines across the dataset |
+| `tests/Database/ScalarThrottleStoreTest.php` | 91 | 90 | 91 | MySQL rejects the negative unsigned insert, so the follow-up store assertion is intentionally skipped |
+| `tests/Database/ChallengeAttemptStoreTest.php` | 30 | 29 | 30 | same MySQL unsigned-insert branch skips the follow-up store assertion |
+
+The other focused driver-conditional files were equal across engines. Thus the
+full-suite ladder is exactly SQLite `4,108`, MySQL `4,110`, PostgreSQL `4,112`:
+PostgreSQL and MySQL each add four schema assertions; MySQL then omits two
+follow-up assertions that PostgreSQL retains. No nondeterminism or unexplained
+engine drift remains.
+
 ## Measurement rules
 
 - Record the exact SHA (`66ac67d`) and the plugin timeout threshold in every
