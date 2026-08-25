@@ -39,7 +39,8 @@ untrustworthy map is worse than no disposition.
 
 ```
 php classify-survivors.php --log=FILE (--map=CLOVER | --lines=SET) \
-    [--union=CLOVER]... [--source-root=DIR] [--emit-lines=FILE] [--json]
+    [--union=CLOVER]... [--source-root=DIR] [--emit-lines=FILE] \
+    [--baseline=CLASSIFICATION.json] [--json]
 ```
 
 Producing the inputs:
@@ -56,6 +57,13 @@ php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/pest --coverage-clover=sq
 Every row is identified by `(file, mutator, expression)` as the ledger
 requires, with the expression read from source rather than inferred, plus the
 plugin's mutation ID as the tool-level key.
+
+For a confirmation run, pass the prior classification with `--baseline`. The
+report then includes `added` and `removed` row identities keyed by
+`(file, line, mutator)`. This identity diff is the required comparison: a
+stable aggregate can hide a survivor replacing a kill, while a row diff makes
+both directions explicit. JSON mode returns `{rows, baseline_diff}` when this
+option is supplied.
 
 ## Engine union
 

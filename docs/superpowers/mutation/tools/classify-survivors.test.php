@@ -37,7 +37,7 @@ function check(string $description, bool $passed): void
 }
 
 /**
- * @return array{rows: array<string, array<string, mixed>>, exit: int}
+ * @return array{rows: array<string, array<string, mixed>>, exit: int, decoded: mixed}
  */
 function classify(array $arguments): array
 {
@@ -52,11 +52,19 @@ function classify(array $arguments): array
     $decoded = json_decode(implode("\n", $output), true);
     $rows = [];
 
-    foreach (is_array($decoded) ? $decoded : [] as $row) {
+    $decodedRows = is_array($decoded) && array_key_exists('rows', $decoded)
+        ? $decoded['rows']
+        : $decoded;
+
+    foreach (is_array($decodedRows) ? $decodedRows : [] as $row) {
         $rows[$row['file'] . ':' . $row['line']] = $row;
     }
 
-    return ['rows' => $rows, 'exit' => $status];
+    return [
+        'rows' => $rows,
+        'exit' => $status,
+        'decoded' => is_array($decoded) ? $decoded : [],
+    ];
 }
 
 $store = 'src/Throttle/DatabaseAuthThrottleStore.php';
@@ -136,6 +144,18 @@ check(
     'a contested survivor is not reclassified by the union either',
     ($union['rows']["{$store}:436"]['disposition'] ?? null) === 'executed-and-survived'
 );
+
+echo PHP_EOL, 'baseline identity diff', PHP_EOL;
+$baseline = tempnam(sys_get_temp_dir(), 'vouch-baseline-');
+file_put_contents($baseline, json_encode(array_values($single['rows']), JSON_PRETTY_PRINT));
+$diff = classify([
+    "--log={$fixtures}/survivors.log",
+    "--map={$fixtures}/sqlite.clover.xml",
+    "--baseline={$baseline}",
+]);
+check('an identical classification has no added rows', ($diff['decoded']['baseline_diff']['added'] ?? null) === []);
+check('an identical classification has no removed rows', ($diff['decoded']['baseline_diff']['removed'] ?? null) === []);
+unlink($baseline);
 
 echo PHP_EOL, 'identity is preserved', PHP_EOL;
 $row = $union['rows']["{$store}:415"] ?? [];

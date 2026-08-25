@@ -33,7 +33,7 @@ declare(strict_types=1);
  * Usage:
  *   classify-survivors.php --log=FILE (--map=CLOVER | --lines=SET)
  *                          [--union=CLOVER]... [--source-root=DIR]
- *                          [--emit-lines=FILE] [--json]
+ *                          [--emit-lines=FILE] [--baseline=JSON] [--json]
  *
  *   --log          de-ANSI'd non-compact mutation log. Compact/parallel output
  *                  suppresses the row list and cannot be classified.
@@ -46,6 +46,8 @@ declare(strict_types=1);
  *   --source-root  root the Clover paths and log paths resolve against.
  *                  Defaults to the current working directory.
  *   --emit-lines   write the unioned executed set to FILE for reuse.
+ *   --baseline     prior classification JSON; report added/removed row
+ *                  identities (file, line, mutator) against this run.
  *   --json         emit rows as JSON instead of a grouped report.
  *
  * Exit codes: 0 classified, 1 usage error, 2 map inconsistency detected.
@@ -63,12 +65,12 @@ const DISPOSITIONS = [
 
 /**
  * @return array{log: string, map: ?string, union: list<string>, lines: ?string,
- *               root: string, emit: ?string, json: bool}
+ *               root: string, emit: ?string, baseline: ?string, json: bool}
  */
 function parseArguments(array $argv): array
 {
     $options = ['log' => null, 'map' => null, 'union' => [], 'lines' => null,
-        'root' => getcwd(), 'emit' => null, 'json' => false];
+        'root' => getcwd(), 'emit' => null, 'baseline' => null, 'json' => false];
 
     foreach (array_slice($argv, 1) as $argument) {
         if ($argument === '--json') {
@@ -90,6 +92,7 @@ function parseArguments(array $argv): array
             'lines' => $options['lines'] = $value,
             'source-root' => $options['root'] = rtrim($value, '/'),
             'emit-lines' => $options['emit'] = $value,
+            'baseline' => $options['baseline'] = $value,
             default => fail("Unrecognized option: --{$name}"),
         };
     }
@@ -393,6 +396,64 @@ function disposition(array $row, ?array $measuring, array $executedElsewhere): a
     ];
 }
 
+/**
+ * @param array{file: string, line: int, mutator: string} $row
+ */
+function rowIdentity(array $row): string
+{
+    return $row['file'] . ':' . $row['line'] . ':' . $row['mutator'];
+}
+
+/**
+ * @return array{added: list<array<string, mixed>>, removed: list<array<string, mixed>>}
+ */
+function baselineDiff(string $path, array $classified): array
+{
+    if (! is_file($path)) {
+        fail("Baseline classification not found: {$path}");
+    }
+
+    $decoded = json_decode((string) file_get_contents($path), true);
+
+    if (! is_array($decoded)) {
+        fail("Baseline classification is not valid JSON: {$path}");
+    }
+
+    $baselineRows = [];
+
+    foreach ($decoded as $row) {
+        if (! is_array($row) || ! isset($row['file'], $row['line'], $row['mutator'])) {
+            fail("Baseline classification has an invalid row: {$path}");
+        }
+
+        $baselineRows[rowIdentity($row)] = $row;
+    }
+
+    $currentRows = [];
+
+    foreach ($classified as $row) {
+        $currentRows[rowIdentity($row)] = $row;
+    }
+
+    $added = [];
+
+    foreach ($currentRows as $identity => $row) {
+        if (! array_key_exists($identity, $baselineRows)) {
+            $added[] = $row;
+        }
+    }
+
+    $removed = [];
+
+    foreach ($baselineRows as $identity => $row) {
+        if (! array_key_exists($identity, $currentRows)) {
+            $removed[] = $row;
+        }
+    }
+
+    return ['added' => $added, 'removed' => $removed];
+}
+
 $options = parseArguments($argv);
 $root = $options['root'];
 
@@ -425,10 +486,32 @@ foreach (readLog($options['log']) as $row) {
     $classified[] = [...$row, ...disposition($row, $measuring, $executedElsewhere)];
 }
 
+$diff = $options['baseline'] !== null
+    ? baselineDiff($options['baseline'], $classified)
+    : null;
+
 if ($options['json']) {
-    echo json_encode($classified, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), PHP_EOL;
+    $output = $diff === null
+        ? $classified
+        : ['rows' => $classified, 'baseline_diff' => $diff];
+
+    echo json_encode($output, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), PHP_EOL;
 
     exit(hasInconsistency($classified) ? 2 : 0);
+}
+
+if ($diff !== null) {
+    printf("BASELINE ADDED (%d)\n", count($diff['added']));
+
+    foreach ($diff['added'] as $row) {
+        printf("  %s\n", rowIdentity($row));
+    }
+
+    printf("BASELINE REMOVED (%d)\n", count($diff['removed']));
+
+    foreach ($diff['removed'] as $row) {
+        printf("  %s\n", rowIdentity($row));
+    }
 }
 
 function hasInconsistency(array $classified): bool
