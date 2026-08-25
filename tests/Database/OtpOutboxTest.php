@@ -113,6 +113,27 @@ final class AlwaysContendedDeliveryEconomics implements DeliveryEconomics
     }
 }
 
+final class DeletingContendedDeliveryEconomics implements DeliveryEconomics
+{
+    public function preflight(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision
+    {
+        return DeliveryEconomicsDecision::Permitted;
+    }
+
+    public function reserve(DeliveryEconomicsRequest $request): DeliveryReservationDecision
+    {
+        DB::table('auth_challenge_outbox')
+            ->where('opaque_id', $request->reservationKey)
+            ->delete();
+
+        return DeliveryReservationDecision::RetryableContention;
+    }
+
+    public function release(DeliveryEconomicsRequest $request): void
+    {
+    }
+}
+
 function realDatabaseQueueForTest(): QueueManager
 {
     Schema::create('jobs', function (Illuminate\Database\Schema\Blueprint $table): void {
@@ -547,13 +568,36 @@ it('redispatches persistent contention as a fresh delayed queue job', function (
 
     $queued = DB::table('jobs')->sole();
 
-    expect($queued->queue)->toBe('vouch-otp')
+        expect($queued->queue)->toBe('vouch-otp')
         ->and($queued->attempts)->toBe(0)
-        ->and($queued->available_at)->toBeGreaterThan($queued->created_at)
+        ->and($queued->available_at)->toBe($queued->created_at + 1)
         ->and($outbox->refresh()->dispatched_at?->getTimestamp())
         ->toBe($dispatchedAt?->getTimestamp())
         ->and($outbox->status)->toBe(OtpOutboxStatus::Pending->value)
         ->and($outbox->provider_attempted_at)->toBeNull();
+});
+
+it('does not redispatch when contention removes the outbox row', function (): void {
+    [$factor, $attempt] = outboxFixture();
+    $factor->challenge(new ChallengeRequest($attempt));
+    $outbox = AuthChallengeOutbox::query()->where('status', 'pending')->firstOrFail();
+    app()->instance(DeliveryEconomics::class, new DeletingContendedDeliveryEconomics());
+
+    $error = null;
+    try {
+        (new DeliverOtpChallenge($outbox->opaque_id))->handle(app(OtpOutboxDelivery::class));
+    } catch (Throwable $exception) {
+        $error = $exception;
+    }
+
+    expect($error)->toBeNull();
+});
+
+it('does not dereference a missing outbox row during failure attribution', function (): void {
+    expect(function (): void {
+        (new DeliverOtpChallenge(str_repeat('z', 64)))->failed(new RuntimeException('gone'));
+    })
+        ->not->toThrow(Throwable::class);
 });
 
 it('treats missing and expired rows as successful terminal outcomes', function (): void {

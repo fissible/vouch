@@ -936,6 +936,12 @@ It therefore remains within the narrowed message-prose ruling. The
 cross-type namespace observation is retained as design guidance for any future
 mutation type, not as a test request.
 
+The Jobs batch now has direct missing-row coverage for both `handle()` and
+`failed()`, plus an exact one-second assertion on contention redispatch. The
+missing-row `failed()` test currently ratifies the implementation's
+`worker_failure` choice when `provider_attempted_at` cannot be read; it does
+not settle whether that is the truthful attribution for a vanished row.
+
 ### Delivery refusal-batch confirmation (`6a86ad8`)
 
 The second refusal-batch rerun used the same 229-mutation, 7-file scope and
