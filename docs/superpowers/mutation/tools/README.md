@@ -107,7 +107,7 @@ re-parsing three Clover reports for every chunk.
 `ensureIpParent()` returns early on SQLite, so its committed-row branch is
 never executed under the measuring engine and never executable under MySQL's.
 Validate the union against that branch before trusting it on rows whose
-behaviour has not already been reasoned about.
+behavior has not already been reasoned about.
 
 ## Test
 

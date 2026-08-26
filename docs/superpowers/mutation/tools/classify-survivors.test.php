@@ -6,6 +6,12 @@ declare(strict_types=1);
 /**
  * Self-contained assertions for classify-survivors.php.
  *
+ * NOTE: the fixtures pin real line numbers in
+ * src/Throttle/DatabaseAuthThrottleStore.php so the expression assertion reads
+ * genuine source rather than a fabricated string. That is deliberate, but it
+ * means the fixtures must be re-pinned when that file shifts, as it did in
+ * 1224349. The reality anchor at the end is content-based and does not move.
+ *
  * Deliberately free of Pest and PHPUnit: the reconciliation pin guards
  * `src/`, `tests/`, `composer.*`, `phpunit.xml`, `pest.php`, `config/` and
  * `database/`, and this tool must be landable without disturbing any of them.
@@ -89,18 +95,18 @@ check(
 );
 check(
     'engine-gated branch reads as never-executed without a union',
-    ($single['rows']["{$store}:413"]['disposition'] ?? null) === 'never-executed'
+    ($single['rows']["{$store}:418"]['disposition'] ?? null) === 'never-executed'
 );
 
 check(
     'a timeout is never folded into a kill or a survivor',
-    ($single['rows']["{$store}:409"]['disposition'] ?? null) === 'timeout-unresolved'
+    ($single['rows']["{$store}:412"]['disposition'] ?? null) === 'timeout-unresolved'
 );
 check(
     'a timeout is attributed to the file of its RUN heading',
-    ($single['rows']["{$store}:409"]['file'] ?? null) === $store
+    ($single['rows']["{$store}:412"]['file'] ?? null) === $store
 );
-$timeout = $single['rows']["{$store}:409"] ?? [];
+$timeout = $single['rows']["{$store}:412"] ?? [];
 check(
     'a timeout carries its mutator despite having no ID',
     ($timeout['mutator'] ?? null) === 'IfNegated'
@@ -129,8 +135,8 @@ $union = classify([
 ]);
 check('exits 0', $union['exit'] === 0);
 check(
-    'DatabaseAuthThrottleStore.php:415 becomes engine-gated under the union',
-    ($union['rows']["{$store}:413"]['disposition'] ?? null) === 'engine-gated'
+    'DatabaseAuthThrottleStore.php:418 becomes engine-gated under the union',
+    ($union['rows']["{$store}:418"]['disposition'] ?? null) === 'engine-gated'
 );
 check(
     'a genuine gap is not rescued by the union',
@@ -214,7 +220,7 @@ check(
 unlink($duplicate);
 
 echo PHP_EOL, 'identity is preserved', PHP_EOL;
-$row = $union['rows']["{$store}:413"] ?? [];
+$row = $union['rows']["{$store}:418"] ?? [];
 check('mutator is carried', ($row['mutator'] ?? null) === 'RemoveEarlyReturn');
 check('mutation id is carried', ($row['id'] ?? null) === 'aaaa111122223333');
 check('state as reported by the plugin is carried', ($row['state'] ?? null) === 'UNCOVERED');
@@ -238,7 +244,7 @@ $joined = classify([
     "--map={$fixtures}/sqlite.clover.xml",
     "--rulings={$rulings}",
 ]);
-$joinedRow = $joined['rows']["{$store}:413"] ?? [];
+$joinedRow = $joined['rows']["{$store}:418"] ?? [];
 check('joins an adjudication by stable expression identity', ($joinedRow['adjudication']['reason'] ?? null) === 'fixture ruling');
 check('flags a ruling whose disposition disagrees with measurement', ($joinedRow['ruling_mismatch'] ?? null) === true);
 unlink($rulings);
@@ -276,7 +282,7 @@ classify([
     "--emit-lines={$emitted}",
 ]);
 $written = file_get_contents($emitted) ?: '';
-check('includes a line executed only on the second engine', str_contains($written, "{$store}:413"));
+check('includes a line executed only on the second engine', str_contains($written, "{$store}:418"));
 check('excludes a line executed on neither', ! str_contains($written, "{$shaper}:90"));
 check('excludes a non-executable line', ! str_contains($written, "{$strength}:19"));
 unlink($emitted);
