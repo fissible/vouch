@@ -972,6 +972,14 @@ four former `:137` survivors) and no additions. Expression-keyed comparison
 was required because the source edit shifted every later line; line-keyed
 diffing would have produced spurious remove/add pairs.
 
+The later console-output batch was measured against the refreshed union. The
+Console scope remained 181 mutations / 8 RUN files (158 tested, 17 survivors,
+6 uncovered); its row diff removed 28 survivor identities. Jobs remained 13
+mutations / 1 RUN file (10 tested, 1 survivor, 2 uncovered); its row diff
+removed two identities. Delivery remained 222 mutations / 7 RUN files (171
+tested, 50 survivors, 1 uncovered), with no row movement: the SMS audit tests
+route through Delivery but did not discriminate any Delivery survivor.
+
 ### Full parallel smoke (non-authoritative)
 
 - Scope: non-Kernel `Fissible\\Vouch`, SHA `66ac67d`, 10 processes
