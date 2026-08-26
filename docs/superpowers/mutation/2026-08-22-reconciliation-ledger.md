@@ -323,6 +323,14 @@ executed survivors.
 - This does **not** close Flow. `VerificationEqualizer`, `ScreenBuilder`, and
   the seven remaining result/request classes require their own RUN evidence.
 
+The `AuthFlow.php:717` row is ruled `invariant-unreachable`, not dead merely
+because coverage missed it: both live callers pass their value into
+`AuthSuccess`, whose public `int $userId` contract makes the nullable branch
+unreachable. If that caller contract is relaxed to `?int`, the ruling must be
+revisited. The Delivery `row() === null` defensive row is the single
+`DatabaseDeliveryEconomics.php:250` branch; earlier references to `:258` were
+line drift after the simplification, not a second row.
+
 ### Flow remainder
 
 - Literal command: `vendor/bin/pest --mutate --path=src/Flow/AuthSuccess.php,src/Flow/Authenticated.php,src/Flow/Continuing.php,src/Flow/FlowRequest.php,src/Flow/FlowResult.php,src/Flow/RecoveryGraceStarted.php,src/Flow/ScreenBuilder.php,src/Flow/UnknownFlowResult.php,src/Flow/VerificationEqualizer.php --no-cache --min=0`
@@ -1062,11 +1070,11 @@ carried forward from the 2026-08-23 SQLite-era reading. Its 40 rows now split
 into 25 executed-and-survived, 13 engine-gated, 1 never-executed
 (`DatabaseTime.php:116`), and 1 timeout. The former 14-row never-executed gap
 was therefore primarily engine coverage classification, not a new test queue.
-The corrected corpus split is 46 never-executed and 23 engine-gated; the
-thirteen-row movement is between those categories only. Subsequent Notifications
-and root test batches closed the actionable portion of the remaining gaps. The
-latest corpus split is 7 never-executed, all with an explicit ruling, and no
-actionable never-executed gap remains.
+The corrected corpus split was 46 never-executed and 23 engine-gated; the
+thirteen-row movement was between those categories only. Subsequent
+Notifications and root test batches closed the actionable portion of the
+remaining gaps. The latest corpus split is 7 never-executed, all with an
+explicit ruling, and no actionable never-executed gap remains.
 
 ### Final Notifications and root reruns
 
