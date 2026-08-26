@@ -152,8 +152,8 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.2 | Factor drivers — `Factor` contract + password, TOTP, email/SMS OTP, recovery | **Complete** |
 | 2.2b | Passkey driver — split out, gated on evaluating `laravel/passkeys` 0.2.x | Not planned |
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance corrected in 2.3b Task 14** |
-| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implementation and Task 17 mutation reconciliation complete; branch remains unmerged** |
-| 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | Scope decided; not planned |
+| 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implemented; mutation reconciliation evidence recorded** |
+| 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | **Substantially implemented; cross-engine lock ruling, 46 mutation gaps, and final exit criteria remain** |
 | 2.3d | Account lifecycle (Fortify parity) — identifier verification, credential recovery, first-credential enrolment, credential self-service, ability→assurance requirements | Planned; **Task 1 blocks adoption** |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
@@ -937,9 +937,9 @@ issuance. Its first decision is target-independent: build an issuance-attempt in
 from the canonical submitted identifier/factor/action and atomically charge 2.3b
 volume before resolving a real target or decoy. Known and nonexistent identifiers,
 including resend, must reach the same cap on the same request. Only then may it resolve
-the server-owned target, pass the named 2.3c economics insertion point for a real
-delivery, and invoke the driver. 2.3b ships no fake/no-op economics binding; 2.3c adds
-its required contract at that boundary.
+the server-owned target, pass the named 2.3c economics boundary for a real delivery,
+and invoke the driver. The 2.3b path supplied the seam; 2.3c now implements the
+authoritative delivery-economics contract at that boundary.
 
 The transport lifecycle remains a named Task 14 design gate, but request-path
 isolation is no longer an option within it. Today
@@ -1340,9 +1340,9 @@ before charge.
 Factor choice on identify is carried before user resolution. Exactly one active
 credential becomes the server-owned target; zero or an ambiguous set takes a durable
 decoy path and contacts no provider. The package never chooses the first target,
-sends to all, or exposes a database id. The one future 2.3c economics boundary sits
+sends to all, or exposes a database id. The implemented 2.3c economics boundary sits
 after authentication-volume permission and resolution but before the factor call;
-2.3b binds no fake permissive economics service.
+it performs authoritative reservation and CAPTCHA escalation.
 
 The critical chain joins the restoring database lock-wait primitive with the
 auth-specific store prerequisites, then continues through the distinct-subject IP
@@ -1416,8 +1416,9 @@ missing or swept rows are idempotent success. Decoys perform the same request-si
 counter, credential-query, challenge, outbox, and dispatch work but delete their row
 without provider contact and can never verify. An ambiguous set of active targets is
 also a decoy rather than first-target selection, fan-out, or a public exception. The
-named 2.3c delivery-economics seam is after volume permission and target resolution
-but before the factor call, with no fake permissive binding in 2.3b.
+named 2.3c delivery-economics seam is implemented after volume permission and target
+resolution but before the factor call; it performs authoritative reservation and
+CAPTCHA escalation.
 
 The focused gate is **95 passed / 417 assertions**. The persistence-sensitive subset
 is **35 passed / 187 assertions** on each of file-backed SQLite, MySQL 8, and
@@ -1584,9 +1585,10 @@ non-null foreign key, so a verification has no attempt to belong to. It needs it
 attempt-independent store and type-level purpose separation, on the `BindingDomain`
 precedent, so a verification code cannot be redeemed as a login factor.
 
-**Sequencing decision to take.** Task 1 is more urgent than 2.3c but not a dependency of
-it: 2.3c protects SMS spend, which only matters once SMS OTP is in production use, which
-requires Task 1 first. Recommended order is 2.3d Task 1 → 2.3c → the rest of 2.3d.
+**Sequencing decision recorded.** The 2.3c delivery-economics implementation is now
+present, including its reservation and CAPTCHA controls. The remaining 2.3c exit work
+is evidence review and the lock-mechanism write-up; the next feature track is 2.3d
+Task 1's identifier-verification ceremony, followed by the rest of 2.3d.
 
 **Decisions recorded in this phase.**
 

@@ -1,5 +1,12 @@
 # Phase 2.3c — OTP delivery economics and CAPTCHA
 
+> **Status (2026-08-25):** Substantially implemented. The economics store,
+> worker reservation contract, spend ceilings, pruning, aggregate reporting,
+> configuration objects, and CAPTCHA escalation are present and covered by the
+> mutation reconciliation ledger. Remaining exit work is the cross-engine
+> lock-mechanism write-up, review of the 46 classified never-executed gaps, and
+> final narrowing of the remaining concatenation/prose dispositions.
+
 ## Goal
 
 Complete the delivery-economics boundary reserved by `ChallengeIssuer`:
