@@ -1132,6 +1132,17 @@ SQLite measurement despite the focused PostgreSQL proof. This is distinct from
 the lock rows, whose tests execute but cannot distinguish `FOR UPDATE` after
 SQLite compiles it away; both are engine-equivalent for different reasons.
 
+### Adjudication join
+
+The keyed manifest at `docs/superpowers/mutation/rulings.json` contains 154
+stable expression-identity entries covering 258 of the 526 classified rows.
+After excluding the 45 instrument-unroutable and 23 engine-gated rows closed
+by measurement, 200 executed-and-survived rows remain unadjudicated. Run the
+classifier with `--rulings=docs/superpowers/mutation/rulings.json` to join
+adjudications and surface `ruling_mismatch` when a later measurement disagrees
+with a recorded ruling. The manifest is pinned to source SHA `212212a`;
+source edits require revalidation of expression identities.
+
 ### Full parallel smoke (non-authoritative)
 
 - Scope: non-Kernel `Fissible\\Vouch`, SHA `66ac67d`, 10 processes
