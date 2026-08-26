@@ -1056,6 +1056,28 @@ The temporary `throttle-recovery-expiry` classification was discarded: its log
 predated the `212212a` refactor, so line-keyed rows below the refactor could not
 be attributed to the current source. The post-`212212a` artifact supersedes it.
 
+### Narrowed concatenation dispositions
+
+Inspection separates quoted English prose from concatenations that carry
+behavioral data. The remaining non-prose sites are:
+
+- `DatabaseAuthThrottleStore.php:514`, `:516`, and `:660`: unsigned relative
+  time strings accepted by PHP's date parser; equivalent under language
+  semantics and not test requests.
+- `ThrottleReporter.php:99` and `:110`: date-boundary SQL predicates; these
+  remain engine-sensitive review items rather than prose.
+- `VouchDoctorCommand.php:80` and
+  `VouchSmsIdentifierAuditCommand.php:43`: label-plus-value output; output
+  assertions are required, so these do not belong to the prose no-action rule.
+
+`ConsumeChallenge.php:26` remains message-only under a single-mutant run: its
+`challenge:` prefix cannot collide with either existing `credential:` target
+without applying a second mutation. `BoundedLockWait.php:112` is likewise not
+prose; its PostgreSQL unit assertion is now present and its mutation evidence
+remains cross-engine. The broad no-action rule applies only to concatenations
+whose operands are explanatory quoted prose, not labels, prefixes, units,
+dates, or data-bearing output.
+
 ### Full parallel smoke (non-authoritative)
 
 - Scope: non-Kernel `Fissible\\Vouch`, SHA `66ac67d`, 10 processes
