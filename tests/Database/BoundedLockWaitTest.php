@@ -90,6 +90,18 @@ it('applies the bound inside the critical section and restores the exact prior v
     });
 });
 
+it('preserves seconds as the PostgreSQL lock-timeout unit', function (): void {
+    if (DB::connection()->getDriverName() !== 'pgsql') {
+        $this->markTestSkipped('PostgreSQL lock_timeout units are only available on PostgreSQL.');
+    }
+
+    withParkedBoundedWait(function (): void {
+        (new BoundedLockWait(DB::connection()))->enrollment(3, function (): void {
+            expect(boundedWaitSettingText('SHOW lock_timeout'))->toBe('3s');
+        });
+    });
+});
+
 it('restores the prior value when the caller throws', function (): void {
     withParkedBoundedWait(function (): void {
         $failure = new RuntimeException('caller failed');
