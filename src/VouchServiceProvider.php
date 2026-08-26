@@ -33,6 +33,9 @@ use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
 use Fissible\Vouch\Verification\IdentifierVerificationOutbox;
 use Fissible\Vouch\Verification\IdentifierVerifier;
 use Fissible\Vouch\Verification\VerificationOutboxDelivery;
+use Fissible\Vouch\Recovery\CredentialRecovery;
+use Fissible\Vouch\Recovery\RecoveryProofOutbox;
+use Fissible\Vouch\Recovery\RecoveryProofOutboxDelivery;
 use Fissible\Vouch\Delivery\SmsCountryNormalizer;
 use Fissible\Vouch\Delivery\SmsIdentifierAudit;
 use Fissible\Vouch\Delivery\UnconfiguredCaptchaVerifier;
@@ -116,6 +119,25 @@ final class VouchServiceProvider extends ServiceProvider
         $this->app->bind(
             VerificationOutboxDelivery::class,
             fn ($app): VerificationOutboxDelivery => new VerificationOutboxDelivery(
+                $app->make(OtpDelivery::class),
+                $app->make(DeliveryEconomics::class),
+                $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
+                config()->integer('vouch.delivery.economics.email_cost_minor'),
+            ),
+        );
+
+        $this->app->singleton(
+            RecoveryProofOutbox::class,
+            fn ($app): RecoveryProofOutbox => new RecoveryProofOutbox(
+                $app['db']->connection(),
+                $app->make(OtpQueueDispatcher::class),
+                $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
+            ),
+        );
+
+        $this->app->bind(
+            RecoveryProofOutboxDelivery::class,
+            fn ($app): RecoveryProofOutboxDelivery => new RecoveryProofOutboxDelivery(
                 $app->make(OtpDelivery::class),
                 $app->make(DeliveryEconomics::class),
                 $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
@@ -274,6 +296,11 @@ final class VouchServiceProvider extends ServiceProvider
                 config()->integer('vouch.recovery_grace.ttl_seconds'),
             ),
         );
+
+        // Recovery composes PasswordFactor directly. FactorRegistry is write-once.
+        $this->app->when(CredentialRecovery::class)
+            ->needs(\Fissible\Vouch\Contracts\Factor::class)
+            ->give(PasswordFactor::class);
 
         foreach ([
             \Fissible\Vouch\Http\IntendedDestination::class,

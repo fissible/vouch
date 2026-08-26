@@ -8,6 +8,8 @@ use Fissible\Vouch\Jobs\DeliverOtpChallenge;
 use Fissible\Vouch\Jobs\DeliverIdentifierVerification;
 use Fissible\Vouch\Models\AuthChallengeOutbox;
 use Fissible\Vouch\Models\AuthIdentifierVerificationOutbox;
+use Fissible\Vouch\Models\AuthRecoveryProofOutbox;
+use Fissible\Vouch\Jobs\DeliverRecoveryProof;
 use Fissible\Vouch\Support\DatabaseTime;
 use Illuminate\Contracts\Queue\Factory;
 use Illuminate\Contracts\Queue\Queue;
@@ -77,6 +79,15 @@ final readonly class OtpQueueDispatcher
         $this->connection()->push(new DeliverIdentifierVerification($outbox->opaque_id), queue: $this->queue);
 
         AuthIdentifierVerificationOutbox::query()->whereKey($outbox->id)
+            ->where('status', OtpOutboxStatus::Pending->value)->whereNull('dispatched_at')
+            ->update(['dispatched_at' => $this->time->now()]);
+    }
+
+    public function dispatchRecoveryProof(AuthRecoveryProofOutbox $outbox): void
+    {
+        $this->assertAsynchronous();
+        $this->connection()->push(new DeliverRecoveryProof($outbox->opaque_id), queue: $this->queue);
+        AuthRecoveryProofOutbox::query()->whereKey($outbox->id)
             ->where('status', OtpOutboxStatus::Pending->value)->whereNull('dispatched_at')
             ->update(['dispatched_at' => $this->time->now()]);
     }

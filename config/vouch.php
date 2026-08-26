@@ -85,6 +85,10 @@ return [
          * never appear on this path.
          */
         'length' => (int) env('VOUCH_RECOVERY_CODE_LENGTH', 10),
+
+        // Recovery proof is a separate ceremony from identifier verification.
+        'ttl_seconds' => (int) env('VOUCH_RECOVERY_TTL', 300),
+        'require_second_factor' => (bool) env('VOUCH_RECOVERY_REQUIRE_SECOND_FACTOR', false),
     ],
 
     'totp' => [
