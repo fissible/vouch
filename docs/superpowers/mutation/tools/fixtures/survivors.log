@@ -5,7 +5,7 @@
   RUN  src/Kernel/Factor/FactorStrength.php
   RUN  src/Kernel/Enumeration/ErrorShaper.php
 
-  UNCOVERED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 415: RemoveEarlyReturn - ID: aaaa111122223333
+  UNCOVERED  src/Throttle/DatabaseAuthThrottleStore.php  > Line 413: RemoveEarlyReturn - ID: aaaa111122223333
   UNCOVERED  src/Kernel/Factor/FactorStrength.php  > Line 19: IncrementInteger - ID: bbbb111122223333
   UNCOVERED  src/Kernel/Enumeration/ErrorShaper.php  > Line 90: RemoveEarlyReturn - ID: cccc111122223333
   UNTESTED  src/Kernel/Factor/FactorStrength.php  > Line 25: GreaterOrEqualToGreater - ID: dddd111122223333

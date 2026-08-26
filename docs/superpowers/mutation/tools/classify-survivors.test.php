@@ -89,7 +89,7 @@ check(
 );
 check(
     'engine-gated branch reads as never-executed without a union',
-    ($single['rows']["{$store}:415"]['disposition'] ?? null) === 'never-executed'
+    ($single['rows']["{$store}:413"]['disposition'] ?? null) === 'never-executed'
 );
 
 check(
@@ -130,7 +130,7 @@ $union = classify([
 check('exits 0', $union['exit'] === 0);
 check(
     'DatabaseAuthThrottleStore.php:415 becomes engine-gated under the union',
-    ($union['rows']["{$store}:415"]['disposition'] ?? null) === 'engine-gated'
+    ($union['rows']["{$store}:413"]['disposition'] ?? null) === 'engine-gated'
 );
 check(
     'a genuine gap is not rescued by the union',
@@ -174,8 +174,28 @@ check('expression identity ignores a source line shift',
 );
 unlink($shifted);
 
+echo PHP_EOL, 'duplicate line-key occurrences', PHP_EOL;
+$duplicate = tempnam(sys_get_temp_dir(), 'vouch-baseline-duplicate-');
+$duplicateRows = array_values($single['rows']);
+$duplicateRows[] = $duplicateRows[0];
+file_put_contents($duplicate, json_encode($duplicateRows, JSON_PRETTY_PRINT));
+$duplicateDiff = classify([
+    "--log={$fixtures}/survivors.log",
+    "--map={$fixtures}/sqlite.clover.xml",
+    "--baseline={$duplicate}",
+]);
+check(
+    'line identity counts a removed duplicate occurrence',
+    count($duplicateDiff['decoded']['baseline_diff']['removed'] ?? []) === 1
+);
+check(
+    'line identity does not invent an added duplicate occurrence',
+    ($duplicateDiff['decoded']['baseline_diff']['added'] ?? null) === []
+);
+unlink($duplicate);
+
 echo PHP_EOL, 'identity is preserved', PHP_EOL;
-$row = $union['rows']["{$store}:415"] ?? [];
+$row = $union['rows']["{$store}:413"] ?? [];
 check('mutator is carried', ($row['mutator'] ?? null) === 'RemoveEarlyReturn');
 check('mutation id is carried', ($row['id'] ?? null) === 'aaaa111122223333');
 check('state as reported by the plugin is carried', ($row['state'] ?? null) === 'UNCOVERED');
@@ -217,7 +237,7 @@ classify([
     "--emit-lines={$emitted}",
 ]);
 $written = file_get_contents($emitted) ?: '';
-check('includes a line executed only on the second engine', str_contains($written, "{$store}:415"));
+check('includes a line executed only on the second engine', str_contains($written, "{$store}:413"));
 check('excludes a line executed on neither', ! str_contains($written, "{$shaper}:90"));
 check('excludes a non-executable line', ! str_contains($written, "{$strength}:19"));
 unlink($emitted);

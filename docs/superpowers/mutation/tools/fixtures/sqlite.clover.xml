@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Measuring engine. ensureIpParent() takes the SQLite early return, so the
-     committed-row branch at 415-419 is present but never executed. -->
+     committed-row branch at 413-417 is present but never executed. -->
 <coverage generated="0">
   <project timestamp="0">
     <file name="src/Throttle/DatabaseAuthThrottleStore.php">
       <line num="409" type="stmt" count="7"/>
       <line num="410" type="stmt" count="7"/>
       <line num="412" type="stmt" count="7"/>
-      <line num="415" type="stmt" count="0"/>
-      <line num="416" type="stmt" count="0"/>
-      <line num="419" type="stmt" count="0"/>
+      <line num="413" type="stmt" count="0"/>
+      <line num="414" type="stmt" count="0"/>
+      <line num="417" type="stmt" count="0"/>
     </file>
     <file name="src/Kernel/Factor/FactorStrength.php">
       <line num="25" type="stmt" count="8"/>

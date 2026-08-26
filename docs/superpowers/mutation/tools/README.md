@@ -66,7 +66,9 @@ source SHA and code above a row moved, pass
 `--baseline-identity=expression` to compare `(file, mutator, expression)`
 instead. The expression mode is intentionally explicit: within one source
 state duplicate expressions can occur on distinct rows, so line-keying remains
-the safe default. This identity diff is the required comparison: a
+the safe default. Both modes preserve duplicate occurrences with stable
+ordinals; a line/mutator key is not treated as a set member. This identity diff
+is the required comparison: a
 stable aggregate can hide a survivor replacing a kill, while a row diff makes
 both directions explicit. JSON mode returns `{rows, baseline_diff}` when this
 option is supplied.

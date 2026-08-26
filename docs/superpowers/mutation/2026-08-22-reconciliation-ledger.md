@@ -452,6 +452,19 @@ a language-semantic equivalent: PHP parses `modify('5 seconds')` and
 committed separately as `a438e33`; it remains useful schedule coverage even
 though these two mutants are observationally inert.
 
+The later Throttle gap batch at `0ecdd09` added the strict boolean-coercion and
+never-attempted-released fixtures. Its rerun retained the same 7-file scope;
+the current classification contains 106 rows: 91 executed-and-survived, 10
+engine-gated, 3 instrument-unroutable, and 2 never-executed. The baseline diff
+reports 22 removed and 0 added. The earlier 16-row result under-reported
+duplicate line-key occurrences, which are now counted by ordinal.
+
+The two remaining Throttle never-executed rows are already ruled: the
+`sharedState()` call-site row at `:581` is shadowed by its caller guard, and
+the `DateTimeInterface` branch at `:881` is defensive for a driver type not
+returned by any matrix engine. No actionable never-executed gap remains in
+Throttle.
+
 ### Kernel
 
 - Literal command: `vendor/bin/pest --mutate --path=src/Kernel --no-cache --min=0`
@@ -1027,20 +1040,20 @@ the corresponding SQLite mutation rows remain engine-equivalent by design.
 ### Closing corpus aggregate
 
 Using the latest classification artifact for each chunk at the current source
-state, the corpus contains 568 classified rows:
+state, the corpus contains 546 classified rows:
 
 | rows | executed-and-survived | never-executed | engine-gated | instrument-unroutable | timeout |
 |---:|---:|---:|---:|---:|---:|
-| 568 | 449 | 46 | 23 | 45 | 5 |
+| 546 | 450 | 23 | 23 | 45 | 5 |
 
 The 230 concatenation rows remaining in the corpus are covered by the narrowed
 message-prose rule only where the operand is quoted English prose; labels,
 prefixes, units, and data-bearing concatenations remain individually reviewed.
-The reduction from the earlier 629-row aggregate is attributable to 61 killed
-mutants from landed tests, not omitted inventory.
+The reduction from the earlier 629-row aggregate is attributable to landed
+tests and corrected dispositions, not omitted inventory.
 
-Throttle is the largest remaining concentration at 128 rows (90 survivors,
-25 never-executed, and all 10 engine-gated rows). Its lock and driver-dispatch
+Throttle is now 106 rows (91 survivors, 2 ruled never-executed, and all 10
+engine-gated rows). Its lock and driver-dispatch
 rows are intentionally supported by cross-engine behavioral evidence rather
 than expected SQLite mutation-score movement.
 

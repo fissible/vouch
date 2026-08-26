@@ -49,8 +49,10 @@ declare(strict_types=1);
  *   --emit-lines   write the unioned executed set to FILE for reuse.
  *   --baseline     prior classification JSON; report added/removed row
  *                  identities (file, line, mutator) against this run.
- *   --baseline-identity  line (default) keeps duplicate expressions distinct;
- *                        expression tolerates line shifts after a source edit.
+ *   --baseline-identity  line (default) identifies file/line/mutator rows and
+ *                        preserves duplicate occurrences by ordinal;
+ *                        expression tolerates line shifts after a source edit
+ *                        and likewise preserves repeated expressions.
  *   --json         emit rows as JSON instead of a grouped report.
  *
  * Exit codes: 0 classified, 1 usage error, 2 map inconsistency detected.
@@ -419,9 +421,9 @@ function rowIdentity(array $row, string $mode = 'line'): string
 }
 
 /**
- * Build identities without collapsing duplicate expressions in expression
- * mode. The ordinal is stable for the plugin's log order and preserves the
- * distinction between repeated `continue;` or array-element mutations.
+ * Build identities without collapsing duplicate rows. The ordinal is stable
+ * for the plugin's log order and preserves repeated mutations that share a
+ * file/line/mutator key (or repeated expressions in expression mode).
  *
  * @param list<array<string, mixed>> $rows
  * @return array<string, array<string, mixed>>
@@ -435,7 +437,7 @@ function keyedRows(array $rows, string $mode): array
         $base = rowIdentity($row, $mode);
         $ordinal = $occurrences[$base] ?? 0;
         $occurrences[$base] = $ordinal + 1;
-        $keyed[$base . ($mode === 'expression' ? ':' . $ordinal : '')] = $row;
+        $keyed[$base . ':' . $ordinal] = $row;
     }
 
     return $keyed;
