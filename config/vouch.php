@@ -127,6 +127,11 @@ return [
         'queue' => env('VOUCH_OTP_QUEUE', 'vouch-otp'),
     ],
 
+    'verification' => [
+        // Identifier-control ceremonies deliberately have their own lifetime.
+        'ttl_seconds' => (int) env('VOUCH_VERIFICATION_TTL', 300),
+    ],
+
     'delivery' => [
         'economics' => [
             // Minor units. Hosts should replace these with provider pricing.

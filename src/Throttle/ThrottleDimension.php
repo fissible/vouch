@@ -15,4 +15,5 @@ enum ThrottleDimension: string
     case IpIdentifier = 'ip_identifier';
     case Tenant = 'tenant';
     case Global = 'global';
+    case Ceremony = 'ceremony';
 }

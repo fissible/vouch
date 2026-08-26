@@ -30,6 +30,9 @@ use Fissible\Vouch\Notifications\OtpChallengeOutbox;
 use Fissible\Vouch\Notifications\OtpOutboxDelivery;
 use Fissible\Vouch\Notifications\OtpQueueDispatcher;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
+use Fissible\Vouch\Verification\IdentifierVerificationOutbox;
+use Fissible\Vouch\Verification\IdentifierVerifier;
+use Fissible\Vouch\Verification\VerificationOutboxDelivery;
 use Fissible\Vouch\Delivery\SmsCountryNormalizer;
 use Fissible\Vouch\Delivery\SmsIdentifierAudit;
 use Fissible\Vouch\Delivery\UnconfiguredCaptchaVerifier;
@@ -102,6 +105,25 @@ final class VouchServiceProvider extends ServiceProvider
         );
 
         $this->app->singleton(
+            IdentifierVerificationOutbox::class,
+            fn ($app): IdentifierVerificationOutbox => new IdentifierVerificationOutbox(
+                $app['db']->connection(),
+                $app->make(OtpQueueDispatcher::class),
+                $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
+            ),
+        );
+
+        $this->app->bind(
+            VerificationOutboxDelivery::class,
+            fn ($app): VerificationOutboxDelivery => new VerificationOutboxDelivery(
+                $app->make(OtpDelivery::class),
+                $app->make(DeliveryEconomics::class),
+                $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
+                config()->integer('vouch.delivery.economics.email_cost_minor'),
+            ),
+        );
+
+        $this->app->singleton(
             AttemptStore::class,
             fn ($app): DatabaseAttemptStore => new DatabaseAttemptStore(
                 $app['db']->connection(),
@@ -152,6 +174,20 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(ThrottleConfiguration::class),
                 $app->make(BoundedLockWait::class),
                 $app->make(LockContention::class),
+            ),
+        );
+
+        $this->app->bind(
+            IdentifierVerifier::class,
+            fn ($app): IdentifierVerifier => new IdentifierVerifier(
+                $app->make(AuthThrottleStore::class),
+                $app->make(ThrottleKey::class),
+                $app->make(IdentifierVerificationOutbox::class),
+                $app['db']->connection(),
+                $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
+                $app->make(ClockInterface::class),
+                config()->integer('vouch.verification.ttl_seconds'),
+                $app->make(RandomSource::class),
             ),
         );
 

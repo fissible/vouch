@@ -83,6 +83,8 @@ it('separates identifier and recovery domains for the same subject', function ()
         ->not->toBe(throttleDigest($keys->recovery('person@example.test', 'tenant-a')));
     expect($identifier)
         ->not->toBe(throttleDigest($keys->issuance('person@example.test', 'tenant-a')));
+    expect($identifier)
+        ->not->toBe(throttleDigest($keys->ceremony('person@example.test', 'tenant-a')));
 });
 
 it('canonicalizes IPv4 and separates distinct addresses', function (): void {

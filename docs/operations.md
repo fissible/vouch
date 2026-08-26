@@ -1,5 +1,23 @@
 # Vouch operations
 
+## Login adoption prerequisites
+
+An unverified identifier is invisible to login by design. Its refusal is deliberately
+indistinguishable from a wrong identifier, so a login endpoint cannot disclose whether
+an identifier exists or is awaiting verification.
+
+Before enabling login, establish these prerequisites in order. Run
+`php artisan vouch:doctor` to check the complete staircase together; it reports
+aggregate readiness only and never accepts an identifier argument.
+
+| Prerequisite | Host responsibility |
+|---|---|
+| `verified_at` | Use the identifier verification ceremony (`IdentifierVerifier`) to prove control of the identifier and establish `verified_at`. Do not set it merely because the host has collected an identifier value. |
+| `OtpDelivery` | Bind a real `OtpDelivery` implementation that can deliver OTPs. |
+| Durable asynchronous queue | Configure the `OtpDelivery` to use a durable asynchronous queue connection and run its worker. This is separate from binding the delivery implementation; a bound provider on `QUEUE_CONNECTION=sync` is still rejected. |
+| `DeliveryEconomics` | Bind a real `DeliveryEconomics` implementation. |
+| `CaptchaVerifier` | Only when `vouch.throttle.captcha.enabled` is true, bind a real `CaptchaVerifier` implementation. |
+
 ## OTP worker and one-minute maintenance
 
 Email and SMS OTP delivery requires a durable asynchronous Laravel queue and a

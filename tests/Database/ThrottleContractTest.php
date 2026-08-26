@@ -36,6 +36,14 @@ it('carries the exact persisted dimensions without open strings', function (): v
         ['IpIdentifier', 'ip_identifier'],
         ['Tenant', 'tenant'],
         ['Global', 'global'],
+        /*
+         * Added deliberately for 2.3d Task 1. The persisted dimension
+         * vocabulary is a schema contract, so extending it is an explicit act:
+         * an identifier-control ceremony must not share a counter partition
+         * with login issuance, and a boolean flag on ThrottleSubject would
+         * leave requireDimension() unable to tell them apart.
+         */
+        ['Ceremony', 'ceremony'],
     ]);
 });
 

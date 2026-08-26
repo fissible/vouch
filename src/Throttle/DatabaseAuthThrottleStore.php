@@ -345,7 +345,12 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
 
     public function permitIssuance(ThrottleSubject $issuance): IssuancePermission
     {
-        $this->requireDimension($issuance, ThrottleDimension::Issuance);
+        $this->requireDimension($issuance, ThrottleDimension::Issuance, ThrottleDimension::Ceremony);
+        return $this->permitVolume($issuance);
+    }
+
+    private function permitVolume(ThrottleSubject $issuance): IssuancePermission
+    {
         $counterExists = $this->counter($issuance) !== null;
 
         return $this->connection->transaction(function () use ($issuance, $counterExists): IssuancePermission {
@@ -899,4 +904,5 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
             ));
         }
     }
+
 }

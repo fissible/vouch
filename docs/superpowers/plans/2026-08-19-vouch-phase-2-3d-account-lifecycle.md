@@ -98,6 +98,10 @@ The two failure modes are not symmetric:
 
 ## Task 1: Identifier verification subsystem — **L**
 
+**Decision — migration baseline.** Keep `2026_08_12_000011` backdated: Task 1's
+tables are part of the unreleased 0.1.0 baseline, not an amendment, because
+nothing has shipped.
+
 Prove control of an identifier and set `verified_at`.
 
 **Why this is not a composition.** `OtpChallengeOutbox::issue()` throws for an

@@ -200,7 +200,7 @@ it('keeps provider delivery calls inside the outbox worker', function (): void {
     $offenders = [];
 
     foreach (throttleProductionFiles() as $file) {
-        if (in_array(basename($file), ['OtpOutboxDelivery.php', 'DeliverOtpChallenge.php'], true)) {
+        if (in_array(basename($file), ['OtpOutboxDelivery.php', 'DeliverOtpChallenge.php', 'VerificationOutboxDelivery.php'], true)) {
             continue;
         }
 

@@ -46,6 +46,15 @@ final readonly class ThrottleKey
         );
     }
 
+    public function ceremony(string $identifier, ?string $tenantId): ThrottleSubject
+    {
+        return $this->subject(
+            ThrottleDimension::Ceremony,
+            BindingDomain::ThrottleCeremony,
+            $this->scoped($tenantId, $this->identifiers->canonicalize($identifier)),
+        );
+    }
+
     public function ip(?string $ip, ?string $tenantId): ?ThrottleSubject
     {
         $canonical = $this->ips->canonicalize($ip);

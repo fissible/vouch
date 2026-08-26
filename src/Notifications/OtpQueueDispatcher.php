@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Notifications;
 
 use Fissible\Vouch\Jobs\DeliverOtpChallenge;
+use Fissible\Vouch\Jobs\DeliverIdentifierVerification;
 use Fissible\Vouch\Models\AuthChallengeOutbox;
+use Fissible\Vouch\Models\AuthIdentifierVerificationOutbox;
 use Fissible\Vouch\Support\DatabaseTime;
 use Illuminate\Contracts\Queue\Factory;
 use Illuminate\Contracts\Queue\Queue;
@@ -67,6 +69,16 @@ final readonly class OtpQueueDispatcher
             ->update([
                 'dispatched_at' => $this->time->now(),
             ]);
+    }
+
+    public function dispatchVerification(AuthIdentifierVerificationOutbox $outbox): void
+    {
+        $this->assertAsynchronous();
+        $this->connection()->push(new DeliverIdentifierVerification($outbox->opaque_id), queue: $this->queue);
+
+        AuthIdentifierVerificationOutbox::query()->whereKey($outbox->id)
+            ->where('status', OtpOutboxStatus::Pending->value)->whereNull('dispatched_at')
+            ->update(['dispatched_at' => $this->time->now()]);
     }
 
     public function dispatchAfter(AuthChallengeOutbox $outbox, int $delaySeconds): void

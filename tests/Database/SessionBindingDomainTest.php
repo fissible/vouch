@@ -53,6 +53,7 @@ it('lists every binding domain exactly once', function (): void {
             'throttle.ip-identifier',
             'throttle.tenant',
             'throttle.global',
+            'throttle.ceremony',
         ]);
 });
 

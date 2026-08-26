@@ -76,6 +76,7 @@ it('declares every throttle HMAC domain explicitly', function (): void {
         ['ThrottleIpIdentifier', 'throttle.ip-identifier'],
         ['ThrottleTenant', 'throttle.tenant'],
         ['ThrottleGlobal', 'throttle.global'],
+        ['ThrottleCeremony', 'throttle.ceremony'],
     ]);
 });
 

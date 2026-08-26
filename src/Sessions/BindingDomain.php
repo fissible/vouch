@@ -47,4 +47,7 @@ enum BindingDomain: string
 
     /** Package-wide advisory state. */
     case ThrottleGlobal = 'throttle.global';
+
+    /** Identifier-control ceremony volume, distinct from login issuance. */
+    case ThrottleCeremony = 'throttle.ceremony';
 }
