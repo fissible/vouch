@@ -9,11 +9,11 @@ fresh session with no prior context.
 sub-projects; **2.1 (persistence foundation) complete 2026-08-12**. Next: plan 2.2,
 factor drivers.
 
-### Current mutation-reconciliation handoff — 2026-08-24
+### Current mutation-reconciliation handoff — 2026-08-25
 
-Resume from [`docs/superpowers/mutation/2026-08-22-reconciliation-ledger.md`](docs/superpowers/mutation/2026-08-22-reconciliation-ledger.md), not from the older phase summaries below. The current source/test state is pinned at `62e51eb`; the closing Flow/Throttle sweep is committed as `3210dad`, and the classifier tooling is at `3ecbc2e`. Every follow-up test batch must be remeasured with the classifier's `--baseline` row-identity diff.
+Resume from [`docs/superpowers/mutation/2026-08-22-reconciliation-ledger.md`](docs/superpowers/mutation/2026-08-22-reconciliation-ledger.md), not from the older phase summaries below. The current repository state is `8fc02d4`; the source tree has been unchanged since `212212a`, while the intervening test and evidence commits are part of the recorded state. The classifier tooling and all current chunk artifacts are committed, and every comparison must use stable row identities with `--baseline` (expression identity when a source edit shifts lines).
 
-Outstanding batches are: deterministic `backoffOffsetFrom()` arithmetic; SQLite/MySQL/PostgreSQL driver-dispatch tests for `DatabaseAuthThrottleStore:409` and `:662`; the Recovery branch at `:583`; Delivery reservation-contract rows `:88`, `:137`, `:154`, `:197`, and `:57`; and the grouped console/jobs output, exit-code, retry, and missing-evidence tests. A non-blocking PostgreSQL/MySQL lock probe remains to validate load-bearing locks where `FOR UPDATE` emits SQL.
+The corpus currently contains 568 classified rows: 449 executed-and-survived, 46 never-executed gaps, 23 engine-gated, 45 instrument-unroutable, and 5 separately tracked timeouts. Throttle is the largest actionable concentration with 25 never-executed rows. The console/jobs, Delivery, Flow, Kernel, Factors, and cross-engine contention batches are complete. Remaining work is the lock-mechanism ruling's PostgreSQL/MySQL limitations write-up, the 46-gap review, and narrowing the remaining concatenation/prose dispositions. The ledger's portable disposition vocabulary (engine-gated, engine-equivalent, redundant-cast, shadowed-by-earlier-guard, shadowed-by-caller-guard, idempotent-under-clamp, equivalent-by-duplicated-branch, and language-semantic equivalence) is evidence from the reconciliation, not an open queue by itself.
 
 ---
 
