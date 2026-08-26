@@ -76,7 +76,10 @@ option is supplied; each `changed` entry contains `before` and `after` rows.
 
 Pass `--rulings=RULINGS.json` to join human adjudications onto measured rows.
 The manifest contains `version`, `source_sha`, and a `rulings` object keyed by
-the expression identity `(file:mutator:expression)`. Joined rows carry an
+the expression identity `(file:mutator:expression)`. When identical
+expressions occur more than once, append `:<ordinal>` (zero-based) to address
+one occurrence; a bare key remains a backwards-compatible rule for all
+occurrences. Joined rows carry an
 `adjudication` object; `ruling_mismatch` is true when its recorded disposition
 no longer matches the measured disposition.
 

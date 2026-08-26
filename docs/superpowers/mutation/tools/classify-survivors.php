@@ -573,14 +573,22 @@ if ($options['emit'] !== null) {
 }
 
 $classified = [];
+$rulingOccurrences = [];
 
 foreach (readLog($options['log']) as $row) {
     $row['expression'] = readExpression($row['file'], $row['line'], $root);
     $classifiedRow = [...$row, ...disposition($row, $measuring, $executedElsewhere)];
-    $rulingKey = rowIdentity($classifiedRow, 'expression');
+    $rulingBase = rowIdentity($classifiedRow, 'expression');
+    $rulingOrdinal = $rulingOccurrences[$rulingBase] ?? 0;
+    $rulingOccurrences[$rulingBase] = $rulingOrdinal + 1;
+    $rulingKey = $rulingBase . ':' . $rulingOrdinal;
 
-    if (array_key_exists($rulingKey, $rulings)) {
-        $adjudication = $rulings[$rulingKey];
+    // Bare expression keys remain supported for existing manifests and apply
+    // to every repeated occurrence; new manifests may append :<ordinal> when
+    // identical expressions need distinct adjudications.
+    $adjudication = $rulings[$rulingKey] ?? $rulings[$rulingBase] ?? null;
+
+    if (is_array($adjudication)) {
         $classifiedRow['adjudication'] = $adjudication;
         $classifiedRow['ruling_mismatch'] = isset($adjudication['disposition'])
             && $adjudication['disposition'] !== $classifiedRow['disposition'];
