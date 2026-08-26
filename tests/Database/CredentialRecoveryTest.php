@@ -25,6 +25,8 @@ use Illuminate\Support\Facades\Hash;
 
 uses(DatabaseMigrations::class);
 
+
+
 /*
  * DatabaseMigrations rather than RefreshDatabase: the ordering contract is about
  * COMMITS, and RefreshDatabase wraps each test in an uncommitted transaction
@@ -79,7 +81,7 @@ function requestRecoveryAndDeliver(string $value): ArrayOtpDelivery
     app(CredentialRecovery::class)->request(recoveryRequest($value));
 
     foreach (DB::table('auth_recovery_proof_outbox')->pluck('opaque_id') as $opaqueId) {
-        app(RecoveryProofOutboxDelivery::class)->deliver((string) $opaqueId);
+        app(RecoveryProofOutboxDelivery::class)->deliver(stringValue($opaqueId));
     }
 
     return $delivery;
@@ -136,7 +138,7 @@ function revokedOnAnIndependentConnection(int $sessionId): bool
      * probe would fail on a missing table rather than answer the question.
      * The contention suite skips itself for the same reason.
      */
-    $path = getenv('VOUCH_SQLITE_PATH') ?: ':memory:';
+    $path = (string) (getenv('VOUCH_SQLITE_PATH') ?: ':memory:');
 
     if ($path === ':memory:') {
         throw new RuntimeException(
@@ -153,9 +155,12 @@ function revokedOnAnIndependentConnection(int $sessionId): bool
 
 function currentPasswordSecret(): string
 {
-    return (string) AuthCredential::query()
+    /** @var string $secret */
+    $secret = AuthCredential::query()
         ->where('user_id', 1)->where('type', 'password')
         ->whereNull('disabled_at')->value('secret');
+
+    return $secret;
 }
 
 it('is enumeration-safe for unknown and unverified identifiers', function (): void {
@@ -173,20 +178,40 @@ it('is enumeration-safe for unknown and unverified identifiers', function (): vo
     app()->instance(OtpDelivery::class, $delivery);
     app()->instance(DeliveryEconomics::class, new PermittingDeliveryEconomics());
 
-    $known = $recovery->request(recoveryRequest('ada@acme.example'));
-    $mintedForKnown = (string) DB::table('auth_recovery_proof_outbox')->latest('id')->value('opaque_id');
-
-    $unverified = $recovery->request(recoveryRequest('unverified@acme.example'));
-    $unknown = $recovery->request(recoveryRequest('nobody@acme.example'));
-
     /*
-     * Positive control on the ORIGINAL known request, not a fresh one: three
-     * identical no-ops would otherwise satisfy the equality above.
+     * request() returns void deliberately -- there is nothing for it to leak.
+     * So neutrality has to be measured in observable EFFECTS. Comparing the
+     * return values would compare three nulls and pass against any
+     * implementation at all, which is what this test used to do.
      */
+    $observe = function (string $value) use ($recovery): array {
+        $before = [
+            'ceremony' => (int) DB::table('auth_throttle_counters')->where('dimension', 'ceremony')->sum('count'),
+            'proofs' => DB::table('auth_recovery_proofs')->count(),
+            'outbox' => DB::table('auth_recovery_proof_outbox')->count(),
+        ];
+
+        $recovery->request(recoveryRequest($value));
+
+        return [
+            'ceremony' => (int) DB::table('auth_throttle_counters')->where('dimension', 'ceremony')->sum('count') - $before['ceremony'],
+            'proofs' => DB::table('auth_recovery_proofs')->count() - $before['proofs'],
+            'outbox' => DB::table('auth_recovery_proof_outbox')->count() - $before['outbox'],
+        ];
+    };
+
+    $known = $observe('ada@acme.example');
+    $mintedForKnown = stringValue(DB::table('auth_recovery_proof_outbox')->latest('id')->value('opaque_id'));
+
+    $unverified = $observe('unverified@acme.example');
+    $unknown = $observe('nobody@acme.example');
+
+    // Positive control on the ORIGINAL known request, not a fresh one.
     app(RecoveryProofOutboxDelivery::class)->deliver($mintedForKnown);
 
     expect($known)->toEqual($unverified)
         ->and($unverified)->toEqual($unknown)
+        ->and($known['outbox'])->toBeGreaterThan(0)
         ->and($delivery->sent)->toHaveCount(1);
 });
 
@@ -234,7 +259,7 @@ it('will not redeem an identifier verification proof', function (): void {
     );
 
     foreach (DB::table('auth_identifier_verification_outbox')->pluck('opaque_id') as $opaqueId) {
-        app(\Fissible\Vouch\Verification\VerificationOutboxDelivery::class)->deliver((string) $opaqueId);
+        app(\Fissible\Vouch\Verification\VerificationOutboxDelivery::class)->deliver(stringValue($opaqueId));
     }
 
     expect(app(CredentialRecovery::class)
@@ -395,7 +420,7 @@ it('never authenticates the user', function (): void {
     $live = AuthSession::query()->whereNull('revoked_at')->get();
 
     expect($live)->toHaveCount(1)
-        ->and($live->first()->recovery_grace_expires_at)->not->toBeNull()
+        ->and($live->first()?->recovery_grace_expires_at)->not->toBeNull()
         ->and(DB::table('auth_attempts')->count())->toBe(0)
         ->and(DB::table('auth_token_assurances')->count())->toBe(0);
 });
@@ -413,7 +438,8 @@ it('records post-reset assurance as single-factor by default', function (): void
      */
     $session = AuthSession::query()->whereNull('revoked_at')->first();
 
-    expect($session?->acr)->toBeNull()
+    expect($session)->not->toBeNull()
+        ->and($session?->acr)->toBeNull()
         ->and($session?->recovery_grace_expires_at)->not->toBeNull();
 });
 

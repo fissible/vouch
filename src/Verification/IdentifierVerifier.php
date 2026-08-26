@@ -32,6 +32,25 @@ final readonly class IdentifierVerifier
 
     public function request(IdentifierVerificationRequest $request): void
     {
+        $identifier = AuthIdentifier::query()->where('type', $request->type)
+            ->where('value', $request->submittedIdentifier)
+            ->first();
+
+        $this->issue($request, $identifier);
+    }
+
+    /**
+     * Issue the same charged, durable ceremony shape without looking up a
+     * target.  Callers use this when revealing a known identifier would be an
+     * enumeration oracle; the worker deletes this decoy before provider I/O.
+     */
+    public function requestDecoy(IdentifierVerificationRequest $request): void
+    {
+        $this->issue($request, null);
+    }
+
+    private function issue(IdentifierVerificationRequest $request, ?AuthIdentifier $identifier): void
+    {
         $this->outbox->assertReady();
 
         if ($this->throttles->permitIssuance(
@@ -39,10 +58,6 @@ final readonly class IdentifierVerifier
         ) === IssuancePermission::Refused) {
             return;
         }
-
-        $identifier = AuthIdentifier::query()->where('type', $request->type)
-            ->where('value', $request->submittedIdentifier)
-            ->first();
 
         $this->outbox->issue($request, $identifier, $this->code(), $this->ttlSeconds);
     }

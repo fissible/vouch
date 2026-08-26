@@ -18,6 +18,7 @@ use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Contracts\RandomSource;
 use Fissible\Vouch\Contracts\TenantResolver;
 use Fissible\Vouch\Enrollment\EnrollmentGuard;
+use Fissible\Vouch\Enrollment\FirstCredentialEnrollment;
 use Fissible\Vouch\Factors\ChallengeIssuer;
 use Fissible\Vouch\Factors\Drivers\EmailOtpFactor;
 use Fissible\Vouch\Factors\Drivers\PasswordFactor;
@@ -223,6 +224,21 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(BoundedLockWait::class),
                 $app->make(LockContention::class),
             ),
+        );
+
+        $this->app->bind(
+            FirstCredentialEnrollment::class,
+            function ($app, array $parameters): FirstCredentialEnrollment {
+                $connection = $parameters['connection'] ?? $app['db']->connection();
+
+                return new FirstCredentialEnrollment(
+                    $connection,
+                    $app->make(IdentifierVerifier::class),
+                    new BoundedLockWait($connection),
+                    $app->make(LockContention::class),
+                    config()->integer('vouch.enrollment.lock_wait_seconds'),
+                );
+            },
         );
 
         $this->app->singleton(

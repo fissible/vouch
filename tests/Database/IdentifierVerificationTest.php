@@ -24,6 +24,8 @@ use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
+
+
 /*
  * 2.3d Task 1. The ceremony proves control of an identifier and sets
  * verified_at. It is deliberately NOT an authentication and a verification code
@@ -70,7 +72,7 @@ function requestAndDeliver(string $value): ArrayOtpDelivery
     app(IdentifierVerifier::class)->request(verificationRequest($value));
 
     foreach (DB::table('auth_identifier_verification_outbox')->pluck('opaque_id') as $opaqueId) {
-        app(VerificationOutboxDelivery::class)->deliver((string) $opaqueId);
+        app(VerificationOutboxDelivery::class)->deliver(stringValue($opaqueId));
     }
 
     return $delivery;
@@ -206,6 +208,13 @@ it('refuses a redemption after its own ttl elapses', function (): void {
     $identifier = seedIdentifier('ada@acme.example', null, 1);
     $delivery = requestAndDeliver('ada@acme.example');
 
+    /*
+     * Provided by Testbench's TestCase via InteractsWithTime. PHPStan types the
+     * Pest closure's $this as PHPUnit\Framework\TestCase and cannot see it; the
+     * global travel() helper is not equivalent here and fails at runtime.
+     *
+     * @phpstan-ignore method.notFound
+     */
     $this->travel(301)->seconds();
 
     expect(app(IdentifierVerifier::class)->redeem(verificationRequest('ada@acme.example'), $delivery->lastCode()))
@@ -226,10 +235,14 @@ it('charges the ceremony dimension equally for every identifier state', function
             'outbox' => DB::table('auth_identifier_verification_outbox')->count(),
         ];
 
-        $returned = app(IdentifierVerifier::class)->request(verificationRequest($value));
+        /*
+         * request() returns void deliberately -- there is nothing for it to
+         * leak -- so neutrality is measured in effects. Comparing its result
+         * would compare nulls and pass against any implementation.
+         */
+        app(IdentifierVerifier::class)->request(verificationRequest($value));
 
         $observed[$value] = [
-            'returned' => $returned,
             'ceremony' => ceremonyCount() - $before['ceremony'],
             'records' => DB::table('auth_identifier_verifications')->count() - $before['records'],
             'outbox' => DB::table('auth_identifier_verification_outbox')->count() - $before['outbox'],
@@ -305,7 +318,8 @@ it('treats re-verification exactly like first verification', function (): void {
     expect($outcome)->toBe(IdentifierVerificationOutcome::Verified)
         ->and($delivery->sent)->toHaveCount(1)
         ->and($charged)->toBeGreaterThan(0)
-        ->and($identifier->refresh()->verified_at->greaterThan($first))->toBeTrue()
+        ->and($first)->not->toBeNull()
+        ->and($identifier->refresh()->verified_at?->greaterThan($first ?? now()))->toBeTrue()
         ->and(AuthSession::query()->count())->toBe(0);
 });
 

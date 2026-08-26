@@ -55,6 +55,7 @@ final readonly class RecoveryProofOutboxDelivery
         AuthRecoveryProofOutbox::query()->where('opaque_id', $opaqueId)->where('status', OtpOutboxStatus::Pending->value)->update(['payload' => null, 'status' => OtpOutboxStatus::Undeliverable->value, 'undeliverable_at' => $this->time->now(), 'failure_reason' => $reason->value]);
     }
 
+    /** @phpstan-impure Database time can cross the deadline during provider I/O. */
     private function expired(AuthRecoveryProofOutbox $outbox): bool { return AuthRecoveryProofOutbox::query()->whereKey($outbox->id)->where('expires_at', '<=', $this->time->now())->exists(); }
 
     private function reserve(DeliveryEconomicsRequest $request): DeliveryReservationDecision
