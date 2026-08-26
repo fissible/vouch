@@ -1031,7 +1031,7 @@ state, the corpus contains 568 classified rows:
 
 | rows | executed-and-survived | never-executed | engine-gated | instrument-unroutable | timeout |
 |---:|---:|---:|---:|---:|---:|
-| 568 | 449 | 59 | 10 | 45 | 5 |
+| 568 | 449 | 46 | 23 | 45 | 5 |
 
 The 230 concatenation rows remaining in the corpus are covered by the narrowed
 message-prose rule only where the operand is quoted English prose; labels,
@@ -1049,6 +1049,8 @@ carried forward from the 2026-08-23 SQLite-era reading. Its 40 rows now split
 into 25 executed-and-survived, 13 engine-gated, 1 never-executed
 (`DatabaseTime.php:116`), and 1 timeout. The former 14-row never-executed gap
 was therefore primarily engine coverage classification, not a new test queue.
+The corrected corpus split is 46 never-executed and 23 engine-gated; the
+thirteen-row movement is between those categories only.
 
 The temporary `throttle-recovery-expiry` classification was discarded: its log
 predated the `212212a` refactor, so line-keyed rows below the refactor could not
