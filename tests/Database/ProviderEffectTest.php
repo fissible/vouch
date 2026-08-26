@@ -17,6 +17,7 @@ use Fissible\Vouch\VouchServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Facade;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Psr\Clock\ClockInterface;
@@ -66,6 +67,48 @@ it('fails boot when shared-throttle CAPTCHA escalation has no verifier', functio
         Config::set('vouch.throttle.global.enforce_at', null);
         Config::set('vouch.throttle.global.backoff_seconds', null);
         app()->forgetInstance(ThrottleConfiguration::class);
+    }
+});
+
+it('fails boot when the host does not retain the session validator in web', function (): void {
+    $originalRouter = app(Router::class);
+    $originalArgv = $_SERVER['argv'] ?? null;
+
+    // Keep this command outside the CAPTCHA exemption so the test reaches the
+    // middleware-group guard rather than depending on the doctor boot path.
+    $_SERVER['argv'] = ['artisan', 'about'];
+    $router = new class(app('events'), app()) extends Router {
+        public function pushMiddlewareToGroup($group, $middleware)
+        {
+            // Simulate a host that silently ignores the package's push.
+            return $this;
+        }
+
+        /** @return array<string, list<string>> */
+        public function getMiddlewareGroups()
+        {
+            return ['web' => []];
+        }
+    };
+
+    Facade::clearResolvedInstance('router');
+    app()->instance(Router::class, $router);
+
+    try {
+        expect(fn () => (new VouchServiceProvider(app()))->boot())
+            ->toThrow(
+                RuntimeException::class,
+                'Vouch requires ValidatesVouchSession in the "web" middleware group.',
+            );
+    } finally {
+        app()->instance(Router::class, $originalRouter);
+        Facade::clearResolvedInstance('router');
+
+        if ($originalArgv === null) {
+            unset($_SERVER['argv']);
+        } else {
+            $_SERVER['argv'] = $originalArgv;
+        }
     }
 });
 

@@ -110,6 +110,10 @@ it('exempts only vouch:doctor from the CAPTCHA boot guard', function (): void {
 
         $_SERVER['argv'] = ['artisan', 'vouch:doctor'];
         expect(fn () => (new VouchServiceProvider(app()))->boot())->not->toThrow(\Throwable::class);
+
+        $_SERVER['argv'] = 'not-an-argument-vector';
+        expect(fn () => (new VouchServiceProvider(app()))->boot())
+            ->toThrow('CAPTCHA escalation is enabled');
     } finally {
         if ($originalArgv === null) {
             unset($_SERVER['argv']);

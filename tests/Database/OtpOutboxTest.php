@@ -113,6 +113,40 @@ final class AlwaysContendedDeliveryEconomics implements DeliveryEconomics
     }
 }
 
+final class CountryRefusingDeliveryEconomics implements DeliveryEconomics
+{
+    public function preflight(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision
+    {
+        return DeliveryEconomicsDecision::Permitted;
+    }
+
+    public function reserve(DeliveryEconomicsRequest $request): DeliveryReservationDecision
+    {
+        return DeliveryReservationDecision::CountryNotAllowed;
+    }
+
+    public function release(DeliveryEconomicsRequest $request): void
+    {
+    }
+}
+
+final class SpendCeilingDeliveryEconomics implements DeliveryEconomics
+{
+    public function preflight(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision
+    {
+        return DeliveryEconomicsDecision::Permitted;
+    }
+
+    public function reserve(DeliveryEconomicsRequest $request): DeliveryReservationDecision
+    {
+        return DeliveryReservationDecision::SpendCeiling;
+    }
+
+    public function release(DeliveryEconomicsRequest $request): void
+    {
+    }
+}
+
 final class DeletingContendedDeliveryEconomics implements DeliveryEconomics
 {
     public function preflight(DeliveryEconomicsRequest $request): DeliveryEconomicsDecision
@@ -406,7 +440,79 @@ it('terminalizes a non-decoy payload whose immutable target is absent', function
     expect($outbox->refresh()->status)->toBe(OtpOutboxStatus::Undeliverable->value)
         ->and($outbox->payload)->toBeNull()
         ->and($outbox->undeliverable_at)->not->toBeNull()
+        ->and($outbox->failure_reason)->toBe('target_unavailable')
         ->and($delivery->sent)->toBe([]);
+});
+
+it('records legacy_unparseable for an SMS target that no longer normalizes', function (): void {
+    [$factor, $attempt] = outboxFixture();
+    $factor->challenge(new ChallengeRequest($attempt));
+    $outbox = AuthChallengeOutbox::query()->firstOrFail();
+    $payload = requiredOutboxPayload($outbox);
+    $payload['target']['type'] = 'phone';
+    $payload['target']['value'] = '+1415';
+    $outbox->update(['payload' => $payload]);
+    AuthChallenge::query()->whereKey($outbox->challenge_id)->update(['factor_type' => 'sms_otp']);
+
+    app(OtpOutboxDelivery::class)->deliver($outbox->opaque_id);
+
+    expect($outbox->refresh()->failure_reason)->toBe('legacy_unparseable');
+});
+
+it('records country_not_allowed for an economics refusal', function (): void {
+    [$factor, $attempt] = outboxFixture();
+    $factor->challenge(new ChallengeRequest($attempt));
+    $outbox = AuthChallengeOutbox::query()->firstOrFail();
+    $payload = requiredOutboxPayload($outbox);
+    $payload['target']['type'] = 'phone';
+    $payload['target']['value'] = '+14155552671';
+    $outbox->update(['payload' => $payload]);
+    AuthChallenge::query()->whereKey($outbox->challenge_id)->update(['factor_type' => 'sms_otp']);
+    app()->instance(DeliveryEconomics::class, new CountryRefusingDeliveryEconomics());
+
+    app(OtpOutboxDelivery::class)->deliver($outbox->opaque_id);
+
+    expect($outbox->refresh()->failure_reason)->toBe('country_not_allowed');
+});
+
+it('records spend_ceiling for an economics refusal', function (): void {
+    [$factor, $attempt] = outboxFixture();
+    $factor->challenge(new ChallengeRequest($attempt));
+    $outbox = AuthChallengeOutbox::query()->firstOrFail();
+    app()->instance(DeliveryEconomics::class, new SpendCeilingDeliveryEconomics());
+
+    app(OtpOutboxDelivery::class)->deliver($outbox->opaque_id);
+
+    expect($outbox->refresh()->failure_reason)->toBe('spend_ceiling');
+});
+
+it('records worker_failure for an unrecognized challenge channel', function (): void {
+    [$factor, $attempt] = outboxFixture();
+    $factor->challenge(new ChallengeRequest($attempt));
+    $outbox = AuthChallengeOutbox::query()->firstOrFail();
+    AuthChallenge::query()->whereKey($outbox->challenge_id)->update(['factor_type' => 'unknown_factor']);
+
+    app(OtpOutboxDelivery::class)->deliver($outbox->opaque_id);
+
+    expect($outbox->refresh()->failure_reason)->toBe('worker_failure');
+});
+
+it('records worker_failure when the configured channel cost is invalid', function (): void {
+    [$factor, $attempt] = outboxFixture();
+    $factor->challenge(new ChallengeRequest($attempt));
+    $outbox = AuthChallengeOutbox::query()->firstOrFail();
+    $original = config('vouch.delivery.economics.email_cost_minor');
+    config()->set('vouch.delivery.economics.email_cost_minor', 0);
+    app()->forgetInstance(OtpOutboxDelivery::class);
+
+    try {
+        app(OtpOutboxDelivery::class)->deliver($outbox->opaque_id);
+    } finally {
+        config()->set('vouch.delivery.economics.email_cost_minor', $original);
+        app()->forgetInstance(OtpOutboxDelivery::class);
+    }
+
+    expect($outbox->refresh()->failure_reason)->toBe('worker_failure');
 });
 
 it('drops a pending row whose encrypted payload has already been redacted', function (): void {
