@@ -77,6 +77,35 @@ it('hydrates CAPTCHA enablement as an explicit boolean', function (): void {
     expect($config->captchaEnabled)->toBeTrue();
 });
 
+it('parses environment-shaped CAPTCHA booleans strictly', function (mixed $value, bool $expected): void {
+    $config = configuredThrottle([
+        'captcha.enabled' => $value,
+        'global.mode' => 'enforce',
+        'global.enforce_at' => 10,
+        'global.backoff_seconds' => 1,
+    ]);
+
+    expect($config->captchaEnabled)->toBe($expected);
+})->with([
+    'bool true' => [true, true],
+    'bool false' => [false, false],
+    'string true' => ['true', true],
+    'string one' => ['1', true],
+    'integer one' => [1, true],
+    'string false' => ['false', false],
+    'string zero' => ['0', false],
+    'integer zero' => [0, false],
+]);
+
+it('rejects an unrecognized CAPTCHA boolean value', function (): void {
+    expect(fn (): ThrottleConfiguration => configuredThrottle([
+        'captcha.enabled' => 'yes',
+        'global.mode' => 'enforce',
+        'global.enforce_at' => 10,
+        'global.backoff_seconds' => 1,
+    ]))->toThrow(InvalidArgumentException::class, 'vouch.throttle.captcha.enabled');
+});
+
 it('rejects CAPTCHA enablement when no shared dimension can escalate', function (): void {
     expect(fn (): ThrottleConfiguration => configuredThrottle([
         'captcha.enabled' => true,

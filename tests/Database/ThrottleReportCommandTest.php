@@ -221,6 +221,32 @@ it('reports active aggregate distributions and configured threshold crossings wi
         ->and($encoded)->not->toContain('tuple_digest');
 });
 
+it('counts released reservations that never reached a provider', function (): void {
+    $sequence = 77;
+    $now = app(DatabaseTime::class)->current();
+    $reservationKey = str_pad(dechex($sequence), 64, 'c', STR_PAD_LEFT);
+
+    reportOutbox(OtpOutboxStatus::Pending->value, $now->add(new DateInterval('PT1H')), $sequence);
+    DB::table('auth_delivery_spend_reservations')->insert([
+        'reservation_key' => $reservationKey,
+        'scope' => 'global',
+        'amount_minor' => 10,
+        'window_started_at' => $now->format('Y-m-d 00:00:00'),
+        'created_at' => $now,
+        'released_at' => $now,
+    ]);
+
+    $economics = app(ThrottleReporter::class)->report()['economics'];
+
+    expect($economics['reservations'])->toMatchArray([
+        'records' => 1,
+        'gross_minor' => 10,
+        'released_minor' => 10,
+        'unreleased_minor' => 0,
+        'never_attempted_released' => 1,
+    ]);
+});
+
 it('reports the complete top-level envelope and empty distributions', function (): void {
     $report = app(ThrottleReporter::class)->report();
 
