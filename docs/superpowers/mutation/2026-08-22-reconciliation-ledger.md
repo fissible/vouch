@@ -1078,6 +1078,22 @@ remains cross-engine. The broad no-action rule applies only to concatenations
 whose operands are explanatory quoted prose, not labels, prefixes, units,
 dates, or data-bearing output.
 
+The reporter date-boundary probe resolved the four `ThrottleReporter` rows
+mechanically. `ConcatRemoveRight` at both `:99` and `:110` is
+redundant-suffix equivalent: comparing against the date alone selects the same
+rows because the day boundary is already implied. `ConcatRemoveLeft` and
+`ConcatSwitchSides` at both sites are killable; the reservation fixture already
+seeds a prior-day row and kills both mutations at `:110`, while the counter
+fixture still needs one stale-window counter to discriminate the corresponding
+`:99` rows. This is one queued fixture line, not a prose ruling.
+
+The current Throttle run records one expected SQLite skip: the PostgreSQL-only
+`SHOW lock_timeout` unit assertion for `BoundedLockWait:112`. That test cannot
+execute on SQLite, so the suffix mutant will remain engine-equivalent in the
+SQLite measurement despite the focused PostgreSQL proof. This is distinct from
+the lock rows, whose tests execute but cannot distinguish `FOR UPDATE` after
+SQLite compiles it away; both are engine-equivalent for different reasons.
+
 ### Full parallel smoke (non-authoritative)
 
 - Scope: non-Kernel `Fissible\\Vouch`, SHA `66ac67d`, 10 processes
