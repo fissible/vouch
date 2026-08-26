@@ -262,3 +262,166 @@ it('charges one reservation once when two workers race on one key', function ():
         rmdir($directory);
     }
 });
+
+it('preserves a concurrent spend while a stale window rolls over', function (): void {
+    $directory = sys_get_temp_dir() . '/vouch-delivery-rollover-' . bin2hex(random_bytes(8));
+
+    if (! mkdir($directory, 0700) && ! is_dir($directory)) {
+        throw new RuntimeException('Could not create delivery rollover probe directory.');
+    }
+
+    $release = $directory . '/release';
+    $started = $directory . '/started';
+    $output = $directory . '/output';
+    $children = [];
+    $tenantId = 'tenant-a';
+    $keys = app(ThrottleKey::class);
+    $global = $keys->global();
+    $tenant = $keys->tenant($tenantId);
+    $oldWindow = now()->subDay()->startOfDay()->format('Y-m-d H:i:s');
+    $today = now()->startOfDay()->format('Y-m-d H:i:s');
+
+    DB::table('auth_delivery_spend')->insert([
+        [
+            'scope' => 'global',
+            'subject_digest' => $global->digest,
+            'window_started_at' => $oldWindow,
+            'spent_minor' => 10,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+        [
+            'scope' => 'tenant',
+            'subject_digest' => $tenant->digest,
+            'window_started_at' => $oldWindow,
+            'spent_minor' => 10,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+    ]);
+
+    DB::purge();
+
+    try {
+        $pid = pcntl_fork();
+
+        if ($pid === -1) {
+            throw new RuntimeException('Could not fork delivery rollover child.');
+        }
+
+        if ($pid === 0) {
+            try {
+                $connection = DB::connection();
+                $connection->getPdo();
+
+                if ($connection->getDriverName() === 'sqlite') {
+                    $connection->statement('PRAGMA busy_timeout = 5000');
+                }
+
+                touch($started);
+                $deadline = microtime(true) + 10.0;
+
+                while (! is_file($release)) {
+                    if (microtime(true) >= $deadline) {
+                        throw new RuntimeException('Timed out waiting for delivery rollover release.');
+                    }
+
+                    usleep(1_000);
+                }
+
+                $economics = new DatabaseDeliveryEconomics(
+                    $connection,
+                    new DatabaseTime($connection),
+                    app(ThrottleKey::class),
+                    new DeliveryEconomicsConfiguration(100, null, ['US']),
+                    new BoundedLockWait($connection),
+                    new LockContention(),
+                );
+
+                $result = $economics->reserve(new DeliveryEconomicsRequest(
+                    'email_otp',
+                    'email',
+                    $tenantId,
+                    null,
+                    10,
+                    false,
+                    str_repeat('r', 64),
+                ));
+
+                file_put_contents($output, $result->name);
+                exit(0);
+            } catch (Throwable $exception) {
+                file_put_contents($output, $exception::class . ': ' . $exception->getMessage());
+                exit(1);
+            }
+        }
+
+        $children[] = $pid;
+        $deadline = microtime(true) + 10.0;
+
+        while (! is_file($started)) {
+            if (microtime(true) >= $deadline) {
+                throw new RuntimeException('The delivery rollover child did not reach the barrier.');
+            }
+
+            usleep(1_000);
+        }
+
+        $parent = DB::connection();
+        $sqliteImmediate = $parent->getDriverName() === 'sqlite';
+
+        if ($sqliteImmediate) {
+            $parent->statement('BEGIN IMMEDIATE');
+        } else {
+            $parent->beginTransaction();
+        }
+
+        $row = $parent->table('auth_delivery_spend')
+            ->where('scope', 'global')
+            ->where('subject_digest', $global->digest)
+            ->lockForUpdate()
+            ->first();
+
+        if ($row === null) {
+            throw new RuntimeException('The delivery rollover probe could not lock its seeded row.');
+        }
+
+        $parent->table('auth_delivery_spend')
+            ->where('id', $row->id)
+            ->update([
+                'window_started_at' => $today,
+                'spent_minor' => 20,
+                'updated_at' => now(),
+            ]);
+
+        touch($release);
+        usleep(200_000);
+
+        expect(is_file($output))->toBeFalse('The child did not wait on the locked rollover row.');
+
+        if ($sqliteImmediate) {
+            $parent->statement('COMMIT');
+        } else {
+            $parent->commit();
+        }
+
+        $status = 0;
+        pcntl_waitpid($pid, $status);
+
+        expect(pcntl_wifexited($status) ? pcntl_wexitstatus($status) : 255)->toBe(0)
+            ->and(trim((string) file_get_contents($output)))->toBe(DeliveryReservationDecision::Permitted->name)
+            ->and(DB::table('auth_delivery_spend')
+                ->where('scope', 'global')
+                ->value('spent_minor'))->toBeInt()->toBe(30);
+    } finally {
+        foreach ($children as $child) {
+            pcntl_waitpid($child, $status, WNOHANG);
+        }
+
+        foreach (glob($directory . '/*') ?: [] as $file) {
+            unlink($file);
+        }
+
+        rmdir($directory);
+    }
+});

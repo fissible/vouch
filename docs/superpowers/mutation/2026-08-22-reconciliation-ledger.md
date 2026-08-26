@@ -1007,6 +1007,16 @@ language-semantic equivalent mutant: the test ratifies current missing-row
 attribution, while converting warnings to exceptions suite-wide is not
 justified to kill one row.
 
+### Cross-engine rollover evidence
+
+`DeliveryEconomicsContentionTest` now includes a stale-window probe. A parent
+transaction locks the global spend row, commits a concurrent rollover update,
+and a child reservation must preserve that committed spend before adding its
+own charge. The probe passes on file-backed SQLite and PostgreSQL (3 tests / 15
+assertions on each engine). This is behavioral evidence for the load-bearing
+rollover lock; it is intentionally not expected to move SQLite mutation rows,
+because SQLite compiles `FOR UPDATE` to a bare `SELECT`.
+
 ### Full parallel smoke (non-authoritative)
 
 - Scope: non-Kernel `Fissible\\Vouch`, SHA `66ac67d`, 10 processes
