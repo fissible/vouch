@@ -1,0 +1,497 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ...............................................
+
+  Tests:    1187 passed (4167 assertions)
+  Duration: 31.48s
+
+  Mutating application files...
+  181 Mutations for 8 Files created
+
+   RUN  src/Console/VouchDispatchOtpOutboxCommand.php
+  ✓ Line 22: RemoveMethodCall
+  ✓ Line 23: DecrementInteger
+  ✓ Line 23: IncrementInteger
+  ✓ Line 25: RemoveMethodCall
+  ✓ Line 29: RemoveMethodCall
+  ✓ Line 30: DecrementInteger
+  ✓ Line 30: IncrementInteger
+  ✓ Line 30: RemoveArrayItem
+  ⨯ Line 33: DecrementInteger
+  ⨯ Line 33: IncrementInteger
+  ✓ Line 34: ForeachEmptyIterable
+  ✓ Line 35: RemoveMethodCall
+  ✓ Line 36: PostIncrementToPostDecrement
+  ✓ Line 40: RemoveMethodCall
+
+   RUN  src/Console/VouchPruneCommand.php
+  ✓ Line 42: RemoveMethodCall
+  ✓ Line 50: RemoveMethodCall
+  ✓ Line 51: ConcatRemoveLeft
+  ✓ Line 51: ConcatRemoveLeft
+  ✓ Line 51: ConcatRemoveLeft
+  ✓ Line 51: ConcatRemoveRight
+  ✓ Line 51: ConcatRemoveRight
+  ✓ Line 51: ConcatRemoveRight
+  ✓ Line 51: ConcatSwitchSides
+  ✓ Line 51: ConcatSwitchSides
+  ✓ Line 51: ConcatSwitchSides
+  ✓ Line 66: IfNegated
+  ✓ Line 67: RemoveMethodCall
+  ✓ Line 68: ConcatRemoveLeft
+  ✓ Line 68: ConcatRemoveRight
+  ✓ Line 68: ConcatSwitchSides
+  ✓ Line 73: RemoveEarlyReturn
+  ✓ Line 86: IfNegated
+  ✓ Line 86: SmallerToGreaterOrEqual
+  ✓ Line 86: SmallerToSmallerOrEqual
+  ✓ Line 86: DecrementInteger
+  ✓ Line 86: IncrementInteger
+  ✓ Line 119: RemoveArrayItem
+  ✓ Line 119: RemoveArrayItem
+  ✓ Line 121: DecrementInteger
+  ✓ Line 121: IncrementInteger
+  ✓ Line 122: DecrementInteger
+  ✓ Line 122: IncrementInteger
+  ✓ Line 124: ForeachEmptyIterable
+  ✓ Line 125: RemoveArrayCast
+  ✓ Line 126: CoalesceRemoveLeft
+  ✓ Line 127: CoalesceRemoveLeft
+  ✓ Line 129: IfNegated
+  ⨯ Line 129: BooleanOrToBooleanAnd
+  ✓ Line 129: RemoveNot
+  ✓ Line 129: RemoveNot
+  ✓ Line 135: IfNegated
+  ✓ Line 135: IdenticalToNotIdentical
+  ✓ Line 136: PostIncrementToPostDecrement
+  ✓ Line 138: PostIncrementToPostDecrement
+  ✓ Line 142: IfNegated
+  ✓ Line 142: NotIdenticalToIdentical
+  ✓ Line 143: RemoveMethodCall
+  ✓ Line 176: RemoveMethodCall
+
+   RUN  src/Console/VouchPruneSchedule.php
+  ✓ Line 19: IfNegated
+  ✓ Line 19: IdenticalToNotIdentical
+  ✓ Line 20: RemoveFunctionCall
+  ✓ Line 20: UnwrapTrim
+  ✓ Line 22: RemoveEarlyReturn
+  ✓ Line 25: IfNegated
+  ✓ Line 25: IdenticalToNotIdentical
+
+   RUN  src/Console/VouchDoctorCommand.php
+  ✓ Line 36: RemoveArrayItem
+  ✓ Line 37: RemoveArrayItem
+  ✓ Line 38: TernaryNegated
+  ✓ Line 38: IdenticalToNotIdentical
+  ⨯ Line 38: GreaterToGreaterOrEqual
+  ✓ Line 38: GreaterToSmallerOrEqual
+  ✓ Line 38: BooleanAndToBooleanOr
+  ⨯ Line 38: DecrementInteger
+  ✓ Line 38: DecrementInteger
+  ✓ Line 38: IncrementInteger
+  ✓ Line 38: IncrementInteger
+  ✓ Line 38: RemoveArrayItem
+  ✓ Line 39: RemoveArrayItem
+  ✓ Line 40: RemoveArrayItem
+  ✓ Line 42: RemoveArrayItem
+  ✓ Line 42: RemoveArrayItem
+  ✓ Line 42: RemoveArrayItem
+  ✓ Line 43: RemoveArrayItem
+  ✓ Line 43: RemoveArrayItem
+  ✓ Line 43: RemoveArrayItem
+  ✓ Line 44: RemoveArrayItem
+  ✓ Line 44: RemoveArrayItem
+  ✓ Line 44: RemoveArrayItem
+  ✓ Line 47: IfNegated
+  ⨯ Line 49: RemoveArrayItem
+  ✓ Line 50: RemoveArrayItem
+  ✓ Line 54: UnwrapArrayFilter
+  ✓ Line 56: IdenticalToNotIdentical
+  ✓ Line 59: RemoveArrayItem
+  ✓ Line 59: RemoveArrayItem
+  ✓ Line 61: IfNegated
+  ✓ Line 61: IdenticalToNotIdentical
+  ✓ Line 61: TrueToFalse
+  ⨯ Line 62: BitwiseOrToBitwiseAnd
+  ✓ Line 62: RemoveMethodCall
+  ⨯ Line 64: UnwrapArrayMap
+  ✓ Line 64: RemoveArrayItem
+  ✓ Line 64: RemoveArrayItem
+  ✓ Line 64: RemoveArrayItem
+  ✓ Line 64: RemoveMethodCall
+  ✓ Line 66: RemoveArrayItem
+  ⨯ Line 67: RemoveArrayItem
+  ✓ Line 68: TernaryNegated
+  ⨯ Line 68: RemoveArrayItem
+  ⨯ Line 70: EmptyStringToNotEmpty
+  ✓ Line 76: TernaryNegated
+  ✓ Line 76: IdenticalToNotIdentical
+  ✓ Line 76: DecrementInteger
+  ✓ Line 76: IncrementInteger
+  ✓ Line 80: RemoveMethodCall
+  ✓ Line 80: ConcatRemoveLeft
+  ✓ Line 80: ConcatRemoveRight
+  ✓ Line 80: ConcatSwitchSides
+  ✓ Line 84: DecrementInteger
+  ✓ Line 84: IncrementInteger
+  ✓ Line 90: TernaryNegated
+  ✓ Line 90: InstanceOfToTrue
+  ✓ Line 90: InstanceOfToFalse
+  ✓ Line 95: TernaryNegated
+  ✓ Line 95: InstanceOfToTrue
+  ✓ Line 95: InstanceOfToFalse
+  ✓ Line 100: TernaryNegated
+  ✓ Line 100: InstanceOfToTrue
+  ✓ Line 100: InstanceOfToFalse
+  ✓ Line 106: RemoveMethodCall
+
+   RUN  src/Console/CommandExit.php
+  - Line 10: DecrementInteger
+  - Line 10: IncrementInteger
+  - Line 11: DecrementInteger
+  - Line 11: IncrementInteger
+  - Line 12: DecrementInteger
+  - Line 12: IncrementInteger
+
+   RUN  src/Console/PruneResult.php
+  ✓ Line 24: GreaterToGreaterOrEqual
+  ✓ Line 24: GreaterToSmallerOrEqual
+  ✓ Line 24: DecrementInteger
+  ✓ Line 24: IncrementInteger
+
+   RUN  src/Console/VouchThrottleReportCommand.php
+  ✓ Line 23: IfNegated
+  ✓ Line 23: IdenticalToNotIdentical
+  ✓ Line 23: TrueToFalse
+  ⨯ Line 24: BitwiseOrToBitwiseAnd
+  ✓ Line 24: RemoveMethodCall
+  ✓ Line 26: RemoveEarlyReturn
+  ✓ Line 31: ForeachEmptyIterable
+  ✓ Line 32: UnwrapArrayMap
+  ✓ Line 43: RemoveArrayItem
+  ✓ Line 44: RemoveArrayItem
+  ✓ Line 45: TernaryNegated
+  ✓ Line 45: RemoveArrayItem
+  ✓ Line 46: RemoveArrayItem
+  ✓ Line 50: RemoveMethodCall
+  ✓ Line 51: RemoveArrayItem
+  ✓ Line 51: RemoveArrayItem
+  ✓ Line 51: RemoveArrayItem
+  ✓ Line 51: RemoveArrayItem
+  ✓ Line 54: RemoveMethodCall
+  ✓ Line 61: RemoveMethodCall
+  ✓ Line 67: RemoveMethodCall
+
+   RUN  src/Console/VouchSmsIdentifierAuditCommand.php
+  ✓ Line 27: IfNegated
+  ✓ Line 27: IdenticalToNotIdentical
+  ✓ Line 27: TrueToFalse
+  ⨯ Line 28: BitwiseOrToBitwiseAnd
+  ✓ Line 28: RemoveMethodCall
+  ✓ Line 30: RemoveEarlyReturn
+  ✓ Line 33: RemoveMethodCall
+  ✓ Line 34: RemoveArrayItem
+  ✓ Line 34: RemoveArrayItem
+  ✓ Line 34: RemoveArrayItem
+  ✓ Line 34: RemoveArrayItem
+  ✓ Line 35: RemoveArrayItem
+  ✓ Line 36: RemoveArrayItem
+  ⨯ Line 37: RemoveArrayItem
+  ⨯ Line 38: RemoveArrayItem
+  ⨯ Line 39: RemoveArrayItem
+  ✓ Line 43: RemoveMethodCall
+  ✓ Line 43: ConcatRemoveLeft
+  ✓ Line 43: ConcatRemoveRight
+  ⨯ Line 43: ConcatSwitchSides
+   UNTESTED  src/Console/VouchDispatchOtpOutboxCommand.php  > Line 33: DecrementInteger - ID: 94f7595bb31a4764
+
+           $count = 0;
+           AuthChallengeOutbox::query()->where('status', OtpOutboxStatus::Pending->value)->where('expires_at', '>', $time->now())->where(static function ($query) use ($time): void {
+               $query->whereNull('dispatched_at')->orWhereRaw($time->dispatchedAtAtOrBeforeDeadlineSql(), [-60]);
+  -        })->orderBy('id')->chunkById(100, function ($outboxes) use ($dispatcher, &$count): void {
+  +        })->orderBy('id')->chunkById(99, function ($outboxes) use ($dispatcher, &$count): void {
+               foreach ($outboxes as $outbox) {
+                   $dispatcher->dispatch($outbox);
+                   $count++;
+  
+
+   UNTESTED  src/Console/VouchDispatchOtpOutboxCommand.php  > Line 33: IncrementInteger - ID: 6b9c6bf52fdfb154
+
+           $count = 0;
+           AuthChallengeOutbox::query()->where('status', OtpOutboxStatus::Pending->value)->where('expires_at', '>', $time->now())->where(static function ($query) use ($time): void {
+               $query->whereNull('dispatched_at')->orWhereRaw($time->dispatchedAtAtOrBeforeDeadlineSql(), [-60]);
+  -        })->orderBy('id')->chunkById(100, function ($outboxes) use ($dispatcher, &$count): void {
+  +        })->orderBy('id')->chunkById(101, function ($outboxes) use ($dispatcher, &$count): void {
+               foreach ($outboxes as $outbox) {
+                   $dispatcher->dispatch($outbox);
+                   $count++;
+  
+
+   UNTESTED  src/Console/VouchPruneCommand.php  > Line 129: BooleanOrToBooleanAnd - ID: d2f0c9f8ef938c93
+
+                   $attributes = (array) $row;
+                   $id = $attributes['id'] ?? null;
+                   $status = $attributes['status'] ?? null;
+  -                if (!is_int($id) || !is_string($status)) {
+  +                if (!is_int($id) && !is_string($status)) {
+                       throw new RuntimeException('The database returned an invalid OTP outbox row.');
+                   }
+                   $outboxIds[] = $id;
+  
+
+   UNTESTED  src/Console/VouchDoctorCommand.php  > Line 38: GreaterToGreaterOrEqual - ID: de98c0298d202d26
+
+           try {
+               $totalIdentifiers = AuthIdentifier::query()->count();
+               $verifiedIdentifiers = AuthIdentifier::query()->whereNotNull('verified_at')->count();
+  -            $rows = [['prerequisite' => 'verified_at', 'status' => $totalIdentifiers > 0 && $verifiedIdentifiers === 0 ? 'missing' : 'pass', 'total_identifiers' => $totalIdentifiers, 'verified_identifiers' => $verifiedIdentifiers], ['prerequisite' => 'OtpDelivery', 'status' => $this->deliveryStatus()], ['prerequisite' => 'durable_queue', 'status' => $this->queueStatus($dispatcher)], ['prerequisite' => 'DeliveryEconomics', 'status' => $this->economicsStatus()]];
+  +            $rows = [['prerequisite' => 'verified_at', 'status' => $totalIdentifiers >= 0 && $verifiedIdentifiers === 0 ? 'missing' : 'pass', 'total_identifiers' => $totalIdentifiers, 'verified_identifiers' => $verifiedIdentifiers], ['prerequisite' => 'OtpDelivery', 'status' => $this->deliveryStatus()], ['prerequisite' => 'durable_queue', 'status' => $this->queueStatus($dispatcher)], ['prerequisite' => 'DeliveryEconomics', 'status' => $this->economicsStatus()]];
+               if ($throttle->captchaEnabled) {
+                   $rows[] = ['prerequisite' => 'CaptchaVerifier', 'status' => $this->captchaStatus()];
+               }
+  
+
+   UNTESTED  src/Console/VouchDoctorCommand.php  > Line 38: DecrementInteger - ID: 25fe438ece1018a6
+
+           try {
+               $totalIdentifiers = AuthIdentifier::query()->count();
+               $verifiedIdentifiers = AuthIdentifier::query()->whereNotNull('verified_at')->count();
+  -            $rows = [['prerequisite' => 'verified_at', 'status' => $totalIdentifiers > 0 && $verifiedIdentifiers === 0 ? 'missing' : 'pass', 'total_identifiers' => $totalIdentifiers, 'verified_identifiers' => $verifiedIdentifiers], ['prerequisite' => 'OtpDelivery', 'status' => $this->deliveryStatus()], ['prerequisite' => 'durable_queue', 'status' => $this->queueStatus($dispatcher)], ['prerequisite' => 'DeliveryEconomics', 'status' => $this->economicsStatus()]];
+  +            $rows = [['prerequisite' => 'verified_at', 'status' => $totalIdentifiers > -1 && $verifiedIdentifiers === 0 ? 'missing' : 'pass', 'total_identifiers' => $totalIdentifiers, 'verified_identifiers' => $verifiedIdentifiers], ['prerequisite' => 'OtpDelivery', 'status' => $this->deliveryStatus()], ['prerequisite' => 'durable_queue', 'status' => $this->queueStatus($dispatcher)], ['prerequisite' => 'DeliveryEconomics', 'status' => $this->economicsStatus()]];
+               if ($throttle->captchaEnabled) {
+                   $rows[] = ['prerequisite' => 'CaptchaVerifier', 'status' => $this->captchaStatus()];
+               }
+  
+
+   UNTESTED  src/Console/VouchDoctorCommand.php  > Line 49: RemoveArrayItem - ID: fa8c44bda06a8770
+
+               $verifiedIdentifiers = AuthIdentifier::query()->whereNotNull('verified_at')->count();
+               $rows = [['prerequisite' => 'verified_at', 'status' => $totalIdentifiers > 0 && $verifiedIdentifiers === 0 ? 'missing' : 'pass', 'total_identifiers' => $totalIdentifiers, 'verified_identifiers' => $verifiedIdentifiers], ['prerequisite' => 'OtpDelivery', 'status' => $this->deliveryStatus()], ['prerequisite' => 'durable_queue', 'status' => $this->queueStatus($dispatcher)], ['prerequisite' => 'DeliveryEconomics', 'status' => $this->economicsStatus()]];
+               if ($throttle->captchaEnabled) {
+  -                $rows[] = ['prerequisite' => 'CaptchaVerifier', 'status' => $this->captchaStatus()];
+  +                $rows[] = ['status' => $this->captchaStatus()];
+               }
+               $missing = count(array_filter($rows, static fn(array $row): bool => $row['status'] === 'missing'));
+               $report = ['missing' => $missing, 'prerequisites' => $rows];
+  
+
+   UNTESTED  src/Console/VouchDoctorCommand.php  > Line 62: BitwiseOrToBitwiseAnd - ID: e85841d99080b70d
+
+               $missing = count(array_filter($rows, static fn(array $row): bool => $row['status'] === 'missing'));
+               $report = ['missing' => $missing, 'prerequisites' => $rows];
+               if ($this->option('json') === true) {
+  -                $this->line(json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+  +                $this->line(json_encode($report, JSON_THROW_ON_ERROR & JSON_UNESCAPED_SLASHES));
+               } else {
+                   $this->table(['Prerequisite', 'Status', 'Details'], array_map(static fn(array $row): array => [$row['prerequisite'], $row['status'], isset($row['total_identifiers']) ? sprintf('%d total, %d verified', $row['total_identifiers'], $row['verified_identifiers']) : ''], $rows));
+               }
+  
+
+   UNTESTED  src/Console/VouchDoctorCommand.php  > Line 64: UnwrapArrayMap - ID: 03a07e59cef09a35
+
+               if ($this->option('json') === true) {
+                   $this->line(json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+               } else {
+  -                $this->table(['Prerequisite', 'Status', 'Details'], array_map(static fn(array $row): array => [$row['prerequisite'], $row['status'], isset($row['total_identifiers']) ? sprintf('%d total, %d verified', $row['total_identifiers'], $row['verified_identifiers']) : ''], $rows));
+  +                $this->table(['Prerequisite', 'Status', 'Details'], $rows);
+               }
+               return $missing === 0 ? CommandExit::Success->value : CommandExit::Failure->value;
+           } catch (Throwable $exception) {
+  
+
+   UNTESTED  src/Console/VouchDoctorCommand.php  > Line 67: RemoveArrayItem - ID: d10c688b2aaf9799
+
+               if ($this->option('json') === true) {
+                   $this->line(json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+               } else {
+  -                $this->table(['Prerequisite', 'Status', 'Details'], array_map(static fn(array $row): array => [$row['prerequisite'], $row['status'], isset($row['total_identifiers']) ? sprintf('%d total, %d verified', $row['total_identifiers'], $row['verified_identifiers']) : ''], $rows));
+  +                $this->table(['Prerequisite', 'Status', 'Details'], array_map(static fn(array $row): array => [$row['prerequisite'], isset($row['total_identifiers']) ? sprintf('%d total, %d verified', $row['total_identifiers'], $row['verified_identifiers']) : ''], $rows));
+               }
+               return $missing === 0 ? CommandExit::Success->value : CommandExit::Failure->value;
+           } catch (Throwable $exception) {
+  
+
+   UNTESTED  src/Console/VouchDoctorCommand.php  > Line 68: RemoveArrayItem - ID: b097d783a70ee832
+
+               if ($this->option('json') === true) {
+                   $this->line(json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+               } else {
+  -                $this->table(['Prerequisite', 'Status', 'Details'], array_map(static fn(array $row): array => [$row['prerequisite'], $row['status'], isset($row['total_identifiers']) ? sprintf('%d total, %d verified', $row['total_identifiers'], $row['verified_identifiers']) : ''], $rows));
+  +                $this->table(['Prerequisite', 'Status', 'Details'], array_map(static fn(array $row): array => [$row['prerequisite'], $row['status']], $rows));
+               }
+               return $missing === 0 ? CommandExit::Success->value : CommandExit::Failure->value;
+           } catch (Throwable $exception) {
+  
+
+   UNTESTED  src/Console/VouchDoctorCommand.php  > Line 70: EmptyStringToNotEmpty - ID: 68cf6a073d6fc43c
+
+               if ($this->option('json') === true) {
+                   $this->line(json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+               } else {
+  -                $this->table(['Prerequisite', 'Status', 'Details'], array_map(static fn(array $row): array => [$row['prerequisite'], $row['status'], isset($row['total_identifiers']) ? sprintf('%d total, %d verified', $row['total_identifiers'], $row['verified_identifiers']) : ''], $rows));
+  +                $this->table(['Prerequisite', 'Status', 'Details'], array_map(static fn(array $row): array => [$row['prerequisite'], $row['status'], isset($row['total_identifiers']) ? sprintf('%d total, %d verified', $row['total_identifiers'], $row['verified_identifiers']) : 'PEST Mutator was here!'], $rows));
+               }
+               return $missing === 0 ? CommandExit::Success->value : CommandExit::Failure->value;
+           } catch (Throwable $exception) {
+  
+
+   UNCOVERED  src/Console/CommandExit.php  > Line 10: DecrementInteger - ID: 4de894c776df9015
+
+   /** Exit values consumed outside Symfony's binary success/failure callbacks. */
+   enum CommandExit : int
+   {
+  -    case Success = 0;
+  +    case Success = -1;
+       case Failure = 1;
+       case DeliveryHealth = 2;
+   }
+  
+
+   UNCOVERED  src/Console/CommandExit.php  > Line 10: IncrementInteger - ID: b4a4ee57c2c28a4d
+
+   /** Exit values consumed outside Symfony's binary success/failure callbacks. */
+   enum CommandExit : int
+   {
+  -    case Success = 0;
+  +    case Success = 1;
+       case Failure = 1;
+       case DeliveryHealth = 2;
+   }
+  
+
+   UNCOVERED  src/Console/CommandExit.php  > Line 11: DecrementInteger - ID: 25f124725dd3ceb6
+
+   enum CommandExit : int
+   {
+       case Success = 0;
+  -    case Failure = 1;
+  +    case Failure = 0;
+       case DeliveryHealth = 2;
+   }
+  
+
+   UNCOVERED  src/Console/CommandExit.php  > Line 11: IncrementInteger - ID: 958629ce574f3104
+
+   enum CommandExit : int
+   {
+       case Success = 0;
+  -    case Failure = 1;
+  +    case Failure = 2;
+       case DeliveryHealth = 2;
+   }
+  
+
+   UNCOVERED  src/Console/CommandExit.php  > Line 12: DecrementInteger - ID: 6cd96eb0c68ee263
+
+   {
+       case Success = 0;
+       case Failure = 1;
+  -    case DeliveryHealth = 2;
+  +    case DeliveryHealth = 1;
+   }
+  
+
+   UNCOVERED  src/Console/CommandExit.php  > Line 12: IncrementInteger - ID: cb1915e3225638eb
+
+   {
+       case Success = 0;
+       case Failure = 1;
+  -    case DeliveryHealth = 2;
+  +    case DeliveryHealth = 3;
+   }
+  
+
+   UNTESTED  src/Console/VouchThrottleReportCommand.php  > Line 24: BitwiseOrToBitwiseAnd - ID: b7627739cc0470c0
+
+       {
+           $report = $reporter->report();
+           if ($this->option('json') === true) {
+  -            $this->line(json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+  +            $this->line(json_encode($report, JSON_THROW_ON_ERROR & JSON_UNESCAPED_SLASHES));
+               return CommandExit::Success->value;
+           }
+           $rows = [];
+  
+
+   UNTESTED  src/Console/VouchSmsIdentifierAuditCommand.php  > Line 28: BitwiseOrToBitwiseAnd - ID: 8e99d39a8afa24b3
+
+       {
+           $report = $audit->report();
+           if ($this->option('json') === true) {
+  -            $this->line(json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+  +            $this->line(json_encode($report, JSON_THROW_ON_ERROR & JSON_UNESCAPED_SLASHES));
+               return CommandExit::Success->value;
+           }
+           $this->table(['Total', 'Canonical', 'Needs normalization', 'Invalid'], [[$report['total'], $report['canonical'], $report['needs_normalization'], $report['invalid']]]);
+  
+
+   UNTESTED  src/Console/VouchSmsIdentifierAuditCommand.php  > Line 37: RemoveArrayItem - ID: 0b64afa8b8a6c0e0
+
+               $this->line(json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+               return CommandExit::Success->value;
+           }
+  -        $this->table(['Total', 'Canonical', 'Needs normalization', 'Invalid'], [[$report['total'], $report['canonical'], $report['needs_normalization'], $report['invalid']]]);
+  +        $this->table(['Total', 'Canonical', 'Needs normalization', 'Invalid'], [[$report['total'], $report['needs_normalization'], $report['invalid']]]);
+           $this->components->info('Country counts: ' . json_encode($report['countries'], JSON_THROW_ON_ERROR));
+           return CommandExit::Success->value;
+       }
+   }
+  
+
+   UNTESTED  src/Console/VouchSmsIdentifierAuditCommand.php  > Line 38: RemoveArrayItem - ID: c91db79b8d30e8da
+
+               $this->line(json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+               return CommandExit::Success->value;
+           }
+  -        $this->table(['Total', 'Canonical', 'Needs normalization', 'Invalid'], [[$report['total'], $report['canonical'], $report['needs_normalization'], $report['invalid']]]);
+  +        $this->table(['Total', 'Canonical', 'Needs normalization', 'Invalid'], [[$report['total'], $report['canonical'], $report['invalid']]]);
+           $this->components->info('Country counts: ' . json_encode($report['countries'], JSON_THROW_ON_ERROR));
+           return CommandExit::Success->value;
+       }
+   }
+  
+
+   UNTESTED  src/Console/VouchSmsIdentifierAuditCommand.php  > Line 39: RemoveArrayItem - ID: 7dd703b46dc594cd
+
+               $this->line(json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+               return CommandExit::Success->value;
+           }
+  -        $this->table(['Total', 'Canonical', 'Needs normalization', 'Invalid'], [[$report['total'], $report['canonical'], $report['needs_normalization'], $report['invalid']]]);
+  +        $this->table(['Total', 'Canonical', 'Needs normalization', 'Invalid'], [[$report['total'], $report['canonical'], $report['needs_normalization']]]);
+           $this->components->info('Country counts: ' . json_encode($report['countries'], JSON_THROW_ON_ERROR));
+           return CommandExit::Success->value;
+       }
+   }
+  
+
+   UNTESTED  src/Console/VouchSmsIdentifierAuditCommand.php  > Line 43: ConcatSwitchSides - ID: 913cd5be93727370
+
+               return CommandExit::Success->value;
+           }
+           $this->table(['Total', 'Canonical', 'Needs normalization', 'Invalid'], [[$report['total'], $report['canonical'], $report['needs_normalization'], $report['invalid']]]);
+  -        $this->components->info('Country counts: ' . json_encode($report['countries'], JSON_THROW_ON_ERROR));
+  +        $this->components->info(json_encode($report['countries'], JSON_THROW_ON_ERROR) . 'Country counts: ');
+           return CommandExit::Success->value;
+       }
+   }
+  
+
+  Mutations: 17 untested, 6 uncovered, 158 tested
+  Score:     87.29%
+  Duration:  89.27s
+
