@@ -1,0 +1,64 @@
+{
+    "rows": [
+        {
+            "state": "UNCOVERED",
+            "file": "src/Jobs/DeliverOtpChallenge.php",
+            "line": 17,
+            "mutator": "DecrementInteger",
+            "id": "4ef81fb862754449",
+            "expression": "public int $tries = 5;",
+            "disposition": "instrument-unroutable",
+            "coverage": "absent",
+            "contested": false
+        },
+        {
+            "state": "UNCOVERED",
+            "file": "src/Jobs/DeliverOtpChallenge.php",
+            "line": 17,
+            "mutator": "IncrementInteger",
+            "id": "077450b00d8e8d0d",
+            "expression": "public int $tries = 5;",
+            "disposition": "instrument-unroutable",
+            "coverage": "absent",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Jobs/DeliverOtpChallenge.php",
+            "line": 46,
+            "mutator": "RemoveNullSafeOperator",
+            "id": "1eb685c4fedfc16b",
+            "expression": "$outbox?->provider_attempted_at !== null",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        }
+    ],
+    "baseline_diff": {
+        "added": [],
+        "removed": [
+            {
+                "state": "UNTESTED",
+                "file": "src/Jobs/DeliverOtpChallenge.php",
+                "line": 32,
+                "mutator": "InstanceOfToTrue",
+                "id": "28ea827ed828c463",
+                "expression": "if ($outbox instanceof \\Fissible\\Vouch\\Models\\AuthChallengeOutbox) {",
+                "disposition": "executed-and-survived",
+                "coverage": "hits",
+                "contested": false
+            },
+            {
+                "state": "UNTESTED",
+                "file": "src/Jobs/DeliverOtpChallenge.php",
+                "line": 33,
+                "mutator": "IncrementInteger",
+                "id": "9a37b28fbd51f97f",
+                "expression": "app(OtpQueueDispatcher::class)->dispatchAfter($outbox, 1);",
+                "disposition": "executed-and-survived",
+                "coverage": "hits",
+                "contested": false
+            }
+        ]
+    }
+}

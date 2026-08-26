@@ -1,0 +1,77 @@
+
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ...............................................
+
+  Tests:    1187 passed (4167 assertions)
+  Duration: 31.65s
+
+  Mutating application files...
+  13 Mutations for 1 Files created
+
+   RUN  src/Jobs/DeliverOtpChallenge.php
+  - Line 17: DecrementInteger
+  - Line 17: IncrementInteger
+  ✓ Line 26: RemoveMethodCall
+  ✓ Line 32: IfNegated
+  ✓ Line 32: InstanceOfToTrue
+  ✓ Line 32: InstanceOfToFalse
+  ✓ Line 33: DecrementInteger
+  ✓ Line 33: IncrementInteger
+  ✓ Line 33: RemoveMethodCall
+  ✓ Line 44: RemoveMethodCall
+  ✓ Line 46: TernaryNegated
+  ✓ Line 46: NotIdenticalToIdentical
+  ⨯ Line 46: RemoveNullSafeOperator
+   UNCOVERED  src/Jobs/DeliverOtpChallenge.php  > Line 17: DecrementInteger - ID: 4ef81fb862754449
+
+   /** Queue payload contains only an opaque outbox locator, never target or code. */
+   final class DeliverOtpChallenge implements ShouldQueue
+   {
+  -    public int $tries = 5;
+  +    public int $tries = 4;
+       public function __construct(public readonly string $outboxId)
+       {
+       }
+  
+
+   UNCOVERED  src/Jobs/DeliverOtpChallenge.php  > Line 17: IncrementInteger - ID: 077450b00d8e8d0d
+
+   /** Queue payload contains only an opaque outbox locator, never target or code. */
+   final class DeliverOtpChallenge implements ShouldQueue
+   {
+  -    public int $tries = 5;
+  +    public int $tries = 6;
+       public function __construct(public readonly string $outboxId)
+       {
+       }
+  
+
+   UNTESTED  src/Jobs/DeliverOtpChallenge.php  > Line 46: RemoveNullSafeOperator - ID: 1eb685c4fedfc16b
+
+       public function failed(?Throwable $exception): void
+       {
+           $outbox = \Fissible\Vouch\Models\AuthChallengeOutbox::query()->where('opaque_id', $this->outboxId)->first();
+  -        app(OtpOutboxDelivery::class)->terminalize($this->outboxId, $outbox?->provider_attempted_at !== null ? OtpOutboxFailureReason::ProviderExhausted : OtpOutboxFailureReason::WorkerFailure);
+  +        app(OtpOutboxDelivery::class)->terminalize($this->outboxId, $outbox->provider_attempted_at !== null ? OtpOutboxFailureReason::ProviderExhausted : OtpOutboxFailureReason::WorkerFailure);
+       }
+   }
+  
+
+  Mutations: 1 untested, 2 uncovered, 10 tested
+  Score:     76.92%
+  Duration:  6.79s
+
