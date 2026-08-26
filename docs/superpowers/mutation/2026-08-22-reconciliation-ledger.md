@@ -126,6 +126,17 @@ one. The risk is accepted and recorded, not treated as eliminated. Flow and
 Throttle remain the semantic candidates for remeasurement; every other chunk
 is excluded against this unchanged union and the timing evidence above.
 
+### Post-console coverage provenance
+
+The union committed at `eda87bc` was generated after the console/jobs test
+batch with PHPUnit's memory limit temporarily raised from the pinned `128M` to
+`512M` so Clover generation could complete. The functional suite passed on all
+three engines, while `MemoryLimitScopeTest` deliberately failed because it
+asserts the pinned `128M` setting; the setting was restored afterwards. The
+line maps are retained as coverage evidence, but this modified-memory
+provenance is part of their interpretation and must not be omitted from a
+future reproduction.
+
 ### Factors confirmation at the post-test SHA
 
 The authoritative rerun used the exact baseline scope and literal command:
@@ -979,6 +990,22 @@ mutations / 1 RUN file (10 tested, 1 survivor, 2 uncovered); its row diff
 removed two identities. Delivery remained 222 mutations / 7 RUN files (171
 tested, 50 survivors, 1 uncovered), with no row movement: the SMS audit tests
 route through Delivery but did not discriminate any Delivery survivor.
+
+The subsequent SMS fixture batch strengthened `SmsIdentifierAuditTest` with
+duplicate-country, out-of-order-country, canonical, and empty-country cases.
+Its Delivery rerun retained the same 222 mutations / 7 RUN files and produced
+176 tested, 45 survivors, 1 uncovered, and 0 timeouts. The expression-keyed
+baseline diff removed exactly five identities and added none:
+`SmsIdentifierAudit.php:27`, both `:41` rows, `:47`, and `:50`. This closes
+those fixture gaps without changing mutation scope.
+
+The Jobs missing-row test remains useful but does not kill
+`DeliverOtpChallenge.php:46`. PHP 8's plain property read on `null` emits a
+warning and yields `null`, so the nullsafe and plain forms both evaluate false
+for `provider_attempted_at !== null` and record `worker_failure`. This is a
+language-semantic equivalent mutant: the test ratifies current missing-row
+attribution, while converting warnings to exceptions suite-wide is not
+justified to kill one row.
 
 ### Full parallel smoke (non-authoritative)
 

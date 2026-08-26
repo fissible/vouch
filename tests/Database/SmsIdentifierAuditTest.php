@@ -87,6 +87,26 @@ it('renders the complete table and labeled country counts without JSON mode', fu
         ->not->toContain('{"total"');
 });
 
+it('discriminates canonicalization, duplicate countries, and country ordering', function (): void {
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'phone', 'value' => '+14155552671']);
+    AuthIdentifier::create(['user_id' => 2, 'type' => 'phone', 'value' => '+1 415 555 2671']);
+    AuthIdentifier::create(['user_id' => 3, 'type' => 'phone', 'value' => '+44 20 7946 0958']);
+
+    expect(app(SmsIdentifierAudit::class)->report())->toBe([
+        'total' => 3,
+        'canonical' => 1,
+        'needs_normalization' => 2,
+        'invalid' => 0,
+        'countries' => ['GB' => 1, 'US' => 2],
+    ]);
+});
+
+it('retains an empty country map when no identifier can be normalized', function (): void {
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'phone', 'value' => '+1415']);
+
+    expect(app(SmsIdentifierAudit::class)->report()['countries'])->toBe([]);
+});
+
 it('does not accept subject lookup options and treats invalid rows as a survey result', function (): void {
     seedSmsAuditRows();
 
