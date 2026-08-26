@@ -1024,6 +1024,36 @@ It passes on file-backed SQLite and PostgreSQL (3 tests / 12 assertions on
 each engine). This covers the driver-dispatch setup as behavioral evidence;
 the corresponding SQLite mutation rows remain engine-equivalent by design.
 
+### Closing corpus aggregate
+
+Using the latest classification artifact for each chunk at the current source
+state, the corpus contains 568 classified rows:
+
+| rows | executed-and-survived | never-executed | engine-gated | instrument-unroutable | timeout |
+|---:|---:|---:|---:|---:|---:|
+| 568 | 449 | 59 | 10 | 45 | 5 |
+
+The 230 concatenation rows remaining in the corpus are covered by the narrowed
+message-prose rule only where the operand is quoted English prose; labels,
+prefixes, units, and data-bearing concatenations remain individually reviewed.
+The reduction from the earlier 629-row aggregate is attributable to 61 killed
+mutants from landed tests, not omitted inventory.
+
+Throttle is the largest remaining concentration at 128 rows (90 survivors,
+25 never-executed, and all 10 engine-gated rows). Its lock and driver-dispatch
+rows are intentionally supported by cross-engine behavioral evidence rather
+than expected SQLite mutation-score movement.
+
+Support was reclassified against the current three-engine union rather than
+carried forward from the 2026-08-23 SQLite-era reading. Its 40 rows now split
+into 25 executed-and-survived, 13 engine-gated, 1 never-executed
+(`DatabaseTime.php:116`), and 1 timeout. The former 14-row never-executed gap
+was therefore primarily engine coverage classification, not a new test queue.
+
+The temporary `throttle-recovery-expiry` classification was discarded: its log
+predated the `212212a` refactor, so line-keyed rows below the refactor could not
+be attributed to the current source. The post-`212212a` artifact supersedes it.
+
 ### Full parallel smoke (non-authoritative)
 
 - Scope: non-Kernel `Fissible\\Vouch`, SHA `66ac67d`, 10 processes
