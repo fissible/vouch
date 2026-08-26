@@ -1,5 +1,776 @@
 {
     "version": 1,
     "source_sha": "212212a",
-    "rulings": {}
+    "rulings": {
+        "src/Attempts/MisdirectedMutation.php:ConcatRemoveLeft:'ConsumeChallenge for challenge %d named attempt %d, but this transition is '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Attempts/MisdirectedMutation.php:ConcatRemoveRight:'ConsumeChallenge for challenge %d named attempt %d, but this transition is '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Attempts/MisdirectedMutation.php:ConcatSwitchSides:'ConsumeChallenge for challenge %d named attempt %d, but this transition is '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Attempts/UnknownMutation.php:ConcatRemoveLeft:'DatabaseAttemptStore cannot execute %s (target \"%s\"). Every single-use '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Attempts/UnknownMutation.php:ConcatRemoveRight:'DatabaseAttemptStore cannot execute %s (target \"%s\"). Every single-use '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Attempts/UnknownMutation.php:ConcatSwitchSides:'DatabaseAttemptStore cannot execute %s (target \"%s\"). Every single-use '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Attempts/ConflictingMutations.php:ConcatRemoveLeft:'Two single-use mutations both target \"%s\" in one transition. Exactly one '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Attempts/ConflictingMutations.php:ConcatRemoveRight:'Two single-use mutations both target \"%s\" in one transition. Exactly one '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Attempts/ConflictingMutations.php:ConcatSwitchSides:'Two single-use mutations both target \"%s\" in one transition. Exactly one '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Console/VouchSmsIdentifierAuditCommand.php:BitwiseOrToBitwiseAnd:$this->line(json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));": {
+            "ruling": "language-semantic-equivalent",
+            "rationale": "JSON_THROW_ON_ERROR & JSON_UNESCAPED_SLASHES is 0; the report holds integers and ISO country keys, so neither flag can alter the encoding.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/UnconfiguredDeliveryEconomics.php:ConcatRemoveRight:'No OTP delivery economics is configured. Bind '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/UnconfiguredDeliveryEconomics.php:ConcatSwitchSides:'No OTP delivery economics is configured. Bind '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/DatabaseDeliveryEconomics.php:CoalesceRemoveLeft:$this->rowLock = $rowLock ?? new DatabaseRowLock($connection);": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLiteGrammar::compileLock() returns ''; lock mutants emit byte-identical SQL under the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/DatabaseDeliveryEconomics.php:RemoveStringCast:$row = $this->row((string) $scope, (string) $digest, true);": {
+            "ruling": "redundant-cast",
+            "rationale": "Operand is already the target type by declaration; the cast cannot do work on any engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/DatabaseDeliveryEconomics.php:RemoveStringCast:->where('scope', (string) $scope)": {
+            "ruling": "redundant-cast",
+            "rationale": "Operand is already the target type by declaration; the cast cannot do work on any engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/DatabaseDeliveryEconomics.php:RemoveStringCast:if ((string) $reservation->window_started_at !== $row['window_started_at']) {": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLite returns the target type natively; MySQL and PostgreSQL can return strings, so the cast is load-bearing off the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/DatabaseDeliveryEconomics.php:RemoveIntegerCast:$amount = (int) $value;": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLite returns the target type natively; MySQL and PostgreSQL can return strings, so the cast is load-bearing off the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/DatabaseDeliveryEconomics.php:RemoveStringCast:'scope' => (string) $scope,": {
+            "ruling": "redundant-cast",
+            "rationale": "Operand is already the target type by declaration; the cast cannot do work on any engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/DatabaseDeliveryEconomics.php:RemoveStringCast:'subject_digest' => (string) $digest,": {
+            "ruling": "redundant-cast",
+            "rationale": "Operand is already the target type by declaration; the cast cannot do work on any engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/DatabaseDeliveryEconomics.php:RemoveStringCast:['scope' => (string) $scope, 'subject_digest' => (string) $digest],": {
+            "ruling": "redundant-cast",
+            "rationale": "Operand is already the target type by declaration; the cast cannot do work on any engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/DatabaseDeliveryEconomics.php:RemoveIntegerCast:$update->where('spent_minor', '<=', (int) $ceiling - $request->costMinor);": {
+            "ruling": "redundant-cast",
+            "rationale": "Operand is already the target type by declaration; the cast cannot do work on any engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/DatabaseDeliveryEconomics.php:IfNegated:if ($lock) {": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLiteGrammar::compileLock() returns ''; lock mutants emit byte-identical SQL under the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/DatabaseDeliveryEconomics.php:RemoveMethodCall:$query->lockForUpdate();": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLiteGrammar::compileLock() returns ''; lock mutants emit byte-identical SQL under the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/DatabaseDeliveryEconomics.php:RemoveEarlyReturn:return null;": {
+            "ruling": "invariant-unreachable",
+            "rationale": "Callers insertOrIgnore the spend row first; row() === null guards a row vanishing mid-transaction.",
+            "disposition": "never-executed"
+        },
+        "src/Delivery/DatabaseDeliveryEconomics.php:RemoveIntegerCast:'id' => (int) $values['id'],": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLite returns the target type natively; MySQL and PostgreSQL can return strings, so the cast is load-bearing off the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/DatabaseDeliveryEconomics.php:RemoveStringCast:'window_started_at' => (string) $values['window_started_at'],": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLite returns the target type natively; MySQL and PostgreSQL can return strings, so the cast is load-bearing off the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/UnconfiguredCaptchaVerifier.php:ConcatRemoveRight:'No CAPTCHA verifier is configured. Bind '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Delivery/UnconfiguredCaptchaVerifier.php:ConcatSwitchSides:'No CAPTCHA verifier is configured. Bind '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Enrollment/EnrollmentRefused.php:ConcatRemoveLeft:'Enrolling this %s credential would leave %d active, but at most %d is allowed. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Enrollment/EnrollmentRefused.php:ConcatRemoveRight:'Enrolling this %s credential would leave %d active, but at most %d is allowed. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Enrollment/EnrollmentRefused.php:ConcatSwitchSides:'Enrolling this %s credential would leave %d active, but at most %d is allowed. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Enrollment/EnrollmentRefused.php:ConcatRemoveLeft:'Another enrollment for this user\\'s %s credential is in progress and did not '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Enrollment/EnrollmentRefused.php:ConcatRemoveRight:'Another enrollment for this user\\'s %s credential is in progress and did not '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Enrollment/EnrollmentRefused.php:ConcatSwitchSides:'Another enrollment for this user\\'s %s credential is in progress and did not '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Enrollment/EnrollmentGuard.php:CoalesceRemoveLeft:$this->rowLock = $rowLock ?? new DatabaseRowLock($connection);": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLiteGrammar::compileLock() returns ''; lock mutants emit byte-identical SQL under the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/RecoveryCodeFactor.php:PostIncrementToPostDecrement:for ($i = 0; $i < $this->count; $i++) {": {
+            "ruling": "killed-by-non-termination",
+            "rationale": "Loop-counter mutant runs the counter away from its bound under the suite's inputs; observed, not source-decidable.",
+            "disposition": "timeout-unresolved"
+        },
+        "src/Factors/Drivers/RecoveryCodeFactor.php:PostIncrementToPostDecrement:for ($i = 0; $i < $this->length; $i++) {": {
+            "ruling": "killed-by-non-termination",
+            "rationale": "Loop-counter mutant runs the counter away from its bound under the suite's inputs; observed, not source-decidable.",
+            "disposition": "timeout-unresolved"
+        },
+        "src/Factors/Drivers/OtpFactor.php:PostIncrementToPostDecrement:for ($i = 0; $i < $this->length; $i++) {": {
+            "ruling": "killed-by-non-termination",
+            "rationale": "Loop-counter mutant runs the counter away from its bound under the suite's inputs; observed, not source-decidable.",
+            "disposition": "timeout-unresolved"
+        },
+        "src/Factors/Drivers/RecoveryCodeFactor.php:ConcatRemoveRight:'RecoveryCodeFactor requires a count of at least 1: config \"vouch.recovery.count\" '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/RecoveryCodeFactor.php:ConcatSwitchSides:'RecoveryCodeFactor requires a count of at least 1: config \"vouch.recovery.count\" '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/RecoveryCodeFactor.php:ConcatRemoveLeft:'RecoveryCodeFactor requires a length of at least 1: config '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/RecoveryCodeFactor.php:ConcatRemoveRight:'RecoveryCodeFactor requires a length of at least 1: config '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/RecoveryCodeFactor.php:ConcatSwitchSides:'RecoveryCodeFactor requires a length of at least 1: config '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/OtpFactor.php:ConcatRemoveRight:'%s requires a code length of at least 1: config \"vouch.otp.length\" (env '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/OtpFactor.php:ConcatSwitchSides:'%s requires a code length of at least 1: config \"vouch.otp.length\" (env '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/OtpFactor.php:ConcatRemoveRight:'%s requires a ttl of at least 1 second: config \"vouch.otp.ttl_seconds\" (env '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/OtpFactor.php:ConcatSwitchSides:'%s requires a ttl of at least 1 second: config \"vouch.otp.ttl_seconds\" (env '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/OtpFactor.php:ConcatRemoveLeft:'%s delivers to \"%s\" identifiers, but identifier %d is a \"%s\". Delivering an '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/OtpFactor.php:ConcatRemoveRight:'%s delivers to \"%s\" identifiers, but identifier %d is a \"%s\". Delivering an '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/OtpFactor.php:ConcatSwitchSides:'%s delivers to \"%s\" identifiers, but identifier %d is a \"%s\". Delivering an '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/OtpFactor.php:ConcatRemoveLeft:'Credential %d is a \"%s\", but %s issues \"%s\" challenges. Delivering against '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/OtpFactor.php:ConcatRemoveRight:'Credential %d is a \"%s\", but %s issues \"%s\" challenges. Delivering against '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/OtpFactor.php:ConcatSwitchSides:'Credential %d is a \"%s\", but %s issues \"%s\" challenges. Delivering against '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/OtpFactor.php:ConcatRemoveLeft:'ChallengeRequest named no credential and user %d has %d active %s credentials. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/OtpFactor.php:ConcatRemoveRight:'ChallengeRequest named no credential and user %d has %d active %s credentials. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/OtpFactor.php:ConcatSwitchSides:'ChallengeRequest named no credential and user %d has %d active %s credentials. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/TotpFactor.php:ConcatRemoveRight:'TotpFactor requires a non-empty issuer: config \"vouch.totp.issuer\" (env '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/TotpFactor.php:ConcatSwitchSides:'TotpFactor requires a non-empty issuer: config \"vouch.totp.issuer\" (env '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/TotpFactor.php:ConcatRemoveLeft:'TotpFactor requires a period of at least 1 second: config \"vouch.totp.period\" '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/TotpFactor.php:ConcatRemoveRight:'TotpFactor requires a period of at least 1 second: config \"vouch.totp.period\" '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/TotpFactor.php:ConcatSwitchSides:'TotpFactor requires a period of at least 1 second: config \"vouch.totp.period\" '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/TotpFactor.php:ConcatRemoveLeft:'TotpFactor requires at least 1 digit: config \"vouch.totp.digits\" (env '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/TotpFactor.php:ConcatRemoveRight:'TotpFactor requires at least 1 digit: config \"vouch.totp.digits\" (env '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/TotpFactor.php:ConcatSwitchSides:'TotpFactor requires at least 1 digit: config \"vouch.totp.digits\" (env '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/TotpFactor.php:ConcatRemoveLeft:'TotpFactor requires a non-negative window: config \"vouch.totp.window\" (env '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/TotpFactor.php:ConcatRemoveRight:'TotpFactor requires a non-negative window: config \"vouch.totp.window\" (env '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/TotpFactor.php:ConcatSwitchSides:'TotpFactor requires a non-negative window: config \"vouch.totp.window\" (env '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/TotpFactor.php:ConcatRemoveRight:'TotpFactor::enroll() requires a non-empty \"label\" string \u2014 it is what the '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/Drivers/TotpFactor.php:ConcatSwitchSides:'TotpFactor::enroll() requires a non-empty \"label\" string \u2014 it is what the '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/FactorRegistry.php:ConcatRemoveRight:'A factor driver is already registered for \"%s\" (%s). Registration is '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Factors/FactorRegistry.php:ConcatSwitchSides:'A factor driver is already registered for \"%s\" (%s). Registration is '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Flow/ScreenBuilder.php:ConcatRemoveRight:'ScreenBuilder requires Outcome::Locked and a measured identifier lock '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Flow/ScreenBuilder.php:ConcatSwitchSides:'ScreenBuilder requires Outcome::Locked and a measured identifier lock '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Flow/UnknownFlowResult.php:ConcatRemoveRight:'No handler for FlowResult variant %s. Every variant must be handled '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Flow/UnknownFlowResult.php:ConcatSwitchSides:'No handler for FlowResult variant %s. Every variant must be handled '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Flow/AuthFlow.php:RemoveEarlyReturn:return 'password';": {
+            "ruling": "invariant-unreachable",
+            "rationale": "Both call sites pass $userId into AuthSuccess::$userId, typed int, so null cannot reach defaultFactorFor().",
+            "disposition": "never-executed"
+        },
+        "src/Http/Middleware/RequireAssurance.php:ConcatRemoveRight:'Vouch requires vouch.step_up.presentation_url to be configured before a route '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Http/Middleware/RequireAssurance.php:ConcatSwitchSides:'Vouch requires vouch.step_up.presentation_url to be configured before a route '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Http/IntendedDestination.php:RemoveEarlyReturn:return null;": {
+            "ruling": "shadowed-by-earlier-guard",
+            "rationale": "The same guard guarantees parse_url yields a path beginning with '/'.",
+            "disposition": "never-executed"
+        },
+        "src/Jobs/DeliverOtpChallenge.php:RemoveNullSafeOperator:$outbox?->provider_attempted_at !== null": {
+            "ruling": "language-semantic-equivalent",
+            "rationale": "PHP 8 property read on null warns and yields null, so both forms compare false and record WorkerFailure.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Notifications/OtpOutboxDelivery.php:PostIncrementToPostDecrement:for ($attempt = 0; $attempt < 3; $attempt++) {": {
+            "ruling": "killed-by-non-termination",
+            "rationale": "Loop-counter mutant runs the counter away from its bound under the suite's inputs; observed, not source-decidable.",
+            "disposition": "timeout-unresolved"
+        },
+        "src/Notifications/UnconfiguredOtpDelivery.php:ConcatRemoveRight:'No OTP delivery is configured. Bind Fissible\\Vouch\\Contracts\\OtpDelivery to an '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Notifications/UnconfiguredOtpDelivery.php:ConcatSwitchSides:'No OTP delivery is configured. Bind Fissible\\Vouch\\Contracts\\OtpDelivery to an '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/ChallengeTargetViolation.php:ConcatRemoveRight:'A %s challenge must name the credential it was delivered against. Without one, '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/ChallengeTargetViolation.php:ConcatSwitchSides:'A %s challenge must name the credential it was delivered against. Without one, '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/ChallengeTargetViolation.php:ConcatRemoveRight:'Decoy challenge cannot name credential %d. A decoy with a real target could '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/ChallengeTargetViolation.php:ConcatSwitchSides:'Decoy challenge cannot name credential %d. A decoy with a real target could '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/ChallengeTargetViolation.php:ConcatRemoveRight:'Credential %d does not belong to the attempt user (%s). A challenge delivered '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/ChallengeTargetViolation.php:ConcatSwitchSides:'Credential %d does not belong to the attempt user (%s). A challenge delivered '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/ValueBoundViolation.php:ConcatRemoveRight:'%s::$%s exceeds its %d-character bound (%d given). Vouch refuses rather than '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/ValueBoundViolation.php:ConcatSwitchSides:'%s::$%s exceeds its %d-character bound (%d given). Vouch refuses rather than '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/ValueBoundViolation.php:ConcatRemoveRight:'%s::$%s must be ASCII. Vouch refuses rather than normalises: two distinct '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/ValueBoundViolation.php:ConcatSwitchSides:'%s::$%s must be ASCII. Vouch refuses rather than normalises: two distinct '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/IdentifierLinkageViolation.php:ConcatRemoveRight:'Refusing to link a credential owned by user %d to an identifier owned by user %d. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/IdentifierLinkageViolation.php:ConcatSwitchSides:'Refusing to link a credential owned by user %d to an identifier owned by user %d. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/IdentifierLinkageViolation.php:ConcatRemoveLeft:'Identifier %d is not verified. An unverified identifier is attacker-supplied '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/IdentifierLinkageViolation.php:ConcatRemoveRight:'Identifier %d is not verified. An unverified identifier is attacker-supplied '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/IdentifierLinkageViolation.php:ConcatSwitchSides:'Identifier %d is not verified. An unverified identifier is attacker-supplied '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/IdentifierLinkageViolation.php:ConcatRemoveLeft:'Identifier %d is referenced by at least one credential, so its value is frozen. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/IdentifierLinkageViolation.php:ConcatRemoveRight:'Identifier %d is referenced by at least one credential, so its value is frozen. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Persistence/IdentifierLinkageViolation.php:ConcatSwitchSides:'Identifier %d is referenced by at least one credential, so its value is frozen. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/VouchServiceProvider.php:ConcatRemoveRight:'CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/VouchServiceProvider.php:ConcatSwitchSides:'CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Secrets/OneTimeSecret.php:ConcatRemoveLeft:'A OneTimeSecret cannot be cloned: the value belongs to one instance and is '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Secrets/OneTimeSecret.php:ConcatRemoveRight:'A OneTimeSecret cannot be cloned: the value belongs to one instance and is '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Secrets/OneTimeSecret.php:ConcatSwitchSides:'A OneTimeSecret cannot be cloned: the value belongs to one instance and is '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Secrets/OneTimeSecret.php:ConcatRemoveLeft:'A OneTimeSecret cannot be rebuilt from var_export() output: the value is '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Secrets/OneTimeSecret.php:ConcatRemoveRight:'A OneTimeSecret cannot be rebuilt from var_export() output: the value is '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Secrets/OneTimeSecret.php:ConcatSwitchSides:'A OneTimeSecret cannot be rebuilt from var_export() output: the value is '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Secrets/SecretAlreadyRevealed.php:ConcatRemoveLeft:'This secret has already been revealed and cannot be read again. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Secrets/SecretAlreadyRevealed.php:ConcatRemoveRight:'This secret has already been revealed and cannot be read again. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Secrets/SecretAlreadyRevealed.php:ConcatSwitchSides:'This secret has already been revealed and cannot be read again. '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Sessions/SessionRotationFailed.php:ConcatRemoveLeft:'Vouch could not record the rotated session. The regenerated host session has '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Sessions/SessionRotationFailed.php:ConcatRemoveRight:'Vouch could not record the rotated session. The regenerated host session has '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Sessions/SessionRotationFailed.php:ConcatSwitchSides:'Vouch could not record the rotated session. The regenerated host session has '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Support/BoundedLockWait.php:RemoveMethodCall:$this->writeSeconds($seconds);": {
+            "ruling": "killed-by-non-termination",
+            "rationale": "Loop-counter mutant runs the counter away from its bound under the suite's inputs; observed, not source-decidable.",
+            "disposition": "timeout-unresolved"
+        },
+        "src/Support/DatabaseTime.php:RemoveEarlyReturn:return DateTimeImmutable::createFromInterface($value);": {
+            "ruling": "defensive-for-unmeasured-driver",
+            "rationale": "PostgreSQL-shaped path not exercised by the measuring engine.",
+            "disposition": "never-executed"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:TrueToFalse:$counter = $this->counter($identifier, lock: true);": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLiteGrammar::compileLock() returns ''; lock mutants emit byte-identical SQL under the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:TrueToFalse:$lock = $this->lock($identifier, lock: true);": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLiteGrammar::compileLock() returns ''; lock mutants emit byte-identical SQL under the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:TrueToFalse:$parent = $this->ipParent($ip, lock: true);": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLiteGrammar::compileLock() returns ''; lock mutants emit byte-identical SQL under the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:TrueToFalse:$counter = $this->counter($issuance, lock: true);": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLiteGrammar::compileLock() returns ''; lock mutants emit byte-identical SQL under the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:TrueToFalse:$counter = $this->counter($subject, lock: true);": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLiteGrammar::compileLock() returns ''; lock mutants emit byte-identical SQL under the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:IfNegated:if ($this->connection->getDriverName() === 'sqlite') {": {
+            "ruling": "concurrency-observable-only",
+            "rationale": "insertOrIgnore is idempotent, so the branches agree on state; they differ only in lock-acquisition ordering, observable as a contention failure rather than a value.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:IdenticalToNotIdentical:if ($this->connection->getDriverName() === 'sqlite') {": {
+            "ruling": "concurrency-observable-only",
+            "rationale": "insertOrIgnore is idempotent, so the branches agree on state; they differ only in lock-acquisition ordering, observable as a contention failure rather than a value.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:FalseToTrue:private function ipParent(ThrottleSubject $ip, bool $lock = false): ?array": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLiteGrammar::compileLock() returns ''; lock mutants emit byte-identical SQL under the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:IfNegated:if ($lock) {": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLiteGrammar::compileLock() returns ''; lock mutants emit byte-identical SQL under the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:RemoveMethodCall:$query->lockForUpdate();": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLiteGrammar::compileLock() returns ''; lock mutants emit byte-identical SQL under the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:ConcatRemoveLeft:$retryAfter = $this->date($latest)->modify('+' . $backoff . ' seconds');": {
+            "ruling": "language-semantic-equivalent",
+            "rationale": "PHP parses an unsigned relative interval as positive: modify('5 seconds') === modify('+5 seconds').",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:ConcatRemoveLeft:->modify('+' . $this->configuration->windowSeconds . ' seconds');": {
+            "ruling": "language-semantic-equivalent",
+            "rationale": "PHP parses an unsigned relative interval as positive: modify('5 seconds') === modify('+5 seconds').",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:RemoveEarlyReturn:return $this->expiredPosture($subject);": {
+            "ruling": "shadowed-by-caller-guard",
+            "rationale": "preflightShared() returns before calling sharedState(); recordScalarFailure() inspects the result only for BackedOff and discards it.",
+            "disposition": "never-executed"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:ConcatRemoveLeft:return $windowStartedAt->modify('+' . min($offset, $this->configuration->windowSeconds) . ' seconds');": {
+            "ruling": "language-semantic-equivalent",
+            "rationale": "PHP parses an unsigned relative interval as positive: modify('5 seconds') === modify('+5 seconds').",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:FalseToTrue:private function counter(ThrottleSubject $subject, bool $lock = false): ?array": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLiteGrammar::compileLock() returns ''; lock mutants emit byte-identical SQL under the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:FalseToTrue:private function lock(ThrottleSubject $identifier, bool $lock = false): ?DateTimeImmutable": {
+            "ruling": "engine-equivalent",
+            "rationale": "SQLiteGrammar::compileLock() returns ''; lock mutants emit byte-identical SQL under the measuring engine.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:RemoveEarlyReturn:return DateTimeImmutable::createFromInterface($value);": {
+            "ruling": "defensive-for-unmeasured-driver",
+            "rationale": "No matrix driver returns DateTimeInterface; all three return strings.",
+            "disposition": "never-executed"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatRemoveRight:'Configuration \"vouch.throttle.identifier.backoff_after\" must be less than '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatSwitchSides:'Configuration \"vouch.throttle.identifier.backoff_after\" must be less than '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatRemoveRight:'Configuration \"vouch.throttle.retention_seconds\" must be at least '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatSwitchSides:'Configuration \"vouch.throttle.retention_seconds\" must be at least '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatRemoveRight:'Configuration \"vouch.throttle.ip.ipv4_observe_at\" must be greater than '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatSwitchSides:'Configuration \"vouch.throttle.ip.ipv4_observe_at\" must be greater than '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatRemoveRight:'Configuration \"vouch.throttle.captcha.enabled\" requires at least one shared '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatSwitchSides:'Configuration \"vouch.throttle.captcha.enabled\" requires at least one shared '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatRemoveLeft:'Configuration \"vouch.throttle.ip\" is in observe mode; enforcement thresholds '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatSwitchSides:'Configuration \"vouch.throttle.ip\" is in observe mode; enforcement thresholds '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatRemoveRight:'Configuration \"vouch.throttle.ip.ipv4_enforce_at\" must be greater than '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatSwitchSides:'Configuration \"vouch.throttle.ip.ipv4_enforce_at\" must be greater than '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatRemoveLeft:'Configuration \"vouch.throttle.ip.backoff_seconds\" must not exceed the '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatSwitchSides:'Configuration \"vouch.throttle.ip.backoff_seconds\" must not exceed the '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatRemoveLeft:'Configuration \"vouch.throttle.%s\" is in observe mode; enforcement threshold '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatSwitchSides:'Configuration \"vouch.throttle.%s\" is in observe mode; enforcement threshold '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatRemoveLeft:'Configuration \"vouch.throttle.%s.backoff_seconds\" must not exceed the identifier '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatSwitchSides:'Configuration \"vouch.throttle.%s.backoff_seconds\" must not exceed the identifier '": {
+            "ruling": "prose",
+            "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleReporter.php:ConcatRemoveRight:->where('window_started_at', '>=', $today . ' 00:00:00')": {
+            "ruling": "redundant-suffix",
+            "rationale": "A date-only lower bound selects the same rows; the day boundary is already implied. Measured against SQLite comparison.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleReporter.php:ConcatRemoveRight:->where('reservations.window_started_at', '>=', $today . ' 00:00:00')": {
+            "ruling": "redundant-suffix",
+            "rationale": "A date-only lower bound selects the same rows; the day boundary is already implied. Measured against SQLite comparison.",
+            "disposition": "executed-and-survived"
+        }
+    }
 }
