@@ -1,0 +1,296 @@
+{
+    "rows": [
+        {
+            "state": "TIMEOUT",
+            "file": "src/Notifications/OtpOutboxDelivery.php",
+            "line": 175,
+            "mutator": "PostIncrementToPostDecrement",
+            "id": null,
+            "expression": "for ($attempt = 0; $attempt < 3; $attempt++) {",
+            "disposition": "timeout-unresolved",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpOutboxDelivery.php",
+            "line": 74,
+            "mutator": "BooleanOrToBooleanAnd",
+            "id": "79cb51498f1703a7",
+            "expression": "if (! $challenge instanceof AuthChallenge || ! $attempt instanceof AuthAttempt) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpOutboxDelivery.php",
+            "line": 74,
+            "mutator": "InstanceOfToTrue",
+            "id": "84a171befc5a4b4d",
+            "expression": "if (! $challenge instanceof AuthChallenge || ! $attempt instanceof AuthAttempt) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpOutboxDelivery.php",
+            "line": 74,
+            "mutator": "InstanceOfToTrue",
+            "id": "ec666e40f909861b",
+            "expression": "if (! $challenge instanceof AuthChallenge || ! $attempt instanceof AuthAttempt) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpOutboxDelivery.php",
+            "line": 125,
+            "mutator": "RemoveEarlyReturn",
+            "id": "cf3186023feb9e06",
+            "expression": "return;",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpOutboxDelivery.php",
+            "line": 146,
+            "mutator": "RemoveMethodCall",
+            "id": "aabac85b65c81bb4",
+            "expression": "$this->economics->release($reservationRequest);",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpOutboxDelivery.php",
+            "line": 152,
+            "mutator": "RemoveMethodCall",
+            "id": "fc0bfb913e24d33a",
+            "expression": "$this->economics->release($reservationRequest);",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpOutboxDelivery.php",
+            "line": 175,
+            "mutator": "SmallerToSmallerOrEqual",
+            "id": "7b64c30c8e7c7aa7",
+            "expression": "for ($attempt = 0; $attempt < 3; $attempt++) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpOutboxDelivery.php",
+            "line": 175,
+            "mutator": "DecrementInteger",
+            "id": "b6847307077cc296",
+            "expression": "for ($attempt = 0; $attempt < 3; $attempt++) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpOutboxDelivery.php",
+            "line": 175,
+            "mutator": "DecrementInteger",
+            "id": "09040014a43d062c",
+            "expression": "for ($attempt = 0; $attempt < 3; $attempt++) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpOutboxDelivery.php",
+            "line": 175,
+            "mutator": "IncrementInteger",
+            "id": "df2c668d5d9c7e47",
+            "expression": "for ($attempt = 0; $attempt < 3; $attempt++) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpOutboxDelivery.php",
+            "line": 175,
+            "mutator": "IncrementInteger",
+            "id": "29134b2f3ce9d553",
+            "expression": "for ($attempt = 0; $attempt < 3; $attempt++) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpOutboxDelivery.php",
+            "line": 182,
+            "mutator": "DecrementInteger",
+            "id": "9b09c5dcd64c36f1",
+            "expression": "usleep(20_000);",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpOutboxDelivery.php",
+            "line": 182,
+            "mutator": "IncrementInteger",
+            "id": "fe5bd936a03d1415",
+            "expression": "usleep(20_000);",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpOutboxDelivery.php",
+            "line": 182,
+            "mutator": "RemoveFunctionCall",
+            "id": "ebcf9539cf020036",
+            "expression": "usleep(20_000);",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpQueueDispatcher.php",
+            "line": 74,
+            "mutator": "DecrementInteger",
+            "id": "4b8c5f128e8010fd",
+            "expression": "if ($delaySeconds < 1) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/OtpQueueDispatcher.php",
+            "line": 78,
+            "mutator": "RemoveMethodCall",
+            "id": "ed77b3c12c0045d3",
+            "expression": "$this->assertAsynchronous();",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/UnconfiguredOtpDelivery.php",
+            "line": 25,
+            "mutator": "ConcatRemoveRight",
+            "id": "4bd7732de40299b7",
+            "expression": "'No OTP delivery is configured. Bind Fissible\\Vouch\\Contracts\\OtpDelivery to an '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/UnconfiguredOtpDelivery.php",
+            "line": 25,
+            "mutator": "ConcatRemoveRight",
+            "id": "6b06213997f0126e",
+            "expression": "'No OTP delivery is configured. Bind Fissible\\Vouch\\Contracts\\OtpDelivery to an '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/UnconfiguredOtpDelivery.php",
+            "line": 25,
+            "mutator": "ConcatRemoveRight",
+            "id": "7fa9151ac335d0d3",
+            "expression": "'No OTP delivery is configured. Bind Fissible\\Vouch\\Contracts\\OtpDelivery to an '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/UnconfiguredOtpDelivery.php",
+            "line": 25,
+            "mutator": "ConcatSwitchSides",
+            "id": "94ab585994168cd2",
+            "expression": "'No OTP delivery is configured. Bind Fissible\\Vouch\\Contracts\\OtpDelivery to an '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/UnconfiguredOtpDelivery.php",
+            "line": 25,
+            "mutator": "ConcatSwitchSides",
+            "id": "4331d7730eb0387d",
+            "expression": "'No OTP delivery is configured. Bind Fissible\\Vouch\\Contracts\\OtpDelivery to an '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Notifications/UnconfiguredOtpDelivery.php",
+            "line": 25,
+            "mutator": "ConcatSwitchSides",
+            "id": "d7bf6b3c1f630f1c",
+            "expression": "'No OTP delivery is configured. Bind Fissible\\Vouch\\Contracts\\OtpDelivery to an '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        }
+    ],
+    "baseline_diff": {
+        "added": [],
+        "removed": [
+            {
+                "state": "UNTESTED",
+                "file": "src/Notifications/OtpOutboxDelivery.php",
+                "line": 70,
+                "mutator": "InstanceOfToTrue",
+                "id": "90355e51f2a01eab",
+                "expression": "$attempt = $challenge instanceof AuthChallenge",
+                "disposition": "executed-and-survived",
+                "coverage": "hits",
+                "contested": false
+            },
+            {
+                "state": "UNCOVERED",
+                "file": "src/Notifications/OtpOutboxDelivery.php",
+                "line": 75,
+                "mutator": "RemoveMethodCall",
+                "id": "60fb9bc8b924226d",
+                "expression": "$this->terminalize($opaqueId, OtpOutboxFailureReason::TargetUnavailable);",
+                "disposition": "never-executed",
+                "coverage": "zero",
+                "contested": false
+            },
+            {
+                "state": "UNCOVERED",
+                "file": "src/Notifications/OtpOutboxDelivery.php",
+                "line": 77,
+                "mutator": "RemoveEarlyReturn",
+                "id": "e20f4a17bb3869c0",
+                "expression": "return;",
+                "disposition": "never-executed",
+                "coverage": "zero",
+                "contested": false
+            }
+        ],
+        "changed": []
+    }
+}

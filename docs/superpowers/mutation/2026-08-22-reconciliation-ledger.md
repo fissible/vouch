@@ -1040,11 +1040,11 @@ the corresponding SQLite mutation rows remain engine-equivalent by design.
 ### Closing corpus aggregate
 
 Using the latest classification artifact for each chunk at the current source
-state, the corpus contains 546 classified rows:
+state, the corpus contains 526 classified rows:
 
 | rows | executed-and-survived | never-executed | engine-gated | instrument-unroutable | timeout |
 |---:|---:|---:|---:|---:|---:|
-| 546 | 450 | 23 | 23 | 45 | 5 |
+| 526 | 446 | 7 | 23 | 45 | 5 |
 
 The 230 concatenation rows remaining in the corpus are covered by the narrowed
 message-prose rule only where the operand is quoted English prose; labels,
@@ -1063,7 +1063,24 @@ into 25 executed-and-survived, 13 engine-gated, 1 never-executed
 (`DatabaseTime.php:116`), and 1 timeout. The former 14-row never-executed gap
 was therefore primarily engine coverage classification, not a new test queue.
 The corrected corpus split is 46 never-executed and 23 engine-gated; the
-thirteen-row movement is between those categories only.
+thirteen-row movement is between those categories only. Subsequent Notifications
+and root test batches closed the actionable portion of the remaining gaps. The
+latest corpus split is 7 never-executed, all with an explicit ruling, and no
+actionable never-executed gap remains.
+
+### Final Notifications and root reruns
+
+At source SHA `212212a` (test/evidence state `96bbe4a`), the Notifications and
+root reruns reconciled to their assigned RUN files with zero added identities
+and an empty disposition-change bucket. Notifications removed the final three
+actionable terminal-cause rows; root removed the four middleware diagnostic
+message rows. Both chunks now have zero actionable never-executed rows.
+
+Artifacts: `artifacts/2026-08-26-notifications-final-96bbe4a.log`,
+`artifacts/2026-08-26-notifications-final-classification.json`,
+`artifacts/2026-08-26-root-final-96bbe4a.log`, and
+`artifacts/2026-08-26-root-final-classification.json`, with the shared SQLite
+map in `artifacts/2026-08-26-96bbe4a-sqlite.xml`.
 
 The temporary `throttle-recovery-expiry` classification was discarded: its log
 predated the `212212a` refactor, so line-keyed rows below the refactor could not
