@@ -34,7 +34,8 @@ declare(strict_types=1);
  *   classify-survivors.php --log=FILE (--map=CLOVER | --lines=SET)
  *                          [--union=CLOVER]... [--source-root=DIR]
  *                          [--emit-lines=FILE] [--baseline=JSON]
- *                          [--baseline-identity=line|expression] [--json]
+ *                          [--baseline-identity=line|expression]
+ *                          [--rulings=JSON] [--json]
  *
  *   --log          de-ANSI'd non-compact mutation log. Compact/parallel output
  *                  suppresses the row list and cannot be classified.
@@ -53,6 +54,8 @@ declare(strict_types=1);
  *                        preserves duplicate occurrences by ordinal;
  *                        expression tolerates line shifts after a source edit
  *                        and likewise preserves repeated expressions.
+ *   --rulings      adjudication manifest keyed by stable mutation identity;
+ *                  matching rows carry an `adjudication` object.
  *   --json         emit rows as JSON instead of a grouped report.
  *
  * Exit codes: 0 classified, 1 usage error, 2 map inconsistency detected.
@@ -70,13 +73,13 @@ const DISPOSITIONS = [
 
 /**
  * @return array{log: string, map: ?string, union: list<string>, lines: ?string,
- *               root: string, emit: ?string, baseline: ?string,
+ *               root: string, emit: ?string, baseline: ?string, rulings: ?string,
  *               baselineIdentity: string, json: bool}
  */
 function parseArguments(array $argv): array
 {
     $options = ['log' => null, 'map' => null, 'union' => [], 'lines' => null,
-        'root' => getcwd(), 'emit' => null, 'baseline' => null,
+        'root' => getcwd(), 'emit' => null, 'baseline' => null, 'rulings' => null,
         'baselineIdentity' => 'line', 'json' => false];
 
     foreach (array_slice($argv, 1) as $argument) {
@@ -101,6 +104,7 @@ function parseArguments(array $argv): array
             'emit-lines' => $options['emit'] = $value,
             'baseline' => $options['baseline'] = $value,
             'baseline-identity' => $options['baselineIdentity'] = $value,
+            'rulings' => $options['rulings'] = $value,
             default => fail("Unrecognized option: --{$name}"),
         };
     }
@@ -420,6 +424,38 @@ function rowIdentity(array $row, string $mode = 'line'): string
     return $row['file'] . ':' . $row['line'] . ':' . $row['mutator'];
 }
 
+/** @return array<string, array<string, mixed>> */
+function readRulings(?string $path): array
+{
+    if ($path === null) {
+        return [];
+    }
+
+    if (! is_file($path)) {
+        fail("Rulings manifest not found: {$path}");
+    }
+
+    $decoded = json_decode((string) file_get_contents($path), true);
+
+    if (! is_array($decoded)) {
+        fail("Rulings manifest is not valid JSON: {$path}");
+    }
+
+    $entries = $decoded['rulings'] ?? $decoded;
+
+    if (! is_array($entries)) {
+        fail("Rulings manifest must contain an object of entries: {$path}");
+    }
+
+    foreach ($entries as $identity => $ruling) {
+        if (! is_string($identity) || ! is_array($ruling)) {
+            fail("Rulings manifest has an invalid entry: {$path}");
+        }
+    }
+
+    return $entries;
+}
+
 /**
  * Build identities without collapsing duplicate rows. The ordinal is stable
  * for the plugin's log order and preserves repeated mutations that share a
@@ -516,6 +552,7 @@ $root = $options['root'];
 $measuring = $options['map'] !== null ? readClover($options['map'], $root) : null;
 $unionMaps = array_map(static fn (string $path): array => readClover($path, $root), $options['union']);
 $seed = $options['lines'] !== null ? readLineSet($options['lines']) : [];
+$rulings = readRulings($options['rulings']);
 
 // The union deliberately excludes the measuring map: a row is engine-gated
 // only when another engine executes what this one could not.
@@ -539,7 +576,17 @@ $classified = [];
 
 foreach (readLog($options['log']) as $row) {
     $row['expression'] = readExpression($row['file'], $row['line'], $root);
-    $classified[] = [...$row, ...disposition($row, $measuring, $executedElsewhere)];
+    $classifiedRow = [...$row, ...disposition($row, $measuring, $executedElsewhere)];
+    $rulingKey = rowIdentity($classifiedRow, 'expression');
+
+    if (array_key_exists($rulingKey, $rulings)) {
+        $adjudication = $rulings[$rulingKey];
+        $classifiedRow['adjudication'] = $adjudication;
+        $classifiedRow['ruling_mismatch'] = isset($adjudication['disposition'])
+            && $adjudication['disposition'] !== $classifiedRow['disposition'];
+    }
+
+    $classified[] = $classifiedRow;
 }
 
 $diff = $options['baseline'] !== null

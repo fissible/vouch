@@ -41,7 +41,7 @@ untrustworthy map is worse than no disposition.
 php classify-survivors.php --log=FILE (--map=CLOVER | --lines=SET) \
     [--union=CLOVER]... [--source-root=DIR] [--emit-lines=FILE] \
     [--baseline=CLASSIFICATION.json]
-    [--baseline-identity=line|expression] [--json]
+    [--baseline-identity=line|expression] [--rulings=RULINGS.json] [--json]
 ```
 
 Producing the inputs:
@@ -73,6 +73,12 @@ is the required comparison: a
 stable aggregate can hide a survivor replacing a kill, while a row diff makes
 both directions explicit. JSON mode returns `{rows, baseline_diff}` when this
 option is supplied; each `changed` entry contains `before` and `after` rows.
+
+Pass `--rulings=RULINGS.json` to join human adjudications onto measured rows.
+The manifest contains `version`, `source_sha`, and a `rulings` object keyed by
+the expression identity `(file:mutator:expression)`. Joined rows carry an
+`adjudication` object; `ruling_mismatch` is true when its recorded disposition
+no longer matches the measured disposition.
 
 Classification artifacts therefore have two supported shapes: older runs are
 bare row lists, while runs made with `--baseline` are wrapped as

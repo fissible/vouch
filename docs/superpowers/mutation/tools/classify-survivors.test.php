@@ -223,6 +223,26 @@ check(
     ($row['expression'] ?? null) === 'if ($existedBeforeTransaction) {'
 );
 
+echo PHP_EOL, 'ruling join', PHP_EOL;
+$rulings = tempnam(sys_get_temp_dir(), 'vouch-rulings-');
+$rulingKey = ($row['file'] ?? '') . ':' . ($row['mutator'] ?? '') . ':' . ($row['expression'] ?? '');
+file_put_contents($rulings, json_encode([
+    'version' => 1,
+    'source_sha' => 'fixture',
+    'rulings' => [
+        $rulingKey => ['disposition' => 'engine-gated', 'reason' => 'fixture ruling'],
+    ],
+], JSON_PRETTY_PRINT));
+$joined = classify([
+    "--log={$fixtures}/survivors.log",
+    "--map={$fixtures}/sqlite.clover.xml",
+    "--rulings={$rulings}",
+]);
+$joinedRow = $joined['rows']["{$store}:413"] ?? [];
+check('joins an adjudication by stable expression identity', ($joinedRow['adjudication']['reason'] ?? null) === 'fixture ruling');
+check('flags a ruling whose disposition disagrees with measurement', ($joinedRow['ruling_mismatch'] ?? null) === true);
+unlink($rulings);
+
 echo PHP_EOL, 'executed set in place of a map', PHP_EOL;
 $set = classify(["--log={$fixtures}/survivors.log", "--lines={$fixtures}/union.lines"]);
 check('exits 0', $set['exit'] === 0);
