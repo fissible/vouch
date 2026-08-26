@@ -1017,6 +1017,13 @@ assertions on each engine). This is behavioral evidence for the load-bearing
 rollover lock; it is intentionally not expected to move SQLite mutation rows,
 because SQLite compiles `FOR UPDATE` to a bare `SELECT`.
 
+The existing `ScalarThrottleContentionTest` is the shared throttle probe for
+the pre-existing-row path: its two-writer issuance boundary reaches the
+read/decide/write sequence and asserts exactly one permit at the threshold.
+It passes on file-backed SQLite and PostgreSQL (3 tests / 12 assertions on
+each engine). This covers the driver-dispatch setup as behavioral evidence;
+the corresponding SQLite mutation rows remain engine-equivalent by design.
+
 ### Full parallel smoke (non-authoritative)
 
 - Scope: non-Kernel `Fissible\\Vouch`, SHA `66ac67d`, 10 processes
