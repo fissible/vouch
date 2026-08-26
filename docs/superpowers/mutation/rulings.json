@@ -2,6 +2,101 @@
     "version": 1,
     "source_sha": "212212a",
     "rulings": {
+        "src/Throttle/DatabaseAuthThrottleStore.php:NotIdenticalToIdentical:$counterExists = $this->counter($identifier) !== null;": {
+            "ruling": "concurrency-observable-only",
+            "rationale": "Ordering and contention behavior is observable only under a concurrent engine; SQLite mutation cannot distinguish it.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:RemoveMethodCall:$this->ensureCounter($identifier, $counterExists);": {
+            "ruling": "concurrency-observable-only",
+            "rationale": "Ordering and contention behavior is observable only under a concurrent engine; SQLite mutation cannot distinguish it.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:NotIdenticalToIdentical:$parentExists = $this->ipParent($ip) !== null;": {
+            "ruling": "concurrency-observable-only",
+            "rationale": "Ordering and contention behavior is observable only under a concurrent engine; SQLite mutation cannot distinguish it.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:RemoveMethodCall:$this->ensureIpParent($ip, $parentExists);": {
+            "ruling": "concurrency-observable-only",
+            "rationale": "Ordering and contention behavior is observable only under a concurrent engine; SQLite mutation cannot distinguish it.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:NotIdenticalToIdentical:$counterExists = $this->counter($issuance) !== null;": {
+            "ruling": "concurrency-observable-only",
+            "rationale": "Ordering and contention behavior is observable only under a concurrent engine; SQLite mutation cannot distinguish it.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:RemoveMethodCall:$this->ensureCounter($issuance, $counterExists);": {
+            "ruling": "concurrency-observable-only",
+            "rationale": "Ordering and contention behavior is observable only under a concurrent engine; SQLite mutation cannot distinguish it.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:NotIdenticalToIdentical:$counterExists = $this->counter($subject) !== null;": {
+            "ruling": "concurrency-observable-only",
+            "rationale": "Ordering and contention behavior is observable only under a concurrent engine; SQLite mutation cannot distinguish it.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:RemoveMethodCall:$this->ensureCounter($subject, $counterExists);": {
+            "ruling": "concurrency-observable-only",
+            "rationale": "Ordering and contention behavior is observable only under a concurrent engine; SQLite mutation cannot distinguish it.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:RemoveMethodCall:$this->insertIpParentIfMissing($ip);": {
+            "ruling": "concurrency-observable-only",
+            "rationale": "Ordering and contention behavior is observable only under a concurrent engine; SQLite mutation cannot distinguish it.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:RemoveEarlyReturn:return;": {
+            "ruling": "concurrency-observable-only",
+            "rationale": "Ordering and contention behavior is observable only under a concurrent engine; SQLite mutation cannot distinguish it.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:BooleanOrToBooleanAnd:if (! is_int($id) || $id < 1) {": {
+            "ruling": "invariant-unreachable",
+            "rationale": "Validated state or database invariants make this defensive branch unreachable.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:DecrementInteger:if (! is_int($id) || $id < 1) {": {
+            "ruling": "invariant-unreachable",
+            "rationale": "Validated state or database invariants make this defensive branch unreachable.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:BooleanOrToBooleanAnd:if ($threshold === null || $backoff === null) {": {
+            "ruling": "invariant-unreachable",
+            "rationale": "Validated state or database invariants make this defensive branch unreachable.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:BooleanOrToBooleanAnd:if ($threshold === null || $backoff === null) {:1": {
+            "ruling": "invariant-unreachable",
+            "rationale": "Validated state or database invariants make this defensive branch unreachable.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:SmallerToSmallerOrEqual:while ($step <= $count && $offset < $this->configuration->windowSeconds) {": {
+            "ruling": "idempotent-under-clamp",
+            "rationale": "The clamp makes the widened guard observationally inert.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:SmallerToSmallerOrEqual:if ($delay < $this->configuration->backoffCapSeconds) {": {
+            "ruling": "idempotent-under-clamp",
+            "rationale": "The clamp makes the widened guard observationally inert.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/DatabaseAuthThrottleStore.php:InstanceOfToFalse:if ($value instanceof DateTimeInterface) {": {
+            "ruling": "defensive-for-unmeasured-driver",
+            "rationale": "The matrix drivers return strings, so this defensive DateTimeInterface branch is not exercised.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/ThrottleConfiguration.php:ConcatRemoveLeft:'Configuration \"vouch.throttle.challenge.attempts\" × '": {
+            "ruling": "prose",
+            "rationale": "Quoted diagnostic message prose; behavior is pinned by the surrounding validation.",
+            "disposition": "executed-and-survived"
+        },
+        "src/Throttle/IpCanonicalizer.php:FalseToTrue:if ($canonical === false) {": {
+            "ruling": "invariant-unreachable",
+            "rationale": "Validated state or database invariants make this defensive branch unreachable.",
+            "disposition": "executed-and-survived"
+        },
         "src/Attempts/MisdirectedMutation.php:ConcatRemoveLeft:'ConsumeChallenge for challenge %d named attempt %d, but this transition is '": {
             "ruling": "prose",
             "rationale": "Exception or diagnostic message text; asserting prose couples tests to wording the guard already pins behaviourally.",

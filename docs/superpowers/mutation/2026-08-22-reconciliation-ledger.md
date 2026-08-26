@@ -1134,10 +1134,12 @@ SQLite compiles it away; both are engine-equivalent for different reasons.
 
 ### Adjudication join
 
-The keyed manifest at `docs/superpowers/mutation/rulings.json` contains 154
-stable expression-identity entries covering 258 of the 526 classified rows.
-After excluding the 45 instrument-unroutable and 23 engine-gated rows closed
-by measurement, 200 executed-and-survived rows remain unadjudicated. Run the
+The keyed manifest at `docs/superpowers/mutation/rulings.json` now contains 173
+stable expression-identity entries. In the latest Throttle artifact, 68 of 91
+executed-and-survived rows join to an adjudication, leaving 23 Throttle rows
+for further review. Across the corpus, the remaining unadjudicated survivors
+are the review surface; the 45 instrument-unroutable and 23 engine-gated rows
+are closed by measurement itself. Run the
 classifier with `--rulings=docs/superpowers/mutation/rulings.json` to join
 adjudications and surface `ruling_mismatch` when a later measurement disagrees
 with a recorded ruling. The manifest is pinned to source SHA `212212a`;
