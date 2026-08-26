@@ -1,0 +1,383 @@
+{
+    "rows": [
+        {
+            "state": "UNTESTED",
+            "file": "src/Vouch.php",
+            "line": 42,
+            "mutator": "ConcatRemoveRight",
+            "id": "70158b81a740db68",
+            "expression": "'Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Vouch.php",
+            "line": 42,
+            "mutator": "ConcatRemoveRight",
+            "id": "29e08b8edee83c54",
+            "expression": "'Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Vouch.php",
+            "line": 42,
+            "mutator": "ConcatRemoveRight",
+            "id": "e46ec93dd17342bd",
+            "expression": "'Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Vouch.php",
+            "line": 42,
+            "mutator": "ConcatSwitchSides",
+            "id": "0d74f9f9b8392b8c",
+            "expression": "'Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Vouch.php",
+            "line": 42,
+            "mutator": "ConcatSwitchSides",
+            "id": "92603e91ccaa3a97",
+            "expression": "'Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/Vouch.php",
+            "line": 42,
+            "mutator": "ConcatSwitchSides",
+            "id": "bed924ecd1f40a82",
+            "expression": "'Vouch::stepUp(' . $level . ') requires vouch.step_up.presentation_url to be '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 74,
+            "mutator": "TernaryNegated",
+            "id": "8a0e31e407066206",
+            "expression": "is_string(config('vouch.otp.queue_connection'))",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 133,
+            "mutator": "RemoveMethodCall",
+            "id": "e6b5b9fe6949968d",
+            "expression": "$this->app->singleton(",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 357,
+            "mutator": "RemoveMethodCall",
+            "id": "5aad54f476f0b879",
+            "expression": "$this->app->make(ThrottleConfiguration::class);",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 361,
+            "mutator": "InstanceOfToTrue",
+            "id": "07e63f2acb872129",
+            "expression": "&& $this->app->make(CaptchaVerifier::class) instanceof UnconfiguredCaptchaVerifier) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 363,
+            "mutator": "ConcatRemoveRight",
+            "id": "1a0f774885c2d6ad",
+            "expression": "'CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 363,
+            "mutator": "ConcatRemoveRight",
+            "id": "b6831c3aa573d539",
+            "expression": "'CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 363,
+            "mutator": "ConcatSwitchSides",
+            "id": "394890d7dc0bcc3b",
+            "expression": "'CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 363,
+            "mutator": "ConcatSwitchSides",
+            "id": "1aa1c7a0092f4442",
+            "expression": "'CAPTCHA escalation is enabled, but no CAPTCHA verifier is configured. '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 389,
+            "mutator": "ConcatRemoveRight",
+            "id": "80a7b1f4573c4d16",
+            "expression": "'Vouch requires ValidatesVouchSession in the \"web\" middleware group. Without '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 389,
+            "mutator": "ConcatRemoveRight",
+            "id": "292355ec710ce0fc",
+            "expression": "'Vouch requires ValidatesVouchSession in the \"web\" middleware group. Without '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 389,
+            "mutator": "ConcatSwitchSides",
+            "id": "e27b50a92cf69431",
+            "expression": "'Vouch requires ValidatesVouchSession in the \"web\" middleware group. Without '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 389,
+            "mutator": "ConcatSwitchSides",
+            "id": "c7d5bb9e97bc6207",
+            "expression": "'Vouch requires ValidatesVouchSession in the \"web\" middleware group. Without '",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 435,
+            "mutator": "CoalesceRemoveLeft",
+            "id": "31340eb53b2a1d71",
+            "expression": "$argv = $_SERVER['argv'] ?? [];",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 441,
+            "mutator": "UnwrapArraySlice",
+            "id": "1e884b4fbe460a79",
+            "expression": "foreach (array_slice($argv, 1) as $argument) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 441,
+            "mutator": "ForeachEmptyIterable",
+            "id": "eb7e14bea08e5eea",
+            "expression": "foreach (array_slice($argv, 1) as $argument) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 441,
+            "mutator": "DecrementInteger",
+            "id": "a2439821e6253399",
+            "expression": "foreach (array_slice($argv, 1) as $argument) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 441,
+            "mutator": "IncrementInteger",
+            "id": "b575f99d4ed1df41",
+            "expression": "foreach (array_slice($argv, 1) as $argument) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 442,
+            "mutator": "IfNegated",
+            "id": "e6927eec9df0c7aa",
+            "expression": "if (is_string($argument) && ! str_starts_with($argument, '-')) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 442,
+            "mutator": "BooleanAndToBooleanOr",
+            "id": "26b6e70b2c12ae2c",
+            "expression": "if (is_string($argument) && ! str_starts_with($argument, '-')) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 442,
+            "mutator": "RemoveNot",
+            "id": "c514c65124410df2",
+            "expression": "if (is_string($argument) && ! str_starts_with($argument, '-')) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 442,
+            "mutator": "StrStartsWithToStrEndsWith",
+            "id": "fea950b4f4b4a1dd",
+            "expression": "if (is_string($argument) && ! str_starts_with($argument, '-')) {",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        },
+        {
+            "state": "UNTESTED",
+            "file": "src/VouchServiceProvider.php",
+            "line": 443,
+            "mutator": "RemoveEarlyReturn",
+            "id": "ad17cdf25492c81b",
+            "expression": "return $argument === 'vouch:doctor';",
+            "disposition": "executed-and-survived",
+            "coverage": "hits",
+            "contested": false
+        }
+    ],
+    "baseline_diff": {
+        "added": [],
+        "removed": [
+            {
+                "state": "UNCOVERED",
+                "file": "src/VouchServiceProvider.php",
+                "line": 389,
+                "mutator": "ConcatRemoveLeft",
+                "id": "fb41a5fe1d5a5377",
+                "expression": "'Vouch requires ValidatesVouchSession in the \"web\" middleware group. Without '",
+                "disposition": "never-executed",
+                "coverage": "zero",
+                "contested": false
+            },
+            {
+                "state": "UNCOVERED",
+                "file": "src/VouchServiceProvider.php",
+                "line": 389,
+                "mutator": "ConcatRemoveLeft",
+                "id": "fc4cef4a4a2841de",
+                "expression": "'Vouch requires ValidatesVouchSession in the \"web\" middleware group. Without '",
+                "disposition": "never-executed",
+                "coverage": "zero",
+                "contested": false
+            },
+            {
+                "state": "UNTESTED",
+                "file": "src/VouchServiceProvider.php",
+                "line": 437,
+                "mutator": "IfNegated",
+                "id": "6a77539f344bb2a9",
+                "expression": "if (! is_array($argv)) {",
+                "disposition": "executed-and-survived",
+                "coverage": "hits",
+                "contested": false
+            },
+            {
+                "state": "UNTESTED",
+                "file": "src/VouchServiceProvider.php",
+                "line": 437,
+                "mutator": "RemoveNot",
+                "id": "3098debc215909a8",
+                "expression": "if (! is_array($argv)) {",
+                "disposition": "executed-and-survived",
+                "coverage": "hits",
+                "contested": false
+            },
+            {
+                "state": "UNCOVERED",
+                "file": "src/VouchServiceProvider.php",
+                "line": 438,
+                "mutator": "FalseToTrue",
+                "id": "b12639fc6164dae0",
+                "expression": "return false;",
+                "disposition": "never-executed",
+                "coverage": "zero",
+                "contested": false
+            },
+            {
+                "state": "UNCOVERED",
+                "file": "src/VouchServiceProvider.php",
+                "line": 438,
+                "mutator": "RemoveEarlyReturn",
+                "id": "ac01ac3c8f38727b",
+                "expression": "return false;",
+                "disposition": "never-executed",
+                "coverage": "zero",
+                "contested": false
+            }
+        ]
+    }
+}

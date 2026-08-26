@@ -1,0 +1,518 @@
+
+  ............................................................................
+  ..............................s.............................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ............................................................................
+  ...................................................................
+
+  Tests:    1 skipped, 1206 passed (4203 assertions)
+  Duration: 32.35s
+
+  Mutating application files...
+  183 Mutations for 4 Files created
+
+   RUN  src/Notifications/OtpOutboxDelivery.php
+  ✓ Line 39: IfNegated
+  ✓ Line 39: InstanceOfToTrue
+  ✓ Line 39: InstanceOfToFalse
+  ✓ Line 39: RemoveNot
+  ✓ Line 42: RemoveEarlyReturn
+  ✓ Line 45: IfNegated
+  ✓ Line 46: RemoveMethodCall
+  ✓ Line 48: RemoveEarlyReturn
+  ✓ Line 53: IfNegated
+  ✓ Line 53: IdenticalToNotIdentical
+  ✓ Line 53: BooleanOrToBooleanAnd
+  ✓ Line 56: RemoveMethodCall
+  ✓ Line 58: RemoveEarlyReturn
+  ✓ Line 63: IfNegated
+  ✓ Line 63: InstanceOfToTrue
+  ✓ Line 63: InstanceOfToFalse
+  ✓ Line 63: RemoveNot
+  ✓ Line 64: RemoveMethodCall
+  ✓ Line 66: RemoveEarlyReturn
+  ✓ Line 70: TernaryNegated
+  ⨯ Line 70: InstanceOfToTrue
+  ✓ Line 70: InstanceOfToFalse
+  ✓ Line 74: IfNegated
+  ⨯ Line 74: BooleanOrToBooleanAnd
+  ⨯ Line 74: InstanceOfToTrue
+  ⨯ Line 74: InstanceOfToTrue
+  ✓ Line 74: InstanceOfToFalse
+  ✓ Line 74: InstanceOfToFalse
+  ✓ Line 74: RemoveNot
+  ✓ Line 74: RemoveNot
+  - Line 75: RemoveMethodCall
+  - Line 77: RemoveEarlyReturn
+  ✓ Line 83: RemoveMethodCall
+  ✓ Line 90: IfNegated
+  ✓ Line 90: IdenticalToNotIdentical
+  ✓ Line 94: RemoveMethodCall
+  ✓ Line 106: RemoveMethodCall
+  ✓ Line 117: FalseToTrue
+  ✓ Line 122: IfNegated
+  ✓ Line 122: IdenticalToNotIdentical
+  ✓ Line 123: RemoveMethodCall
+  ⨯ Line 125: RemoveEarlyReturn
+  ✓ Line 128: IfNegated
+  ✓ Line 128: IdenticalToNotIdentical
+  ✓ Line 129: RemoveMethodCall
+  ✓ Line 135: RemoveMethodCall
+  ✓ Line 138: RemoveArrayItem
+  ✓ Line 140: RemoveMethodCall
+  ⨯ Line 146: RemoveMethodCall
+  ✓ Line 147: RemoveMethodCall
+  ✓ Line 151: IfNegated
+  ⨯ Line 152: RemoveMethodCall
+  ✓ Line 153: RemoveMethodCall
+  ✓ Line 163: RemoveMethodCall
+  ✓ Line 167: RemoveArrayItem
+  ✓ Line 168: RemoveArrayItem
+  ✓ Line 169: RemoveArrayItem
+  t Line 175: PostIncrementToPostDecrement
+  ✓ Line 175: ForAlwaysFalse
+  ✓ Line 175: SmallerToGreaterOrEqual
+  ⨯ Line 175: SmallerToSmallerOrEqual
+  ⨯ Line 175: DecrementInteger
+  ⨯ Line 175: DecrementInteger
+  ⨯ Line 175: IncrementInteger
+  ⨯ Line 175: IncrementInteger
+  ✓ Line 178: IfNegated
+  ✓ Line 178: NotIdenticalToIdentical
+  ⨯ Line 182: DecrementInteger
+  ⨯ Line 182: IncrementInteger
+  ⨯ Line 182: RemoveFunctionCall
+  ✓ Line 192: CoalesceRemoveLeft
+  ✓ Line 194: IfNegated
+  ✓ Line 194: SmallerToGreaterOrEqual
+  ✓ Line 194: SmallerToSmallerOrEqual
+  ✓ Line 194: BooleanOrToBooleanAnd
+  ✓ Line 194: RemoveNot
+  ✓ Line 194: DecrementInteger
+  ✓ Line 194: IncrementInteger
+  ✓ Line 209: RemoveMethodCall
+  ✓ Line 213: RemoveArrayItem
+  ✓ Line 214: RemoveArrayItem
+  ✓ Line 215: RemoveArrayItem
+  ✓ Line 216: RemoveArrayItem
+  ✓ Line 238: IfNegated
+  ✓ Line 238: IdenticalToNotIdentical
+  ✓ Line 239: RemoveEarlyReturn
+  ✓ Line 242: AlwaysReturnNull
+
+   RUN  src/Notifications/OtpQueueDispatcher.php
+  ✓ Line 31: IfNegated
+  ✓ Line 31: BooleanOrToBooleanAnd
+  ✓ Line 31: InstanceOfToTrue
+  ✓ Line 31: InstanceOfToTrue
+  ✓ Line 31: InstanceOfToFalse
+  ✓ Line 31: InstanceOfToFalse
+  ✓ Line 34: CoalesceRemoveLeft
+  ✓ Line 39: IfNegated
+  ✓ Line 39: InstanceOfToTrue
+  ✓ Line 39: InstanceOfToFalse
+  ✓ Line 40: ForeachEmptyIterable
+  ✓ Line 43: IfNegated
+  ✓ Line 43: BooleanOrToBooleanAnd
+  ✓ Line 43: InstanceOfToTrue
+  ✓ Line 43: InstanceOfToTrue
+  ✓ Line 43: InstanceOfToFalse
+  ✓ Line 43: InstanceOfToFalse
+  ✓ Line 46: CoalesceRemoveLeft
+  ✓ Line 56: RemoveMethodCall
+  ✓ Line 58: RemoveMethodCall
+  ✓ Line 63: RemoveMethodCall
+  ✓ Line 68: RemoveArrayItem
+  ✓ Line 74: IfNegated
+  ✓ Line 74: SmallerToGreaterOrEqual
+  ✓ Line 74: SmallerToSmallerOrEqual
+  ⨯ Line 74: DecrementInteger
+  ✓ Line 74: IncrementInteger
+  ⨯ Line 78: RemoveMethodCall
+  ✓ Line 80: RemoveMethodCall
+
+   RUN  src/Notifications/UnconfiguredOtpDelivery.php
+  ✓ Line 25: ConcatRemoveLeft
+  ✓ Line 25: ConcatRemoveLeft
+  ✓ Line 25: ConcatRemoveLeft
+  ⨯ Line 25: ConcatRemoveRight
+  ⨯ Line 25: ConcatRemoveRight
+  ⨯ Line 25: ConcatRemoveRight
+  ⨯ Line 25: ConcatSwitchSides
+  ⨯ Line 25: ConcatSwitchSides
+  ⨯ Line 25: ConcatSwitchSides
+
+   RUN  src/Notifications/OtpChallengeOutbox.php
+  ✓ Line 29: RemoveMethodCall
+  ✓ Line 41: IfNegated
+  ✓ Line 41: InstanceOfToTrue
+  ✓ Line 41: InstanceOfToFalse
+  ✓ Line 42: IfNegated
+  ✓ Line 42: IdenticalToNotIdentical
+  ✓ Line 51: RemoveArrayItem
+  ✓ Line 52: RemoveArrayItem
+  ✓ Line 53: RemoveArrayItem
+  ✓ Line 54: RemoveArrayItem
+  ✓ Line 55: RemoveArrayItem
+  ✓ Line 71: IfNegated
+  ✓ Line 71: InstanceOfToTrue
+  ✓ Line 71: InstanceOfToFalse
+  ✓ Line 71: RemoveNot
+  ✓ Line 75: IfNegated
+  ✓ Line 79: RemoveNullSafeOperator
+  ✓ Line 83: IfNegated
+  ✓ Line 83: NotIdenticalToIdentical
+  ✓ Line 91: RemoveArrayItem
+  ✓ Line 92: RemoveArrayItem
+  ✓ Line 92: RemoveNullSafeOperator
+  ✓ Line 93: RemoveArrayItem
+  ✓ Line 94: RemoveArrayItem
+  ✓ Line 95: RemoveArrayItem
+  ✓ Line 96: RemoveArrayItem
+  ✓ Line 97: RemoveArrayItem
+  ✓ Line 98: RemoveArrayItem
+  ✓ Line 102: DecrementInteger
+  ✓ Line 102: IncrementInteger
+  ✓ Line 102: RemoveArrayItem
+  ✓ Line 103: RemoveArrayItem
+  ✓ Line 104: RemoveArrayItem
+  ✓ Line 105: RemoveArrayItem
+  ✓ Line 106: RemoveArrayItem
+  ✓ Line 107: RemoveArrayItem
+  ✓ Line 109: RemoveArrayItem
+  ✓ Line 110: RemoveArrayItem
+  ✓ Line 113: RemoveArrayItem
+  ✓ Line 113: RemoveArrayItem
+  ✓ Line 116: DecrementInteger
+  ✓ Line 116: IncrementInteger
+  ✓ Line 116: RemoveMethodCall
+  ✓ Line 118: DecrementInteger
+  ✓ Line 118: IncrementInteger
+  ✓ Line 134: TernaryNegated
+  ✓ Line 134: IdenticalToNotIdentical
+  ✓ Line 140: IfNegated
+  ✓ Line 140: InstanceOfToTrue
+  ✓ Line 140: InstanceOfToFalse
+  ✓ Line 140: RemoveNot
+  ✓ Line 141: RemoveEarlyReturn
+  ✓ Line 150: TernaryNegated
+  ✓ Line 150: InstanceOfToTrue
+  ✓ Line 150: InstanceOfToFalse
+  ✓ Line 150: AlwaysReturnNull
+  ✓ Line 151: RemoveArrayItem
+  ✓ Line 151: RemoveArrayItem
+   UNTESTED  src/Notifications/OtpOutboxDelivery.php  > Line 70: InstanceOfToTrue - ID: 90355e51f2a01eab
+
+               return;
+           }
+           $challenge = AuthChallenge::query()->whereKey($outbox->challenge_id)->first();
+  -        $attempt = $challenge instanceof AuthChallenge ? AuthAttempt::query()->whereKey($challenge->attempt_id)->first() : null;
+  +        $attempt = true ? AuthAttempt::query()->whereKey($challenge->attempt_id)->first() : null;
+           if (!$challenge instanceof AuthChallenge || !$attempt instanceof AuthAttempt) {
+               $this->terminalize($opaqueId, OtpOutboxFailureReason::TargetUnavailable);
+               return;
+  
+
+   UNTESTED  src/Notifications/OtpOutboxDelivery.php  > Line 74: BooleanOrToBooleanAnd - ID: 79cb51498f1703a7
+
+           }
+           $challenge = AuthChallenge::query()->whereKey($outbox->challenge_id)->first();
+           $attempt = $challenge instanceof AuthChallenge ? AuthAttempt::query()->whereKey($challenge->attempt_id)->first() : null;
+  -        if (!$challenge instanceof AuthChallenge || !$attempt instanceof AuthAttempt) {
+  +        if (!$challenge instanceof AuthChallenge && !$attempt instanceof AuthAttempt) {
+               $this->terminalize($opaqueId, OtpOutboxFailureReason::TargetUnavailable);
+               return;
+           }
+  
+
+   UNTESTED  src/Notifications/OtpOutboxDelivery.php  > Line 74: InstanceOfToTrue - ID: 84a171befc5a4b4d
+
+           }
+           $challenge = AuthChallenge::query()->whereKey($outbox->challenge_id)->first();
+           $attempt = $challenge instanceof AuthChallenge ? AuthAttempt::query()->whereKey($challenge->attempt_id)->first() : null;
+  -        if (!$challenge instanceof AuthChallenge || !$attempt instanceof AuthAttempt) {
+  +        if (!true || !$attempt instanceof AuthAttempt) {
+               $this->terminalize($opaqueId, OtpOutboxFailureReason::TargetUnavailable);
+               return;
+           }
+  
+
+   UNTESTED  src/Notifications/OtpOutboxDelivery.php  > Line 74: InstanceOfToTrue - ID: ec666e40f909861b
+
+           }
+           $challenge = AuthChallenge::query()->whereKey($outbox->challenge_id)->first();
+           $attempt = $challenge instanceof AuthChallenge ? AuthAttempt::query()->whereKey($challenge->attempt_id)->first() : null;
+  -        if (!$challenge instanceof AuthChallenge || !$attempt instanceof AuthAttempt) {
+  +        if (!$challenge instanceof AuthChallenge || !true) {
+               $this->terminalize($opaqueId, OtpOutboxFailureReason::TargetUnavailable);
+               return;
+           }
+  
+
+   UNCOVERED  src/Notifications/OtpOutboxDelivery.php  > Line 75: RemoveMethodCall - ID: 60fb9bc8b924226d
+
+           $challenge = AuthChallenge::query()->whereKey($outbox->challenge_id)->first();
+           $attempt = $challenge instanceof AuthChallenge ? AuthAttempt::query()->whereKey($challenge->attempt_id)->first() : null;
+           if (!$challenge instanceof AuthChallenge || !$attempt instanceof AuthAttempt) {
+  -            $this->terminalize($opaqueId, OtpOutboxFailureReason::TargetUnavailable);
+  +            
+               return;
+           }
+           try {
+  
+
+   UNCOVERED  src/Notifications/OtpOutboxDelivery.php  > Line 77: RemoveEarlyReturn - ID: e20f4a17bb3869c0
+
+           $attempt = $challenge instanceof AuthChallenge ? AuthAttempt::query()->whereKey($challenge->attempt_id)->first() : null;
+           if (!$challenge instanceof AuthChallenge || !$attempt instanceof AuthAttempt) {
+               $this->terminalize($opaqueId, OtpOutboxFailureReason::TargetUnavailable);
+  -            return;
+  +            
+           }
+           try {
+               $channel = DeliveryChannel::fromFactor($challenge->factor_type);
+  
+
+   UNTESTED  src/Notifications/OtpOutboxDelivery.php  > Line 125: RemoveEarlyReturn - ID: cf3186023feb9e06
+
+           $decision = $this->reserve($reservationRequest);
+           if ($decision === DeliveryReservationDecision::CountryNotAllowed) {
+               $this->terminalize($opaqueId, OtpOutboxFailureReason::CountryNotAllowed);
+  -            return;
+  +            
+           }
+           if ($decision === DeliveryReservationDecision::SpendCeiling) {
+               $this->terminalize($opaqueId, OtpOutboxFailureReason::SpendCeiling);
+  
+
+   UNTESTED  src/Notifications/OtpOutboxDelivery.php  > Line 146: RemoveMethodCall - ID: aabac85b65c81bb4
+
+               AuthChallengeOutbox::query()->whereKey($outbox->id)->where('status', OtpOutboxStatus::Pending->value)->update(['provider_attempted_at' => $this->time->now()]);
+               $this->delivery->deliver($identifier, $payload['code'], $outbox->expires_at->toDateTimeImmutable());
+           } catch (PermanentOtpDeliveryFailure) {
+  -            $this->economics->release($reservationRequest);
+  +            
+               $this->terminalize($opaqueId, OtpOutboxFailureReason::ProviderRejected);
+               return;
+           } catch (Throwable) {
+  
+
+   UNTESTED  src/Notifications/OtpOutboxDelivery.php  > Line 152: RemoveMethodCall - ID: fc0bfb913e24d33a
+
+               return;
+           } catch (Throwable) {
+               if ($this->expired($outbox)) {
+  -                $this->economics->release($reservationRequest);
+  +                
+                   $this->terminalize($opaqueId, OtpOutboxFailureReason::ExpiredUndelivered);
+                   return;
+               }
+  
+
+   UNTESTED  src/Notifications/OtpOutboxDelivery.php  > Line 175: SmallerToSmallerOrEqual - ID: 7b64c30c8e7c7aa7
+
+       }
+       private function reserve(DeliveryEconomicsRequest $request): DeliveryReservationDecision
+       {
+  -        for ($attempt = 0; $attempt < 3; $attempt++) {
+  +        for ($attempt = 0; $attempt <= 3; $attempt++) {
+               $decision = $this->economics->reserve($request);
+               if ($decision !== DeliveryReservationDecision::RetryableContention) {
+                   return $decision;
+  
+
+   UNTESTED  src/Notifications/OtpOutboxDelivery.php  > Line 175: DecrementInteger - ID: b6847307077cc296
+
+       }
+       private function reserve(DeliveryEconomicsRequest $request): DeliveryReservationDecision
+       {
+  -        for ($attempt = 0; $attempt < 3; $attempt++) {
+  +        for ($attempt = -1; $attempt < 3; $attempt++) {
+               $decision = $this->economics->reserve($request);
+               if ($decision !== DeliveryReservationDecision::RetryableContention) {
+                   return $decision;
+  
+
+   UNTESTED  src/Notifications/OtpOutboxDelivery.php  > Line 175: DecrementInteger - ID: 09040014a43d062c
+
+       }
+       private function reserve(DeliveryEconomicsRequest $request): DeliveryReservationDecision
+       {
+  -        for ($attempt = 0; $attempt < 3; $attempt++) {
+  +        for ($attempt = 0; $attempt < 2; $attempt++) {
+               $decision = $this->economics->reserve($request);
+               if ($decision !== DeliveryReservationDecision::RetryableContention) {
+                   return $decision;
+  
+
+   UNTESTED  src/Notifications/OtpOutboxDelivery.php  > Line 175: IncrementInteger - ID: df2c668d5d9c7e47
+
+       }
+       private function reserve(DeliveryEconomicsRequest $request): DeliveryReservationDecision
+       {
+  -        for ($attempt = 0; $attempt < 3; $attempt++) {
+  +        for ($attempt = 1; $attempt < 3; $attempt++) {
+               $decision = $this->economics->reserve($request);
+               if ($decision !== DeliveryReservationDecision::RetryableContention) {
+                   return $decision;
+  
+
+   UNTESTED  src/Notifications/OtpOutboxDelivery.php  > Line 175: IncrementInteger - ID: 29134b2f3ce9d553
+
+       }
+       private function reserve(DeliveryEconomicsRequest $request): DeliveryReservationDecision
+       {
+  -        for ($attempt = 0; $attempt < 3; $attempt++) {
+  +        for ($attempt = 0; $attempt < 4; $attempt++) {
+               $decision = $this->economics->reserve($request);
+               if ($decision !== DeliveryReservationDecision::RetryableContention) {
+                   return $decision;
+  
+
+   UNTESTED  src/Notifications/OtpOutboxDelivery.php  > Line 182: DecrementInteger - ID: 9b09c5dcd64c36f1
+
+               if ($decision !== DeliveryReservationDecision::RetryableContention) {
+                   return $decision;
+               }
+  -            usleep(20000);
+  +            usleep(19999);
+           }
+           throw new RetryableOtpDeliveryFailure('Delivery economics remained contended; no provider call was attempted.');
+       }
+  
+
+   UNTESTED  src/Notifications/OtpOutboxDelivery.php  > Line 182: IncrementInteger - ID: fe5bd936a03d1415
+
+               if ($decision !== DeliveryReservationDecision::RetryableContention) {
+                   return $decision;
+               }
+  -            usleep(20000);
+  +            usleep(20001);
+           }
+           throw new RetryableOtpDeliveryFailure('Delivery economics remained contended; no provider call was attempted.');
+       }
+  
+
+   UNTESTED  src/Notifications/OtpOutboxDelivery.php  > Line 182: RemoveFunctionCall - ID: ebcf9539cf020036
+
+               if ($decision !== DeliveryReservationDecision::RetryableContention) {
+                   return $decision;
+               }
+  -            usleep(20000);
+  +            
+           }
+           throw new RetryableOtpDeliveryFailure('Delivery economics remained contended; no provider call was attempted.');
+       }
+  
+
+   UNTESTED  src/Notifications/OtpQueueDispatcher.php  > Line 74: DecrementInteger - ID: 4b8c5f128e8010fd
+
+       }
+       public function dispatchAfter(AuthChallengeOutbox $outbox, int $delaySeconds): void
+       {
+  -        if ($delaySeconds < 1) {
+  +        if ($delaySeconds < 0) {
+               throw new \InvalidArgumentException('A delayed OTP dispatch requires a positive delay.');
+           }
+           $this->assertAsynchronous();
+  
+
+   UNTESTED  src/Notifications/OtpQueueDispatcher.php  > Line 78: RemoveMethodCall - ID: ed77b3c12c0045d3
+
+           if ($delaySeconds < 1) {
+               throw new \InvalidArgumentException('A delayed OTP dispatch requires a positive delay.');
+           }
+  -        $this->assertAsynchronous();
+  +        
+           $this->connection()->later($delaySeconds, new DeliverOtpChallenge($outbox->opaque_id), queue: $this->queue);
+       }
+       private function connection(): Queue
+  
+
+   UNTESTED  src/Notifications/UnconfiguredOtpDelivery.php  > Line 25: ConcatRemoveRight - ID: 4bd7732de40299b7
+
+   {
+       public static function exception(): RuntimeException
+       {
+  -        return new RuntimeException('No OTP delivery is configured. Bind Fissible\Vouch\Contracts\OtpDelivery to an ' . 'implementation that sends mail or SMS. Vouch refuses to guess: a no-op would ' . 'make codes silently never arrive, and logging the code would disclose a live ' . 'credential.');
+  +        return new RuntimeException('No OTP delivery is configured. Bind Fissible\Vouch\Contracts\OtpDelivery to an ' . 'make codes silently never arrive, and logging the code would disclose a live ' . 'credential.');
+       }
+       public function deliver(AuthIdentifier $identifier, string $code, DateTimeImmutable $expiresAt): void
+       {
+  
+
+   UNTESTED  src/Notifications/UnconfiguredOtpDelivery.php  > Line 25: ConcatRemoveRight - ID: 6b06213997f0126e
+
+   {
+       public static function exception(): RuntimeException
+       {
+  -        return new RuntimeException('No OTP delivery is configured. Bind Fissible\Vouch\Contracts\OtpDelivery to an ' . 'implementation that sends mail or SMS. Vouch refuses to guess: a no-op would ' . 'make codes silently never arrive, and logging the code would disclose a live ' . 'credential.');
+  +        return new RuntimeException('No OTP delivery is configured. Bind Fissible\Vouch\Contracts\OtpDelivery to an ' . 'implementation that sends mail or SMS. Vouch refuses to guess: a no-op would ' . 'credential.');
+       }
+       public function deliver(AuthIdentifier $identifier, string $code, DateTimeImmutable $expiresAt): void
+       {
+  
+
+   UNTESTED  src/Notifications/UnconfiguredOtpDelivery.php  > Line 25: ConcatRemoveRight - ID: 7fa9151ac335d0d3
+
+   {
+       public static function exception(): RuntimeException
+       {
+  -        return new RuntimeException('No OTP delivery is configured. Bind Fissible\Vouch\Contracts\OtpDelivery to an ' . 'implementation that sends mail or SMS. Vouch refuses to guess: a no-op would ' . 'make codes silently never arrive, and logging the code would disclose a live ' . 'credential.');
+  +        return new RuntimeException('No OTP delivery is configured. Bind Fissible\Vouch\Contracts\OtpDelivery to an ' . 'implementation that sends mail or SMS. Vouch refuses to guess: a no-op would ' . 'make codes silently never arrive, and logging the code would disclose a live ');
+       }
+       public function deliver(AuthIdentifier $identifier, string $code, DateTimeImmutable $expiresAt): void
+       {
+  
+
+   UNTESTED  src/Notifications/UnconfiguredOtpDelivery.php  > Line 25: ConcatSwitchSides - ID: 94ab585994168cd2
+
+   {
+       public static function exception(): RuntimeException
+       {
+  -        return new RuntimeException('No OTP delivery is configured. Bind Fissible\Vouch\Contracts\OtpDelivery to an ' . 'implementation that sends mail or SMS. Vouch refuses to guess: a no-op would ' . 'make codes silently never arrive, and logging the code would disclose a live ' . 'credential.');
+  +        return new RuntimeException('implementation that sends mail or SMS. Vouch refuses to guess: a no-op would ' . 'No OTP delivery is configured. Bind Fissible\Vouch\Contracts\OtpDelivery to an ' . 'make codes silently never arrive, and logging the code would disclose a live ' . 'credential.');
+       }
+       public function deliver(AuthIdentifier $identifier, string $code, DateTimeImmutable $expiresAt): void
+       {
+  
+
+   UNTESTED  src/Notifications/UnconfiguredOtpDelivery.php  > Line 25: ConcatSwitchSides - ID: 4331d7730eb0387d
+
+   {
+       public static function exception(): RuntimeException
+       {
+  -        return new RuntimeException('No OTP delivery is configured. Bind Fissible\Vouch\Contracts\OtpDelivery to an ' . 'implementation that sends mail or SMS. Vouch refuses to guess: a no-op would ' . 'make codes silently never arrive, and logging the code would disclose a live ' . 'credential.');
+  +        return new RuntimeException('make codes silently never arrive, and logging the code would disclose a live ' . ('No OTP delivery is configured. Bind Fissible\Vouch\Contracts\OtpDelivery to an ' . 'implementation that sends mail or SMS. Vouch refuses to guess: a no-op would ') . 'credential.');
+       }
+       public function deliver(AuthIdentifier $identifier, string $code, DateTimeImmutable $expiresAt): void
+       {
+  
+
+   UNTESTED  src/Notifications/UnconfiguredOtpDelivery.php  > Line 25: ConcatSwitchSides - ID: d7bf6b3c1f630f1c
+
+   {
+       public static function exception(): RuntimeException
+       {
+  -        return new RuntimeException('No OTP delivery is configured. Bind Fissible\Vouch\Contracts\OtpDelivery to an ' . 'implementation that sends mail or SMS. Vouch refuses to guess: a no-op would ' . 'make codes silently never arrive, and logging the code would disclose a live ' . 'credential.');
+  +        return new RuntimeException('credential.' . ('No OTP delivery is configured. Bind Fissible\Vouch\Contracts\OtpDelivery to an ' . 'implementation that sends mail or SMS. Vouch refuses to guess: a no-op would ' . 'make codes silently never arrive, and logging the code would disclose a live '));
+       }
+       public function deliver(AuthIdentifier $identifier, string $code, DateTimeImmutable $expiresAt): void
+       {
+  
+
+  Mutations: 23 untested, 2 uncovered, 1 timeout, 157 tested
+  Score:     86.34%
+  Duration:  188.32s
+
