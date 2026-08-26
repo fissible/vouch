@@ -48,7 +48,7 @@ declare(strict_types=1);
  *                  Defaults to the current working directory.
  *   --emit-lines   write the unioned executed set to FILE for reuse.
  *   --baseline     prior classification JSON; report added/removed row
- *                  identities (file, line, mutator) against this run.
+ *                  identities and disposition changes against this run.
  *   --baseline-identity  line (default) identifies file/line/mutator rows and
  *                        preserves duplicate occurrences by ordinal;
  *                        expression tolerates line shifts after a source edit
@@ -444,7 +444,7 @@ function keyedRows(array $rows, string $mode): array
 }
 
 /**
- * @return array{added: list<array<string, mixed>>, removed: list<array<string, mixed>>}
+ * @return array{added: list<array<string, mixed>>, removed: list<array<string, mixed>>, changed: list<array{before: array<string, mixed>, after: array<string, mixed>}>}
  */
 function baselineDiff(string $path, array $classified, string $identityMode = 'line'): array
 {
@@ -493,7 +493,21 @@ function baselineDiff(string $path, array $classified, string $identityMode = 'l
         }
     }
 
-    return ['added' => $added, 'removed' => $removed];
+    $changed = [];
+
+    foreach ($currentRows as $identity => $row) {
+        if (! array_key_exists($identity, $baselineRows)) {
+            continue;
+        }
+
+        $before = $baselineRows[$identity];
+
+        if (($before['disposition'] ?? null) !== ($row['disposition'] ?? null)) {
+            $changed[] = ['before' => $before, 'after' => $row];
+        }
+    }
+
+    return ['added' => $added, 'removed' => $removed, 'changed' => $changed];
 }
 
 $options = parseArguments($argv);
@@ -553,6 +567,17 @@ if ($diff !== null) {
 
     foreach ($diff['removed'] as $row) {
         printf("  %s\n", rowIdentity($row));
+    }
+
+    printf("BASELINE CHANGED (%d)\n", count($diff['changed']));
+
+    foreach ($diff['changed'] as $change) {
+        printf(
+            "  %s  %s -> %s\n",
+            rowIdentity($change['after']),
+            $change['before']['disposition'] ?? '<unknown>',
+            $change['after']['disposition'] ?? '<unknown>',
+        );
     }
 }
 

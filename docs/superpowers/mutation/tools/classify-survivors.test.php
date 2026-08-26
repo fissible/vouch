@@ -155,7 +155,26 @@ $diff = classify([
 ]);
 check('an identical classification has no added rows', ($diff['decoded']['baseline_diff']['added'] ?? null) === []);
 check('an identical classification has no removed rows', ($diff['decoded']['baseline_diff']['removed'] ?? null) === []);
+check('an identical classification has no changed rows', ($diff['decoded']['baseline_diff']['changed'] ?? null) === []);
 unlink($baseline);
+
+$changedBaseline = tempnam(sys_get_temp_dir(), 'vouch-baseline-changed-');
+$changedRows = array_values($single['rows']);
+$changedRows[0]['disposition'] = 'never-executed';
+file_put_contents($changedBaseline, json_encode($changedRows, JSON_PRETTY_PRINT));
+$changedDiff = classify([
+    "--log={$fixtures}/survivors.log",
+    "--map={$fixtures}/sqlite.clover.xml",
+    "--baseline={$changedBaseline}",
+]);
+check('reports a disposition change without changing membership', count($changedDiff['decoded']['baseline_diff']['changed'] ?? []) === 1);
+check(
+    'changed row carries both dispositions',
+    ($changedDiff['decoded']['baseline_diff']['changed'][0]['before']['disposition'] ?? null) === 'never-executed'
+        && ($changedDiff['decoded']['baseline_diff']['changed'][0]['after']['disposition'] ?? null)
+            === ($single['rows'][array_key_first($single['rows'])]['disposition'] ?? null),
+);
+unlink($changedBaseline);
 
 echo PHP_EOL, 'source-shift-tolerant baseline identity', PHP_EOL;
 $shifted = tempnam(sys_get_temp_dir(), 'vouch-baseline-shift-');

@@ -444,6 +444,24 @@ it('terminalizes a non-decoy payload whose immutable target is absent', function
         ->and($delivery->sent)->toBe([]);
 });
 
+it('terminalizes a pending row when its challenge can no longer be rehydrated', function (): void {
+    if (DB::getDriverName() !== 'sqlite') {
+        $this->markTestSkipped('The invalid foreign-key fixture is SQLite-specific.');
+    }
+
+    [$factor, $attempt] = outboxFixture();
+    $factor->challenge(new ChallengeRequest($attempt));
+    $outbox = AuthChallengeOutbox::query()->firstOrFail();
+    DB::statement('PRAGMA defer_foreign_keys = ON');
+    $outbox->update(['challenge_id' => 999999]);
+
+    app(OtpOutboxDelivery::class)->deliver($outbox->opaque_id);
+
+    expect($outbox->refresh()->status)->toBe(OtpOutboxStatus::Undeliverable->value)
+        ->and($outbox->failure_reason)->toBe('target_unavailable')
+        ->and($outbox->payload)->toBeNull();
+});
+
 it('records legacy_unparseable for an SMS target that no longer normalizes', function (): void {
     [$factor, $attempt] = outboxFixture();
     $factor->challenge(new ChallengeRequest($attempt));

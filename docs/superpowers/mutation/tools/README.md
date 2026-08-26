@@ -60,7 +60,8 @@ requires, with the expression read from source rather than inferred, plus the
 plugin's mutation ID as the tool-level key.
 
 For a confirmation run, pass the prior classification with `--baseline`. The
-report then includes `added` and `removed` row identities keyed by
+report then includes `added` and `removed` row identities, plus `changed`
+entries for identities whose disposition changed. All are keyed by
 `(file, line, mutator)` by default. When a baseline was taken at a different
 source SHA and code above a row moved, pass
 `--baseline-identity=expression` to compare `(file, mutator, expression)`
@@ -71,7 +72,7 @@ ordinals; a line/mutator key is not treated as a set member. This identity diff
 is the required comparison: a
 stable aggregate can hide a survivor replacing a kill, while a row diff makes
 both directions explicit. JSON mode returns `{rows, baseline_diff}` when this
-option is supplied.
+option is supplied; each `changed` entry contains `before` and `after` rows.
 
 Classification artifacts therefore have two supported shapes: older runs are
 bare row lists, while runs made with `--baseline` are wrapped as

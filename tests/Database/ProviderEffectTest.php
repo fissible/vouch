@@ -98,7 +98,9 @@ it('fails boot when the host does not retain the session validator in web', func
         expect(fn () => (new VouchServiceProvider(app()))->boot())
             ->toThrow(
                 RuntimeException::class,
-                'Vouch requires ValidatesVouchSession in the "web" middleware group.',
+                'Vouch requires ValidatesVouchSession in the "web" middleware group. Without '
+                . 'it, revoking a session sets a column nobody reads and the revoked session '
+                . 'keeps working.',
             );
     } finally {
         app()->instance(Router::class, $originalRouter);
