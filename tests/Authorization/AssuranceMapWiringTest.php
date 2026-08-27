@@ -64,6 +64,14 @@ it('registers a gate hook that actually denies, not merely a callback', function
     config(['vouch.assurance_requirements' => ['invoices.approve' => 'aal2']]);
     Gate::define('invoices.approve', fn (): bool => true);
 
+    /*
+     * STARTED, not merely resolvable. The hook reads assurance from a live
+     * session context and defers when there is none — see the two tests at the
+     * end of this file for why that defer has to exist. A store that has an id
+     * but was never started is not a request context; it is a test artifact,
+     * and asserting a denial against it would pin the wrong contract.
+     */
+    session()->start();
     $id = session()->getId();
     AuthSession::create([
         'session_binding' => SessionBinding::for($id, BindingDomain::Session),
@@ -106,4 +114,55 @@ it('ships strict mode off by default', function (): void {
     // Installing an authentication package must never refuse to boot an app
     // that was working a minute earlier.
     expect(config('vouch.assurance_strict'))->toBeFalse();
+});
+
+/*
+ * The registered hook runs in contexts that have no request at all. These two
+ * cover the closure that adapts the container's request for it — which the
+ * per-class tests above cannot reach, and which is where a defer silently
+ * turned into a denial once already.
+ */
+
+it('does not deny a mapped ability when no session has started', function (): void {
+    /*
+     * A queued job or console command. The container's request is a dummy and
+     * the session store exists but was never started, so there is no assurance
+     * to read — not a weak one, none. Denying here would refuse every mapped
+     * ability in every background job for the life of the process, which is
+     * the cost AssuranceGateHookTest's defer rationale exists to avoid.
+     */
+    config(['vouch.assurance_requirements' => ['invoices.approve' => 'aal2']]);
+    Gate::define('invoices.approve', fn (): bool => true);
+
+    app()->instance('request', Illuminate\Http\Request::create('/queue/worker'));
+    app()->instance('session.store', new Illuminate\Session\Store(
+        'unstarted',
+        new Illuminate\Session\ArraySessionHandler(120),
+    ));
+
+    $user = new Fissible\Vouch\Tests\Support\Authorization\Models\PlainProbeUser;
+    $user->id = 7;
+
+    expect(Gate::forUser($user)->allows('invoices.approve'))->toBeTrue();
+});
+
+it('never leaves a session attached to the shared request', function (): void {
+    /*
+     * An authorization check must not decorate the container's request. Doing
+     * so is sticky: once `hasSession()` is true, every later check in the same
+     * long-lived process reads a session that was manufactured for an earlier
+     * one, and the defer above stops happening.
+     */
+    config(['vouch.assurance_requirements' => ['invoices.approve' => 'aal2']]);
+    Gate::define('invoices.approve', fn (): bool => true);
+
+    $request = Illuminate\Http\Request::create('/queue/worker');
+    app()->instance('request', $request);
+
+    $user = new Fissible\Vouch\Tests\Support\Authorization\Models\PlainProbeUser;
+    $user->id = 7;
+
+    Gate::forUser($user)->allows('invoices.approve');
+
+    expect($request->hasSession())->toBeFalse();
 });
