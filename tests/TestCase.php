@@ -52,17 +52,29 @@ abstract class TestCase extends Orchestra
      * context mismatch return IDENTICAL refusals, so an enumeration test
      * comparing them passes while proving nothing. Verified, not assumed.
      *
-     * The cookie is sent unencrypted so the app reads it as the session ID
-     * directly; passing the response's encrypted value here would be read as a
-     * raw ID, fail validation, and silently start a new session. The ID must be
-     * 40 alphanumeric characters or Store::setId() discards it and substitutes
-     * a random one — also silently.
+     * The ID must be 40 alphanumeric characters or Store::setId() discards it
+     * and substitutes a random one — also silently. See the body for why the
+     * cookie has to be encrypted.
      */
     protected function pinSession(?string $id = null): string
     {
         $id ??= substr(str_repeat('vouchtestsession', 4), 0, 40);
 
-        $this->withUnencryptedCookie(config()->string('session.cookie'), $id);
+        /*
+         * ENCRYPTED, not raw. EncryptCookies is in the web group and decrypts
+         * every cookie it is not told to skip, so a raw value fails to
+         * decrypt, arrives as null, and StartSession silently issues a fresh
+         * ID -- the pin appears to work while every request gets a different
+         * session.
+         *
+         * That failure is invisible in exactly the tests most likely to rely
+         * on it. A test asserting a REFUSAL still passes, because a session
+         * row that is never found is refused for the wrong reason; only the
+         * paired test asserting that a SUFFICIENT session gets through
+         * exposes it. withCookie() applies the encryption and value prefix the
+         * framework expects.
+         */
+        $this->withCookie(config()->string('session.cookie'), $id);
 
         return $id;
     }

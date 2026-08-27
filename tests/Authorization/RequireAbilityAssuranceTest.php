@@ -256,6 +256,7 @@ it('reports the held level as null when there is no session to source one from',
         abilityAssuranceNext(),
     );
 
+    /** @var array<string, mixed> $payload */
     $payload = json_decode((string) $response->getContent(), true, 512, JSON_THROW_ON_ERROR);
 
     expect($payload['held'])->toBeNull()

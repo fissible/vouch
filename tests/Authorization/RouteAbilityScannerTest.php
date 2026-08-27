@@ -19,6 +19,7 @@ use Illuminate\Routing\Route;
 
 /**
  * @param  list<string>  $middleware
+ * @return list<string>
  */
 function scannedAbilities(array $middleware): array
 {

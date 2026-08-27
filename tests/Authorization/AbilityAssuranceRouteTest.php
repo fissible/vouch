@@ -93,6 +93,10 @@ final class AbilityAssuranceRouteTest extends TestCase
 
         Route::middleware('web')->post('/either/approve', fn (): string => 'controller reached')
             ->middleware('role_or_permission:admin|invoices.approve');
+
+        // No authorization middleware at all: the ability is checked INSIDE
+        // the action, which is the only shape the route scanner cannot see.
+        Route::middleware('web')->post('/gate/direct', fn (): string => Gate::allows('invoices.approve') ? 'allowed' : 'denied');
     }
 
     #[Test]
@@ -212,19 +216,54 @@ final class AbilityAssuranceRouteTest extends TestCase
          * spatie's grant short-circuits it, which is why the route tests above
          * exist. Here nothing grants first, so the hook is reached.
          */
+        // Asserted through a REQUEST, not from the test body: the hook is
+        // session-sourced by design and defers when there is no session
+        // context (see AssuranceGateHookTest), so calling Gate::allows() from
+        // the test body would prove the opposite of what it appears to.
+        //
+        // Nothing grants ahead of it here — spatie holds no permission, so its
+        // hook defers. That is the ONLY condition under which this hook
+        // decides anything, and the test below states the other half.
+        config(['vouch_test.held_permissions' => []]);
         Gate::define('invoices.approve', fn (): bool => true);
         $this->signIn(acr: 'aal1');
 
-        self::assertFalse(Gate::allows('invoices.approve'));
+        $this->post('/gate/direct')->assertSee('denied');
+    }
+
+    #[Test]
+    public function the_gate_hook_is_bypassed_when_an_earlier_hook_grants(): void
+    {
+        /*
+         * The measured limitation, asserted rather than described — this is
+         * the survey's central finding reproduced end to end.
+         *
+         * The user holds the permission, so spatie's hook returns true and
+         * `callBeforeCallbacks()` returns on the first non-null result. Vouch's
+         * hook is registered after spatie's and never runs, so a session two
+         * levels short of the requirement is ALLOWED.
+         *
+         * Nothing in Vouch can fix this from inside the Gate: provider order
+         * comes from installed.json. It is why enforcement lives in route
+         * middleware and why this hook is documented as defense in depth. If
+         * this test ever starts failing, the ordering assumption the whole
+         * design rests on has changed and the design should be revisited.
+         */
+        config(['vouch_test.held_permissions' => ['invoices.approve']]);
+        Gate::define('invoices.approve', fn (): bool => true);
+        $this->signIn(acr: 'aal1');
+
+        $this->post('/gate/direct')->assertSee('allowed');
     }
 
     #[Test]
     public function the_gate_hook_never_grants_an_ability_the_host_withheld(): void
     {
+        config(['vouch_test.held_permissions' => []]);
         Gate::define('invoices.approve', fn (): bool => false);
         $this->signIn(acr: 'aal3');
 
-        self::assertFalse(Gate::allows('invoices.approve'));
+        $this->post('/gate/direct')->assertSee('denied');
     }
 
     #[Test]

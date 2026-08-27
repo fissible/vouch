@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Gate;
  */
 
 /**
+ * @param  array<string, mixed>  $options
  * @return array<string, mixed>
  */
 function assuranceMapJson(array $options = [], int $expectedExit = 0): array
@@ -34,7 +35,27 @@ function assuranceMapJson(array $options = [], int $expectedExit = 0): array
         throw new RuntimeException('Expected an assurance map report object.');
     }
 
+    /** @var array<string, mixed> $decoded */
     return $decoded;
+}
+
+/**
+ * The requirement rows, narrowed. json_decode hands back mixed, and every
+ * assertion below reads columns off these rows.
+ *
+ * @param  array<string, mixed>  $options
+ * @return list<array<string, mixed>>
+ */
+function assuranceMapRows(array $options = []): array
+{
+    $rows = assuranceMapJson($options)['requirements'] ?? null;
+
+    if (! is_array($rows)) {
+        throw new RuntimeException('Expected assurance map requirement rows.');
+    }
+
+    /** @var list<array<string, mixed>> $rows */
+    return $rows;
 }
 
 it('reports an empty map without complaining', function (): void {
@@ -49,9 +70,9 @@ it('lists every configured requirement', function (): void {
         'users.impersonate' => 'aal3',
     ]]);
 
-    $report = assuranceMapJson();
+    $report = assuranceMapRows();
 
-    expect(array_column($report['requirements'], 'level', 'ability'))
+    expect(array_column($report, 'level', 'ability'))
         ->toBe(['invoices.approve' => 'aal2', 'users.impersonate' => 'aal3']);
 });
 
@@ -59,7 +80,7 @@ it('attributes an ability defined on the Gate to the gate', function (): void {
     Gate::define('invoices.approve', fn (): bool => true);
     config(['vouch.assurance_requirements' => ['invoices.approve' => 'aal2']]);
 
-    expect(array_column(assuranceMapJson()['requirements'], 'source', 'ability'))
+    expect(array_column(assuranceMapRows(), 'source', 'ability'))
         ->toBe(['invoices.approve' => 'gate']);
 });
 
@@ -69,7 +90,7 @@ it('attributes an ability the host declared to the declaration', function (): vo
         'vouch.assurance_requirements' => ['invoices.approve' => 'aal2'],
     ]);
 
-    expect(array_column(assuranceMapJson()['requirements'], 'source', 'ability'))
+    expect(array_column(assuranceMapRows(), 'source', 'ability'))
         ->toBe(['invoices.approve' => 'declared']);
 });
 
@@ -79,7 +100,7 @@ it('marks an ability that matches neither source as unknown', function (): void 
         'vouch.assurance_requirements' => ['invoices.aprove' => 'aal2'],
     ]);
 
-    expect(array_column(assuranceMapJson()['requirements'], 'source', 'ability'))
+    expect(array_column(assuranceMapRows(), 'source', 'ability'))
         ->toBe(['invoices.aprove' => 'unknown']);
 });
 
