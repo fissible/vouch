@@ -1,5 +1,25 @@
 # Vouch reboot handoff — mutation reconciliation
 
+> **SUPERSEDED as an entry point, and its pin no longer resolves.** Start from
+> PROJECT.md's "Mutation-reconciliation handoff" section and the committed
+> ledger at
+> [`docs/superpowers/mutation/2026-08-22-reconciliation-ledger.md`](docs/superpowers/mutation/2026-08-22-reconciliation-ledger.md).
+>
+> Everything below is a **historical record of measurements taken at
+> `66ac67d`**, and it is kept because those measurements and the interpretation
+> rules are still the reference for how this work is done. What is no longer
+> actionable:
+>
+> - The `PIN_OK` guard cannot pass. `src/` has moved five times since that
+>   checkpoint — 2.3d Tasks 1-4 (`1224349`, `ff70efd`, `3d554a1`, `7e0e8f2`)
+>   and Task 5b (`618fcfa`) — so a resumed run must re-pin to a fresh SHA and
+>   re-measure any row in a file those commits touched.
+> - The green-suite figures under "Ordinary validation" describe the tree at
+>   `66ac67d` (1,161 passed). They are not the current baseline; see PROJECT.md
+>   for that.
+>
+> The "Remaining ledger order" and "Interpretation rules" below still stand.
+
 ## Checkpoint
 
 - Repository: `/Users/allenmccabe/lib/fissible/vouch`

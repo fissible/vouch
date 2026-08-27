@@ -134,7 +134,7 @@ bypass-sandbox flag is blocked.
 
 ### Mutation-reconciliation handoff — 2026-08-26
 
-Resume from [`docs/superpowers/mutation/2026-08-22-reconciliation-ledger.md`](docs/superpowers/mutation/2026-08-22-reconciliation-ledger.md), not from the older phase summaries below. The current repository state is `96bbe4a`; the source tree has been unchanged since `212212a`, while the intervening test and evidence commits are part of the recorded state. The classifier tooling and all current chunk artifacts are committed, and every comparison must use stable row identities with `--baseline` (expression identity when a source edit shifts lines).
+Resume from [`docs/superpowers/mutation/2026-08-22-reconciliation-ledger.md`](docs/superpowers/mutation/2026-08-22-reconciliation-ledger.md), not from the older phase summaries below. **The source tree is no longer unchanged, and the recorded corpus is therefore a partial baseline rather than a current one.** This paragraph previously stated that `src/` had not moved since `212212a`; that stopped being true once 2.3d landed. Five source commits have since arrived — `1224349`, `ff70efd`, `3d554a1`, `7e0e8f2` (Tasks 1-4) and `618fcfa` (Task 5b) — so any row touching the files they changed must be re-measured at a fresh baseline before it is ruled. Rows in files those commits did not touch remain valid evidence. Re-pin to the then-current SHA when the work resumes rather than reusing `96bbe4a`. The classifier tooling and all current chunk artifacts are committed, and every comparison must use stable row identities with `--baseline` (expression identity when a source edit shifts lines).
 
 The corpus currently contains 526 classified rows: 446 executed-and-survived, 7 never-executed rows (all dispositioned, with no actionable gap), 23 engine-gated, 45 instrument-unroutable, and 5 separately tracked timeouts. The Notifications, root, console/jobs, Delivery, Flow, Kernel, Factors, Throttle, and cross-engine contention batches are complete. The keyed adjudication manifest now contains 173 entries; the remaining unadjudicated survivors are the review surface, not an inferred defect queue. The ledger's portable disposition vocabulary (engine-gated, engine-equivalent, redundant-cast, shadowed-by-earlier-guard, shadowed-by-caller-guard, idempotent-under-clamp, equivalent-by-duplicated-branch, and language-semantic equivalence) is evidence from the reconciliation, not an open queue by itself.
 
@@ -142,8 +142,10 @@ The corpus currently contains 526 classified rows: 446 executed-and-survived, 7 
 
 ## What this is
 
-A Laravel authentication package unifying password, OTP, MFA, and SSO behind one policy
-engine, with a tamper-evident audit trail. Positioned for Laravel apps under compliance
+A Laravel authentication package unifying password, OTP, MFA, and — by design, not yet
+built — SSO behind one policy engine, with a tamper-evident audit trail. The shipped
+factors are password, TOTP, email and SMS OTP, and recovery codes; federation is 2.5 and
+unplanned, which is why neither the README nor the Composer description claims SSO. Positioned for Laravel apps under compliance
 pressure (SOC 2, HIPAA). First consumers are `fissible/sluice` and `fissible/station`.
 
 It is an **orchestration layer** over Fortify, `laravel/passkeys`, Socialite, and
