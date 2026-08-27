@@ -26,9 +26,17 @@ already point at it: the ability map is session-sourced and returns a stated
 supersedes; and `AuthTokenAssurance` already exists as a 2.1 table with nothing
 consuming it.
 
-**Also worth doing before 2.4**, both small: the package is at 0.1.0 with no
-release cut, and `HANDOFF.md` is a stale mutation-reconciliation handoff that
-now contradicts the live one below.
+**Release readiness.** The package is at 0.1.0 with no version tag, and the org
+release procedure cannot run here: `release.sh`, `CHANGELOG.md` and
+`.cliff.toml` are all absent (git-cliff itself is installed). The single
+existing tag is `pre-restructure`, not a version.
+
+`fissible_release_advice` suggests `v1.0.0` — **do not follow it.** It reads 457
+untagged commits containing `feat:` and applies the post-1.0 bump table, which
+has no 0.x case. 1.0.0 would assert an API stability this package has not
+earned: the token gate is 2.4, UI adapters are Phase 3, and a host still cannot
+complete a browser step-up without building the page itself. Cut `v0.1.0` — the
+version `VERSION` already declares — and let 2.4 take 0.2.0.
 
 **What 5a's probes settled**, in
 [`docs/authorization-integration-survey.md`](docs/authorization-integration-survey.md),
