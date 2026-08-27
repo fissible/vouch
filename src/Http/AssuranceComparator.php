@@ -20,8 +20,27 @@ use Fissible\Vouch\Models\AuthSession;
  */
 final readonly class AssuranceComparator
 {
-    /** @var list<string> Weakest first. */
-    private const ORDER = ['aal0', 'aal1', 'aal2', 'aal3'];
+    /** @var list<string> Weakest first; the single assurance-level ordering. */
+    public const ORDER = ['aal0', 'aal1', 'aal2', 'aal3'];
+
+    public static function isKnown(string $level): bool
+    {
+        return in_array($level, self::ORDER, true);
+    }
+
+    public static function strength(string $level): int
+    {
+        $strength = array_search($level, self::ORDER, true);
+
+        // Callers validate configuration before comparing it. Keep this
+        // unreachable branch loud: silently assigning a new level strength
+        // could make an assurance decision fail open or closed by accident.
+        if ($strength === false) {
+            throw new \InvalidArgumentException('Unknown assurance level.');
+        }
+
+        return $strength;
+    }
 
     public function isSufficient(?AuthSession $session, string $required): bool
     {

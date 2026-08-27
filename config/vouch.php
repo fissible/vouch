@@ -40,6 +40,27 @@ return [
         'default_return' => env('VOUCH_STEP_UP_DEFAULT_RETURN', '/'),
     ],
 
+    /*
+     * Ability names to the minimum recorded assurance they require. Route
+     * middleware reads the host's existing authorization declarations, so a
+     * map entry need not be duplicated on every protected route.
+     */
+    'assurance_requirements' => [],
+
+    /*
+     * The host's complete, intentional ability vocabulary. Gate definitions
+     * and package database permissions are not enumerable at boot, so only
+     * this declaration can make typo refusal a reliable opt-in contract.
+     */
+    'declared_abilities' => [],
+
+    /*
+     * Refuse boot when the map names an ability outside declared_abilities.
+     * Off by default: publishing an authentication package must not surprise
+     * an otherwise working host; the report command remains available to fix it.
+     */
+    'assurance_strict' => (bool) env('VOUCH_ASSURANCE_STRICT', false),
+
     'routes' => [
         'prefix' => env('VOUCH_ROUTE_PREFIX', 'vouch'),
 

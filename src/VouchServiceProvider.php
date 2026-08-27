@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Fissible\Vouch;
 
 use Fissible\Vouch\Attempts\DatabaseAttemptStore;
+use Fissible\Vouch\Authorization\AssuranceGateHook;
+use Fissible\Vouch\Authorization\AssuranceRequirements;
+use Fissible\Vouch\Authorization\RouteAbilityScanner;
+use Fissible\Vouch\Console\VouchAssuranceMapCommand;
 use Fissible\Vouch\Console\VouchDispatchOtpOutboxCommand;
 use Fissible\Vouch\Console\VouchDoctorCommand;
 use Fissible\Vouch\Console\VouchPruneCommand;
@@ -63,6 +67,10 @@ final class VouchServiceProvider extends ServiceProvider
         $this->app->bind(TenantResolver::class, NullTenantResolver::class);
 
         $this->app->singleton(ClockInterface::class, SystemClock::class);
+        // Bound, not shared: test and long-running hosts may change config after boot.
+        $this->app->bind(AssuranceRequirements::class, static fn (): AssuranceRequirements => AssuranceRequirements::from(config('vouch.assurance_requirements')));
+        $this->app->bind(RouteAbilityScanner::class);
+        $this->app->bind(AssuranceGateHook::class);
 
         /*
          * Unconfigured by default, and it THROWS. A no-op would turn "OTP is not
@@ -455,23 +463,77 @@ final class VouchServiceProvider extends ServiceProvider
         $router = $this->app->make(\Illuminate\Routing\Router::class);
         $router->aliasMiddleware('vouch.session', \Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class);
         $router->aliasMiddleware('vouch.assurance', \Fissible\Vouch\Http\Middleware\RequireAssurance::class);
-        $router->pushMiddlewareToGroup('web', \Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class);
+        $router->aliasMiddleware('vouch.ability', \Fissible\Vouch\Http\Middleware\RequireAbilityAssurance::class);
+        $ensureMiddlewareGroups = function (): void {
+            $router = $this->app->make(\Illuminate\Routing\Router::class);
+            $middlewareByGroup = [
+                'web' => [
+                    \Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class,
+                    \Fissible\Vouch\Http\Middleware\RequireAbilityAssurance::class,
+                ],
+                'api' => [\Fissible\Vouch\Http\Middleware\RequireAbilityAssurance::class],
+            ];
 
-        /*
-         * A runtime check is authoritative only on requests that actually
-         * traverse it. Vouch controls its own code path, but not the host's
-         * routes — so the middleware's PRESENCE is asserted at boot, and its
-         * absence is a hard failure rather than a silently unguarded app.
-         */
-        if (! in_array(
-            \Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class,
-            $router->getMiddlewareGroups()['web'] ?? [],
-            true,
-        )) {
-            throw new \RuntimeException(
-                'Vouch requires ValidatesVouchSession in the "web" middleware group. Without '
-                . 'it, revoking a session sets a column nobody reads and the revoked session '
-                . 'keeps working.',
+            foreach ($middlewareByGroup as $group => $middleware) {
+                foreach ($middleware as $class) {
+                    if (! in_array($class, $router->getMiddlewareGroups()[$group] ?? [], true)) {
+                        $router->pushMiddlewareToGroup($group, $class);
+                    }
+                }
+            }
+
+            /*
+             * A runtime check is authoritative only on requests that actually
+             * traverse it. This presence check runs while the HTTP kernel is
+             * resolved, not at provider boot, because only then has Laravel
+             * synchronized the host's final middleware groups. Vouch controls
+             * its own code path, but not the host's routes — absence is a hard
+             * failure rather than a silently unguarded app.
+             */
+            if (! in_array(
+                \Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class,
+                $router->getMiddlewareGroups()['web'] ?? [],
+                true,
+            )) {
+                throw new \RuntimeException(
+                    'Vouch requires ValidatesVouchSession in the "web" middleware group. Without '
+                    . 'it, revoking a session sets a column nobody reads and the revoked session '
+                    . 'keeps working.',
+                );
+            }
+        };
+
+        $ensureMiddlewareGroups();
+
+        // This mirrors probe 1 in authorization-integration-survey.md: callAfterResolving
+        // runs immediately for an already-resolved service, or after the kernel constructor
+        // syncs its default groups, so either host order retains Vouch's middleware.
+        $this->callAfterResolving(\Illuminate\Contracts\Http\Kernel::class, function () use ($ensureMiddlewareGroups): void {
+            $ensureMiddlewareGroups();
+        });
+
+        \Illuminate\Support\Facades\Gate::before(function (mixed $user, string $ability): ?bool {
+            $request = request();
+            $session = $this->app->make(\Illuminate\Contracts\Session\Session::class);
+
+            // Gate also runs in workers and console commands, whose shared
+            // container request is only a dummy. Attach a session only when
+            // it has actually started, otherwise the hook must defer rather
+            // than turn background authorization into a denial.
+            if (! $request->hasSession() && $session->isStarted()) {
+                // Authorization must not decorate the shared request: a later
+                // Gate check in this long-lived process must see its real
+                // request context, not a session manufactured for this call.
+                $request = clone $request;
+                $request->setLaravelSession($session);
+            }
+
+            return $this->app->make(AssuranceGateHook::class)->decide($user, $ability, $request);
+        });
+
+        if (config('vouch.assurance_strict') === true && ! $this->isDoctorCommand() && ! $this->isAssuranceMapCommand()) {
+            $this->app->make(AssuranceRequirements::class)->assertDeclared(
+                AssuranceRequirements::declaredFrom(config('vouch.declared_abilities')),
             );
         }
 
@@ -490,6 +552,7 @@ final class VouchServiceProvider extends ServiceProvider
                 VouchThrottleReportCommand::class,
                 VouchSmsIdentifierAuditCommand::class,
                 VouchDoctorCommand::class,
+                VouchAssuranceMapCommand::class,
             ]);
         }
     }
@@ -524,6 +587,23 @@ final class VouchServiceProvider extends ServiceProvider
         foreach (array_slice($argv, 1) as $argument) {
             if (is_string($argument) && ! str_starts_with($argument, '-')) {
                 return $argument === 'vouch:doctor';
+            }
+        }
+
+        return false;
+    }
+
+    private function isAssuranceMapCommand(): bool
+    {
+        $argv = $_SERVER['argv'] ?? [];
+
+        if (! is_array($argv)) {
+            return false;
+        }
+
+        foreach (array_slice($argv, 1) as $argument) {
+            if (is_string($argument) && ! str_starts_with($argument, '-')) {
+                return $argument === 'vouch:assurance-map';
             }
         }
 

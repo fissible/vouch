@@ -34,6 +34,11 @@ final class AuthSession extends Model
     protected function casts(): array
     {
         return [
+            // Database drivers may hydrate BIGINT columns as strings, while a
+            // host User commonly returns an integer identifier. Normalize at
+            // the model boundary so strict ownership checks fail only for a
+            // different user, not for PDO representation differences.
+            'user_id' => 'integer',
             'amr' => 'array',
             'assurance_facts' => 'array',
             'last_factor_at' => 'datetime',
