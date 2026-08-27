@@ -11,17 +11,24 @@ factor drivers.
 
 ### Current handoff — 2026-08-26
 
-**2.3d is six tasks in.** Tasks 1-4 shipped earlier: identifier verification
+**2.3d is COMPLETE.** All seven tasks shipped: identifier verification
 (`1224349`), credential recovery (`ff70efd`), first-credential enrollment
-(`3d554a1`), credential self-service (`7e0e8f2`). Task 5a's survey is now
-complete with both probes committed as tests (`62e0228`), and Task 5b — the
-ability → assurance requirement map — shipped as `618fcfa`. Suite is **1,436
-passing / 1 skipped**; PHPStan sits at the same 6 pre-existing errors.
+(`3d554a1`), credential self-service (`7e0e8f2`), the authorization survey with
+both probes committed as tests (`62e0228`), the ability → assurance requirement
+map (`618fcfa`), and the README plus composer `suggest` (`ce521b1`). Suite is
+**1,476 passing / 1 skipped**; PHPStan sits at the same 6 pre-existing errors.
 
-**Next: Task 6** (suggest `spatie/laravel-permission` + composition recipe, XS)
-and **Task 7** (positioning: tagline and non-goals above the fold, XS). Both are
-documentation, and both now have specific content owed to them — see "What 6
-and 7 must say" below. They close out 2.3d.
+**Next: 2.4** (token gate & audit — `Vouch::issueToken`, default-deny,
+revocation, audit sink drivers, plus `RequireAssurance` non-interactive per
+RFC 9470). It is unplanned and needs its own spec → plan cycle. Two things
+already point at it: the ability map is session-sourced and returns a stated
+403 to a request carrying no Vouch session, which 2.4's token vocabulary
+supersedes; and `AuthTokenAssurance` already exists as a 2.1 table with nothing
+consuming it.
+
+**Also worth doing before 2.4**, both small: the package is at 0.1.0 with no
+release cut, and `HANDOFF.md` is a stale mutation-reconciliation handoff that
+now contradicts the live one below.
 
 **What 5a's probes settled**, in
 [`docs/authorization-integration-survey.md`](docs/authorization-integration-survey.md),
@@ -34,7 +41,6 @@ test rather than rotting the document:
   is already resolved.
 - *Bouncer's `before` hook is inert by default.* `Guard::$slot` defaults to
   `'after'`; `Bouncer::runBeforePolicies()` is the host switch that moves it.
-  The earlier draft overstated this hazard.
 - *spatie's hook is the live one, and it fails open at the center.* It grants
   whenever the user holds the permission — the only case an assurance
   requirement constrains.
@@ -47,81 +53,84 @@ test rather than rotting the document:
 **What 5b ships.** `config('vouch.assurance_requirements')` maps ability names
 to `aal0`..`aal3`. `RequireAbilityAssurance` enforces in the **web and api**
 groups by reading the ability names off the matched route's own
-`can:`/`permission:`/`role_or_permission:` parameters — alias-resolved through
-the router's table. Deny-only throughout; a satisfied requirement is "no
-opinion", never "allow". Insufficient assurance steps up interactively and
-returns a stated 403 otherwise. `AssuranceGateHook` is defense in depth only.
-`vouch:assurance-map` reports requirements, sources, enforced groups, and
-whether the host's user model still routes `can()` to the Gate;
+`can:`/`permission:`/`role_or_permission:` parameters, alias-resolved through
+the router's table. Deny-only throughout. `AssuranceGateHook` is defense in
+depth only. `vouch:assurance-map` reports requirements, sources, enforced
+groups, and whether the host's user model still routes `can()` to the Gate;
 `vouch.assurance_strict` refuses the boot on an undeclared ability, exempting
 that command.
 
-**What 6 and 7 must say.** These are not free-form:
-
-1. The enforcement boundary. A protected route in neither `web` nor `api` is
-   covered only by the Gate hook, which is bypassable. Such a group needs the
-   `vouch.ability` middleware added explicitly. `vouch:assurance-map` reports
-   `enforced_groups`, so the gap is visible — but it must be documented.
-2. Token requests get a stated 403, not an assurance evaluation, until 2.4.
-3. Strict mode answers only to `declared_abilities`, never `Gate::abilities()`,
-   which is empty at boot. A host defining abilities solely through
-   `Gate::define` must list them to use strict mode.
-4. The two host configurations Vouch cannot reliably detect: a model that took
-   Bouncer's `can()`, and `Bouncer::runBeforePolicies()`.
-
-**Two fixes fell out of 5b and are worth knowing.**
+**Two fixes fell out of 5b.**
 
 - `pushMiddlewareToGroup()` from a provider is **silently discarded** whenever
   the HTTP kernel resolves afterwards: `Kernel::__construct()` calls
   `syncMiddlewareToRouter()` and `Router::middlewareGroup()` replaces rather
   than merges. Production is safe (index.php resolves the kernel before
   providers boot), but Testbench is not, and the boot-time
-  `ValidatesVouchSession` presence guard could therefore pass while the
-  deployed group no longer contained it. Both middleware now install through
+  `ValidatesVouchSession` presence guard could pass while the deployed group no
+  longer contained it. Both middleware now install through
   `callAfterResolving(Kernel::class)`.
 - `auth_sessions.user_id` now casts to integer. 5b introduced the first
-  comparison putting a database column against a host's `getAuthIdentifier()`
-  rather than against another database value.
+  comparison putting a database column against a host's `getAuthIdentifier()`.
 
-**Process notes worth keeping.** Tasks 1-5b were built with the `duet` skill:
-tests written and frozen with `shasum` first, codex implementing against a
-contract it cannot edit. 5b took five adversarial review rounds before codex
-approved the tests, and the rounds earned their keep — the first version proved
-the mechanism but not the feature, and every routed test was added because
-codex pointed out that a unit-only suite can be green while the deployed route
-fails open.
+**Two adoption traps now documented in the README**, both found by reading it
+rather than by any test:
 
-Four defects then surfaced in **my** frozen tests, each committed as a separate
-phase-1 amendment (`14fe75e`, `2802d76`, `5c15391`):
+- Spatie ships **no middleware alias** on Laravel 11+, so a `permission:` route
+  copied from documentation fails with "Target class [permission] does not
+  exist" until the host registers the alias. This broke 5b's end-to-end tests
+  too.
+- Configuring an assurance map without `VOUCH_STEP_UP_URL` produces a **500 on
+  the first refusal**, deliberately — Vouch ships no routeable step-up page and
+  guessing would send browsers to a POST-only endpoint.
+
+**Process notes worth keeping.** Every 2.3d task was built with the `duet`
+skill: tests written and frozen with `shasum` first, codex implementing against
+a contract it cannot edit. Two things earned their keep repeatedly.
+
+*The review rounds are where the tests get real.* 5b took five rounds and 6-7
+took nine. In both cases the first version proved the mechanism but not the
+feature — 5b's enforcement tests all called classes directly, so the deployed
+route could still fail open, and 6-7's doc tests were satisfiable by dropping a
+keyword into a sentence. The routed tests and the block-co-occurrence
+assertions exist because codex would not approve without them.
+
+*Test defects outnumbered implementation defects, and each was committed as its
+own phase-1 amendment* (`14fe75e`, `2802d76`, `5c15391`):
 
 - `pinSession()` never pinned anything — it sent the session cookie
   unencrypted, `EncryptCookies` nulled it, and every request got a fresh
   session. A test asserting a REFUSAL still passed, because a row that is never
-  found is refused anyway; only the paired sufficient-session tests exposed it.
-  Write the passing half of every refusal test.
+  found is refused anyway. **Write the passing half of every refusal test.**
 - Two end-to-end Gate-hook tests asserted the hook denies while spatie held the
   permission — the exact fail-open the survey measured. The tests contradicted
   the design they defended.
 - `PermissionedProbeUser` lacked `hasAnyPermission()`, so spatie's middleware
   refused before evaluating anything and every route returned a 403 that looked
   exactly like Vouch working.
-- The provider's `Gate::before` closure had no coverage at all, and that gap
-  held a real bug: it attached an unstarted session to the shared container
-  request, which would have denied every mapped ability in every queued job for
-  the life of the process.
+- The provider's `Gate::before` closure had no coverage, and that gap held a
+  real bug: it attached an unstarted session to the shared container request,
+  which would have denied every mapped ability in every queued job.
+- A fixture for a backslash-continued `composer require` failed on first run and
+  exposed a bug in the regex it was pinning — the alternation was ordered so
+  `[^\n]` swallowed the backslash. **Fixture the helpers, not just the feature.**
 
-**Verify the implementer's test reports.** Codex reported the suite green after
-the phase-4 fixes; it was not — one wiring test was failing. Its own fix was
-correct and the test was wrong, but the report was inaccurate. It did decline,
-correctly, to report a Pest count it could not establish because a concurrent
-run had corrupted the shared SQLite file.
+**Verify the implementer's reports.** Codex reported the suite green after 5b's
+phase-4 fixes; it was not. It also twice reported stale test counts from a
+cached view of the tree, and once returned REVISE whose only item was "the
+README does not exist yet" — which is the RED precondition, not a defect. It
+was right about far more than it was wrong about, and it correctly declined to
+report a Pest count it could not establish when the shared SQLite file was
+corrupted.
 
 **Environment hazards, unchanged.** Never run the suite while codex is running —
 concurrent runs corrupt the shared file-backed SQLite database and produce a
 fake ~950-failure result (`rm -f $TMPDIR/vouch-test*.sqlite` and rerun).
 Backgrounded shells inherit no usable `PATH`, so detached runs need
 `/opt/homebrew/bin/php vendor/bin/pest`. Run PHPStan on new test files at phase
-4 with `--memory-limit=1G`; the default 128M crashes the worker.
+4 with `--memory-limit=1G`; the default 128M crashes the worker. `codex exec`
+takes `-s workspace-write`; `--full-auto` is not a valid flag and the
+bypass-sandbox flag is blocked.
 
 ### Mutation-reconciliation handoff — 2026-08-26
 
@@ -268,7 +277,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.3 | Flow & HTTP — orchestrator, single `POST /vouch/auth`, `ScreenSpec`→JSON, session lifecycle, recovery-grace enforcement, `RequireAssurance` interactive | **Verification complete; email/SMS OTP issuance corrected in 2.3b Task 14** |
 | 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implemented; mutation reconciliation evidence recorded** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | **Substantially implemented; cross-engine lock ruling, 46 mutation gaps, and final exit criteria remain** |
-| 2.3d | Account lifecycle (Fortify parity) — identifier verification, credential recovery, first-credential enrolment, credential self-service, ability→assurance requirements | Planned; **Task 1 blocks adoption** |
+| 2.3d | Account lifecycle (Fortify parity) — identifier verification, credential recovery, first-credential enrollment, credential self-service, ability→assurance requirements | **Complete** |
 | 2.4 | Token gate & audit — `Vouch::issueToken`, default-deny, revocation, audit sink drivers, **plus `RequireAssurance` non-interactive (RFC 9470)** | Not planned |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
 | post-2.4 | Impersonation — two-principal sessions, actor-derived assurance, capability matrix, audited | Not planned; gated on 2.4's audit sink |
@@ -1690,8 +1699,8 @@ package is unusable by anyone who has not read the source.
 | 4 | Credential self-service | M | 2 | — | Planned |
 | 5a | Authorization integration survey | S | — | — | **Complete** |
 | 5b | Ability → assurance requirement map | M | 5a | — | **Complete** |
-| 6 | Suggest `spatie/laravel-permission` + composition recipe | XS | 5b | — | Planned |
-| 7 | Positioning: tagline and non-goals above the fold | XS | — | — | Planned |
+| 6 | Suggest `spatie/laravel-permission` + composition recipe | XS | 5b | — | **Complete** |
+| 7 | Positioning: tagline and non-goals above the fold | XS | — | — | **Complete** |
 
 **Revised after review.** Task 1 is new machinery, not composition: the OTP outbox
 deliberately refuses unverified identifiers, and `auth_challenges.attempt_id` is a
