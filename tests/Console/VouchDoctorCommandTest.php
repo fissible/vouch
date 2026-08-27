@@ -82,9 +82,15 @@ it('returns success when every configured prerequisite passes', function (): voi
     app()->instance(DeliveryEconomics::class, Mockery::mock(DeliveryEconomics::class));
     app()->instance(CaptchaVerifier::class, Mockery::mock(CaptchaVerifier::class));
     try {
-        expect(Artisan::call('vouch:doctor', ['--json' => true]))->toBe(CommandExit::Success->value)
-            ->and(json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR)['missing'])
-            ->toBe(0);
+        $exit = Artisan::call('vouch:doctor', ['--json' => true]);
+        $report = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
+
+        if (! is_array($report)) {
+            throw new RuntimeException('Expected a doctor report object.');
+        }
+
+        expect($exit)->toBe(CommandExit::Success->value)
+            ->and($report['missing'])->toBe(0);
     } finally {
         Config::set('vouch.throttle.captcha.enabled', false);
         Config::set('vouch.throttle.global.mode', 'observe');
@@ -142,7 +148,7 @@ it('renders the human-readable prerequisite table', function (): void {
         ->toContain('OtpDelivery')
         ->toContain('durable_queue')
         ->toContain('DeliveryEconomics')
-        ->not->toContain('{"missing"');
+        ->not()->toContain('{"missing"');
 });
 
 it('returns literal exit 2 and reports an unguarded prerequisite failure', function (): void {
@@ -157,7 +163,11 @@ it('marks a guarded queue check missing without triggering diagnostic failure', 
         new class implements QueueFactory {
             public function connection($connection = null): \Illuminate\Contracts\Queue\Queue
             {
-                return new SyncQueue(app());
+                // SyncQueue's only constructor argument is
+                // $dispatchAfterCommit. Passing the container here dated from
+                // an older signature and made it truthy by accident; the
+                // dispatcher only cares that the connection IS a SyncQueue.
+                return new SyncQueue;
             }
         },
         app(DatabaseTime::class),
@@ -166,8 +176,21 @@ it('marks a guarded queue check missing without triggering diagnostic failure', 
     ));
 
     try {
-        expect(Artisan::call('vouch:doctor', ['--json' => true]))->toBe(CommandExit::Failure->value)
-            ->and(json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR)['prerequisites'][2])
+        $exit = Artisan::call('vouch:doctor', ['--json' => true]);
+        $report = json_decode(Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
+
+        if (! is_array($report)) {
+            throw new RuntimeException('Expected a doctor report object.');
+        }
+
+        $prerequisites = $report['prerequisites'] ?? null;
+
+        if (! is_array($prerequisites)) {
+            throw new RuntimeException('Expected doctor prerequisite rows.');
+        }
+
+        expect($exit)->toBe(CommandExit::Failure->value)
+            ->and($prerequisites[2])
             ->toBe(['prerequisite' => 'durable_queue', 'status' => 'missing']);
     } finally {
         app()->forgetInstance(OtpQueueDispatcher::class);

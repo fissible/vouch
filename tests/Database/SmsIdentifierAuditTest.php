@@ -84,7 +84,7 @@ it('renders the complete table and labeled country counts without JSON mode', fu
         ->toContain('Country counts:')
         ->toContain('"CA":1')
         ->toContain('"US":1')
-        ->not->toContain('{"total"');
+        ->not()->toContain('{"total"');
 });
 
 it('discriminates canonicalization, duplicate countries, and country ordering', function (): void {
