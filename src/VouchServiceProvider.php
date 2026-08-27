@@ -297,6 +297,10 @@ final class VouchServiceProvider extends ServiceProvider
             ),
         );
 
+        // Leave construction to the container so hosts can contextually supply
+        // a registry for this operation; FactorRegistry itself is write-once.
+        $this->app->singleton(\Fissible\Vouch\SelfService\CredentialSelfService::class);
+
         $this->app->singleton(
             \Fissible\Vouch\Support\DatabaseTime::class,
             fn ($app): \Fissible\Vouch\Support\DatabaseTime => new \Fissible\Vouch\Support\DatabaseTime(
