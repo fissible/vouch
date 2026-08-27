@@ -11,28 +11,46 @@ factor drivers.
 
 ### Current handoff — 2026-08-26
 
-**2.3d is four tasks in.** Tasks 1-4 shipped: identifier verification (`1224349`),
-credential recovery (`ff70efd`), first-credential enrollment (`3d554a1`), and
-credential self-service (`7e0e8f2`). Task 5a's authorization survey is committed
-as `ee2eefd` and is **partial** — see below. Suite is 1,260 passing / 1 skipped;
-PHPStan sits at 6 pre-existing errors, and every Task 2-4 regression was repaired
-rather than inherited.
+**2.3d is four tasks in, and Task 5a is now complete.** Tasks 1-4 shipped:
+identifier verification (`1224349`), credential recovery (`ff70efd`),
+first-credential enrollment (`3d554a1`), and credential self-service
+(`7e0e8f2`). The authorization survey landed partial as `ee2eefd`; its two
+runtime probes are now written, run in the suite, and one of them corrected
+the survey. Suite is 1,285 passing / 1 skipped; PHPStan sits at 6 pre-existing
+errors.
 
-**Next: finish Task 5a's two probes, then duet Task 5b.**
+**Next: duet Task 5b** (ability → assurance requirement map, M), then Task 6
+(suggest `spatie/laravel-permission`, XS) and Task 7 (positioning, XS) close
+out 2.3d.
+
+**What the probes settled**, in
 [`docs/authorization-integration-survey.md`](docs/authorization-integration-survey.md)
-lists them. Both depend on runtime resolution rather than call sites, so source
-reading cannot settle them: which `Gate::before` hooks actually exist under each
-provider discovery order (spatie registers via `afterResolving` and may never run
-if Bouncer resolved the Gate first), and which `can()` a user model calls under
-explicit trait aliasing. 5b's design depends on both.
+and committed as tests under `tests/Authorization/` so a package upgrade breaks
+a test rather than rotting the document:
 
-The survey's load-bearing finding: a deny-only `Gate::before` hook is *silently
-bypassed* whenever an earlier hook grants, and `Gate::after` cannot recover the
-deny. Enforcement must run before the authorization call — route middleware —
-with the Gate hook as defense in depth only.
+- *Both packages' hooks register under either provider discovery order.* The
+  survey's prediction that spatie's hook might never register was wrong —
+  `ServiceProvider::callAfterResolving()` also fires immediately when the
+  target is already resolved.
+- *Bouncer's `before` hook is inert by default.* `Guard::$slot` defaults to
+  `'after'`; Bouncer registers in both slots and each returns early unless it
+  is the live one. `Bouncer::runBeforePolicies()` is a host switch that moves
+  it into the `before` path. The earlier draft over-stated this hazard.
+- *spatie's hook is the live one, and it fails open at the center.* It grants
+  whenever the user holds the permission — which is the only case an assurance
+  requirement exists to constrain. A deny-only hook registered after it is
+  bypassed on exactly the requests it is meant to protect.
+- *A hook Vouch registers lands last* under either order, and Vouch cannot fix
+  that by registering earlier: provider order comes from `installed.json`.
+- *Bouncer's trait silently steals `can()`* from a model extending
+  `Illuminate\Foundation\Auth\User` — a trait used in the child beats an
+  inherited method, so PHP reports nothing. The compile-time collision only
+  appears when both `Authorizable` traits are named in one `use` clause, and it
+  is Illuminate's trait against Bouncer's, not one package against the other.
+  `canAny()` is never overridden, so the bypass is per-method, not per-model.
 
-**Tasks 5b, 6 and 7 remain.** `spatie/laravel-permission` and `silber/bouncer`
-are now `require-dev` dependencies, installed for the survey.
+So 5b's enforcement point is **route middleware**, with the Gate hook as
+defense in depth only.
 
 **Process notes worth keeping.** Tasks 1-4 were built with the `duet` skill:
 tests written and frozen with `shasum` first, codex implementing against a
@@ -40,9 +58,9 @@ contract it cannot edit. Two environment hazards bit repeatedly — concurrent
 suite runs corrupt the shared file-backed SQLite database (delete
 `$TMPDIR/vouch-test*.sqlite` and rerun), and backgrounded shells inherit no
 usable `PATH`, so detached runs need `/opt/homebrew/bin/php vendor/bin/pest`.
-Run PHPStan on new test files at phase 4: it caught two enumeration tests that
-compared the return values of a `void` method — three nulls — which eleven
-rounds of adversarial review had missed.
+Run PHPStan on new test files at phase 4 (`--memory-limit=1G`): it caught two
+enumeration tests that compared the return values of a `void` method — three
+nulls — which eleven rounds of adversarial review had missed.
 
 ### Mutation-reconciliation handoff — 2026-08-26
 
@@ -1609,7 +1627,7 @@ package is unusable by anyone who has not read the source.
 | 2 | Credential recovery (password reset) | M | 1 | — | Planned |
 | 3 | First-credential enrolment service | S | 1 | — | Planned |
 | 4 | Credential self-service | M | 2 | — | Planned |
-| 5a | Authorization integration survey | S | — | — | Planned |
+| 5a | Authorization integration survey | S | — | — | **Complete** |
 | 5b | Ability → assurance requirement map | M | 5a | — | Planned |
 | 6 | Suggest `spatie/laravel-permission` + composition recipe | XS | 5b | — | Planned |
 | 7 | Positioning: tagline and non-goals above the fold | XS | — | — | Planned |
