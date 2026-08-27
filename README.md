@@ -84,6 +84,20 @@ Route::post('/invoices/{invoice}/approve', ApproveInvoiceController::class)
     ->middleware(['permission:invoices.approve']);
 ```
 
+Spatie also ships a static helper that skips the alias entirely, which is worth
+knowing if you would rather not claim the generic name `permission` in your
+application's alias table:
+
+```php
+use Spatie\Permission\Middleware\PermissionMiddleware;
+
+Route::post('/invoices/{invoice}/approve', ApproveInvoiceController::class)
+    ->middleware([PermissionMiddleware::using('invoices.approve')]);
+```
+
+Vouch reads either form: the ability names come from the middleware parameters
+on the matched route, and the alias is resolved through the router's own table.
+
 ```php
 // Published Vouch configuration
 'assurance_requirements' => [
