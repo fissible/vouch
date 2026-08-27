@@ -37,7 +37,19 @@ final class AssuranceStrictBootTest extends TestCase
     {
         if ($this->bootFailure === null) {
             parent::tearDown();
+
+            return;
         }
+
+        /*
+         * The refused boot got as far as installing Laravel's error and
+         * exception handlers, and never reached the teardown that removes
+         * them. PHPUnit marks a test risky for leaking handlers, and
+         * phpunit.xml.dist sets failOnRisky, so leaving them would turn this
+         * proof into a CI failure for a reason unrelated to what it proves.
+         */
+        restore_error_handler();
+        restore_exception_handler();
     }
 
     protected function defineEnvironment($app): void

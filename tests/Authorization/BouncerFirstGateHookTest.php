@@ -38,6 +38,7 @@ final class BouncerFirstGateHookTest extends GateHookRegistrationProbeCase
         return [
             'Silber\Bouncer\Guard',
             'Spatie\Permission\PermissionRegistrar',
+            VouchServiceProvider::class,
             ProbeGateHookServiceProvider::class,
         ];
     }

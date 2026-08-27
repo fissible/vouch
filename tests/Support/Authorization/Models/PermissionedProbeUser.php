@@ -34,4 +34,18 @@ final class PermissionedProbeUser extends User
 
         return in_array($ability, $held, true);
     }
+
+    /**
+     * Declared because `PermissionMiddleware` refuses outright — before any
+     * permission is evaluated — unless the model has it
+     * (`PermissionMiddleware.php:34`). Without it every route in the
+     * end-to-end suite returns spatie's 403 for the wrong reason, which reads
+     * exactly like Vouch refusing the request and would have let a fail-open
+     * implementation look correct. The grant decision stays in
+     * checkPermissionTo(), which is the method spatie's Gate hook calls.
+     */
+    public function hasAnyPermission(mixed ...$permissions): bool
+    {
+        return false;
+    }
 }

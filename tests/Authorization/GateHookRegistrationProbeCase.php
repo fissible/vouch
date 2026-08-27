@@ -69,6 +69,13 @@ abstract class GateHookRegistrationProbeCase extends TestCase
         // after both packages — the default position for anything a host
         // installs alongside them — gets the LAST slot in registration order,
         // which is the one slot a grant from either package short-circuits.
+        //
+        // Vouch's own deny-only hook, added in Task 5b, now sits in that list
+        // ahead of this probe's, which is the finding made concrete: it is
+        // registered behind spatie's, and spatie grants on exactly the
+        // requests an assurance requirement exists to constrain. That is why
+        // enforcement lives in route middleware and this hook is only defense
+        // in depth.
         $hooks = GateHookInspector::before($this->containerGate());
 
         self::assertSame(ProbeGateHookServiceProvider::class, end($hooks));
