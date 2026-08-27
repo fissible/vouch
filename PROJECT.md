@@ -9,7 +9,42 @@ fresh session with no prior context.
 sub-projects; **2.1 (persistence foundation) complete 2026-08-12**. Next: plan 2.2,
 factor drivers.
 
-### Current mutation-reconciliation handoff — 2026-08-26
+### Current handoff — 2026-08-26
+
+**2.3d is four tasks in.** Tasks 1-4 shipped: identifier verification (`1224349`),
+credential recovery (`ff70efd`), first-credential enrollment (`3d554a1`), and
+credential self-service (`7e0e8f2`). Task 5a's authorization survey is committed
+as `ee2eefd` and is **partial** — see below. Suite is 1,260 passing / 1 skipped;
+PHPStan sits at 6 pre-existing errors, and every Task 2-4 regression was repaired
+rather than inherited.
+
+**Next: finish Task 5a's two probes, then duet Task 5b.**
+[`docs/authorization-integration-survey.md`](docs/authorization-integration-survey.md)
+lists them. Both depend on runtime resolution rather than call sites, so source
+reading cannot settle them: which `Gate::before` hooks actually exist under each
+provider discovery order (spatie registers via `afterResolving` and may never run
+if Bouncer resolved the Gate first), and which `can()` a user model calls under
+explicit trait aliasing. 5b's design depends on both.
+
+The survey's load-bearing finding: a deny-only `Gate::before` hook is *silently
+bypassed* whenever an earlier hook grants, and `Gate::after` cannot recover the
+deny. Enforcement must run before the authorization call — route middleware —
+with the Gate hook as defense in depth only.
+
+**Tasks 5b, 6 and 7 remain.** `spatie/laravel-permission` and `silber/bouncer`
+are now `require-dev` dependencies, installed for the survey.
+
+**Process notes worth keeping.** Tasks 1-4 were built with the `duet` skill:
+tests written and frozen with `shasum` first, codex implementing against a
+contract it cannot edit. Two environment hazards bit repeatedly — concurrent
+suite runs corrupt the shared file-backed SQLite database (delete
+`$TMPDIR/vouch-test*.sqlite` and rerun), and backgrounded shells inherit no
+usable `PATH`, so detached runs need `/opt/homebrew/bin/php vendor/bin/pest`.
+Run PHPStan on new test files at phase 4: it caught two enumeration tests that
+compared the return values of a `void` method — three nulls — which eleven
+rounds of adversarial review had missed.
+
+### Mutation-reconciliation handoff — 2026-08-26
 
 Resume from [`docs/superpowers/mutation/2026-08-22-reconciliation-ledger.md`](docs/superpowers/mutation/2026-08-22-reconciliation-ledger.md), not from the older phase summaries below. The current repository state is `96bbe4a`; the source tree has been unchanged since `212212a`, while the intervening test and evidence commits are part of the recorded state. The classifier tooling and all current chunk artifacts are committed, and every comparison must use stable row identities with `--baseline` (expression identity when a source edit shifts lines).
 
