@@ -26,17 +26,37 @@ already point at it: the ability map is session-sourced and returns a stated
 supersedes; and `AuthTokenAssurance` already exists as a 2.1 table with nothing
 consuming it.
 
-**Release readiness.** The package is at 0.1.0 with no version tag, and the org
-release procedure cannot run here: `release.sh`, `CHANGELOG.md` and
-`.cliff.toml` are all absent (git-cliff itself is installed). The single
-existing tag is `pre-restructure`, not a version.
+**Released as `v0.1.0` (2026-08-27), locally.** The developer preview is cut:
+`release.sh`, `.cliff.toml` and `.github/workflows/release.yml` are wired in
+from `fissible/.github`, `CHANGELOG.md` is generated, and the annotated signed
+tag exists. `VERSION` was not bumped — an untagged 0.1.0 was already unreleased,
+so the first release tags it as-is. 2.4 takes 0.2.0.
 
-`fissible_release_advice` suggests `v1.0.0` — **do not follow it.** It reads 457
+`fissible_release_advice` suggests `v1.0.0`; **do not follow it.** It reads the
 untagged commits containing `feat:` and applies the post-1.0 bump table, which
 has no 0.x case. 1.0.0 would assert an API stability this package has not
 earned: the token gate is 2.4, UI adapters are Phase 3, and a host still cannot
-complete a browser step-up without building the page itself. Cut `v0.1.0` — the
-version `VERSION` already declares — and let 2.4 take 0.2.0.
+complete a browser step-up without building the page itself.
+
+**The tag is not published, because `vouch` has no git remote.** Nothing is
+released to anyone until a GitHub repository exists and `git push --tags` runs;
+the release workflow only fires on a pushed `v*` tag. Two consequences to settle
+when that decision is made:
+
+- The README says `composer require fissible/vouch`. That is only true once the
+  package is on Packagist, which needs a public repository — or a documented
+  Composer repository entry if it stays private. If vouch goes private, that
+  install line is incomplete and must say so.
+- A private repo needs `FISSIBLE_PAT` added as a per-repo Actions secret before
+  CI can install `fissible/*` dependencies. It is not org-wide and `gh repo
+  create` does not carry it over.
+
+**One release-tooling fix landed upstream** in `fissible/.github` (`ea6e4ff`):
+`release.sh` matched ANY tag when looking for the last release, so a stray
+non-version tag would be read as a release, skip the first-release path, and
+compute the bump against a point that was never released. vouch has exactly such
+a tag (`pre-restructure`). It now matches `v[0-9]*`, the same pattern
+`.cliff.toml` already used.
 
 **What 5a's probes settled**, in
 [`docs/authorization-integration-survey.md`](docs/authorization-integration-survey.md),
