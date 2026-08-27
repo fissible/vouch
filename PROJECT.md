@@ -11,56 +11,117 @@ factor drivers.
 
 ### Current handoff — 2026-08-26
 
-**2.3d is four tasks in, and Task 5a is now complete.** Tasks 1-4 shipped:
-identifier verification (`1224349`), credential recovery (`ff70efd`),
-first-credential enrollment (`3d554a1`), and credential self-service
-(`7e0e8f2`). The authorization survey landed partial as `ee2eefd`; its two
-runtime probes are now written, run in the suite, and one of them corrected
-the survey. Suite is 1,285 passing / 1 skipped; PHPStan sits at 6 pre-existing
-errors.
+**2.3d is six tasks in.** Tasks 1-4 shipped earlier: identifier verification
+(`1224349`), credential recovery (`ff70efd`), first-credential enrollment
+(`3d554a1`), credential self-service (`7e0e8f2`). Task 5a's survey is now
+complete with both probes committed as tests (`62e0228`), and Task 5b — the
+ability → assurance requirement map — shipped as `618fcfa`. Suite is **1,436
+passing / 1 skipped**; PHPStan sits at the same 6 pre-existing errors.
 
-**Next: duet Task 5b** (ability → assurance requirement map, M), then Task 6
-(suggest `spatie/laravel-permission`, XS) and Task 7 (positioning, XS) close
-out 2.3d.
+**Next: Task 6** (suggest `spatie/laravel-permission` + composition recipe, XS)
+and **Task 7** (positioning: tagline and non-goals above the fold, XS). Both are
+documentation, and both now have specific content owed to them — see "What 6
+and 7 must say" below. They close out 2.3d.
 
-**What the probes settled**, in
-[`docs/authorization-integration-survey.md`](docs/authorization-integration-survey.md)
-and committed as tests under `tests/Authorization/` so a package upgrade breaks
-a test rather than rotting the document:
+**What 5a's probes settled**, in
+[`docs/authorization-integration-survey.md`](docs/authorization-integration-survey.md),
+committed as tests under `tests/Authorization/` so a package upgrade breaks a
+test rather than rotting the document:
 
-- *Both packages' hooks register under either provider discovery order.* The
-  survey's prediction that spatie's hook might never register was wrong —
-  `ServiceProvider::callAfterResolving()` also fires immediately when the
-  target is already resolved.
+- *Both packages' hooks register under either discovery order.* The survey's
+  prediction that spatie's might never register was wrong —
+  `ServiceProvider::callAfterResolving()` also fires immediately when the target
+  is already resolved.
 - *Bouncer's `before` hook is inert by default.* `Guard::$slot` defaults to
-  `'after'`; Bouncer registers in both slots and each returns early unless it
-  is the live one. `Bouncer::runBeforePolicies()` is a host switch that moves
-  it into the `before` path. The earlier draft over-stated this hazard.
+  `'after'`; `Bouncer::runBeforePolicies()` is the host switch that moves it.
+  The earlier draft overstated this hazard.
 - *spatie's hook is the live one, and it fails open at the center.* It grants
-  whenever the user holds the permission — which is the only case an assurance
-  requirement exists to constrain. A deny-only hook registered after it is
-  bypassed on exactly the requests it is meant to protect.
-- *A hook Vouch registers lands last* under either order, and Vouch cannot fix
-  that by registering earlier: provider order comes from `installed.json`.
+  whenever the user holds the permission — the only case an assurance
+  requirement constrains.
+- *A hook Vouch registers lands last*, and Vouch cannot register earlier:
+  provider order comes from `installed.json`.
 - *Bouncer's trait silently steals `can()`* from a model extending
-  `Illuminate\Foundation\Auth\User` — a trait used in the child beats an
-  inherited method, so PHP reports nothing. The compile-time collision only
-  appears when both `Authorizable` traits are named in one `use` clause, and it
-  is Illuminate's trait against Bouncer's, not one package against the other.
-  `canAny()` is never overridden, so the bypass is per-method, not per-model.
+  `Illuminate\Foundation\Auth\User`. `canAny()` is never overridden, so the
+  bypass is per-method, not per-model.
 
-So 5b's enforcement point is **route middleware**, with the Gate hook as
-defense in depth only.
+**What 5b ships.** `config('vouch.assurance_requirements')` maps ability names
+to `aal0`..`aal3`. `RequireAbilityAssurance` enforces in the **web and api**
+groups by reading the ability names off the matched route's own
+`can:`/`permission:`/`role_or_permission:` parameters — alias-resolved through
+the router's table. Deny-only throughout; a satisfied requirement is "no
+opinion", never "allow". Insufficient assurance steps up interactively and
+returns a stated 403 otherwise. `AssuranceGateHook` is defense in depth only.
+`vouch:assurance-map` reports requirements, sources, enforced groups, and
+whether the host's user model still routes `can()` to the Gate;
+`vouch.assurance_strict` refuses the boot on an undeclared ability, exempting
+that command.
 
-**Process notes worth keeping.** Tasks 1-4 were built with the `duet` skill:
+**What 6 and 7 must say.** These are not free-form:
+
+1. The enforcement boundary. A protected route in neither `web` nor `api` is
+   covered only by the Gate hook, which is bypassable. Such a group needs the
+   `vouch.ability` middleware added explicitly. `vouch:assurance-map` reports
+   `enforced_groups`, so the gap is visible — but it must be documented.
+2. Token requests get a stated 403, not an assurance evaluation, until 2.4.
+3. Strict mode answers only to `declared_abilities`, never `Gate::abilities()`,
+   which is empty at boot. A host defining abilities solely through
+   `Gate::define` must list them to use strict mode.
+4. The two host configurations Vouch cannot reliably detect: a model that took
+   Bouncer's `can()`, and `Bouncer::runBeforePolicies()`.
+
+**Two fixes fell out of 5b and are worth knowing.**
+
+- `pushMiddlewareToGroup()` from a provider is **silently discarded** whenever
+  the HTTP kernel resolves afterwards: `Kernel::__construct()` calls
+  `syncMiddlewareToRouter()` and `Router::middlewareGroup()` replaces rather
+  than merges. Production is safe (index.php resolves the kernel before
+  providers boot), but Testbench is not, and the boot-time
+  `ValidatesVouchSession` presence guard could therefore pass while the
+  deployed group no longer contained it. Both middleware now install through
+  `callAfterResolving(Kernel::class)`.
+- `auth_sessions.user_id` now casts to integer. 5b introduced the first
+  comparison putting a database column against a host's `getAuthIdentifier()`
+  rather than against another database value.
+
+**Process notes worth keeping.** Tasks 1-5b were built with the `duet` skill:
 tests written and frozen with `shasum` first, codex implementing against a
-contract it cannot edit. Two environment hazards bit repeatedly — concurrent
-suite runs corrupt the shared file-backed SQLite database (delete
-`$TMPDIR/vouch-test*.sqlite` and rerun), and backgrounded shells inherit no
-usable `PATH`, so detached runs need `/opt/homebrew/bin/php vendor/bin/pest`.
-Run PHPStan on new test files at phase 4 (`--memory-limit=1G`): it caught two
-enumeration tests that compared the return values of a `void` method — three
-nulls — which eleven rounds of adversarial review had missed.
+contract it cannot edit. 5b took five adversarial review rounds before codex
+approved the tests, and the rounds earned their keep — the first version proved
+the mechanism but not the feature, and every routed test was added because
+codex pointed out that a unit-only suite can be green while the deployed route
+fails open.
+
+Four defects then surfaced in **my** frozen tests, each committed as a separate
+phase-1 amendment (`14fe75e`, `2802d76`, `5c15391`):
+
+- `pinSession()` never pinned anything — it sent the session cookie
+  unencrypted, `EncryptCookies` nulled it, and every request got a fresh
+  session. A test asserting a REFUSAL still passed, because a row that is never
+  found is refused anyway; only the paired sufficient-session tests exposed it.
+  Write the passing half of every refusal test.
+- Two end-to-end Gate-hook tests asserted the hook denies while spatie held the
+  permission — the exact fail-open the survey measured. The tests contradicted
+  the design they defended.
+- `PermissionedProbeUser` lacked `hasAnyPermission()`, so spatie's middleware
+  refused before evaluating anything and every route returned a 403 that looked
+  exactly like Vouch working.
+- The provider's `Gate::before` closure had no coverage at all, and that gap
+  held a real bug: it attached an unstarted session to the shared container
+  request, which would have denied every mapped ability in every queued job for
+  the life of the process.
+
+**Verify the implementer's test reports.** Codex reported the suite green after
+the phase-4 fixes; it was not — one wiring test was failing. Its own fix was
+correct and the test was wrong, but the report was inaccurate. It did decline,
+correctly, to report a Pest count it could not establish because a concurrent
+run had corrupted the shared SQLite file.
+
+**Environment hazards, unchanged.** Never run the suite while codex is running —
+concurrent runs corrupt the shared file-backed SQLite database and produce a
+fake ~950-failure result (`rm -f $TMPDIR/vouch-test*.sqlite` and rerun).
+Backgrounded shells inherit no usable `PATH`, so detached runs need
+`/opt/homebrew/bin/php vendor/bin/pest`. Run PHPStan on new test files at phase
+4 with `--memory-limit=1G`; the default 128M crashes the worker.
 
 ### Mutation-reconciliation handoff — 2026-08-26
 
@@ -1628,7 +1689,7 @@ package is unusable by anyone who has not read the source.
 | 3 | First-credential enrolment service | S | 1 | — | Planned |
 | 4 | Credential self-service | M | 2 | — | Planned |
 | 5a | Authorization integration survey | S | — | — | **Complete** |
-| 5b | Ability → assurance requirement map | M | 5a | — | Planned |
+| 5b | Ability → assurance requirement map | M | 5a | — | **Complete** |
 | 6 | Suggest `spatie/laravel-permission` + composition recipe | XS | 5b | — | Planned |
 | 7 | Positioning: tagline and non-goals above the fold | XS | — | — | Planned |
 
