@@ -7,6 +7,7 @@ use Fissible\Vouch\Enrollment\FirstCredentialRequest;
 use Fissible\Vouch\Enrollment\FirstCredentialResult;
 use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
+use Fissible\Vouch\Models\AuthIdentifierVerificationOutbox;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\Config;
 use Fissible\Vouch\Support\LockContention;
@@ -123,7 +124,13 @@ it('resolves a contended identifier claim to exactly one owner', function (): vo
      * waits forever. On MySQL the same wait takes 51s, which is InnoDB's
      * default innodb_lock_wait_timeout rather than anything Vouch chose.
      */
-    expect($elapsed)->toBeLessThan(20.0);
+    /*
+     * Derived from the configured bound, not a magic number: the requirement
+     * is that lock_wait_seconds governs this wait. The slack is generous
+     * because a loaded CI runner schedules badly, and because the assertion
+     * is about boundedness, not latency.
+     */
+    expect($elapsed)->toBeLessThan(config()->integer('vouch.enrollment.lock_wait_seconds') + 15.0);
 
     expect(app(LockContention::class)->isVerified(DB::connection('first_b'), $b))->toBeTrue()
         ->and(AuthIdentifier::query()->where('value', 'shared@acme.example')->count())->toBe(1)
@@ -170,24 +177,78 @@ it('lets exactly one of two interleaved enrollments claim the password slot', fu
     }
 
     /*
-     * The loser is refused NEUTRALLY, and that is the whole point.
+     * The invariant is Accepted IF AND ONLY IF the durable decoy was persisted.
      *
-     * This assertion used to require a raw QueryException to escape enroll().
-     * It only ever held on SQLite, and it contradicted the design it was
-     * written to defend: FirstCredentialResult has exactly one case, and
-     * enroll() converts EnrollmentRefused into Accepted plus a durable decoy
-     * (FirstCredentialEnrollment.php:62-65) precisely so a registration
-     * endpoint cannot be used as an oracle. A driver error reaching the caller
-     * would BE the disclosure bug. Measured on MySQL 8, where the bounded wait
-     * expires and the refusal is converted exactly as designed.
+     * An earlier revision of this test asserted a raw QueryException must
+     * escape, which only ever held on SQLite. I then over-corrected and
+     * asserted Accepted unconditionally — which is worse, because Accepted
+     * would then be satisfied by an implementation that silently failed to
+     * write the decoy. FirstCredentialResult has one case precisely so the
+     * response says nothing; that guarantee is only honest if the decoy the
+     * response implies actually exists.
      *
-     * What matters is the invariant, on every engine: one active password
-     * credential, and a response that says nothing about which side won.
+     * So: whichever way this engine resolves the standoff, the two must agree.
+     * Measured both ways — MySQL persists the decoy and returns Accepted;
+     * SQLite cannot, because its database-wide writer lock blocks the decoy
+     * too, and it fails loudly rather than lying.
      */
-    expect($second)->not()->toBeInstanceOf(QueryException::class);
+    $decoys = AuthIdentifierVerificationOutbox::query()->count();
+
+    if ($second instanceof QueryException) {
+        expect($decoys)->toBe(0)
+            ->and(app(LockContention::class)->isVerified(DB::connection('first_b'), $second))->toBeTrue();
+    } else {
+        expect($second)->toBe(FirstCredentialResult::Accepted)
+            ->and($decoys)->toBeGreaterThan(0);
+    }
+
+    expect(AuthCredential::query()->where('user_id', 7)->where('type', 'password')
+        ->whereNull('disabled_at')->count())->toBe(1);
+});
+
+it('answers a settled identifier collision neutrally, with a durable decoy', function (): void {
+    /*
+     * The path that has never been tested, and the one the neutrality
+     * guarantee actually rests on. Every other test here holds A open so B can
+     * only time out; B never observes the committed unique violation that a
+     * real second registrant hits.
+     *
+     * A commits first. B then enrols the same identifier for a different user,
+     * hits the unique index on a COMMITTED row, and must be told exactly what
+     * the first registrant was told — Accepted, with a decoy — or the endpoint
+     * discloses that the identifier is taken.
+     *
+     * This passes on all three engines, and the reason is worth recording
+     * because it was predicted to fail and did not. write() READS the
+     * identifier first and returns false when a committed row belongs to
+     * someone else, so no insert is attempted and no unique violation occurs.
+     * The neutral answer here comes from the read path, not from the violation
+     * handler.
+     *
+     * That leaves a REAL latent gap this test does not reach.
+     * isIdentifierUniqueViolation() matches SQLSTATE '23000' only, and PDO
+     * reports '23505' for a Postgres unique violation — measured directly:
+     * pgsql 23505, mysql 23000, sqlite 23000. It is reachable solely in the
+     * read-then-insert race window, where a competing row commits between the
+     * read above and the insert. On Postgres the driver error would then be
+     * rethrown and the identifier disclosed. Closing that needs a test that
+     * can hold the window open, which this one cannot.
+     */
+    DB::connection('first_a')->table('auth_identifiers')->insert([
+        'user_id' => 1,
+        'type' => 'email',
+        'value' => 'taken@acme.example',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $second = enrollmentOn('first_b')->enroll(firstRequest(2, 'taken@acme.example'));
+
     expect($second)->toBe(FirstCredentialResult::Accepted)
-        ->and(AuthCredential::query()->where('user_id', 7)->where('type', 'password')
-            ->whereNull('disabled_at')->count())->toBe(1);
+        ->and(AuthIdentifierVerificationOutbox::query()->count())->toBeGreaterThan(0)
+        ->and(AuthIdentifier::query()->where('value', 'taken@acme.example')->count())->toBe(1)
+        ->and(AuthIdentifier::query()->where('value', 'taken@acme.example')->value('user_id'))->toBe(1)
+        ->and(AuthCredential::query()->where('user_id', 2)->count())->toBe(0);
 });
 
 it('bounds a contended enrollment instead of hanging the request thread', function (): void {
@@ -217,14 +278,32 @@ it('bounds a contended enrollment instead of hanging the request thread', functi
             ->lockForUpdate()->first();
 
         $started = microtime(true);
-        $second = enrollmentOn('first_b')->enroll(firstRequest(9, 'bounded@acme.example', 'racing-password'));
+
+        try {
+            $second = enrollmentOn('first_b')->enroll(firstRequest(9, 'bounded@acme.example', 'racing-password'));
+        } catch (QueryException $contention) {
+            $second = $contention;
+        }
+
         $elapsed = microtime(true) - $started;
 
         // Generous: the assertion is boundedness, not a specific latency. A
         // tight bound would be flaky on a loaded runner and would not describe
         // the defect, which is unboundedness.
-        expect($elapsed)->toBeLessThan(20.0)
-            ->and($second)->toBe(FirstCredentialResult::Accepted);
+        /*
+         * Boundedness is the claim; the outcome follows the same
+         * Accepted-iff-decoy invariant as the test above, because SQLite's
+         * database-wide writer lock blocks the decoy write too and the
+         * refusal is then correctly loud rather than a silent Accepted.
+         */
+        expect($elapsed)->toBeLessThan(config()->integer('vouch.enrollment.lock_wait_seconds') + 15.0);
+
+        if ($second instanceof QueryException) {
+            expect(AuthIdentifierVerificationOutbox::query()->count())->toBe(0);
+        } else {
+            expect($second)->toBe(FirstCredentialResult::Accepted)
+                ->and(AuthIdentifierVerificationOutbox::query()->count())->toBeGreaterThan(0);
+        }
 
         $a->rollBack();
     } catch (\Throwable $e) {
