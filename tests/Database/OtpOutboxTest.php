@@ -197,15 +197,6 @@ function realDatabaseQueueForTest(): QueueManager
         'retry_after' => 60,
     ]);
     /*
-<<<<<<< HEAD
-     * Pin the default connection as well as defining it. This manager is
-     * constructed with ONE connector, so anything that resolves the DEFAULT
-     * connection blows up with "No connector for [...]" — and the default is
-     * `env('QUEUE_CONNECTION', 'sync')`, which is ambient. It reads 'database'
-     * on a machine where a `.env` happens to exist in the Testbench skeleton
-     * and 'sync' on a fresh checkout, so the test passed locally and failed in
-     * CI. A helper that supplies a real queue owns which one is default.
-=======
      * Pin the default connection as well as defining it.
      *
      * This manager is built with ONE connector, so anything resolving the
@@ -217,7 +208,6 @@ function realDatabaseQueueForTest(): QueueManager
      * runner reports getenv('QUEUE_CONNECTION')=false and no skeleton `.env`.
      *
      * A helper that supplies a real queue owns which queue is default.
->>>>>>> main
      */
     config()->set('queue.default', 'database');
 
@@ -708,48 +698,12 @@ it('redispatches persistent contention as a fresh delayed queue job', function (
     $dispatchedAt = $outbox->dispatched_at;
     app()->instance(DeliveryEconomics::class, new AlwaysContendedDeliveryEconomics());
 
-    // ---- SPIKE DIAGNOSTIC (temporary, branch only) ----
-    $spike = static function (string $label): void {
-        $manager = app('queue');
-        $connectors = [];
-        try {
-            $r = new ReflectionProperty($manager::class, 'connectors');
-            /** @var array<string, mixed> $c */
-            $c = $r->getValue($manager);
-            $connectors = array_keys($c);
-        } catch (\Throwable $e) {
-            $connectors = ['<reflect failed: ' . $e->getMessage() . '>'];
-        }
-        fwrite(STDERR, sprintf(
-            "\n[SPIKE %s] queue.default=%s | manager=%s | connectors=[%s]\n"
-            . "[SPIKE %s] AMBIENT: getenv(QUEUE_CONNECTION)=%s | vendor .env exists=%s | base_path=%s\n",
-            $label,
-            var_export(config('queue.default'), true),
-            $manager::class,
-            implode(',', $connectors),
-            $label,
-            var_export(getenv('QUEUE_CONNECTION'), true),
-            var_export(is_file(base_path('.env')), true),
-            base_path(),
-        ));
-    };
-    $spike('before-worker');
-
-    try {
-        app('queue.worker')->runNextJob('database', 'vouch-otp', new WorkerOptions(
-            name: 'otp-contention-test',
-            sleep: 0,
-            maxTries: 5,
-            force: true,
-        ));
-    } catch (\Throwable $boom) {
-        $spike('at-throw');
-        fwrite(STDERR, "[SPIKE trace] " . $boom::class . ': ' . $boom->getMessage() . "\n"
-            . implode("\n", array_slice(explode("\n", $boom->getTraceAsString()), 0, 14)) . "\n");
-
-        throw $boom;
-    }
-    // ---- END SPIKE DIAGNOSTIC ----
+    app('queue.worker')->runNextJob('database', 'vouch-otp', new WorkerOptions(
+        name: 'otp-contention-test',
+        sleep: 0,
+        maxTries: 5,
+        force: true,
+    ));
 
     $queued = DB::table('jobs')->sole();
 
@@ -887,15 +841,6 @@ it('refuses a discarding queue and every inline member of a failover queue', fun
     config()->set('queue.connections.inline-test', ['driver' => 'sync']);
     config()->set('queue.connections.discard-test', ['driver' => 'null']);
     /*
-<<<<<<< HEAD
-     * Pin the default connection as well as defining it. This manager is
-     * constructed with ONE connector, so anything that resolves the DEFAULT
-     * connection blows up with "No connector for [...]" — and the default is
-     * `env('QUEUE_CONNECTION', 'sync')`, which is ambient. It reads 'database'
-     * on a machine where a `.env` happens to exist in the Testbench skeleton
-     * and 'sync' on a fresh checkout, so the test passed locally and failed in
-     * CI. A helper that supplies a real queue owns which one is default.
-=======
      * Pin the default connection as well as defining it.
      *
      * This manager is built with ONE connector, so anything resolving the
@@ -907,7 +852,6 @@ it('refuses a discarding queue and every inline member of a failover queue', fun
      * runner reports getenv('QUEUE_CONNECTION')=false and no skeleton `.env`.
      *
      * A helper that supplies a real queue owns which queue is default.
->>>>>>> main
      */
     config()->set('queue.default', 'database');
 
