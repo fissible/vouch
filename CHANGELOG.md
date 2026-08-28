@@ -8,16 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 ## [0.1.1] - 2026-08-28
 
-### Fixed
-- Clear the six PHPStan errors that were failing CI
-- Pin the default queue connection in the real-queue helper
-- Bound every lock wait in a serialized enrollment, not just the lock claim
-
-### Ci
-- Bound every job so a hang fails instead of consuming six hours
-- Run only the Kernel mutation gate per push, sweep on a schedule
-## [0.1.0] - 2026-08-27
-
 ### Added
 - Add factor kind and ordered strength enums
 - Add SatisfiedFactor value object
@@ -136,6 +126,9 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 - Fail closed on captcha provider errors
 - Preserve captcha configuration errors
 - Diagnose unverified identifier population
+- Clear the six PHPStan errors that were failing CI
+- Pin the default queue connection in the real-queue helper
+- Bound every lock wait in a serialized enrollment, not just the lock claim
 
 ### Build
 - Run mutation testing with Pest instead of Infection
@@ -143,6 +136,8 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ### Ci
 - Run delivery contention race in matrix
+- Bound every job so a hang fails instead of consuming six hours
+- Run only the Kernel mutation gate per push, sweep on a schedule
 
 ### Mutation
 - Confirm full factors scope
