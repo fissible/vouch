@@ -1,0 +1,48 @@
+name: Spike
+
+on:
+  push:
+    branches: ['spike/**']
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: json, mbstring
+          coverage: none
+
+      - name: Install
+        run: composer install --prefer-dist --no-progress
+
+      - name: Environment
+        run: |
+          php -v
+          php -m | tr '\n' ' '
+          echo
+          composer show --locked 2>/dev/null | grep -E 'laravel/framework|orchestra/testbench|pestphp/pest ' || true
+          echo "TMPDIR=$TMPDIR  RUNNER_TEMP=$RUNNER_TEMP"
+          env | grep -iE '^(QUEUE|DB_|CI|GITHUB_ACTIONS)=' || echo "(no queue/db env set)"
+
+      # Q1: does it fail in ISOLATION in CI, or only inside the full suite?
+      - name: A — OtpOutboxTest alone
+        continue-on-error: true
+        run: vendor/bin/pest tests/Database/OtpOutboxTest.php
+
+      # Q2: full suite, with the diagnostic dump patched into the failing test
+      - name: B — full suite
+        continue-on-error: true
+        run: vendor/bin/pest
+
+      # Q3: the contention failure, in isolation, with CI's file-backed sqlite
+      - name: C — contention test alone (file-backed sqlite)
+        continue-on-error: true
+        env:
+          VOUCH_TEST_DB: sqlite
+          VOUCH_SQLITE_PATH: ${{ runner.temp }}/spike.sqlite
+        run: vendor/bin/pest tests/Concurrency/FirstCredentialContentionTest.php
