@@ -197,6 +197,7 @@ function realDatabaseQueueForTest(): QueueManager
         'retry_after' => 60,
     ]);
     /*
+<<<<<<< HEAD
      * Pin the default connection as well as defining it. This manager is
      * constructed with ONE connector, so anything that resolves the DEFAULT
      * connection blows up with "No connector for [...]" — and the default is
@@ -204,6 +205,19 @@ function realDatabaseQueueForTest(): QueueManager
      * on a machine where a `.env` happens to exist in the Testbench skeleton
      * and 'sync' on a fresh checkout, so the test passed locally and failed in
      * CI. A helper that supplies a real queue owns which one is default.
+=======
+     * Pin the default connection as well as defining it.
+     *
+     * This manager is built with ONE connector, so anything resolving the
+     * DEFAULT connection dies with "No connector for [...]" — and the default
+     * is `env('QUEUE_CONNECTION', 'sync')`, which is ambient. It reads
+     * 'database' on a machine where a `.env` happens to exist in the Testbench
+     * skeleton and 'sync' on a fresh checkout, so this file passed locally for
+     * months and failed the first time CI ever ran. Measured both sides: the
+     * runner reports getenv('QUEUE_CONNECTION')=false and no skeleton `.env`.
+     *
+     * A helper that supplies a real queue owns which queue is default.
+>>>>>>> main
      */
     config()->set('queue.default', 'database');
 
@@ -873,6 +887,7 @@ it('refuses a discarding queue and every inline member of a failover queue', fun
     config()->set('queue.connections.inline-test', ['driver' => 'sync']);
     config()->set('queue.connections.discard-test', ['driver' => 'null']);
     /*
+<<<<<<< HEAD
      * Pin the default connection as well as defining it. This manager is
      * constructed with ONE connector, so anything that resolves the DEFAULT
      * connection blows up with "No connector for [...]" — and the default is
@@ -880,6 +895,19 @@ it('refuses a discarding queue and every inline member of a failover queue', fun
      * on a machine where a `.env` happens to exist in the Testbench skeleton
      * and 'sync' on a fresh checkout, so the test passed locally and failed in
      * CI. A helper that supplies a real queue owns which one is default.
+=======
+     * Pin the default connection as well as defining it.
+     *
+     * This manager is built with ONE connector, so anything resolving the
+     * DEFAULT connection dies with "No connector for [...]" — and the default
+     * is `env('QUEUE_CONNECTION', 'sync')`, which is ambient. It reads
+     * 'database' on a machine where a `.env` happens to exist in the Testbench
+     * skeleton and 'sync' on a fresh checkout, so this file passed locally for
+     * months and failed the first time CI ever ran. Measured both sides: the
+     * runner reports getenv('QUEUE_CONNECTION')=false and no skeleton `.env`.
+     *
+     * A helper that supplies a real queue owns which queue is default.
+>>>>>>> main
      */
     config()->set('queue.default', 'database');
 

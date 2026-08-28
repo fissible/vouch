@@ -5,44 +5,71 @@ on:
     branches: ['spike/**']
 
 jobs:
-  diagnose:
+  engines:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [mysql, pgsql]
+    services:
+      mysql:
+        image: mysql:8
+        env: { MYSQL_ROOT_PASSWORD: password, MYSQL_DATABASE: vouch_test }
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -ppassword"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: password, POSTGRES_DB: vouch_test }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd=pg_isready
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: json, mbstring, pcntl, pdo_sqlite, pdo_mysql, pdo_pgsql
+          coverage: none
+      - run: composer install --prefer-dist --no-progress
+
+      # The contention file ALONE, so a hang or failure is unambiguous and
+      # cannot be blamed on suite state. Bounded so pgsql cannot hang the run.
+      - name: contention only (${{ matrix.db }})
+        continue-on-error: true
+        timeout-minutes: 6
+        env:
+          VOUCH_TEST_DB: ${{ matrix.db }}
+          DB_HOST: 127.0.0.1
+          DB_DATABASE: vouch_test
+          DB_PASSWORD: password
+          DB_USERNAME: ${{ matrix.db == 'mysql' && 'root' || 'postgres' }}
+          DB_PORT: ${{ matrix.db == 'mysql' && '3306' || '5432' }}
+        run: vendor/bin/pest tests/Concurrency/ 2>&1 | tail -60
+
+      # Then the whole suite on this engine, bounded the same way.
+      - name: full suite (${{ matrix.db }})
+        continue-on-error: true
+        timeout-minutes: 15
+        env:
+          VOUCH_TEST_DB: ${{ matrix.db }}
+          DB_HOST: 127.0.0.1
+          DB_DATABASE: vouch_test
+          DB_PASSWORD: password
+          DB_USERNAME: ${{ matrix.db == 'mysql' && 'root' || 'postgres' }}
+          DB_PORT: ${{ matrix.db == 'mysql' && '3306' || '5432' }}
+        run: vendor/bin/pest 2>&1 | tail -40
+
+  mutation:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-
-      - name: Set up PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          extensions: json, mbstring
-          coverage: none
-
-      - name: Install
-        run: composer install --prefer-dist --no-progress
-
-      - name: Environment
-        run: |
-          php -v
-          php -m | tr '\n' ' '
-          echo
-          composer show --locked 2>/dev/null | grep -E 'laravel/framework|orchestra/testbench|pestphp/pest ' || true
-          echo "TMPDIR=$TMPDIR  RUNNER_TEMP=$RUNNER_TEMP"
-          env | grep -iE '^(QUEUE|DB_|CI|GITHUB_ACTIONS)=' || echo "(no queue/db env set)"
-
-      # Q1: does it fail in ISOLATION in CI, or only inside the full suite?
-      - name: A — OtpOutboxTest alone
+      - uses: shivammathur/setup-php@v2
+        with: { php-version: '8.4', extensions: 'json, mbstring', coverage: pcov }
+      - run: composer install --prefer-dist --no-progress
+      - name: mutate (tail only)
         continue-on-error: true
-        run: vendor/bin/pest tests/Database/OtpOutboxTest.php
-
-      # Q2: full suite, with the diagnostic dump patched into the failing test
-      - name: B — full suite
-        continue-on-error: true
-        run: vendor/bin/pest
-
-      # Q3: the contention failure, in isolation, with CI's file-backed sqlite
-      - name: C — contention test alone (file-backed sqlite)
-        continue-on-error: true
-        env:
-          VOUCH_TEST_DB: sqlite
-          VOUCH_SQLITE_PATH: ${{ runner.temp }}/spike.sqlite
-        run: vendor/bin/pest tests/Concurrency/FirstCredentialContentionTest.php
+        timeout-minutes: 25
+        run: composer mutate 2>&1 | tail -40
