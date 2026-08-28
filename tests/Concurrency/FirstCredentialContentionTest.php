@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Fissible\Vouch\Enrollment\FirstCredentialEnrollment;
 use Fissible\Vouch\Enrollment\FirstCredentialRequest;
+use Fissible\Vouch\Enrollment\FirstCredentialResult;
 use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
@@ -150,14 +151,68 @@ it('lets exactly one of two interleaved enrollments claim the password slot', fu
     }
 
     /*
-     * Same shape, and the same discriminator: verified lock contention rather
-     * than any Throwable. The invariant that matters is one active password
-     * credential, whichever side wins.
+     * The loser is refused NEUTRALLY, and that is the whole point.
+     *
+     * This assertion used to require a raw QueryException to escape enroll().
+     * It only ever held on SQLite, and it contradicted the design it was
+     * written to defend: FirstCredentialResult has exactly one case, and
+     * enroll() converts EnrollmentRefused into Accepted plus a durable decoy
+     * (FirstCredentialEnrollment.php:62-65) precisely so a registration
+     * endpoint cannot be used as an oracle. A driver error reaching the caller
+     * would BE the disclosure bug. Measured on MySQL 8, where the bounded wait
+     * expires and the refusal is converted exactly as designed.
+     *
+     * What matters is the invariant, on every engine: one active password
+     * credential, and a response that says nothing about which side won.
      */
-    expect($second)->toBeInstanceOf(QueryException::class);
-    assert($second instanceof QueryException);
-
-    expect(app(LockContention::class)->isVerified(DB::connection('first_b'), $second))->toBeTrue()
+    expect($second)->not()->toBeInstanceOf(QueryException::class);
+    expect($second)->toBe(FirstCredentialResult::Accepted)
         ->and(AuthCredential::query()->where('user_id', 7)->where('type', 'password')
             ->whereNull('disabled_at')->count())->toBe(1);
+});
+
+it('bounds a contended enrollment instead of hanging the request thread', function (): void {
+    /*
+     * config('vouch.enrollment.lock_wait_seconds') exists because "the engine
+     * defaults are wildly inconsistent — MySQL waits 50s, Postgres waits
+     * forever, SQLite fails immediately — and an unbounded wait hangs a
+     * request thread". That is the config's own comment, and it is the
+     * requirement under test here.
+     *
+     * Postgres does not honour it today: a contended enrollment blocks past
+     * six minutes on a CI runner and past four minutes locally, so this test
+     * HANGS there rather than failing. That cannot be rescued from inside PHP
+     * — pcntl_alarm was tried and cannot fire, because signals are handled
+     * between VM instructions and the process is blocked inside libpq. The
+     * containment is `timeout-minutes` on the CI job; the fix is to make the
+     * bound actually apply on Postgres.
+     */
+    Config::set('vouch.enrollment.lock_wait_seconds', 2);
+
+    $a = DB::connection('first_a');
+    $a->beginTransaction();
+
+    try {
+        $a->table('auth_enrollment_locks')->insertOrIgnore([['user_id' => 9, 'type' => 'password']]);
+        $a->table('auth_enrollment_locks')->where('user_id', 9)->where('type', 'password')
+            ->lockForUpdate()->first();
+
+        $started = microtime(true);
+        $second = enrollmentOn('first_b')->enroll(firstRequest(9, 'bounded@acme.example', 'racing-password'));
+        $elapsed = microtime(true) - $started;
+
+        // Generous: the assertion is boundedness, not a specific latency. A
+        // tight bound would be flaky on a loaded runner and would not describe
+        // the defect, which is unboundedness.
+        expect($elapsed)->toBeLessThan(20.0)
+            ->and($second)->toBe(FirstCredentialResult::Accepted);
+
+        $a->rollBack();
+    } catch (\Throwable $e) {
+        if ($a->transactionLevel() > 0) {
+            $a->rollBack();
+        }
+
+        throw $e;
+    }
 });

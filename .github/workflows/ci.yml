@@ -71,6 +71,11 @@ jobs:
   # what this job exists to surface.
   database-matrix:
     runs-on: ubuntu-latest
+    # A contention test that is not bounded HANGS rather than failing, and PHP
+    # cannot interrupt itself out of a blocked driver call. Without this the
+    # job runs to the platform limit and has to be cancelled by hand, which is
+    # what happened on the first run this repository ever did.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
