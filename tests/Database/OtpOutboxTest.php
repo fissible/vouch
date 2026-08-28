@@ -196,6 +196,21 @@ function realDatabaseQueueForTest(): QueueManager
         'queue' => 'default',
         'retry_after' => 60,
     ]);
+    /*
+     * Pin the default connection as well as defining it.
+     *
+     * This manager is built with ONE connector, so anything resolving the
+     * DEFAULT connection dies with "No connector for [...]" — and the default
+     * is `env('QUEUE_CONNECTION', 'sync')`, which is ambient. It reads
+     * 'database' on a machine where a `.env` happens to exist in the Testbench
+     * skeleton and 'sync' on a fresh checkout, so this file passed locally for
+     * months and failed the first time CI ever ran. Measured both sides: the
+     * runner reports getenv('QUEUE_CONNECTION')=false and no skeleton `.env`.
+     *
+     * A helper that supplies a real queue owns which queue is default.
+     */
+    config()->set('queue.default', 'database');
+
     $manager = new QueueManager(app());
     $manager->addConnector('database', fn (): DatabaseConnector => new DatabaseConnector(app('db')));
     app()->instance('queue', $manager);
@@ -825,6 +840,21 @@ it('refuses a discarding queue and every inline member of a failover queue', fun
     ]);
     config()->set('queue.connections.inline-test', ['driver' => 'sync']);
     config()->set('queue.connections.discard-test', ['driver' => 'null']);
+    /*
+     * Pin the default connection as well as defining it.
+     *
+     * This manager is built with ONE connector, so anything resolving the
+     * DEFAULT connection dies with "No connector for [...]" — and the default
+     * is `env('QUEUE_CONNECTION', 'sync')`, which is ambient. It reads
+     * 'database' on a machine where a `.env` happens to exist in the Testbench
+     * skeleton and 'sync' on a fresh checkout, so this file passed locally for
+     * months and failed the first time CI ever ran. Measured both sides: the
+     * runner reports getenv('QUEUE_CONNECTION')=false and no skeleton `.env`.
+     *
+     * A helper that supplies a real queue owns which queue is default.
+     */
+    config()->set('queue.default', 'database');
+
     $manager = new QueueManager(app());
     $manager->addConnector('database', fn (): DatabaseConnector => new DatabaseConnector(app('db')));
     $manager->addConnector('null', fn (): NullConnector => new NullConnector());
