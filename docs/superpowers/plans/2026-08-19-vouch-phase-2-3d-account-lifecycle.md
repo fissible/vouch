@@ -336,7 +336,7 @@ No runtime dependency, no bundled migrations, no inherited release cycle.
 
 ## Task 7: Positioning — XS
 
-> **Vouch** — proves who someone is, and how well. What they may do stays yours.
+> **Vouch** — authenticates your users to the degree you need. What they may do stays yours.
 
 Followed immediately by the two-middleware example. Non-goals — authorization,
 token storage, UI — above the fold.

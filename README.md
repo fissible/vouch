@@ -1,6 +1,6 @@
 # Vouch
 
-**Vouch** — proves who someone is, and how well. What they may do stays yours.
+**Vouch** — authenticates your users to the degree you need. What they may do stays yours.
 
 Vouch is Laravel authentication with password, OTP, MFA, and recorded session
 assurance behind one policy engine. It orchestrates authentication factors and
