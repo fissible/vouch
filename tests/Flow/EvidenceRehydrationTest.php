@@ -334,12 +334,36 @@ it('retains every assurance flag a stored row actually claims', function (): voi
      */
     $handle = rehydrationFixture();
 
-    rehydrationFlow()->advance(
+    $submitted = rehydrationFlow()->advance(
         new FlowRequest($handle, 'submit', ['password' => 'correct horse battery staple'], rehydrationBinding()),
     );
 
     $attempt = AuthAttempt::where('handle', $handle)->firstOrFail();
     $rows = $attempt->satisfied_factors ?? [];
+
+    /*
+     * Assert the precondition rather than indexing into it.
+     *
+     * This advance() result used to be discarded, so when the submit did not
+     * satisfy the password factor the test died on "Undefined array key 0" —
+     * an error that names neither the cause nor the layer. It failed exactly
+     * once, on the pgsql matrix job, and could not be reproduced afterwards in
+     * three full Postgres suite runs or twenty runs of this file; the log said
+     * only "Undefined array key 0", which is why it is still unexplained.
+     *
+     * If it recurs, this now reports what the flow actually returned and what
+     * state the attempt reached, which is the difference between a diagnosable
+     * flake and another dead end.
+     */
+    expect($rows)->toHaveCount(
+        1,
+        sprintf(
+            'The password submit did not record a satisfied factor. advance() returned %s; attempt state is %s.',
+            get_debug_type($submitted),
+            var_export($attempt->state, true),
+        ),
+    );
+
     $row = $rows[0];
 
     $row['is_multi_factor'] = true;
@@ -383,12 +407,36 @@ it('never elevates an assurance flag from a value that merely looks truthy', fun
      */
     $handle = rehydrationFixture();
 
-    rehydrationFlow()->advance(
+    $submitted = rehydrationFlow()->advance(
         new FlowRequest($handle, 'submit', ['password' => 'correct horse battery staple'], rehydrationBinding()),
     );
 
     $attempt = AuthAttempt::where('handle', $handle)->firstOrFail();
     $rows = $attempt->satisfied_factors ?? [];
+
+    /*
+     * Assert the precondition rather than indexing into it.
+     *
+     * This advance() result used to be discarded, so when the submit did not
+     * satisfy the password factor the test died on "Undefined array key 0" —
+     * an error that names neither the cause nor the layer. It failed exactly
+     * once, on the pgsql matrix job, and could not be reproduced afterwards in
+     * three full Postgres suite runs or twenty runs of this file; the log said
+     * only "Undefined array key 0", which is why it is still unexplained.
+     *
+     * If it recurs, this now reports what the flow actually returned and what
+     * state the attempt reached, which is the difference between a diagnosable
+     * flake and another dead end.
+     */
+    expect($rows)->toHaveCount(
+        1,
+        sprintf(
+            'The password submit did not record a satisfied factor. advance() returned %s; attempt state is %s.',
+            get_debug_type($submitted),
+            var_export($attempt->state, true),
+        ),
+    );
+
     $row = $rows[0];
 
     $row['is_multi_factor'] = $stored;
