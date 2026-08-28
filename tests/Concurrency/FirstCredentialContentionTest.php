@@ -79,11 +79,15 @@ it('resolves a contended identifier claim to exactly one owner', function (): vo
             'updated_at' => now(),
         ]);
 
+        $started = microtime(true);
+
         try {
             $b = enrollmentOn('first_b')->enroll(firstRequest(2, 'shared@acme.example'));
         } catch (QueryException $contention) {
             $b = $contention;
         }
+
+        $elapsed = microtime(true) - $started;
 
         $a->commit();
     } catch (\Throwable $e) {
@@ -105,6 +109,21 @@ it('resolves a contended identifier claim to exactly one owner', function (): vo
      */
     expect($b)->toBeInstanceOf(QueryException::class);
     assert($b instanceof QueryException);
+
+    /*
+     * BOUNDED, on every engine. The identifier claim contends on the unique
+     * index, and that wait is NOT covered by vouch.enrollment.lock_wait_seconds
+     * today: EnrollmentGuard scopes BoundedLockWait to acquiring the
+     * auth_enrollment_locks row, and BoundedLockWait::within() restores the
+     * prior setting in a finally — so by the time this insert runs the bound
+     * is gone.
+     *
+     * Measured, not inferred. On Postgres the blocked backend reports
+     * wait_event_type=Lock, wait_event=transactionid with lock_timeout=0, and
+     * waits forever. On MySQL the same wait takes 51s, which is InnoDB's
+     * default innodb_lock_wait_timeout rather than anything Vouch chose.
+     */
+    expect($elapsed)->toBeLessThan(20.0);
 
     expect(app(LockContention::class)->isVerified(DB::connection('first_b'), $b))->toBeTrue()
         ->and(AuthIdentifier::query()->where('value', 'shared@acme.example')->count())->toBe(1)
