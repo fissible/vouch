@@ -9,6 +9,7 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -46,8 +47,16 @@ jobs:
       - name: Pest
         run: composer test
 
+  # Mutation testing on this package is measured in HOURS, not minutes: the
+  # Throttle chunk alone took 3,165s during the reconciliation work. Without a
+  # bound the job runs to GitHub's six-hour job limit and is killed there —
+  # which is exactly what happened on this repository's second CI run ever, and
+  # again on the two runs after it. A bound turns that into a fast, legible
+  # failure that says the gate needs rescoping rather than silently consuming
+  # six hours of runner time per push.
   mutation:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v5
