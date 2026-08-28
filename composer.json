@@ -56,6 +56,10 @@
             "@mutate:phase2",
             "@mutate:phase2:covered"
         ],
+        "mutate:kernel": [
+            "@mutate:msi",
+            "@mutate:covered"
+        ],
         "mutate:msi": "pest --mutate --class=\"Fissible\\Vouch\\Kernel\" --min=80",
         "mutate:covered": "pest --mutate --class=\"Fissible\\Vouch\\Kernel\" --covered-only --min=95",
         "mutate:phase2": "pest --mutate --class=\"Fissible\\\\Vouch\" --ignore=\"Kernel\"",

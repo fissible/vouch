@@ -9,6 +9,7 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -46,8 +47,17 @@ jobs:
       - name: Pest
         run: composer test
 
+  # ONLY the Kernel passes run per push, and they are the two that actually
+  # gate: covered-MSI >= 95 and full MSI >= 80, the committed Phase 1 exit
+  # criteria. 26 files, ~5 minutes.
+  #
+  # The Phase 2 sweep is NOT here. It covers 162 files, takes hours, and
+  # carries no --min at all — so it gated nothing while running to GitHub's
+  # six-hour job limit on every push. It is measurement, not a gate, and it now
+  # runs on a schedule in mutation-sweep.yml.
   mutation:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     steps:
       - uses: actions/checkout@v5
@@ -62,8 +72,8 @@ jobs:
       - name: Install
         run: composer install --prefer-dist --no-progress
 
-      - name: Mutation testing
-        run: composer mutate
+      - name: Kernel mutation gate
+        run: composer mutate:kernel
 
   # The adversarial attempt-store matrix. SQLite is a supported target and must
   # be verified, but cannot prove MySQL or Postgres locking, transaction, and
@@ -71,6 +81,11 @@ jobs:
   # what this job exists to surface.
   database-matrix:
     runs-on: ubuntu-latest
+    # A contention test that is not bounded HANGS rather than failing, and PHP
+    # cannot interrupt itself out of a blocked driver call. Without this the
+    # job runs to the platform limit and has to be cancelled by hand, which is
+    # what happened on the first run this repository ever did.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
