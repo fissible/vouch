@@ -47,16 +47,17 @@ jobs:
       - name: Pest
         run: composer test
 
-  # Mutation testing on this package is measured in HOURS, not minutes: the
-  # Throttle chunk alone took 3,165s during the reconciliation work. Without a
-  # bound the job runs to GitHub's six-hour job limit and is killed there —
-  # which is exactly what happened on this repository's second CI run ever, and
-  # again on the two runs after it. A bound turns that into a fast, legible
-  # failure that says the gate needs rescoping rather than silently consuming
-  # six hours of runner time per push.
+  # ONLY the Kernel passes run per push, and they are the two that actually
+  # gate: covered-MSI >= 95 and full MSI >= 80, the committed Phase 1 exit
+  # criteria. 26 files, ~5 minutes.
+  #
+  # The Phase 2 sweep is NOT here. It covers 162 files, takes hours, and
+  # carries no --min at all — so it gated nothing while running to GitHub's
+  # six-hour job limit on every push. It is measurement, not a gate, and it now
+  # runs on a schedule in mutation-sweep.yml.
   mutation:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 25
 
     steps:
       - uses: actions/checkout@v5
@@ -71,8 +72,8 @@ jobs:
       - name: Install
         run: composer install --prefer-dist --no-progress
 
-      - name: Mutation testing
-        run: composer mutate
+      - name: Kernel mutation gate
+        run: composer mutate:kernel
 
   # The adversarial attempt-store matrix. SQLite is a supported target and must
   # be verified, but cannot prove MySQL or Postgres locking, transaction, and

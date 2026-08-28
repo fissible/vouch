@@ -1,0 +1,43 @@
+# The full mutation sweep, on a schedule rather than per push.
+#
+# `composer mutate` runs four passes. Two are the Kernel gates and live in
+# ci.yml. The other two cover all 162 Phase 2 source files, take hours, and
+# carry no --min threshold — they cannot fail on quality because they assert
+# nothing. They exist to produce measurement for the reconciliation ledger.
+#
+# Running that per push meant every commit started a job that gated nothing and
+# ran until GitHub killed it at the six-hour job limit. Nightly is the right
+# cadence for an audit; workflow_dispatch is there for when someone wants one
+# on demand.
+name: Mutation sweep
+
+on:
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    # Well under the six-hour job ceiling, so an overrun is reported as a
+    # bounded failure rather than a killed job with no summary.
+    timeout-minutes: 300
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: json, mbstring
+          coverage: pcov
+
+      - name: Install
+        run: composer install --prefer-dist --no-progress
+
+      - name: Full mutation sweep
+        run: composer mutate
