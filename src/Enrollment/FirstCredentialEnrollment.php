@@ -159,7 +159,11 @@ final readonly class FirstCredentialEnrollment
     {
         $info = $failure->errorInfo;
 
-        return ($info[0] ?? null) === '23000'
+        // PDO reports the portable integrity-constraint class on MySQL and
+        // SQLite, but PostgreSQL returns its specific unique-violation state.
+        // Omitting 23505 rethrows the read-then-insert race and discloses the
+        // claimed identifier instead of issuing the neutral durable decoy.
+        return in_array($info[0] ?? null, ['23000', '23505'], true)
             && str_contains($failure->getMessage(), 'auth_identifiers');
     }
 

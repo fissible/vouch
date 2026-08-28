@@ -70,21 +70,41 @@ final class EnrollmentGuard
     public function serialize(int $userId, string $type, ?int $maxActive, callable $write): mixed
     {
         return $this->connection->transaction(function () use ($userId, $type, $maxActive, $write): mixed {
-            $this->acquire($userId, $type);
+            /*
+             * The enrollment budget covers the whole serialized mutation,
+             * not just its lock-row claim. A first credential's identifier
+             * INSERT can be the contended statement after acquire() has
+             * succeeded; narrowing the scope there restores PostgreSQL's
+             * infinite and MySQL's 50-second defaults, so the request hangs
+             * in the wrong direction. Every lock wait in this atomic
+             * enrollment is therefore bounded: a broad closure is correct
+             * because its only purpose is this one serialized write.
+             *
+             * BoundedLockWait deliberately remains inside transaction(): on
+             * PostgreSQL a timed-out statement aborts the transaction, and
+             * its rollback-aware restoration path preserves the caller's
+             * session setting without masking the original contention.
+             */
+            return $this->boundedLockWait->enrollment(
+                max(1, $this->lockWaitSeconds),
+                function () use ($userId, $type, $maxActive, $write): mixed {
+                    $this->acquire($userId, $type);
 
-            $result = $write();
+                    $result = $write();
 
-            if ($maxActive !== null) {
-                $active = $this->countActive($userId, $type);
+                    if ($maxActive !== null) {
+                        $active = $this->countActive($userId, $type);
 
-                if ($active > $maxActive) {
-                    // Throwing rolls the whole closure back, so a partially
-                    // applied enrollment cannot survive the refusal.
-                    throw EnrollmentRefused::capacityExceeded($type, $maxActive, $active);
-                }
-            }
+                        if ($active > $maxActive) {
+                            // Throwing rolls the whole closure back, so a partially
+                            // applied enrollment cannot survive the refusal.
+                            throw EnrollmentRefused::capacityExceeded($type, $maxActive, $active);
+                        }
+                    }
 
-            return $result;
+                    return $result;
+                },
+            );
         });
     }
 
@@ -119,13 +139,11 @@ final class EnrollmentGuard
     private function acquire(int $userId, string $type): void
     {
         try {
-            $this->boundedLockWait->enrollment(max(1, $this->lockWaitSeconds), function () use ($userId, $type): void {
-                $this->rowLock->ensureAndLock(
-                    'auth_enrollment_locks',
-                    ['user_id' => $userId, 'type' => $type],
-                    ['user_id' => $userId, 'type' => $type],
-                );
-            });
+            $this->rowLock->ensureAndLock(
+                'auth_enrollment_locks',
+                ['user_id' => $userId, 'type' => $type],
+                ['user_id' => $userId, 'type' => $type],
+            );
         } catch (QueryException $exception) {
             /*
              * ONLY verified lock/busy codes map to a refusal. A blanket
@@ -134,6 +152,13 @@ final class EnrollmentGuard
              * EnrollmentRefused::contended() tells the caller it is "safe to
              * retry", which is precisely the wrong advice for a schema problem.
              * Everything else rethrows unchanged.
+             *
+             * This mapping remains deliberately limited to the enrollment-lock
+             * claim. The wider budget also bounds contention in $write, but
+             * that statement's QueryException keeps its original failure
+             * direction for its caller to classify (for example, first
+             * credential enrollment must not claim a durable decoy it could
+             * not actually persist).
              */
             if (! $this->lockContention->isVerified($this->connection, $exception)) {
                 throw $exception;

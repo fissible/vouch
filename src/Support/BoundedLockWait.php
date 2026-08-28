@@ -143,15 +143,29 @@ final readonly class BoundedLockWait
     /**
      * A PostgreSQL statement error aborts its transaction, so no restoration
      * statement can run before rollback: it fails with 25P02 and would mask the
-     * contention that caused it. The setting is transaction-local in this case,
-     * so rollback itself restores the captured session value. No other restore
-     * failure is suppressed.
+     * contention that caused it. The original QueryException may be wrapped by
+     * the critical section before finally runs (EnrollmentGuard turns a verified
+     * acquisition timeout into EnrollmentRefused), so inspect its exception
+     * chain rather than exposing the restoration failure in the wrong direction.
+     * The setting is transaction-local in this case, so rollback itself restores
+     * the captured session value. No other restore failure is suppressed.
      */
     private function restoresOnRollback(?Throwable $failure, QueryException $restoreFailure): bool
     {
-        return $this->connection->getDriverName() === 'pgsql'
-            && $this->connection->transactionLevel() > 0
-            && $failure instanceof QueryException
-            && $restoreFailure->getCode() === '25P02';
+        if ($this->connection->getDriverName() !== 'pgsql'
+            || $this->connection->transactionLevel() === 0
+            || $restoreFailure->getCode() !== '25P02') {
+            return false;
+        }
+
+        while ($failure instanceof Throwable) {
+            if ($failure instanceof QueryException) {
+                return true;
+            }
+
+            $failure = $failure->getPrevious();
+        }
+
+        return false;
     }
 }
