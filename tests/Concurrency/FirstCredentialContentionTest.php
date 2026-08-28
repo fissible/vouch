@@ -126,11 +126,21 @@ it('resolves a contended identifier claim to exactly one owner', function (): vo
      */
     /*
      * Derived from the configured bound, not a magic number: the requirement
-     * is that lock_wait_seconds governs this wait. The slack is generous
-     * because a loaded CI runner schedules badly, and because the assertion
-     * is about boundedness, not latency.
+     * is that lock_wait_seconds governs this wait rather than the engine's own
+     * default.
+     *
+     * The slack has to satisfy two constraints that pull opposite ways. It
+     * must stay well UNDER the smallest engine default this exists to catch —
+     * MySQL's innodb_lock_wait_timeout at 50s, measured at 50.1s and 51.6s
+     * before the fix — or it stops discriminating. And it must stay well OVER
+     * what a loaded runner actually takes: this test costs 10.7s locally, and
+     * a macOS CI runner recorded 20.2s, which flaked a +15 ceiling.
+     *
+     * +30 sits between them with room on both sides. It is deliberately not
+     * tight: the assertion is about boundedness, not latency, and a latency
+     * assertion on shared CI hardware is a flake generator.
      */
-    expect($elapsed)->toBeLessThan(config()->integer('vouch.enrollment.lock_wait_seconds') + 15.0);
+    expect($elapsed)->toBeLessThan(config()->integer('vouch.enrollment.lock_wait_seconds') + 30.0);
 
     expect(app(LockContention::class)->isVerified(DB::connection('first_b'), $b))->toBeTrue()
         ->and(AuthIdentifier::query()->where('value', 'shared@acme.example')->count())->toBe(1)
@@ -296,7 +306,8 @@ it('bounds a contended enrollment instead of hanging the request thread', functi
          * database-wide writer lock blocks the decoy write too and the
          * refusal is then correctly loud rather than a silent Accepted.
          */
-        expect($elapsed)->toBeLessThan(config()->integer('vouch.enrollment.lock_wait_seconds') + 15.0);
+        // Same ceiling and the same reasoning as the identifier test above.
+        expect($elapsed)->toBeLessThan(config()->integer('vouch.enrollment.lock_wait_seconds') + 30.0);
 
         if ($second instanceof QueryException) {
             expect(AuthIdentifierVerificationOutbox::query()->count())->toBe(0);
