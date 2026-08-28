@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
+## [0.1.1] - 2026-08-28
+
+### Fixed
+- Clear the six PHPStan errors that were failing CI
+- Pin the default queue connection in the real-queue helper
+- Bound every lock wait in a serialized enrollment, not just the lock claim
+
+### Ci
+- Bound every job so a hang fails instead of consuming six hours
+- Run only the Kernel mutation gate per push, sweep on a schedule
 ## [0.1.0] - 2026-08-27
 
 ### Added
