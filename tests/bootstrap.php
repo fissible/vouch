@@ -11,7 +11,25 @@ require __DIR__ . '/../vendor/autoload.php';
  */
 if ((getenv('VOUCH_TEST_DB') ?: 'sqlite') === 'sqlite' && getenv('VOUCH_SQLITE_PATH') === false) {
     $token = getenv('TEST_TOKEN') ?: '';
-    putenv('VOUCH_SQLITE_PATH=' . sys_get_temp_dir() . '/vouch-test' . ($token !== '' ? '-' . $token : '') . '.sqlite');
+    $path = sys_get_temp_dir() . '/vouch-test' . ($token !== '' ? '-' . $token : '') . '.sqlite';
+
+    /*
+     * CREATE it, do not merely name it. Laravel's SQLiteConnector realpath()s
+     * the database and throws SQLiteDatabaseDoesNotExistException before PDO
+     * ever gets the chance to create it lazily, so naming a path that does not
+     * exist yet is not enough.
+     *
+     * This hid because RefreshDatabase creates the file as a side effect, and
+     * almost every database test here uses it. A test using DatabaseMigrations
+     * instead — or any test run first on a machine where the temp file has been
+     * cleared — hits the connector directly and dies during bootstrap. The
+     * ordinary command should not depend on which trait happened to run first.
+     */
+    if (! is_file($path)) {
+        touch($path);
+    }
+
+    putenv('VOUCH_SQLITE_PATH=' . $path);
 }
 
 /*
