@@ -310,7 +310,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implemented; mutation reconciliation evidence recorded** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | **Substantially implemented; cross-engine lock ruling, 46 mutation gaps, and final exit criteria remain** |
 | 2.3d | Account lifecycle (Fortify parity) — identifier verification, credential recovery, first-credential enrollment, credential self-service, ability→assurance requirements | **Complete** |
-| 2.4 | Token gate — `Vouch::issueToken`, issuer-qualified identity, default-deny, revocation, **plus `RequireAssurance` non-interactive (RFC 9470)** | **Design approved**; plan next |
+| 2.4 | Token gate — `Vouch::issueToken`, issuer-qualified identity, default-deny, revocation, **plus `RequireAssurance` non-interactive (RFC 9470)** | **Design + contract addendum approved**; plan next |
 | 2.4b | Audit sinks — activitylog/attest/null drivers, §7.6 redaction pass, event taxonomy | Not planned; split from 2.4 |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
 | post-2.4 | Impersonation — two-principal sessions, actor-derived assurance, capability matrix, audited | Not planned; gated on 2.4's audit sink |
