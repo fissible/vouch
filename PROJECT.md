@@ -18,45 +18,26 @@ both probes committed as tests (`62e0228`), the ability → assurance requiremen
 map (`618fcfa`), and the README plus composer `suggest` (`ce521b1`). Suite is
 **1,476 passing / 1 skipped**; PHPStan sits at the same 6 pre-existing errors.
 
-**Next: 2.4** (token gate & audit — `Vouch::issueToken`, default-deny,
-revocation, audit sink drivers, plus `RequireAssurance` non-interactive per
-RFC 9470). It is unplanned and needs its own spec → plan cycle. Two things
-already point at it: the ability map is session-sourced and returns a stated
-403 to a request carrying no Vouch session, which 2.4's token vocabulary
-supersedes; and `AuthTokenAssurance` already exists as a 2.1 table with nothing
-consuming it.
+**Next: 2.4 Task 0.** The token gate is fully planned:
 
-**Released as `v0.1.0` (2026-08-27), locally.** The developer preview is cut:
-`release.sh`, `.cliff.toml` and `.github/workflows/release.yml` are wired in
-from `fissible/.github`, `CHANGELOG.md` is generated, and the annotated signed
-tag exists. `VERSION` was not bumped — an untagged 0.1.0 was already unreleased,
-so the first release tags it as-is. 2.4 takes 0.2.0.
+- design — [`docs/superpowers/specs/2026-08-28-vouch-phase-2-4-token-gate-design.md`](docs/superpowers/specs/2026-08-28-vouch-phase-2-4-token-gate-design.md)
+- contract addendum — [`docs/superpowers/specs/2026-08-29-vouch-phase-2-4-contract-addendum.md`](docs/superpowers/specs/2026-08-29-vouch-phase-2-4-contract-addendum.md)
+- plan — [`docs/superpowers/plans/2026-08-29-vouch-phase-2-4-token-gate.md`](docs/superpowers/plans/2026-08-29-vouch-phase-2-4-token-gate.md)
 
-`fissible_release_advice` suggests `v1.0.0`; **do not follow it.** It reads the
-untagged commits containing `feat:` and applies the post-1.0 bump table, which
-has no 0.x case. 1.0.0 would assert an API stability this package has not
-earned: the token gate is 2.4, UI adapters are Phase 3, and a host still cannot
-complete a browser step-up without building the page itself.
+Why it is next: §6.2 names a live MFA bypass. A panel requiring TOTP is worth
+nothing while an endpoint mints equally powerful tokens on a password alone, and
+sluice calls `createToken()` directly in two places today. It also retires the
+stated 403 stopgap the README documents for token requests, and gives
+`auth_token_assurances` — dead schema since 2.1 — its first consumer.
 
-**The tag is not published, because `vouch` has no git remote.** Nothing is
-released to anyone until a GitHub repository exists and `git push --tags` runs;
-the release workflow only fires on a pushed `v*` tag. Two consequences to settle
-when that decision is made:
+**One settled question the plan reopens.** Task 0 says to "decide and document"
+whether Sanctum is optional or required. That was decided during the design and
+ratified in addendum §10: a `TokenIssuer` contract with a Sanctum driver,
+`suggest` never `require`, matching the Task 6 stance. Task 0 should record that
+decision rather than retake it.
 
-- The README says `composer require fissible/vouch`. That is only true once the
-  package is on Packagist, which needs a public repository — or a documented
-  Composer repository entry if it stays private. If vouch goes private, that
-  install line is incomplete and must say so.
-- A private repo needs `FISSIBLE_PAT` added as a per-repo Actions secret before
-  CI can install `fissible/*` dependencies. It is not org-wide and `gh repo
-  create` does not carry it over.
-
-**One release-tooling fix landed upstream** in `fissible/.github` (`ea6e4ff`):
-`release.sh` matched ANY tag when looking for the last release, so a stray
-non-version tag would be read as a release, skip the first-release path, and
-compute the bump against a point that was never released. vouch has exactly such
-a tag (`pre-restructure`). It now matches `v[0-9]*`, the same pattern
-`.cliff.toml` already used.
+**2.4b (audit sinks) is split out and unplanned.** `AuditSink` has been an
+unbound contract since 2.1, so nothing is recorded today.
 
 **What 5a's probes settled**, in
 [`docs/authorization-integration-survey.md`](docs/authorization-integration-survey.md),
@@ -310,7 +291,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implemented; mutation reconciliation evidence recorded** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | **Substantially implemented; cross-engine lock ruling, 46 mutation gaps, and final exit criteria remain** |
 | 2.3d | Account lifecycle (Fortify parity) — identifier verification, credential recovery, first-credential enrollment, credential self-service, ability→assurance requirements | **Complete** |
-| 2.4 | Token gate — `Vouch::issueToken`, issuer-qualified identity, default-deny, revocation, **plus `RequireAssurance` non-interactive (RFC 9470)** | **Design + contract addendum approved**; plan next |
+| 2.4 | Token gate — `Vouch::issueToken`, issuer-qualified identity, default-deny, revocation, **plus `RequireAssurance` non-interactive (RFC 9470)** | **Planned**; ready to implement |
 | 2.4b | Audit sinks — activitylog/attest/null drivers, §7.6 redaction pass, event taxonomy | Not planned; split from 2.4 |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
 | post-2.4 | Impersonation — two-principal sessions, actor-derived assurance, capability matrix, audited | Not planned; gated on 2.4's audit sink |
