@@ -80,7 +80,57 @@ custom groups, and unsupported transactional drivers.
 write disappears, including side writes; no `auth_token_assurances` row is written
 by this task yet.
 
+## Task 2a — Persist session assurance evidence (prerequisite)
+
+**Why this exists, and why it is not folded into Task 2.** The addendum's central
+claim is that `acr` is a projection and authorization reads immutable selected
+evidence. That is currently false for sessions and nothing in Task 2 made it true:
+`SessionLifecycle` writes only `amr` and `acr`, and `assurance_facts` is a column
+with no writer anywhere in `src/`. Leaving sessions on cached `acr` would put two
+assurance models behind one comparator — the exact drift "one policy, two
+renderings" exists to prevent — so this lands BEFORE token evidence rather than
+inside it.
+
+- Define the durable session proof schema and value format.
+- Update `SessionLifecycle` at the login-success boundary to persist the selected
+  proof and its timestamps.
+- Make session authorization deserialize and validate that proof.
+- Reject malformed or timezone-less evidence before comparison, so PHP's default
+  timezone can never become an authorization input.
+- Replace the boolean comparison with a typed result distinguishing **sufficient**,
+  **insufficient level**, **insufficient recency**, and **invalid or malformed
+  evidence**. Task 4 renders RFC 9470 from that result rather than reconstructing
+  the distinction from a boolean.
+
+**Legacy sessions carry no proof, and are not adopted.** A session established
+before this task has `acr` but no selected evidence, and re-deriving one would
+assert a fact nobody witnessed — the same rule §6.5 point 4 already applies to
+pre-existing tokens. Such a session therefore satisfies no assurance requirement
+and its holder re-authenticates. State the operational cost plainly in the upgrade
+notes rather than offering a shortcut: on deploy, every live session loses its
+assurance standing.
+
+**Tests:** migration and upgrade, including a legacy session with no proof; real
+constraint tests asserting persisted values rather than column existence — non-null
+proof timestamps, canonical string factor keys, and a stored offset that survives a
+round trip through a non-UTC default timezone; a genuine login-flow round trip from
+success through `SessionLifecycle` to the adapter to the comparator.
+
+The equivalent constraint tests for token identity and duplicate rejection stay in
+Task 2, where the mapping table they constrain first exists.
+
+**Gate — strict, and deliberately blocking.** Session evidence must be written and
+read correctly before token issuance or enforcement is built on it. Specifically: a
+real successful login persists a proof; authorization refuses a session whose
+persisted `acr` disagrees with its factors; a legacy proofless session is refused;
+and the typed result reports the right case for each of the four outcomes. No later
+task starts until those pass on all three engines.
+
 ## Task 2 — Evidence model, persistence, and comparator
+
+**Depends on Task 2a**, which establishes the evidence value, the strict
+deserialization rule and the typed comparison result for sessions. Task 2 extends
+that one model to tokens; it does not introduce a second one.
 
 **Carried in from Task 1:** `AssuranceEvidence` must EXCLUDE token lifecycle and
 provenance fields — token key, `issued_at`, `last_used_at`, session binding, and a
@@ -112,6 +162,13 @@ upgrade note for the old `token_id` shape; do not backfill pre-existing tokens.
 
 **Gate:** round-trip and malformed-row tests pass on SQLite, MySQL, and PostgreSQL;
 authorization never branches on persisted `acr` alone.
+
+Schema assertions must test CONSTRAINTS, not column existence. A migration that
+merely has the right column names can still lack a unique `(issuer_key, token_key)`,
+store `token_key` numerically so `42` and `042` collide, leave
+`weakest_satisfied_at` nullable, omit indexes, or permit a cross-issuer mapping
+read. Assert persisted values, duplicate rejection, string identity, null-tenant
+persistence and issuer-scoped mappings.
 
 ## Task 3 — Transactional issuance and public API
 
