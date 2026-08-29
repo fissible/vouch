@@ -17,6 +17,7 @@ use Fissible\Vouch\Sessions\SessionEvidence;
 use Fissible\Vouch\Sessions\SessionLifecycle;
 use Fissible\Vouch\Sessions\SessionRotationFailed;
 use Fissible\Vouch\Tokens\SubjectKey;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 
@@ -104,15 +105,51 @@ it('reconstructs the exact factors the flow presented', function (): void {
 it('stores the subject key the token path would render for the same user', function (): void {
     /*
      * The two surfaces must agree on identity or "one policy" is false at the
-     * subject level: the same person would be a different principal depending
-     * on how they authenticated. Rendered once at write time and stored, so a
-     * later change to the configured user model cannot silently re-key
-     * evidence that was already witnessed.
+     * subject level: the same person would be a different principal depending on
+     * how they authenticated, and the subject-mismatch refusals below would
+     * reject every legitimate cross-surface case rather than an attack.
+     *
+     * Asserted against getMorphClass(), which is what the Sanctum issuer already
+     * uses (SanctumTokenIssuer:91). An earlier draft compared against
+     * config('auth.providers.users.model') directly; those two agree only while
+     * no morph map is registered, so it would have passed here while producing
+     * session evidence that can never bind to a real token.
      */
+    $model = stringValue(config('auth.providers.users.model'));
+    $principal = new $model;
+
     $evidence = SessionEvidence::for(establishSession(proofSuccess(userId: 7)));
 
     expect($evidence->subject->render())
-        ->toBe(SubjectKey::of(stringValue(config('auth.providers.users.model')), 7)->render());
+        ->toBe(SubjectKey::of($principal->getMorphClass(), 7)->render());
+});
+
+it('canonicalizes the subject through the morph map, as the token path does', function (): void {
+    /*
+     * THE discriminating case. With a morph map registered, getMorphClass()
+     * returns the ALIAS while the configured model class stays fully qualified,
+     * and Sanctum writes that same alias into tokenable_type. A session writer
+     * that resolved the class name instead would mint evidence whose provider
+     * half can never match a token's, so no session and token for one user would
+     * ever agree on whom they belong to. The test above passes under either
+     * implementation; this one does not.
+     */
+    $model = stringValue(config('auth.providers.users.model'));
+
+    // morphMap(), not enforceMorphMap(): the latter also sets Laravel's global
+    // requireMorphMap flag, which resetting the map alone does NOT clear, so
+    // every model in every later suite throws ClassMorphViolationException.
+    // Registering the alias is all this needs.
+    Relation::morphMap(['vouch_user' => $model], false);
+
+    try {
+        $evidence = SessionEvidence::for(establishSession(proofSuccess(userId: 7)));
+
+        expect($evidence->subject->provider)->toBe('vouch_user')
+            ->and($evidence->subject->render())->toBe('vouch_user:7');
+    } finally {
+        Relation::morphMap([], false);
+    }
 });
 
 it('anchors the persisted recency column to the oldest factor', function (): void {
