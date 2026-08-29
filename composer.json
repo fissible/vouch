@@ -16,6 +16,7 @@
         "symfony/string": "^7.4.6 || ^8.0.6"
     },
     "suggest": {
+        "laravel/sanctum": "Use it to issue and resolve Sanctum personal access tokens through Vouch's transaction-safe token issuer.",
         "spatie/laravel-permission": "Use it for roles and permissions; Vouch handles authentication and session assurance."
     },
     "require-dev": {

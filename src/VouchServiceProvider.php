@@ -21,6 +21,7 @@ use Fissible\Vouch\Contracts\DeliveryEconomics;
 use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Contracts\RandomSource;
 use Fissible\Vouch\Contracts\TenantResolver;
+use Fissible\Vouch\Contracts\TokenIssuer;
 use Fissible\Vouch\Enrollment\EnrollmentGuard;
 use Fissible\Vouch\Enrollment\FirstCredentialEnrollment;
 use Fissible\Vouch\Factors\ChallengeIssuer;
@@ -55,6 +56,8 @@ use Fissible\Vouch\Throttle\IpCanonicalizer;
 use Fissible\Vouch\Throttle\ThrottleConfiguration;
 use Fissible\Vouch\Throttle\ThrottleKey;
 use Fissible\Vouch\Throttle\ThrottleReporter;
+use Fissible\Vouch\Tokens\Drivers\SanctumTokenIssuer;
+use Fissible\Vouch\Tokens\TokenIssuerRegistry;
 use Illuminate\Support\ServiceProvider;
 use Psr\Clock\ClockInterface;
 
@@ -65,6 +68,13 @@ final class VouchServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__ . '/../config/vouch.php', 'vouch');
 
         $this->app->bind(TenantResolver::class, NullTenantResolver::class);
+
+        $this->app->singleton(SanctumTokenIssuer::class);
+        $this->app->bind(TokenIssuer::class, SanctumTokenIssuer::class);
+        $this->app->singleton(
+            TokenIssuerRegistry::class,
+            fn ($app): TokenIssuerRegistry => new TokenIssuerRegistry([$app->make(SanctumTokenIssuer::class)]),
+        );
 
         $this->app->singleton(ClockInterface::class, SystemClock::class);
         // Bound, not shared: test and long-running hosts may change config after boot.
@@ -458,6 +468,7 @@ final class VouchServiceProvider extends ServiceProvider
         }
 
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+        $this->loadSanctumMigrationsWhenInstalled();
         $this->loadRoutesFrom(__DIR__ . '/../routes/vouch.php');
 
         $router = $this->app->make(\Illuminate\Routing\Router::class);
@@ -608,6 +619,27 @@ final class VouchServiceProvider extends ServiceProvider
         }
 
         return false;
+    }
+
+    private function loadSanctumMigrationsWhenInstalled(): void
+    {
+        if (! class_exists(\Laravel\Sanctum\Sanctum::class)) {
+            return;
+        }
+
+        $file = (new \ReflectionClass(\Laravel\Sanctum\Sanctum::class))->getFileName();
+
+        if ($file === false) {
+            return;
+        }
+
+        /*
+         * Sanctum is suggested, not required, so Vouch cannot name a vendor
+         * path unconditionally. When it is installed, the token adapter needs
+         * Sanctum's actual schema; omitting it leaves issuance to fail only at
+         * its first write rather than at the optional-integration boundary.
+         */
+        $this->loadMigrationsFrom(dirname($file) . '/../database/migrations');
     }
 
 }
