@@ -95,7 +95,12 @@ adaptation is lossless reuse of the Kernel's model rather than new vocabulary. A
 draft said "factor", which would have collapsed `factor_id` and `kind` into one field.
 
 Derived ACR is a display and index projection ONLY. Authorization re-evaluates the
-immutable selected factors; it never trusts a stored level.
+immutable persisted factors; it never trusts a stored level, in either direction — a
+stored level is not a floor and not a ceiling.
+
+"Persisted factors" means every factor satisfied in the successful attempt, per the
+amendment to §3 of the contract addendum. An earlier draft said "selected", meaning the
+subset a policy branch used; that was measured and reversed.
 
 Deliberately NOT in the evidence value, because they are provenance or lifecycle and using
 them as comparison input launders assurance: `issued_at`, `last_used_at`, session binding,
@@ -104,7 +109,7 @@ raw session or token ids, and a bare mutable `acr`.
 ## Issuance invariants
 
 Server-side session required; session subject === token subject; session not revoked, not
-expired, not recovery-grace; a selected proof satisfying `token_issue` at issuance time.
+expired, not recovery-grace; a persisted proof satisfying `token_issue` at issuance time.
 Never derived from an ambient `auth()->user()`.
 
 `token_issue` is a closed typed intent resolved through the ordinary policy chain, taking a
@@ -121,7 +126,7 @@ machine actors; `human` is the default.
 ## Schema
 
 - `auth_token_assurances`: keyed `(issuer_key, token_key)`; adds `weakest_satisfied_at`
-  (indexed), `actor_kind`, and the selected-proof payload. Recency is measured from the
+  (indexed), `actor_kind`, and the persisted-proof payload. Recency is measured from the
   authentication evidence, never `issued_at`.
 - `auth_token_credentials(issuer_key, token_key, credential_id)`, indexed. No JSON
   containment on a revocation path.
@@ -173,7 +178,7 @@ token issued a moment earlier.
 
 So issuance and credential mutation share one protocol:
 
-- Issuance locks every selected credential dimension in a deterministic order (by
+- Issuance locks every credential in the persisted proof, in a deterministic order (by
   credential id, so two concurrent operations cannot deadlock), re-checks each credential
   is still valid, then inserts the assurance record and its mappings, then commits.
 - Every disable, replace and revoke path takes the same locks, invalidates the credential,

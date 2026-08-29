@@ -182,8 +182,13 @@ authorizes under another's.
 
 ## 7. Credential mapping lifecycle
 
-- Disabling **any** credential in the selected proof invalidates the token. The proof was
+- Disabling **any** credential in the persisted proof invalidates the token. The proof was
   a set; a partial set is not a weaker proof, it is a different one.
+- **Every** credential in that proof is mapped, not only the ones a policy branch happened
+  to need. Since §3's amendment the proof is every factor satisfied in the attempt, and
+  mapping a narrower set would leave a real credential unmapped: in the measured
+  `any_of: [all_of:[totp], all_of:[password, totp]]` case, disabling the password would
+  then fail to revoke a token the password helped authorize.
 - A password change is a credential mutation like any other — password is a row in
   `auth_credentials` — so it maps normally. §6.5 point 6's broader rule stands on top:
   a password change revokes all human tokens for that subject by default, configurable.

@@ -25,7 +25,7 @@ amend the addendum before coding.
 3. The token gate is token-scoped: cookie-authenticated requests pass through;
    real registered bearer tokens require an assurance record.
 4. Stored derived `acr` is never an authorization input. Authorization rebuilds
-   the result from deserialized selected factors and their timestamps.
+   the result from the deserialized persisted factors and their timestamps.
 5. Assurance deletion commits before driver revocation. Driver failure cannot
    resurrect a usable Vouch token, and revocation is idempotent.
 6. Subject-wide revocation and issuance take the subject lock first, then
@@ -83,7 +83,7 @@ by this task yet.
 ## Task 2a — Persist session assurance evidence (prerequisite)
 
 **Why this exists, and why it is not folded into Task 2.** The addendum's central
-claim is that `acr` is a projection and authorization reads immutable selected
+claim is that `acr` is a projection and authorization reads the immutable persisted
 evidence. That is currently false for sessions and nothing in Task 2 made it true:
 `SessionLifecycle` writes only `amr` and `acr`, and `assurance_facts` is a column
 with no writer anywhere in `src/`. Leaving sessions on cached `acr` would put two
@@ -92,8 +92,9 @@ renderings" exists to prevent — so this lands BEFORE token evidence rather tha
 inside it.
 
 - Define the durable session proof schema and value format.
-- Update `SessionLifecycle` at the login-success boundary to persist the selected
-  proof and its timestamps.
+- Update `SessionLifecycle` at the login-success boundary to persist the proof — every
+  factor satisfied in the successful attempt, per addendum §3 as amended — and its
+  timestamps.
 - Make session authorization deserialize and validate that proof.
 - Reject malformed or timezone-less evidence before comparison, so PHP's default
   timezone can never become an authorization input.
@@ -103,7 +104,7 @@ inside it.
   the distinction from a boolean.
 
 **Legacy sessions carry no proof, and are not adopted.** A session established
-before this task has `acr` but no selected evidence, and re-deriving one would
+before this task has `acr` but no persisted evidence, and re-deriving one would
 assert a fact nobody witnessed — the same rule §6.5 point 4 already applies to
 pre-existing tokens. Such a session therefore satisfies no assurance requirement
 and its holder re-authenticates. State the operational cost plainly in the upgrade
@@ -154,6 +155,16 @@ implementation that does not exist. And the host-facing docs must say plainly
 that `aal3` is not satisfiable without a custom `AssuranceVocabulary`, because
 configuring one today fails closed silently.
 
+**Carried forward into Tasks 3 and 5, as a consequence of the §3 amendment.**
+The proof is every factor satisfied in the attempt, so credential mapping and
+locking must cover every credential in it — not the subset a policy branch
+needed. Task 3 must prove this on the measured case: for
+`any_of: [all_of:[totp], all_of:[password, totp]]` with both factors presented,
+the token's mappings and locks include **password and totp**, and disabling
+**either** invalidates the token. Mapping the narrower set would leave the
+password unmapped, so disabling it would silently fail to revoke a token it
+helped authorize.
+
 **Gate — strict, and deliberately blocking.** Session evidence must be written and
 read correctly before token issuance or enforcement is built on it. Specifically: a
 real successful login persists a proof; authorization refuses a session whose
@@ -182,7 +193,7 @@ boundary.
 Generalize `AssuranceComparator` from `AuthSession` to evidence adapters while
 preserving the existing session behavior. Define and test:
 
-- selected-proof identity and deterministic factor selection;
+- persisted-proof identity and deterministic credential ordering;
 - derived ACR versus re-derived authorization;
 - `weakest_satisfied_at = MIN(satisfied_at)`;
 - UTC comparison against injected `ClockInterface`;
@@ -191,7 +202,7 @@ preserving the existing session behavior. Define and test:
 - missing or malformed evidence.
 
 Replace the old token assurance schema with the composite issuer/token identity,
-canonical subject key, tenant, actor kind, weakest timestamp, selected-proof
+canonical subject key, tenant, actor kind, weakest timestamp, persisted-proof
 payload, and normalized credential mapping table. Add an explicit migration and
 upgrade note for the old `token_id` shape; do not backfill pre-existing tokens.
 
@@ -211,8 +222,10 @@ Add `Vouch::issueToken()` (or the approved service seam) that:
 
 1. requires a server-resolved, non-revoked, non-expired, non-grace session;
 2. binds the session subject exactly to the requested subject;
-3. evaluates the closed `token_issue` intent and obtains the selected proof;
-4. acquires the per-subject lock, then selected credential locks in ID order;
+3. evaluates the closed `token_issue` intent and obtains the persisted proof;
+4. acquires the per-subject lock, then a lock on EVERY credential in that proof, in ID
+   order — not only the ones a policy branch needed, or disabling an unmapped credential
+   would silently fail to revoke the token it helped authorize;
 5. revalidates credentials;
 6. calls the issuer on the same connection;
 7. writes assurance and credential mappings; and
@@ -267,7 +280,7 @@ atomically. On password change, apply the configured subject-wide human-token sw
 Commit Vouch invalidation before invoking idempotent driver revocation; tolerate and
 retry driver failure out of band.
 
-**Tests:** every writer, selected-credential invalidation, password subject sweep,
+**Tests:** every writer, invalidation via ANY credential in the proof, password subject sweep,
 missing mapping/idempotent retry, driver failure fail-closed behavior, concurrent
 issuance versus subject-wide revocation in both interleavings, and lock ordering.
 
@@ -313,7 +326,7 @@ and a documented host adoption recipe.
 - All four residual-risk tests from the addendum are real interleaving/read-boundary
   tests, not assertions over mocks alone.
 - Human tokens cannot authorize without a committed matching assurance record.
-- Assurance is re-derived from selected immutable evidence and recency is tested at
+- Assurance is re-derived from the immutable persisted evidence and recency is tested at
   the exact boundary.
 - Credential and subject revocation are fail-closed under concurrent issuance.
 - Cookie-SPA, unrelated bearer, machine-token, and host ability semantics match the

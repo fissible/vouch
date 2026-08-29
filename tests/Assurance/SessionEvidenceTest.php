@@ -634,3 +634,57 @@ it('never reports a failure reason alongside usable evidence', function (): void
     expect($read->evidence)->not->toBeNull()
         ->and($read->reason)->toBe(AssuranceReason::Sufficient);
 });
+
+it('refuses a proof that belongs to somebody else', function (): void {
+    /*
+     * The subject is inside the signed-off payload, and the row is found by
+     * session binding — two different identities that nothing so far required to
+     * agree. A syntactically perfect proof naming user 8, sitting on user 7's
+     * session row, would deserialize cleanly and derive aal2. Whatever put it
+     * there (a restored backup, a bad merge, a host script copying rows), the
+     * adapter must refuse rather than hand user 7 an assurance level that was
+     * established for someone else.
+     */
+    $session = establishSession(proofSuccess(userId: 7));
+
+    $foreign = evidenceFor([
+        evidenceFactor('password', '2026-08-13T10:00:00+00:00'),
+        evidenceFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+    ], null, 8)->toArray();
+
+    DB::table('auth_sessions')->where('id', $session->id)
+        ->update(['assurance_proof' => json_encode($foreign, JSON_THROW_ON_ERROR)]);
+
+    $read = SessionEvidence::read(AuthSession::query()->findOrFail($session->id));
+
+    expect($read->evidence)->toBeNull()
+        ->and($read->reason)->toBe(AssuranceReason::SubjectMismatch);
+});
+
+it('refuses a foreign proof at the authorization boundary too', function (): void {
+    // The adapter refusing is only useful if the refusal reaches a decision.
+    $session = establishSession(proofSuccess(userId: 7));
+    DB::table('auth_sessions')->where('id', $session->id)->update([
+        'assurance_proof' => json_encode(evidenceFor([
+            evidenceFactor('password', '2026-08-13T10:00:00+00:00'),
+            evidenceFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+        ], null, 8)->toArray(), JSON_THROW_ON_ERROR),
+    ]);
+
+    $clock = new class implements \Psr\Clock\ClockInterface {
+        public function now(): DateTimeImmutable
+        {
+            return new DateTimeImmutable('2026-08-13T10:10:00+00:00');
+        }
+    };
+
+    $comparison = app(EvidenceComparator::class)->compare(
+        SessionEvidence::read(AuthSession::query()->findOrFail($session->id)),
+        AssuranceRequirement::from('aal1'),
+        $clock,
+        null,
+    );
+
+    expect($comparison->outcome)->toBe(AssuranceOutcome::InvalidEvidence)
+        ->and($comparison->reason)->toBe(AssuranceReason::SubjectMismatch);
+});
