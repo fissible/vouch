@@ -331,3 +331,35 @@ it('never reports a derived level it did not authorize from', function (): void 
     expect($response->getStatusCode())->toBe(403)
         ->and($body['held'])->toBe('aal1');
 });
+
+it('reports no held level when there is no usable evidence', function (array $extra): void {
+    /*
+     * The JSON body's `held` field must never name a level authorization did
+     * not read. The tampered-upward case covers a row whose evidence derives
+     * SOMETHING; these are the rows where it derives nothing at all, and where
+     * echoing the stored acr would tell a client the session holds aal2 in the
+     * same response that refuses it for aal2.
+     */
+    config(['vouch.assurance_requirements' => ['invoices.approve' => 'aal2']]);
+    session()->start();
+
+    AuthSession::query()->create(array_merge([
+        'session_binding' => SessionBinding::for(session()->getId(), BindingDomain::Session),
+        'user_id' => 7,
+        'amr' => ['password', 'totp'],
+        'acr' => 'aal2',
+    ], $extra));
+
+    $request = abilityRequest();
+    $request->headers->set('Accept', 'application/json');
+    $request->setUserResolver(static fn (): object => abilityUser());
+
+    $response = app(RequireAbilityAssurance::class)->handle($request, reachedHandler());
+    $body = json_decode(stringValue($response->getContent()), true);
+
+    expect($response->getStatusCode())->toBe(403)
+        ->and($body['held'])->toBeNull();
+})->with([
+    'legacy row with no proof' => [['assurance_proof' => null]],
+    'corrupt proof' => [['assurance_proof' => ['subject' => 'App\\Models\\User:7', 'factors' => [['factor_id' => 'password']]]]],
+]);

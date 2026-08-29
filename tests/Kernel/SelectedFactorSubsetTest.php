@@ -12,10 +12,15 @@ use Fissible\Vouch\Kernel\Satisfiability\SatisfiabilityEvaluator;
  * 2.4 Task 2a — the selected set is a strict subset, and that is reachable.
  *
  * Framework-free on purpose: this is a property of the evaluator, and proving
- * it here costs nothing and cannot be broken by anything Laravel does. It is
- * the fact SelectedProofTest's corrected decision rests on -- if it stopped
- * being true, persisting the verdict's set rather than the attempt's would stop
- * mattering, and that should fail loudly here rather than silently everywhere.
+ * it here costs nothing and cannot be broken by anything Laravel does.
+ *
+ * Vouch does NOT persist this set -- SelectedProofTest records why, and holds
+ * the writer to the attempt's full satisfied set instead. The property is
+ * pinned anyway, because the decision to persist the broader set is only
+ * meaningful while the two can differ. If the evaluator ever started returning
+ * everything it was given, that decision would quietly become a no-op, and the
+ * comment explaining it would be describing a distinction that no longer
+ * exists. This is what makes that visible.
  */
 
 function subsetFactor(string $id, string $credentialId): SatisfiedFactor

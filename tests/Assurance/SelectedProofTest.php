@@ -27,28 +27,38 @@ uses(RefreshDatabase::class);
  * verification, real satisfaction timestamps -- and then assert what landed in
  * the row.
  *
- * A CORRECTED DECISION. An earlier draft of this contract persisted
- * AuthSuccess::$factors -- every factor satisfied during the attempt -- and
- * argued that it coincided with the policy's selected set because the flow
- * terminates on satisfaction. That argument is false, and the counterexample is
- * concrete:
+ * THE DECISION, settled after two reversals, so the reasoning is recorded in
+ * full rather than the conclusion alone.
  *
- *     any_of: [ all_of: [password, totp], all_of: [passkey, sms] ]
+ * The proof is EVERY factor satisfied during the attempt -- AuthSuccess::$factors
+ * -- and `acr` derives from that same set. Not the policy's selected subset.
  *
- * Satisfy password, then passkey, then sms. The flow terminates on the third
- * factor, but SatisfiabilityEvaluator returns the winning branch only, so
- * usedFactors is [passkey, sms] while the attempt's satisfied set holds all
- * three. An all_of policy can never show the divergence, which is why the first
- * draft's tests could not catch it.
+ * The sets genuinely differ; that much was established against the real
+ * evaluator (see tests/Kernel/SelectedFactorSubsetTest.php, and the measured
+ * case below). An earlier draft argued they coincided because the flow
+ * terminates on satisfaction. That argument was false and is withdrawn.
  *
- * So Task 2a persists the VERDICT's set, per addendum section 3, and derives
- * `acr` from that same set. One set, two views. Persisting the broader set
- * while deriving the level from it would let a factor the policy never selected
- * raise the recorded assurance; deriving from one and persisting the other
- * would reintroduce the acr/proof disagreement this task exists to remove.
+ * A second draft then swung to the verdict's selected set, on a literal reading
+ * of addendum section 3. Measuring it settled the question in the other
+ * direction. For the policy
  *
- * That requires the verdict to survive AuthFlow::targetState(), which today
- * computes it, reads ->satisfied, and discards ->usedFactors.
+ *     any_of: [ all_of: [totp], all_of: [password, totp] ]
+ *
+ * a user who presents password AND totp -- two distinct credentials, two real
+ * factors -- has the password discarded, because depth-first search satisfies
+ * the cheaper branch first. Their login records aal1 and they lose every aal2
+ * route. That is an availability regression produced by an implementation
+ * detail of the solver, and it understates what the person actually proved.
+ *
+ * The distinction the addendum was reaching for is real but sits elsewhere: a
+ * policy must not be inflated by factors accumulated in OTHER sessions or at
+ * other times. AuthSuccess::$factors is already scoped to this attempt, so that
+ * concern is met without discarding evidence the user genuinely presented.
+ *
+ * So: the policy decides WHETHER to authenticate; the assurance level describes
+ * HOW STRONGLY. Addendum section 3 is amended to match, and the tests below
+ * hold the implementation to the broad set -- an implementation that narrows to
+ * the verdict fails them.
  */
 
 const PROOF_BINDING_SOURCE = 'selected-proof-session';
@@ -192,22 +202,70 @@ it('persists the same set the flow derived its acr from', function (): void {
         ->and(SessionEvidence::for($session)->factors)->toEqual($result->success->factors);
 });
 
-it('carries the policy-selected factors, not everything satisfied', function (): void {
+it('keeps a factor the policy did not need, on a real any_of login', function (): void {
     /*
-     * The invariant that the corrected decision rests on. AuthSuccess must
-     * expose the verdict's selected set; without it SessionLifecycle has no way
-     * to persist anything but the broader one.
+     * THE discriminator for the decision above, and the only test here where
+     * the two candidate sets differ. Verified reachable against the real flow
+     * before being frozen: the branch order makes depth-first satisfy [totp]
+     * alone, so the verdict selects one factor while the attempt satisfied two.
+     *
+     * An implementation that persists the verdict's set stores [totp] and
+     * derives aal1. This requires [password, totp] and aal2 -- the user
+     * presented two distinct credentials and the record must say so.
      */
-    proofPolicy(['all_of' => ['password', 'totp']]);
+    proofPolicy(['any_of' => [['all_of' => ['totp']], ['all_of' => ['password', 'totp']]]]);
     app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class)->enroll(7, ['password' => 'correct horse battery staple']);
     app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)->enroll(7, ['label' => 'ada@acme.example']);
 
     $handle = proofIdentified();
-    proofSubmit($handle, ['password' => 'correct horse battery staple']);
+    expect(proofSubmit($handle, ['password' => 'correct horse battery staple']))->toBeInstanceOf(Continuing::class);
     $result = proofSubmit($handle, ['code' => proofTotpCode()]);
     assert($result instanceof Authenticated);
 
-    expect($result->success->selectedFactors)->toBeArray()
-        ->and(array_map(static fn ($f): string => $f->factorId, $result->success->selectedFactors))
-        ->toEqualCanonicalizing(['password', 'totp']);
+    session()->start();
+    app(SessionLifecycle::class)->establish($result->success);
+
+    $session = \Fissible\Vouch\Models\AuthSession::query()->firstOrFail();
+    $evidence = SessionEvidence::for($session);
+
+    expect(array_map(static fn ($f): string => $f->factorId, $result->success->factors))
+        ->toEqualCanonicalizing(['password', 'totp'])
+        ->and(array_map(static fn ($f): string => $f->factorId, $evidence->factors))
+        ->toEqualCanonicalizing(['password', 'totp'])
+        ->and($evidence->derivedAcr())->toBe('aal2')
+        ->and($session->acr)->toBe('aal2')
+        // amr, acr and the proof are three views of ONE set. Listing a method
+        // in amr that the proof omits would make the two disagree about what
+        // happened.
+        ->and($session->amr)->toEqualCanonicalizing(['password', 'totp']);
+});
+
+it('records a single-factor login as aal1', function (): void {
+    /*
+     * The other half of the regression pair. Together with the any_of test
+     * above: password + totp persists BOTH and derives aal2, totp alone derives
+     * aal1. Without this half, an implementation that simply hard-coded aal2
+     * would satisfy the first test.
+     *
+     * Expressed with a totp-only policy rather than by submitting totp alone to
+     * the any_of policy, because that is not reachable: the flow drives factor
+     * order, and offering totp first there is refused with "That credential was
+     * not accepted." Verified against the real flow rather than assumed.
+     */
+    proofPolicy(['all_of' => ['totp']]);
+    app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)->enroll(7, ['label' => 'ada@acme.example']);
+
+    $handle = proofIdentified();
+    $result = proofSubmit($handle, ['code' => proofTotpCode()]);
+    assert($result instanceof Authenticated);
+
+    session()->start();
+    app(SessionLifecycle::class)->establish($result->success);
+
+    $session = \Fissible\Vouch\Models\AuthSession::query()->firstOrFail();
+
+    expect(array_map(static fn ($f): string => $f->factorId, SessionEvidence::for($session)->factors))
+        ->toBe(['totp'])
+        ->and(SessionEvidence::for($session)->derivedAcr())->toBe('aal1')
+        ->and($session->acr)->toBe('aal1');
 });

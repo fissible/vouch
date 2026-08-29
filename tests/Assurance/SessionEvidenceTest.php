@@ -512,3 +512,125 @@ it('carries the adapter cause through the comparator', function (): void {
     expect($comparison->outcome)->toBe(AssuranceOutcome::InvalidEvidence)
         ->and($comparison->reason)->toBe(AssuranceReason::ProofMalformed);
 });
+
+it('authorizes from the proof even when the stored level is LOWER', function (): void {
+    /*
+     * The converse of the tampered-upward test, and the half that stops the
+     * cache becoming authoritative again by the back door. An implementation
+     * that required BOTH a sufficient proof AND a sufficient stored acr passes
+     * every upward-tampering test while quietly making acr a ceiling.
+     *
+     * It also guards the amendment to addendum section 3 directly: acr is a
+     * projection, so a stale one -- written by an older version, or by a host
+     * that touched the column -- must not cap what the evidence proves.
+     */
+    $session = establishSession(proofSuccess([
+        proofFactor('password', '2026-08-13T10:00:00+00:00'),
+        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+    ]));
+    DB::table('auth_sessions')->where('id', $session->id)->update(['acr' => 'aal1']);
+
+    $clock = new class implements \Psr\Clock\ClockInterface {
+        public function now(): DateTimeImmutable
+        {
+            return new DateTimeImmutable('2026-08-13T10:10:00+00:00');
+        }
+    };
+
+    $fresh = AuthSession::query()->findOrFail($session->id);
+
+    expect($fresh->acr)->toBe('aal1')
+        ->and(SessionEvidence::for($fresh)->derivedAcr())->toBe('aal2')
+        ->and(app(EvidenceComparator::class)->compare(
+            SessionEvidence::read($fresh),
+            AssuranceRequirement::from('aal2'),
+            $clock,
+            null,
+        )->outcome)->toBe(AssuranceOutcome::Sufficient);
+});
+
+it('carries every no-evidence cause through the comparator, not just one', function (AuthSession|null $session, AssuranceReason $reason): void {
+    /*
+     * The forwarding test covered ProofMalformed alone, which an implementation
+     * could satisfy while flattening the other four to NoEvidence -- undoing the
+     * whole point of read(). Each cause is driven through compare() here.
+     */
+    $clock = new class implements \Psr\Clock\ClockInterface {
+        public function now(): DateTimeImmutable
+        {
+            return new DateTimeImmutable('2026-08-13T10:10:00+00:00');
+        }
+    };
+
+    $comparison = app(EvidenceComparator::class)->compare(
+        SessionEvidence::read($session),
+        AssuranceRequirement::from('aal1'),
+        $clock,
+        null,
+    );
+
+    expect($comparison->outcome)->toBe(AssuranceOutcome::InvalidEvidence)
+        ->and($comparison->reason)->toBe($reason);
+})->with(static fn (): array => [
+    'absent' => [null, AssuranceReason::NoEvidence],
+    'legacy' => [
+        AuthSession::query()->create([
+            'session_binding' => str_repeat('s', 64), 'user_id' => 7,
+            'amr' => ['password'], 'acr' => 'aal2', 'assurance_proof' => null,
+        ]),
+        AssuranceReason::LegacyNoProof,
+    ],
+    'corrupt' => [
+        AuthSession::query()->create([
+            'session_binding' => str_repeat('t', 64), 'user_id' => 7,
+            'amr' => ['password'], 'acr' => 'aal2',
+            'assurance_proof' => ['subject' => 'App\\Models\\User:7', 'factors' => [['factor_id' => 'password']]],
+        ]),
+        AssuranceReason::ProofMalformed,
+    ],
+    'revoked' => [
+        AuthSession::query()->create([
+            'session_binding' => str_repeat('u', 64), 'user_id' => 7,
+            'amr' => ['password'], 'acr' => 'aal1',
+            'assurance_proof' => sessionProof(7, 'aal1'), 'revoked_at' => now(),
+        ]),
+        AssuranceReason::SessionRevoked,
+    ],
+    'grace' => [
+        AuthSession::query()->create([
+            'session_binding' => str_repeat('v', 64), 'user_id' => 7,
+            'amr' => ['recovery_code'], 'acr' => null,
+            'assurance_proof' => sessionProof(7, 'aal1'),
+            'recovery_grace_expires_at' => now()->addMinutes(15),
+        ]),
+        AssuranceReason::RecoveryGrace,
+    ],
+]);
+
+it('prefers revocation over corruption when a row is both', function (): void {
+    /*
+     * Overlapping invalid states need a defined precedence or the reported cause
+     * depends on check order, and an operator chasing a corruption spike would
+     * be reading noise. Revocation is reported: it is a deliberate act with a
+     * known actor and time, whereas the proof's condition is moot once the
+     * session is dead.
+     */
+    $both = AuthSession::query()->create([
+        'session_binding' => str_repeat('w', 64), 'user_id' => 7,
+        'amr' => ['password'], 'acr' => 'aal2',
+        'assurance_proof' => ['subject' => 'App\\Models\\User:7', 'factors' => [['factor_id' => 'password']]],
+        'revoked_at' => now(),
+    ]);
+
+    expect(SessionEvidence::read($both)->reason)->toBe(AssuranceReason::SessionRevoked);
+});
+
+it('never reports a failure reason alongside usable evidence', function (): void {
+    // The valid-result invariant. A read that returned both evidence and a
+    // failure cause would let a caller act on either and reach opposite
+    // conclusions from the same result.
+    $read = SessionEvidence::read(establishSession(proofSuccess()));
+
+    expect($read->evidence)->not->toBeNull()
+        ->and($read->reason)->toBe(AssuranceReason::Sufficient);
+});

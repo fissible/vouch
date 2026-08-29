@@ -68,24 +68,56 @@ than a 401. **Answering the question directly: no, not every `api` route require
 Vouch-recorded token.** Default-deny applies if and only if the request is
 token-authenticated. Cookie-authenticated API traffic is unaffected.
 
-## 3. Recency semantics
+## 3. Selected proof and recency semantics
 
-- The **selected proof** is the exact `SatisfiedFactor` set the policy evaluation used to
-  reach the required level — not every factor the session ever accumulated.
-- `weakest_satisfied_at` = `MIN(satisfied_at)` across the selected proof.
-- `max_age` is satisfied iff `weakest_satisfied_at >= now - max_age`, in UTC, using the
-  injected `ClockInterface`. No `now()` helper, no ambient timezone.
-- A missing or null `satisfied_at` is rejected at **deserialization**, before any level or
-  recency evaluation. `SatisfiedFactor::$satisfiedAt` is a non-nullable
-  `DateTimeImmutable`, so the type cannot carry the case at all; an earlier draft claimed
-  this rule "matches the Kernel's empty-evidence guard", which conflated two different
-  things — the Kernel's null is `weakestSatisfiedAt === null`, meaning no eligible evidence
-  whatsoever, not a factor with an absent timestamp. Persisted evidence that cannot produce
-  a valid `SatisfiedFactor` is refused, fail-closed, at the boundary where it is read.
-- Config accepts ISO-8601 (`PT15M`); the wire carries RFC 9470 seconds (`max_age="900"`).
-  The conversion happens once, at the rendering boundary.
-- Authorization re-derives the level from the selected factors. The stored `acr` is a
-  display and index projection and is never a comparison input.
+**Amended.** An earlier draft defined the selected proof as "the exact
+`SatisfiedFactor` set the policy evaluation used to reach the required level".
+Measuring that against the real evaluator showed it produces an availability
+regression: for `any_of: [all_of: [totp], all_of: [password, totp]]`, a user who
+presents password AND totp has the password discarded, because depth-first
+search satisfies the cheaper branch first. Their login records `aal1` and loses
+every `aal2` route, on an implementation detail of the solver.
+
+Assurance describes what the user actually proved during authentication; the
+policy decides the minimum proof required for admission. A policy's cheapest
+satisfying branch must not discard additional credentials the user successfully
+presented. So:
+
+- Persist **every factor satisfied during the successful authentication
+  attempt**.
+- Exclude factors merely available, historical, failed, or presented outside
+  that attempt.
+- Derive `acr` from that complete immutable set.
+- Set recency from the **oldest** factor in the set, so extra evidence cannot
+  weaken freshness checks.
+- Keep the proof subject-bound and transactionally persisted with the session.
+
+`AuthSuccess::$factors` is already scoped to a single attempt, so the concern the
+original wording was reaching for — a policy inflated by factors accumulated in
+other sessions or at other times — is met without discarding evidence the user
+genuinely presented. The evaluator's narrower `Verdict::$usedFactors` is not
+persisted; `tests/Kernel/SelectedFactorSubsetTest.php` pins the fact that the
+two sets can differ, so this decision cannot quietly become a no-op.
+
+Recency then follows:
+
+- `weakest_satisfied_at` = `MIN(satisfied_at)` across the persisted proof.
+- `max_age` is satisfied iff `weakest_satisfied_at >= now - max_age`, in UTC,
+  using the injected `ClockInterface`. No `now()` helper, no ambient timezone.
+- A missing or null `satisfied_at` is rejected at **deserialization**, before any
+  level or recency evaluation. `SatisfiedFactor::$satisfiedAt` is a non-nullable
+  `DateTimeImmutable`, so the type cannot carry the case at all; an earlier draft
+  claimed this rule "matches the Kernel's empty-evidence guard", which conflated
+  two different things — the Kernel's null is `weakestSatisfiedAt === null`,
+  meaning no eligible evidence whatsoever, not a factor with an absent timestamp.
+  Persisted evidence that cannot produce a valid `SatisfiedFactor` is refused,
+  fail-closed, at the boundary where it is read.
+- Config accepts ISO-8601 (`PT15M`); the wire carries RFC 9470 seconds
+  (`max_age="900"`). The conversion happens once, at the rendering boundary.
+- Authorization re-derives the level from the persisted proof. The stored `acr`
+  is a display and index projection: never a comparison input, and never an
+  authority ceiling — a proof deriving `aal2` authorizes as `aal2` even if the
+  stored `acr` says otherwise.
 
 ## 4. Schema and migration
 

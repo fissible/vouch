@@ -134,6 +134,25 @@ it('never returns true for any level, mapped or not', function (string $acr, str
     ['aal2', 'invoices.view'],
 ]);
 
+it('never returns true for a tampered or unknown stored level either', function (string $tampered): void {
+    /*
+     * Restores the hostile-input half that the aal0/aal3 dataset entries used to
+     * carry. Those rows were fabricating levels no proof derives; the property
+     * they were protecting -- that a stored acr, however strange, can never turn
+     * the deny-only hook into a grant -- is real and is asserted here against a
+     * row whose acr is edited AFTER a valid proof was written.
+     */
+    $session = gateHookRow('aal1');
+    Illuminate\Support\Facades\DB::table('auth_sessions')->where('id', $session->id)->update(['acr' => $tampered]);
+
+    expect(gateHook()->decide(gateHookUser(), 'invoices.approve', gateHookRequest()))->not->toBeTrue();
+})->with([
+    'fabricated stronger level' => ['aal3'],
+    'fabricated weakest level' => ['aal0'],
+    'level outside the lattice' => ['aal9'],
+    'empty' => [''],
+]);
+
 it('denies a mapped ability when the request has a session but no vouch session row', function (): void {
     expect(gateHook()->decide(gateHookUser(), 'invoices.approve', gateHookRequest()))->toBeFalse();
 });
