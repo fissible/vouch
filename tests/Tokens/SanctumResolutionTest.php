@@ -93,13 +93,13 @@ final class SanctumResolutionTest extends TestCase
          */
         Route::middleware('api')->get('/guard-probe', function (\Illuminate\Http\Request $request) {
             $principal = auth('sanctum')->user();
-            $token = $principal?->currentAccessToken();
+            $token = $principal instanceof TokenUser ? $principal->currentAccessToken() : null;
 
             return response()->json([
-                'principal' => $principal === null
-                    ? null
-                    : SubjectKey::of($principal->getMorphClass(), $principal->getKey())->toString(),
-                'token' => $token instanceof \Laravel\Sanctum\PersonalAccessToken ? (string) $token->getKey() : null,
+                'principal' => $principal instanceof TokenUser
+                    ? SubjectKey::of($principal->getMorphClass(), stringValue($principal->getKey()))->toString()
+                    : null,
+                'token' => $token instanceof PersonalAccessToken ? stringValue($token->getKey()) : null,
             ]);
         });
 
@@ -112,8 +112,10 @@ final class SanctumResolutionTest extends TestCase
             name: 'narrow',
             abilities: ['nothing:at-all'],
         ))->plainText;
+        $expiredToken = PersonalAccessToken::findToken($expired);
+        self::assertInstanceOf(PersonalAccessToken::class, $expiredToken);
         PersonalAccessToken::query()
-            ->where('id', (int) PersonalAccessToken::findToken($expired)?->getKey())
+            ->where('id', $expiredToken->getKey())
             ->update(['expires_at' => now()->subMinute()]);
 
         // Every shape, not one. The claim is that the resolver agrees with the
@@ -128,11 +130,13 @@ final class SanctumResolutionTest extends TestCase
         ];
 
         foreach ($shapes as $label => $shape) {
+            /** @var array{principal: string|null, token: string|null} $guard */
             $guard = $shape()->getJson('/guard-probe')->json();
+            /** @var array{claimed: bool, issuer?: string, token?: string, subject?: string} $resolved */
             $resolved = $shape()->getJson('/resolve-probe')->json();
 
-            $claimedSubject = $resolved['claimed'] === true ? $resolved['subject'] : null;
-            $claimedToken = $resolved['claimed'] === true ? $resolved['token'] : null;
+            $claimedSubject = $resolved['claimed'] === true ? ($resolved['subject'] ?? null) : null;
+            $claimedToken = $resolved['claimed'] === true ? ($resolved['token'] ?? null) : null;
 
             self::assertSame($guard['token'], $claimedToken, "token mismatch for: {$label}");
             self::assertSame(
@@ -314,7 +318,9 @@ final class SanctumResolutionTest extends TestCase
         $user = $this->user();
         $plain = $this->mint($user);
         $issuer = app(SanctumTokenIssuer::class);
-        $issuer->revoke((string) PersonalAccessToken::query()->value('id'));
+        $minted = PersonalAccessToken::findToken($plain);
+        self::assertInstanceOf(PersonalAccessToken::class, $minted);
+        $issuer->revoke(stringValue($minted->getKey()));
 
         $this->withToken($plain)->getJson('/resolve-probe')->assertJsonPath('claimed', false);
     }
