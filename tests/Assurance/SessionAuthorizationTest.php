@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Fissible\Vouch\Authorization\AssuranceGateHook;
 use Fissible\Vouch\Http\AssuranceComparator;
+use Fissible\Vouch\Http\Middleware\RequireAbilityAssurance;
 use Fissible\Vouch\Http\Middleware\RequireAssurance;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Models\AuthSession;
@@ -224,4 +225,109 @@ it('leaves an unmapped ability alone, even for a legacy session', function (): v
 
     expect(app(AssuranceGateHook::class)->decide($user, 'posts.view', enforcedRequest()))
         ->toBeNull();
+});
+
+/*
+ * RequireAbilityAssurance.
+ *
+ * Its fixtures were realigned to carry proofs, which means they no longer
+ * discriminate: an implementation that swapped isSufficient() for a private
+ * helper still reading AuthSession::$acr passes all of them, because every
+ * fixture's acr now agrees with its proof. These are the two rows where the two
+ * disagree, and they are the only tests on this path that can tell the
+ * implementations apart.
+ */
+
+function abilityRequest(string $uri = '/invoices/approve'): Request
+{
+    $request = Request::create($uri);
+    $request->setLaravelSession(session());
+    $request->setRouteResolver(static function () use ($uri): Illuminate\Routing\Route {
+        $route = new Illuminate\Routing\Route(['GET'], $uri, ['middleware' => ['can:invoices.approve']]);
+
+        return $route->bind(Request::create($uri));
+    });
+
+    return $request;
+}
+
+function abilityUser(int $id = 7): object
+{
+    return new class($id) {
+        public function __construct(private int $id) {}
+
+        public function getAuthIdentifier(): int
+        {
+            return $this->id;
+        }
+    };
+}
+
+it('refuses a mapped ability to a legacy proofless session', function (): void {
+    config(['vouch.assurance_requirements' => ['invoices.approve' => 'aal2']]);
+    legacySessionRow('aal2');
+
+    $request = abilityRequest();
+    $request->setUserResolver(static fn (): object => abilityUser());
+
+    $response = app(RequireAbilityAssurance::class)->handle($request, reachedHandler());
+
+    expect($response->getContent())->not->toBe('reached')
+        ->and($response->getStatusCode())->not->toBe(200);
+});
+
+it('refuses a mapped ability when the stored level was tampered upward', function (): void {
+    /*
+     * The proof is a single knowledge factor, deriving aal1; acr is edited to
+     * claim aal2, which is what the route requires. Reading the column admits
+     * the request. Re-deriving from the proof refuses it.
+     */
+    config(['vouch.assurance_requirements' => ['invoices.approve' => 'aal2']]);
+    $session = establishSession(proofSuccess());
+    DB::table('auth_sessions')->where('id', $session->id)->update(['acr' => 'aal2']);
+
+    $request = abilityRequest();
+    $request->setUserResolver(static fn (): object => abilityUser());
+
+    $response = app(RequireAbilityAssurance::class)->handle($request, reachedHandler());
+
+    expect($response->getContent())->not->toBe('reached');
+});
+
+it('admits a mapped ability on a session that genuinely proves the level', function (): void {
+    // The counterpart, so the two refusals above cannot pass by the middleware
+    // having been broken outright.
+    config(['vouch.assurance_requirements' => ['invoices.approve' => 'aal2']]);
+    establishSession(proofSuccess([
+        proofFactor('password', '2026-08-13T10:00:00+00:00'),
+        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+    ]));
+
+    $request = abilityRequest();
+    $request->setUserResolver(static fn (): object => abilityUser());
+
+    expect(app(RequireAbilityAssurance::class)->handle($request, reachedHandler())->getContent())
+        ->toBe('reached');
+});
+
+it('never reports a derived level it did not authorize from', function (): void {
+    /*
+     * The JSON refusal body carries `held`, which today is AuthSession::$acr --
+     * a value authorization no longer reads. Reporting the stored string while
+     * refusing on the derived one would hand an operator a body that contradicts
+     * the decision it explains.
+     */
+    config(['vouch.assurance_requirements' => ['invoices.approve' => 'aal2']]);
+    $session = establishSession(proofSuccess());
+    DB::table('auth_sessions')->where('id', $session->id)->update(['acr' => 'aal2']);
+
+    $request = abilityRequest();
+    $request->headers->set('Accept', 'application/json');
+    $request->setUserResolver(static fn (): object => abilityUser());
+
+    $response = app(RequireAbilityAssurance::class)->handle($request, reachedHandler());
+    $body = json_decode(stringValue($response->getContent()), true);
+
+    expect($response->getStatusCode())->toBe(403)
+        ->and($body['held'])->toBe('aal1');
 });

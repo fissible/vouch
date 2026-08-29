@@ -71,6 +71,22 @@ function evidenceFor(array $factors, ?string $tenantId = null, int $userId = 7):
  */
 function sessionProof(int $userId = 7, string $level = 'aal2', string $at = '2026-08-13T10:00:00+00:00'): array
 {
+    /*
+     * Only aal1 and aal2 are derivable. NistAssuranceVocabulary caps at aal2 by
+     * design, and aal0 requires zero eligible credentials, which the evidence
+     * value refuses to exist with. Fabricating a proof for aal0 or aal3 would
+     * silently produce evidence whose derived level contradicts the acr the
+     * fixture asked for -- which is the exact class of disagreement 2.4 Task 2a
+     * removes, reintroduced through the test helper. Refuse instead.
+     */
+    if ($level !== 'aal1' && $level !== 'aal2') {
+        throw new InvalidArgumentException(
+            "No proof can derive {$level}: the shipped vocabulary emits only aal0, aal1 and aal2, "
+            . 'and aal0 requires an empty proof. A fixture needing one must ship a custom '
+            . 'AssuranceVocabulary, or assert that the requirement fails closed.',
+        );
+    }
+
     $factors = [evidenceFactor('password', $at)];
 
     if ($level === 'aal2' || $level === 'aal3') {

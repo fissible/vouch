@@ -27,24 +27,28 @@ uses(RefreshDatabase::class);
  * verification, real satisfaction timestamps -- and then assert what landed in
  * the row.
  *
- * A RECORDED DECISION, because the addendum is ambiguous here. Section 3 calls
- * the selected proof "the exact SatisfiedFactor set the policy evaluation used
- * to reach the required level". AuthFlow computes exactly that -- the Verdict's
- * usedFactors, at AuthFlow.php:607 -- and discards it, passing the attempt's
- * full satisfied set to AuthSuccess instead. Task 2a persists AuthSuccess's
- * set, deliberately, for two reasons:
+ * A CORRECTED DECISION. An earlier draft of this contract persisted
+ * AuthSuccess::$factors -- every factor satisfied during the attempt -- and
+ * argued that it coincided with the policy's selected set because the flow
+ * terminates on satisfaction. That argument is false, and the counterexample is
+ * concrete:
  *
- *   1. `acr` is already derived from that same set. Persisting a different set
- *      beside it would manufacture a fresh disagreement between the stored
- *      level and the stored proof -- the precise defect this task exists to
- *      remove.
- *   2. The flow terminates the moment the policy is satisfied, so the attempt
- *      cannot accumulate factors beyond the ones that reached the level. The
- *      two sets coincide in the flow as written; the tests below hold that
- *      claim to the real implementation rather than to this comment.
+ *     any_of: [ all_of: [password, totp], all_of: [passkey, sms] ]
  *
- * If they ever diverge, these fail, and the addendum's wording -- not the
- * implementation -- is what needs revisiting.
+ * Satisfy password, then passkey, then sms. The flow terminates on the third
+ * factor, but SatisfiabilityEvaluator returns the winning branch only, so
+ * usedFactors is [passkey, sms] while the attempt's satisfied set holds all
+ * three. An all_of policy can never show the divergence, which is why the first
+ * draft's tests could not catch it.
+ *
+ * So Task 2a persists the VERDICT's set, per addendum section 3, and derives
+ * `acr` from that same set. One set, two views. Persisting the broader set
+ * while deriving the level from it would let a factor the policy never selected
+ * raise the recorded assurance; deriving from one and persisting the other
+ * would reintroduce the acr/proof disagreement this task exists to remove.
+ *
+ * That requires the verdict to survive AuthFlow::targetState(), which today
+ * computes it, reads ->satisfied, and discards ->usedFactors.
  */
 
 const PROOF_BINDING_SOURCE = 'selected-proof-session';
@@ -186,4 +190,24 @@ it('persists the same set the flow derived its acr from', function (): void {
     expect(SessionEvidence::for($session)->derivedAcr())->toBe($result->success->acr)
         ->and($session->acr)->toBe($result->success->acr)
         ->and(SessionEvidence::for($session)->factors)->toEqual($result->success->factors);
+});
+
+it('carries the policy-selected factors, not everything satisfied', function (): void {
+    /*
+     * The invariant that the corrected decision rests on. AuthSuccess must
+     * expose the verdict's selected set; without it SessionLifecycle has no way
+     * to persist anything but the broader one.
+     */
+    proofPolicy(['all_of' => ['password', 'totp']]);
+    app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class)->enroll(7, ['password' => 'correct horse battery staple']);
+    app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)->enroll(7, ['label' => 'ada@acme.example']);
+
+    $handle = proofIdentified();
+    proofSubmit($handle, ['password' => 'correct horse battery staple']);
+    $result = proofSubmit($handle, ['code' => proofTotpCode()]);
+    assert($result instanceof Authenticated);
+
+    expect($result->success->selectedFactors)->toBeArray()
+        ->and(array_map(static fn ($f): string => $f->factorId, $result->success->selectedFactors))
+        ->toEqualCanonicalizing(['password', 'totp']);
 });

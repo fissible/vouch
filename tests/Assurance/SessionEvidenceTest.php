@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Fissible\Vouch\Assurance\AssuranceOutcome;
+use Fissible\Vouch\Assurance\AssuranceReason;
 use Fissible\Vouch\Assurance\AssuranceRequirement;
 use Fissible\Vouch\Assurance\EvidenceComparator;
 use Fissible\Vouch\Flow\AuthSuccess;
@@ -414,4 +415,100 @@ it('reads the recency anchor as the same instant under any process timezone', fu
     } finally {
         date_default_timezone_set($original);
     }
+});
+
+/*
+ * The adapter's read result.
+ *
+ * for() answers "is there usable evidence" and collapses every reason for "no"
+ * into null. That is the right shape for authorization, which must treat all of
+ * them identically, and the wrong shape for operators: a spike of refusals after
+ * a deploy is an installed base that has not re-authenticated, whereas the same
+ * spike on a stable install is corrupted rows, and the two need different
+ * responses. read() carries the cause; nothing renders it to a client.
+ */
+
+it('reports why there is no usable evidence', function (AuthSession|null $session, AssuranceReason $reason): void {
+    expect(SessionEvidence::read($session)->evidence)->toBeNull()
+        ->and(SessionEvidence::read($session)->reason)->toBe($reason);
+})->with(static fn (): array => [
+    'no session at all' => [null, AssuranceReason::NoEvidence],
+    'legacy row with no proof' => [
+        AuthSession::query()->create([
+            'session_binding' => str_repeat('m', 64), 'user_id' => 7,
+            'amr' => ['password'], 'acr' => 'aal2', 'assurance_proof' => null,
+        ]),
+        AssuranceReason::LegacyNoProof,
+    ],
+    'corrupt proof' => [
+        AuthSession::query()->create([
+            'session_binding' => str_repeat('n', 64), 'user_id' => 7,
+            'amr' => ['password'], 'acr' => 'aal2',
+            'assurance_proof' => ['subject' => 'App\\Models\\User:7', 'factors' => [['factor_id' => 'password']]],
+        ]),
+        AssuranceReason::ProofMalformed,
+    ],
+    'revoked' => [
+        AuthSession::query()->create([
+            'session_binding' => str_repeat('o', 64), 'user_id' => 7,
+            'amr' => ['password'], 'acr' => 'aal1',
+            'assurance_proof' => sessionProof(7, 'aal1'), 'revoked_at' => now(),
+        ]),
+        AssuranceReason::SessionRevoked,
+    ],
+    'recovery grace' => [
+        AuthSession::query()->create([
+            'session_binding' => str_repeat('p', 64), 'user_id' => 7,
+            'amr' => ['recovery_code'], 'acr' => null,
+            'assurance_proof' => sessionProof(7, 'aal1'),
+            'recovery_grace_expires_at' => now()->addMinutes(15),
+        ]),
+        AssuranceReason::RecoveryGrace,
+    ],
+]);
+
+it('keeps for() and read() from ever disagreeing', function (): void {
+    // Two entry points onto one decision. Defining for() in terms of read()
+    // rather than duplicating the checks is the only way they stay aligned, and
+    // this is what holds the implementation to it.
+    $live = establishSession(proofSuccess());
+    $legacy = AuthSession::query()->create([
+        'session_binding' => str_repeat('q', 64), 'user_id' => 7,
+        'amr' => ['password'], 'acr' => 'aal2', 'assurance_proof' => null,
+    ]);
+
+    foreach ([$live, $legacy, null] as $candidate) {
+        expect(SessionEvidence::for($candidate))->toEqual(SessionEvidence::read($candidate)->evidence);
+    }
+});
+
+it('carries the adapter cause through the comparator', function (): void {
+    /*
+     * Without this the reason dies at the adapter boundary: the comparator takes
+     * evidence-or-null and would report NoEvidence for a corrupt row, a legacy
+     * row and an unauthenticated request alike -- which is precisely the
+     * flattening read() exists to undo.
+     */
+    $corrupt = AuthSession::query()->create([
+        'session_binding' => str_repeat('r', 64), 'user_id' => 7,
+        'amr' => ['password'], 'acr' => 'aal2',
+        'assurance_proof' => ['subject' => 'App\\Models\\User:7', 'factors' => [['factor_id' => 'password']]],
+    ]);
+
+    $clock = new class implements \Psr\Clock\ClockInterface {
+        public function now(): DateTimeImmutable
+        {
+            return new DateTimeImmutable('2026-08-13T10:10:00+00:00');
+        }
+    };
+
+    $comparison = app(EvidenceComparator::class)->compare(
+        SessionEvidence::read($corrupt),
+        AssuranceRequirement::from('aal1'),
+        $clock,
+        null,
+    );
+
+    expect($comparison->outcome)->toBe(AssuranceOutcome::InvalidEvidence)
+        ->and($comparison->reason)->toBe(AssuranceReason::ProofMalformed);
 });

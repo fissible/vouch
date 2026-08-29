@@ -94,6 +94,10 @@ beforeEach(function (): void {
         'vouch.step_up.presentation_url' => '/auth/step-up',
         'vouch.assurance_requirements' => [
             'invoices.approve' => 'aal2',
+            // Deliberately underivable: the shipped vocabulary caps at aal2, so
+            // this route can never be satisfied. It is a REQUIREMENT, not a
+            // fixture level, and requirements may name any known level -- which
+            // is why the strongestFor() tests below still work.
             'users.impersonate' => 'aal3',
         ],
     ]);
@@ -126,9 +130,16 @@ it('lets a sufficient session through', function (): void {
 });
 
 it('lets a STRONGER session satisfy a weaker requirement', function (): void {
-    // Ordered comparison, never equality. Refusing aal3 on an aal2 route is a
-    // lockout that looks like a security win.
-    abilityAssuranceRow('aal3');
+    /*
+     * Ordered comparison, never equality. Refusing a stronger session is a
+     * lockout that looks like a security win.
+     *
+     * This read aal3-over-aal2 until 2.4 Task 2a. No proof derives aal3, so the
+     * pair moved down a rung: aal2 over an aal1 route makes the same point with
+     * a session someone can actually hold.
+     */
+    config(['vouch.assurance_requirements' => ['invoices.approve' => 'aal1']]);
+    abilityAssuranceRow('aal2');
 
     expect(abilityAssuranceMiddleware()->handle(abilityAssuranceRequest(), abilityAssuranceNext())->getContent())
         ->toBe('reached');
@@ -320,7 +331,7 @@ it('refuses when the vouch session belongs to a different user', function (): vo
      * the row on file describes SOMEONE ELSE's assurance, and reading it would
      * hand this request an assurance level nobody proved for it.
      */
-    abilityAssuranceRow('aal3', ['user_id' => 999]);
+    abilityAssuranceRow('aal2', ['user_id' => 999]);
 
     expect(abilityAssuranceMiddleware()->handle(abilityAssuranceRequest(), abilityAssuranceNext()))
         ->toBeInstanceOf(RedirectResponse::class);
