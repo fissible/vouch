@@ -703,23 +703,34 @@ it('never reports a failure reason alongside usable evidence', function (): void
 
 it('refuses a proof that belongs to somebody else', function (): void {
     /*
-     * The subject is inside the signed-off payload, and the row is found by
-     * session binding — two different identities that nothing so far required to
-     * agree. A syntactically perfect proof naming user 8, sitting on user 7's
-     * session row, would deserialize cleanly and derive aal2. Whatever put it
-     * there (a restored backup, a bad merge, a host script copying rows), the
-     * adapter must refuse rather than hand user 7 an assurance level that was
-     * established for someone else.
+     * The subject is inside the payload, and the row is found by session
+     * binding — two identities nothing so far required to agree. A
+     * syntactically perfect proof naming user 8, sitting on user 7's row, would
+     * deserialize cleanly and derive aal2. Whatever put it there (a restored
+     * backup, a bad merge, a host script copying rows), the adapter must refuse
+     * rather than hand user 7 a level established for someone else.
+     *
+     * The provider half is held IDENTICAL to the session's on purpose, so only
+     * the id differs. An earlier draft built this through evidenceFor(), whose
+     * hard-coded 'App\Models\User' differs from the configured model too — so
+     * it refused on both halves at once and proved nothing about the id.
      */
+    $model = stringValue(config('auth.providers.users.model'));
+    $provider = (new $model)->getMorphClass();
+
     $session = establishSession(proofSuccess(userId: 7));
 
-    $foreign = evidenceFor([
-        evidenceFactor('password', '2026-08-13T10:00:00+00:00'),
-        evidenceFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
-    ], null, 8)->toArray();
+    $foreign = new \Fissible\Vouch\Assurance\AssuranceEvidence(
+        \Fissible\Vouch\Tokens\SubjectKey::of($provider, 8),
+        null,
+        [
+            proofFactor('password', '2026-08-13T10:00:00+00:00'),
+            proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+        ],
+    );
 
     DB::table('auth_sessions')->where('id', $session->id)
-        ->update(['assurance_proof' => json_encode($foreign, JSON_THROW_ON_ERROR)]);
+        ->update(['assurance_proof' => json_encode($foreign->toArray(), JSON_THROW_ON_ERROR)]);
 
     $read = SessionEvidence::read(AuthSession::query()->findOrFail($session->id));
 
@@ -729,12 +740,17 @@ it('refuses a proof that belongs to somebody else', function (): void {
 
 it('refuses a foreign proof at the authorization boundary too', function (): void {
     // The adapter refusing is only useful if the refusal reaches a decision.
+    $model = stringValue(config('auth.providers.users.model'));
     $session = establishSession(proofSuccess(userId: 7));
     DB::table('auth_sessions')->where('id', $session->id)->update([
-        'assurance_proof' => json_encode(evidenceFor([
-            evidenceFactor('password', '2026-08-13T10:00:00+00:00'),
-            evidenceFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
-        ], null, 8)->toArray(), JSON_THROW_ON_ERROR),
+        'assurance_proof' => json_encode((new \Fissible\Vouch\Assurance\AssuranceEvidence(
+            \Fissible\Vouch\Tokens\SubjectKey::of((new $model)->getMorphClass(), 8),
+            null,
+            [
+                proofFactor('password', '2026-08-13T10:00:00+00:00'),
+                proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+            ],
+        ))->toArray(), JSON_THROW_ON_ERROR),
     ]);
 
     $clock = new class implements \Psr\Clock\ClockInterface {
@@ -797,4 +813,44 @@ it('refuses a proof from a different user provider', function (): void {
             $clock,
             null,
         )->reason)->toBe(AssuranceReason::SubjectMismatch);
+});
+
+it('treats a morph-map change as invalidating, and says so loudly', function (): void {
+    /*
+     * THE OPERATIONAL CONSEQUENCE of the two rules above, pinned so it is a
+     * known asserted behaviour rather than a surprise in production.
+     *
+     * The morph map is part of the identity contract: it decides the provider
+     * half of every subject key Vouch writes. A host that registers, renames or
+     * removes a map entry AFTER sessions exist has changed what those sessions'
+     * stored provider means, so their evidence no longer binds and every holder
+     * re-authenticates. That is the same fail-closed rule already applied to
+     * legacy proofless sessions -- adopting the old records instead would mean
+     * asserting that a subject nobody can now resolve is this user.
+     *
+     * The map must therefore be treated as stable configuration, changed on the
+     * same footing as rotating an app key. This test exists so that the cost is
+     * measured and documented rather than discovered.
+     */
+    $model = stringValue(config('auth.providers.users.model'));
+
+    // Written with no map: provider is the FQCN.
+    $session = establishSession(proofSuccess(userId: 7));
+    expect(SessionEvidence::read(AuthSession::query()->findOrFail($session->id))->evidence)
+        ->not->toBeNull();
+
+    Relation::morphMap(['vouch_user' => $model], false);
+
+    try {
+        // Read after the map is registered: the same row no longer binds.
+        expect(SessionEvidence::read(AuthSession::query()->findOrFail($session->id))->reason)
+            ->toBe(AssuranceReason::SubjectMismatch);
+    } finally {
+        Relation::morphMap([], false);
+    }
+
+    // ...and removing the map restores it, because the stored provider was
+    // never mutated. The record is intact; only its interpretation moved.
+    expect(SessionEvidence::read(AuthSession::query()->findOrFail($session->id))->evidence)
+        ->not->toBeNull();
 });

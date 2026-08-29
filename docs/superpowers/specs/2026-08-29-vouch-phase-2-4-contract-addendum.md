@@ -119,6 +119,31 @@ Recency then follows:
   authority ceiling — a proof deriving `aal2` authorizes as `aal2` even if the
   stored `acr` says otherwise.
 
+## 3a. Subject canonicalization and the morph map
+
+Both surfaces canonicalize a subject as `SubjectKey(provider, id)` where `provider` is
+`$principal->getMorphClass()` — what the Sanctum issuer already does, and what Sanctum
+itself writes to `tokenable_type`. The session writer must use the same call, not
+`config('auth.providers.users.model')`: those agree only while no morph map is registered,
+and under one they are different providers for the same user, so session evidence would
+never bind to a token.
+
+**The morph map is part of the identity contract, and must be stable.** It determines the
+provider half of every subject key Vouch persists. A host that registers, renames or removes
+a map entry after sessions or tokens exist has changed what the stored provider means:
+
+- While a map is active, the model's raw FQCN is a FOREIGN subject and is refused.
+- Records written before the map was registered therefore stop binding, and their holders
+  re-authenticate — the same fail-closed rule §6.5 point 4 applies to pre-existing tokens.
+  Adopting them instead would assert that a subject nobody can now resolve is this user.
+- The stored provider is never rewritten, so removing the map restores the old records. The
+  record is intact; only its interpretation moved.
+
+Treat a morph-map change like an app-key rotation: plan it, and expect every live session
+and human token to need re-authentication. Vouch does not migrate subject keys across a map
+change, because there is no way to distinguish "this alias replaced that class" from "this
+alias now names a different model" without the host saying so.
+
 ## 4. Schema and migration
 
 The existing table is keyed by unique `token_id`; the new key is `(issuer_key, token_key)`.

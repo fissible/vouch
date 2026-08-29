@@ -165,6 +165,12 @@ the token's mappings and locks include **password and totp**, and disabling
 password unmapped, so disabling it would silently fail to revoke a token it
 helped authorize.
 
+**Subject canonicalization matches the token path**, via `getMorphClass()` — see
+addendum §3a. The morph map is stable configuration: changing it after sessions
+exist invalidates their evidence and re-authenticates their holders, which is
+asserted rather than left to be discovered, and belongs in the upgrade notes
+beside the legacy-session cost.
+
 **Gate — strict, and deliberately blocking.** Session evidence must be written and
 read correctly before token issuance or enforcement is built on it. Specifically: a
 real successful login persists a proof; authorization refuses a session whose
