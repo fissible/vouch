@@ -77,7 +77,7 @@ function establishSession(AuthSuccess $success): AuthSession
  * The writer.
  */
 
-it('persists the selected proof at the login-success boundary', function (): void {
+it('persists the proof at the login-success boundary', function (): void {
     $session = establishSession(proofSuccess());
 
     // The column, not the model accessor: an accessor that helpfully derives a
@@ -687,4 +687,48 @@ it('refuses a foreign proof at the authorization boundary too', function (): voi
 
     expect($comparison->outcome)->toBe(AssuranceOutcome::InvalidEvidence)
         ->and($comparison->reason)->toBe(AssuranceReason::SubjectMismatch);
+});
+
+it('refuses a proof from a different user provider', function (): void {
+    /*
+     * SubjectKey is (provider, id), and the id half alone is not identity. Two
+     * hosts, or one host mid-migration, can both have a user 7 under different
+     * models; a proof minted for Other\Models\User:7 must not authorize
+     * App\Models\User:7 just because the numbers match.
+     *
+     * Separate from the differing-id case because an implementation comparing
+     * only the numeric id passes that one and fails here.
+     */
+    $session = establishSession(proofSuccess(userId: 7));
+
+    $foreign = new \Fissible\Vouch\Assurance\AssuranceEvidence(
+        \Fissible\Vouch\Tokens\SubjectKey::of('Other\\Models\\User', 7),
+        null,
+        [
+            proofFactor('password', '2026-08-13T10:00:00+00:00'),
+            proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+        ],
+    );
+
+    DB::table('auth_sessions')->where('id', $session->id)
+        ->update(['assurance_proof' => json_encode($foreign->toArray(), JSON_THROW_ON_ERROR)]);
+
+    $clock = new class implements \Psr\Clock\ClockInterface {
+        public function now(): DateTimeImmutable
+        {
+            return new DateTimeImmutable('2026-08-13T10:10:00+00:00');
+        }
+    };
+
+    $fresh = AuthSession::query()->findOrFail($session->id);
+    $read = SessionEvidence::read($fresh);
+
+    expect($read->evidence)->toBeNull()
+        ->and($read->reason)->toBe(AssuranceReason::SubjectMismatch)
+        ->and(app(EvidenceComparator::class)->compare(
+            $read,
+            AssuranceRequirement::from('aal1'),
+            $clock,
+            null,
+        )->reason)->toBe(AssuranceReason::SubjectMismatch);
 });

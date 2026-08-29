@@ -68,7 +68,7 @@ than a 401. **Answering the question directly: no, not every `api` route require
 Vouch-recorded token.** Default-deny applies if and only if the request is
 token-authenticated. Cookie-authenticated API traffic is unaffected.
 
-## 3. Selected proof and recency semantics
+## 3. Persisted proof and recency semantics
 
 **Amended.** An earlier draft defined the selected proof as "the exact
 `SatisfiedFactor` set the policy evaluation used to reach the required level".

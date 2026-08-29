@@ -86,7 +86,9 @@ moment more than one guard, model or driver exists.
 ## Evidence
 
 `AssuranceEvidence` is the canonical value both sessions and tokens adapt into, carrying
-the SELECTED satisfying proof rather than all historical session factors: canonical subject
+the factors satisfied in the successful attempt rather than all historical session factors
+(§3 as amended; an earlier draft said the policy-SELECTED subset, which was measured and
+reversed): canonical subject
 key, tenant, derived ACR, `weakest_satisfied_at`, and per factor — `factor_id`, `kind`,
 `strength`, `credential_id`, `user_verified`, `phishing_resistant`, `is_multi_factor`,
 `authenticator_id`, `satisfied_at`, at their existing types. Those are the keys actually

@@ -12,7 +12,7 @@ use Fissible\Vouch\Tokens\SubjectKey;
 /*
  * 2.4 Task 2a — the evidence value.
  *
- * AssuranceEvidence is the immutable selected proof: the factors that were
+ * AssuranceEvidence is the immutable persisted proof: the factors that were
  * actually satisfied, the subject they were satisfied for, and the tenant whose
  * policy governed them. It carries NO assurance level. A level is derived on
  * demand from the factors, so there is no cached level for authorization to
@@ -24,7 +24,7 @@ use Fissible\Vouch\Tokens\SubjectKey;
  * assurance nobody witnessed.
  */
 
-it('carries the selected proof, the subject and the tenant', function (): void {
+it('carries the persisted proof, the subject and the tenant', function (): void {
     $factors = [evidenceFactor()];
     $evidence = new AssuranceEvidence(SubjectKey::of('App\\Models\\User', 7), 'acme', $factors);
 
