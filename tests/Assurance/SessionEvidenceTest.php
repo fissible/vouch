@@ -143,10 +143,39 @@ it('canonicalizes the subject through the morph map, as the token path does', fu
     Relation::morphMap(['vouch_user' => $model], false);
 
     try {
-        $evidence = SessionEvidence::for(establishSession(proofSuccess(userId: 7)));
+        $session = establishSession(proofSuccess(userId: 7));
+        $read = SessionEvidence::read(AuthSession::query()->findOrFail($session->id));
 
-        expect($evidence->subject->provider)->toBe('vouch_user')
-            ->and($evidence->subject->render())->toBe('vouch_user:7');
+        // The writer stores the alias...
+        expect($read->evidence)->not->toBeNull()
+            ->and($read->evidence->subject->provider)->toBe('vouch_user')
+            ->and($read->evidence->subject->render())->toBe('vouch_user:7')
+            // ...and the reader ACCEPTS it. Storing the right thing while the
+            // reader rejected it would lock every mapped host out completely,
+            // and the write assertion alone cannot tell the difference.
+            ->and($read->reason)->toBe(AssuranceReason::Sufficient);
+
+        /*
+         * And the raw class name is FOREIGN while the map is active. Under a
+         * morph map the alias IS the canonical provider, so a proof carrying
+         * the FQCN was minted under a different identity scheme -- by an older
+         * version, or by a host that registered the map after the fact. Binding
+         * it anyway would silently accept evidence from before the boundary
+         * moved.
+         */
+        DB::table('auth_sessions')->where('id', $session->id)->update([
+            'assurance_proof' => json_encode(
+                (new \Fissible\Vouch\Assurance\AssuranceEvidence(
+                    \Fissible\Vouch\Tokens\SubjectKey::of($model, 7),
+                    null,
+                    [proofFactor('password', '2026-08-13T10:00:00+00:00')],
+                ))->toArray(),
+                JSON_THROW_ON_ERROR,
+            ),
+        ]);
+
+        expect(SessionEvidence::read(AuthSession::query()->findOrFail($session->id))->reason)
+            ->toBe(AssuranceReason::SubjectMismatch);
     } finally {
         Relation::morphMap([], false);
     }
