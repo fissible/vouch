@@ -5,7 +5,9 @@ declare(strict_types=1);
 use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Models\AuthSession;
+use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\SelfService\CredentialSelfService;
+use Fissible\Vouch\Sessions\SessionEvidence;
 use Fissible\Vouch\SelfService\SelfServiceOutcome;
 use Fissible\Vouch\Factors\FactorRegistry;
 use Fissible\Vouch\Sessions\RevokedReason;
@@ -268,28 +270,58 @@ it('revokes other sessions when a factor is removed', function (): void {
 });
 
 it('re-evaluates the acting session assurance after removing a factor', function (): void {
-    selfServiceUser();
-    $totp = app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)
-        ->enroll(1, ['label' => 'ada@acme.example'])->credentials[0];
-    $acting = steppedUpSession();
-
-    app(CredentialSelfService::class)->removeFactor($acting, $totp->id);
-
     /*
      * The session claimed aal2 on the strength of a factor that no longer
      * exists. Leaving the claim standing would let a removed factor keep
      * authorizing step-up-gated routes.
+     *
+     * 2.4 Task 2a changes what "the claim" IS. Before it, downgrading meant
+     * writing acr = 'aal1' and authorization believed the column. Now
+     * authorization re-derives from the persisted proof, so writing acr alone
+     * downgrades nothing: the proof still names the removed credential and the
+     * session still derives aal2. The evidence has to stop counting it.
+     *
+     * The proof here carries the REAL credential ids, because an implementation
+     * cannot correlate a disabled credential with its factor otherwise. How it
+     * responds -- rewriting the proof without that factor, or refusing factors
+     * whose credential is no longer live -- is deliberately not specified; only
+     * the outcome is.
      */
-    /*
-     * Exact, not "not aal2": null, aal0, aal3 or garbage would all satisfy the
-     * looser form while meaning entirely different things. Password remains,
-     * so the session drops to aal1 -- and the comparator must agree.
-     */
-    $reloaded = $acting->refresh();
+    selfServiceUser();
+    $totp = app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)
+        ->enroll(1, ['label' => 'ada@acme.example'])->credentials[0];
+    $password = AuthCredential::query()->where('user_id', 1)->where('type', 'password')->firstOrFail();
 
+    $acting = AuthSession::create([
+        'user_id' => 1,
+        'session_binding' => str_pad('step-up-real', 64, 'a'),
+        'amr' => ['password', 'totp'],
+        'acr' => 'aal2',
+        'assurance_proof' => sessionProofFrom(1, [
+            evidenceFactor('password', '2026-08-13T10:00:00+00:00', FactorStrength::Knowledge, (string) $password->id),
+            evidenceFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, (string) $totp->id),
+        ]),
+        'weakest_satisfied_at' => now(),
+    ]);
+
+    expect(SessionEvidence::for($acting)?->derivedAcr())->toBe('aal2');
+
+    app(CredentialSelfService::class)->removeFactor($acting, $totp->id);
+
+    $reloaded = $acting->refresh();
+    $evidence = SessionEvidence::for($reloaded);
+
+    /*
+     * Exact, not "not aal2": null, aal0 or garbage would all satisfy the looser
+     * form while meaning entirely different things. Password remains, so the
+     * session drops to aal1 -- and the evidence must agree, not merely the
+     * column beside it.
+     */
     expect($reloaded->acr)->toBe('aal1')
-        ->and(app(\Fissible\Vouch\Http\AssuranceComparator::class)->isSufficient($reloaded, 'aal1'))->toBeTrue()
-        ->and(app(\Fissible\Vouch\Http\AssuranceComparator::class)->isSufficient($reloaded, 'aal2'))->toBeFalse();
+        ->and($evidence)->not->toBeNull()
+        ->and($evidence->derivedAcr())->toBe('aal1')
+        ->and(array_map(static fn ($f): string => $f->credentialId, $evidence->factors))
+        ->not->toContain((string) $totp->id);
 });
 
 it('starts a newly added identifier unverified', function (): void {

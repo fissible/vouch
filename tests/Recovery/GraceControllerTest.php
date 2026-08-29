@@ -138,7 +138,10 @@ it('strips any assurance level when a session becomes a grace capability', funct
 
     expect($row->acr)->toBeNull()
         ->and($row->recovery_grace_expires_at)->not->toBeNull()
-        ->and(app(\Fissible\Vouch\Http\AssuranceComparator::class)->isSufficient($row, 'aal1'))->toBeFalse();
+        // AssuranceComparator::isSufficient() is removed by 2.4 Task 2a; the
+        // property it protected -- a grace session satisfies nothing -- is now
+        // read through the evidence adapter.
+        ->and(\Fissible\Vouch\Sessions\SessionEvidence::for($row))->toBeNull();
 });
 
 it('clears a prior revocation when opening grace on the same host session', function (): void {

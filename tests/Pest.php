@@ -95,9 +95,27 @@ function sessionProof(int $userId = 7, string $level = 'aal2', string $at = '202
         $factors[] = evidenceFactor('totp', $at, \Fissible\Vouch\Kernel\Factor\FactorStrength::Possession, 'cred-2');
     }
 
-    return evidenceFor(
-        $factors,
+    return sessionProofFrom($userId, $factors);
+}
+
+/**
+ * Wrap explicit factors as a SESSION proof payload.
+ *
+ * The provider half is the configured user model's morph class, matching what
+ * SessionLifecycle writes and what the Sanctum issuer already uses. evidenceFor()
+ * is NOT usable here: it hard-codes a literal provider for the pure value tests,
+ * and a session fixture built through it would be refused as a foreign subject.
+ *
+ * @param  list<\Fissible\Vouch\Kernel\Factor\SatisfiedFactor>  $factors
+ * @return array<string, mixed>
+ */
+function sessionProofFrom(int $userId, array $factors): array
+{
+    $model = stringValue(config('auth.providers.users.model'));
+
+    return (new \Fissible\Vouch\Assurance\AssuranceEvidence(
+        \Fissible\Vouch\Tokens\SubjectKey::of((new $model)->getMorphClass(), $userId),
         null,
-        $userId,
-    )->toArray();
+        $factors,
+    ))->toArray();
 }

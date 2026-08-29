@@ -171,6 +171,16 @@ exist invalidates their evidence and re-authenticates their holders, which is
 asserted rather than left to be discovered, and belongs in the upgrade notes
 beside the legacy-session cost.
 
+**Credential removal must invalidate the evidence, not just the column.**
+`CredentialSelfService::downgradeWhenOnlyPasswordRemains()` writes `acr = 'aal1'`
+and nothing else. Once authorization re-derives from the proof, that downgrades
+nothing: the proof still names the removed credential and the session still
+derives aal2, so a factor the user deleted keeps authorizing step-up routes. The
+evidence has to stop counting it — by rewriting the proof without that factor, or
+by refusing factors whose credential is no longer live. The contract asserts the
+outcome and leaves the mechanism open. Found when the frozen contract was handed
+to the implementer, which is the point of freezing it.
+
 **Gate — strict, and deliberately blocking.** Session evidence must be written and
 read correctly before token issuance or enforcement is built on it. Specifically: a
 real successful login persists a proof; authorization refuses a session whose
