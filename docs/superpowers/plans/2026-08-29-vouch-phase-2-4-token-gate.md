@@ -82,6 +82,13 @@ by this task yet.
 
 ## Task 2 — Evidence model, persistence, and comparator
 
+**Carried in from Task 1:** `AssuranceEvidence` must EXCLUDE token lifecycle and
+provenance fields — token key, `issued_at`, `last_used_at`, session binding, and a
+mutable ACR. Persist canonical subject and tenant identity losslessly, so the
+comparator can distinguish invalid token identity from insufficient assurance.
+Keep `weakest_satisfied_at` as authentication-evidence time, never issuance time,
+and `(issuer_key, token_key)` as the canonical token identity from the outset.
+
 Introduce `AssuranceEvidence` as the common immutable value consumed by both session
 and token authorization. Add strict deserialization into non-nullable
 `SatisfiedFactor` values; malformed persisted evidence fails closed at the read
