@@ -54,6 +54,10 @@ function gateHookRow(string $acr, array $extra = []): AuthSession
         'user_id' => 7,
         'amr' => ['password'],
         'acr' => $acr,
+        // 2.4 Task 2a: authorization re-derives from the proof, so a fixture
+        // carrying only a level proves nothing and is refused.
+        'assurance_proof' => sessionProof(7, $acr),
+        'weakest_satisfied_at' => now(),
     ], $extra));
 }
 

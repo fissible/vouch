@@ -1,0 +1,417 @@
+<?php
+
+declare(strict_types=1);
+
+use Fissible\Vouch\Assurance\AssuranceOutcome;
+use Fissible\Vouch\Assurance\AssuranceRequirement;
+use Fissible\Vouch\Assurance\EvidenceComparator;
+use Fissible\Vouch\Flow\AuthSuccess;
+use Fissible\Vouch\Kernel\Assurance\AssuranceFacts;
+use Fissible\Vouch\Kernel\Factor\FactorKind;
+use Fissible\Vouch\Kernel\Factor\FactorStrength;
+use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
+use Fissible\Vouch\Models\AuthSession;
+use Fissible\Vouch\Sessions\RevokedReason;
+use Fissible\Vouch\Sessions\SessionEvidence;
+use Fissible\Vouch\Sessions\SessionLifecycle;
+use Fissible\Vouch\Sessions\SessionRotationFailed;
+use Fissible\Vouch\Tokens\SubjectKey;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+
+uses(RefreshDatabase::class);
+
+/*
+ * 2.4 Task 2a — the session write path, end to end.
+ *
+ * This is the file that makes the addendum's central claim true rather than
+ * aspirational. Before it, SessionLifecycle wrote amr and acr and nothing else,
+ * and session authorization compared the cached acr string. Every test here
+ * exercises the real production writer: a real AuthSuccess, a real
+ * establish(), a real row, read back through the adapter and judged by the
+ * same comparator the token path uses.
+ *
+ * Tests that hand-build a row prove only that the reader can read what the test
+ * wrote. Where a hand-built row is unavoidable -- legacy and corruption cases,
+ * which the writer by definition cannot produce -- it is called out.
+ */
+
+function proofFactor(
+    string $id = 'password',
+    string $at = '2026-08-13T10:00:00+00:00',
+    FactorStrength $strength = FactorStrength::Knowledge,
+    string $credentialId = 'cred-1',
+): SatisfiedFactor {
+    return new SatisfiedFactor(
+        factorId: $id,
+        credentialId: $credentialId,
+        kind: FactorKind::Knowledge,
+        strength: $strength,
+        isMultiFactor: false,
+        userVerified: false,
+        phishingResistant: false,
+        authenticatorId: null,
+        satisfiedAt: new DateTimeImmutable($at),
+    );
+}
+
+/** @param list<SatisfiedFactor> $factors */
+function proofSuccess(array $factors = [], int $userId = 7, ?string $acr = null): AuthSuccess
+{
+    $factors = $factors === [] ? [proofFactor()] : $factors;
+    $facts = AssuranceFacts::fromFactors($factors);
+
+    return new AuthSuccess($userId, $factors, $facts, $acr ?? 'aal1', 'ignored');
+}
+
+function establishSession(AuthSuccess $success): AuthSession
+{
+    session()->start();
+    app(SessionLifecycle::class)->establish($success);
+
+    return AuthSession::query()->firstOrFail();
+}
+
+/*
+ * The writer.
+ */
+
+it('persists the selected proof at the login-success boundary', function (): void {
+    $session = establishSession(proofSuccess());
+
+    // The column, not the model accessor: an accessor that helpfully derives a
+    // proof from amr would satisfy an assertion made through the model while
+    // the database still held nothing.
+    $stored = DB::table('auth_sessions')->where('id', $session->id)->value('assurance_proof');
+
+    expect($stored)->not->toBeNull()
+        ->and(json_decode(stringValue($stored), true))->toBeArray();
+});
+
+it('reconstructs the exact factors the flow presented', function (): void {
+    $factors = [
+        proofFactor('password', '2026-08-13T10:00:00+00:00'),
+        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+    ];
+
+    $evidence = SessionEvidence::for(establishSession(proofSuccess($factors)));
+
+    expect($evidence)->not->toBeNull()
+        ->and($evidence->factors)->toEqual($factors);
+});
+
+it('stores the subject key the token path would render for the same user', function (): void {
+    /*
+     * The two surfaces must agree on identity or "one policy" is false at the
+     * subject level: the same person would be a different principal depending
+     * on how they authenticated. Rendered once at write time and stored, so a
+     * later change to the configured user model cannot silently re-key
+     * evidence that was already witnessed.
+     */
+    $evidence = SessionEvidence::for(establishSession(proofSuccess(userId: 7)));
+
+    expect($evidence->subject->render())
+        ->toBe(SubjectKey::of(stringValue(config('auth.providers.users.model')), 7)->render());
+});
+
+it('anchors the persisted recency column to the oldest factor', function (): void {
+    /*
+     * The column that carries this was named last_factor_at, while its own
+     * migration comment said "oldest satisfied factor". 2a renames it to
+     * weakest_satisfied_at so the name and the semantics cannot disagree --
+     * and this asserts the value, because the rename alone changes nothing.
+     */
+    $session = establishSession(proofSuccess([
+        proofFactor('password', '2026-07-01T10:00:00+00:00'),
+        proofFactor('totp', '2026-08-13T10:00:00+00:00', FactorStrength::Possession, 'cred-2'),
+    ]));
+
+    expect($session->weakest_satisfied_at)->not->toBeNull()
+        ->and($session->weakest_satisfied_at->toIso8601String())
+        ->toBe('2026-07-01T10:00:00+00:00');
+});
+
+it('still writes acr, and still does not authorize from it', function (): void {
+    /*
+     * acr remains persisted: hosts index and display it, and the addendum keeps
+     * it as a projection. The point is that it is now derivable from the row
+     * beside it rather than being the only record of what happened.
+     */
+    $session = establishSession(proofSuccess());
+
+    expect($session->acr)->toBe('aal1')
+        ->and(SessionEvidence::for($session)->derivedAcr())->toBe('aal1');
+});
+
+it('replaces the proof on rotation rather than accumulating rows', function (): void {
+    session()->start();
+    $lifecycle = app(SessionLifecycle::class);
+
+    $lifecycle->establish(proofSuccess([proofFactor('password', '2026-08-13T10:00:00+00:00')]));
+    $lifecycle->establish(proofSuccess([
+        proofFactor('password', '2026-08-13T10:00:00+00:00'),
+        proofFactor('totp', '2026-08-13T11:00:00+00:00', FactorStrength::Possession, 'cred-2'),
+    ]));
+
+    $session = AuthSession::query()->firstOrFail();
+
+    expect(AuthSession::query()->count())->toBe(1)
+        ->and(SessionEvidence::for($session)->factors)->toHaveCount(2)
+        ->and(SessionEvidence::for($session)->derivedAcr())->toBe('aal2');
+});
+
+it('fails the login closed when the proof cannot be serialized', function (): void {
+    /*
+     * The ordering contract in SessionLifecycle's docblock is what makes every
+     * failure land on an unauthenticated session. Adding a second thing to write
+     * is exactly the change that breaks it, so it is re-asserted against the new
+     * failure source rather than assumed to still hold.
+     *
+     * The injection is an AuthSuccess carrying no factors -- a shape this
+     * codebase already constructs (tests/Http/PayloadContractTest.php:91) and
+     * one an empty proof cannot be built from. Chosen over dropping the column
+     * at runtime, which is DDL: MySQL commits it implicitly and would tear down
+     * the surrounding test transaction instead of exercising the failure.
+     */
+    session()->start();
+    $before = session()->getId();
+
+    $empty = new AuthSuccess(7, [], AssuranceFacts::fromFactors([]), 'aal1', 'ignored');
+
+    expect(fn () => app(SessionLifecycle::class)->establish($empty))
+        ->toThrow(SessionRotationFailed::class)
+        ->and(session()->getId())->not->toBe($before)
+        ->and(AuthSession::query()->count())->toBe(0);
+});
+
+it('leaves the prior session untouched when a rotation fails', function (): void {
+    /*
+     * Atomicity, from the direction that actually costs someone something. A
+     * failed re-establish must not half-write: a row left carrying the new
+     * binding with the old proof, or the new proof with the old binding, is a
+     * session whose evidence describes a different login than its identity.
+     */
+    session()->start();
+    $lifecycle = app(SessionLifecycle::class);
+    $lifecycle->establish(proofSuccess([
+        proofFactor('password', '2026-08-13T10:00:00+00:00'),
+        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+    ]));
+
+    $before = AuthSession::query()->firstOrFail()->only([
+        'session_binding', 'amr', 'acr', 'assurance_proof', 'weakest_satisfied_at',
+    ]);
+
+    try {
+        $lifecycle->establish(new AuthSuccess(7, [], AssuranceFacts::fromFactors([]), 'aal1', 'ignored'));
+    } catch (SessionRotationFailed) {
+        // Expected; the assertion is about what the row looks like afterwards.
+    }
+
+    expect(AuthSession::query()->count())->toBe(1)
+        ->and(AuthSession::query()->firstOrFail()->only([
+            'session_binding', 'amr', 'acr', 'assurance_proof', 'weakest_satisfied_at',
+        ]))->toEqual($before);
+});
+
+it('does not leave valid proof on a session revoked alongside it', function (): void {
+    /*
+     * revokeSiblings() marks rows revoked without touching their proof, which is
+     * correct -- the proof is a record of what happened and revocation is not a
+     * claim that it did not. What must never happen is the reverse: a revoked
+     * row whose proof still authorizes. The revocation check has to come before
+     * the evidence is even read.
+     */
+    session()->start();
+    $lifecycle = app(SessionLifecycle::class);
+    $lifecycle->establish(proofSuccess([
+        proofFactor('password', '2026-08-13T10:00:00+00:00'),
+        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+    ]));
+
+    $session = AuthSession::query()->firstOrFail();
+    $lifecycle->revokeSiblings(7, 'a-different-binding', RevokedReason::CredentialChanged);
+    $session->refresh();
+
+    expect($session->revoked_at)->not->toBeNull()
+        // The evidence survives as a record...
+        ->and($session->assurance_proof)->not->toBeNull()
+        // ...and grants nothing.
+        ->and(SessionEvidence::for($session))->toBeNull();
+});
+
+/*
+ * The read path.
+ */
+
+it('judges a live session through the shared comparator', function (): void {
+    // Named for what it is. Task 2 adds the token adapter and the claim that
+    // both surfaces share this comparator becomes testable then; asserting it
+    // here, with only one adapter in existence, would be asserting nothing.
+    $session = establishSession(proofSuccess([
+        proofFactor('password', '2026-08-13T10:00:00+00:00'),
+        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+    ]));
+
+    $comparator = app(EvidenceComparator::class);
+    $clock = new class implements \Psr\Clock\ClockInterface {
+        public function now(): DateTimeImmutable
+        {
+            return new DateTimeImmutable('2026-08-13T10:10:00+00:00');
+        }
+    };
+
+    expect($comparator->compare(SessionEvidence::for($session), AssuranceRequirement::from('aal2'), $clock, null)->outcome)
+        ->toBe(AssuranceOutcome::Sufficient)
+        ->and($comparator->compare(SessionEvidence::for($session), AssuranceRequirement::from('aal3'), $clock, null)->outcome)
+        ->toBe(AssuranceOutcome::InsufficientLevel)
+        ->and($comparator->compare(
+            SessionEvidence::for($session),
+            AssuranceRequirement::from(['level' => 'aal2', 'max_age' => 'PT1M']),
+            $clock,
+            null,
+        )->outcome)->toBe(AssuranceOutcome::InsufficientRecency);
+});
+
+it('refuses a session whose persisted acr disagrees with its factors', function (): void {
+    /*
+     * THE test for the addendum's claim. A row is tampered so acr says aal3
+     * while the proof holds a single knowledge factor. Authorization that reads
+     * the cached level passes; authorization that re-derives from the proof
+     * refuses. Nothing else in this suite distinguishes those two
+     * implementations.
+     */
+    $session = establishSession(proofSuccess());
+    DB::table('auth_sessions')->where('id', $session->id)->update(['acr' => 'aal3']);
+    $session->refresh();
+
+    expect($session->acr)->toBe('aal3')
+        ->and(SessionEvidence::for($session)->derivedAcr())->toBe('aal1');
+});
+
+it('yields no evidence for a revoked session', function (): void {
+    $session = establishSession(proofSuccess());
+    $session->update(['revoked_at' => now()]);
+
+    expect(SessionEvidence::for($session->fresh()))->toBeNull();
+});
+
+it('yields no evidence for a recovery-grace session', function (): void {
+    // A grace session is never sufficient for anything (spec section 7.3), and
+    // it must be refused before its proof is even considered.
+    $session = establishSession(proofSuccess());
+    $session->update(['recovery_grace_expires_at' => now()->addMinutes(10)]);
+
+    expect(SessionEvidence::for($session->fresh()))->toBeNull();
+});
+
+it('yields no evidence for a null session', function (): void {
+    expect(SessionEvidence::for(null))->toBeNull();
+});
+
+/*
+ * Upgrade. A row written before 2a carries acr and amr but no proof, and no
+ * writer can produce one -- so these are hand-built by necessity.
+ */
+
+it('does not adopt a legacy session that carries no proof', function (): void {
+    /*
+     * Re-deriving a proof from a stored acr would assert a fact nobody
+     * witnessed: it would manufacture factors that were never presented, at
+     * timestamps that were never recorded. The same rule the addendum already
+     * applies to pre-existing tokens. The holder re-authenticates.
+     */
+    $legacy = AuthSession::query()->create([
+        'session_binding' => str_repeat('a', 64),
+        'user_id' => 7,
+        'amr' => ['password', 'totp'],
+        'acr' => 'aal2',
+        'assurance_proof' => null,
+    ]);
+
+    expect(SessionEvidence::for($legacy))->toBeNull();
+});
+
+it('refuses a legacy session at every level, including the one it claims', function (): void {
+    // A reader that fell back to acr when the proof was absent would pass an
+    // aal2 requirement here, which is precisely the cached-ACR authorization
+    // this task removes.
+    $legacy = AuthSession::query()->create([
+        'session_binding' => str_repeat('b', 64),
+        'user_id' => 7,
+        'amr' => ['password', 'totp'],
+        'acr' => 'aal2',
+        'assurance_proof' => null,
+    ]);
+
+    $clock = new class implements \Psr\Clock\ClockInterface {
+        public function now(): DateTimeImmutable
+        {
+            return new DateTimeImmutable('2026-08-13T10:10:00+00:00');
+        }
+    };
+
+    foreach (['aal1', 'aal2', 'aal3'] as $level) {
+        expect(app(EvidenceComparator::class)->compare(
+            SessionEvidence::for($legacy),
+            AssuranceRequirement::from($level),
+            $clock,
+            null,
+        )->outcome)->toBe(AssuranceOutcome::InvalidEvidence);
+    }
+});
+
+it('refuses a session whose stored proof is corrupt, rather than downgrading it', function (): void {
+    /*
+     * Distinct from the absent-proof case above: here something IS stored and
+     * cannot be trusted. Returning partial evidence would silently lower the
+     * level, or -- if the unreadable factor was the oldest -- silently raise
+     * the recency.
+     */
+    $session = establishSession(proofSuccess());
+    DB::table('auth_sessions')->where('id', $session->id)
+        ->update(['assurance_proof' => '{"subject":"App\\\\Models\\\\User:7","tenant_id":null,"factors":[{"factor_id":"password"}]}']);
+
+    expect(SessionEvidence::for($session->fresh()))->toBeNull();
+});
+
+it('reads the proof through the model casts the adapter relies on', function (): void {
+    /*
+     * The adapter reads an Eloquent model, not a query-builder row, so the
+     * casts are part of the authorization path rather than convenience. An
+     * uncast assurance_proof arrives as a JSON string and every structural read
+     * silently sees nothing -- which fails closed, but fails closed for every
+     * session at once, and looks identical to a deployment with no evidence.
+     */
+    $session = establishSession(proofSuccess());
+
+    expect($session->fresh()->assurance_proof)->toBeArray()
+        ->and($session->fresh()->weakest_satisfied_at)->toBeInstanceOf(Illuminate\Support\Carbon::class);
+});
+
+it('reads the recency anchor as the same instant under any process timezone', function (): void {
+    /*
+     * The schema test covers the stored string; this covers the value
+     * authorization actually compares. A cast that resolved the column against
+     * the process timezone would shift every session's recency by the host's
+     * UTC offset -- expiring credentials early in one region and honouring
+     * stale ones in another.
+     */
+    $session = establishSession(proofSuccess([proofFactor('password', '2026-08-13T10:00:00+00:00')]));
+    $expected = (new DateTimeImmutable('2026-08-13T10:00:00+00:00'))->getTimestamp();
+
+    $original = date_default_timezone_get();
+
+    try {
+        foreach (['UTC', 'America/Los_Angeles', 'Asia/Tokyo'] as $zone) {
+            date_default_timezone_set($zone);
+
+            expect(AuthSession::query()->findOrFail($session->id)->weakest_satisfied_at->getTimestamp())
+                ->toBe($expected)
+                ->and(SessionEvidence::for(AuthSession::query()->findOrFail($session->id))->weakestSatisfiedAt()->getTimestamp())
+                ->toBe($expected);
+        }
+    } finally {
+        date_default_timezone_set($original);
+    }
+});

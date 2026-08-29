@@ -61,7 +61,10 @@ function steppedUpSession(int $userId = 1, string $binding = 'step-up-1'): AuthS
         'session_binding' => str_pad($binding, 64, 'a'),
         'amr' => ['pwd', 'otp'],
         'acr' => 'aal2',
-        'last_factor_at' => now(),
+        // 2.4 Task 2a: authorization re-derives from the proof, so a fixture
+        // that carried only a level now proves nothing and is refused.
+        'assurance_proof' => sessionProof($userId, 'aal2'),
+        'weakest_satisfied_at' => now(),
     ]);
 }
 
@@ -73,7 +76,8 @@ function singleFactorSession(int $userId = 1, string $binding = 'single-1'): Aut
         'session_binding' => str_pad($binding, 64, 'b'),
         'amr' => ['pwd'],
         'acr' => 'aal1',
-        'last_factor_at' => now(),
+        'assurance_proof' => sessionProof($userId, 'aal1'),
+        'weakest_satisfied_at' => now(),
     ]);
 }
 
@@ -85,7 +89,10 @@ function graceSession(int $userId = 1, string $binding = 'grace-1'): AuthSession
         'session_binding' => str_pad($binding, 64, 'c'),
         'amr' => ['recovery_code'],
         'acr' => null,
-        'last_factor_at' => now(),
+        // Deliberately proof-bearing: grace must be refused because it is grace,
+        // not because it happens to lack evidence.
+        'assurance_proof' => sessionProof($userId, 'aal2'),
+        'weakest_satisfied_at' => now(),
         'recovery_grace_expires_at' => now()->addMinutes(15),
     ]);
 }

@@ -102,7 +102,7 @@ function liveSession(int $userId, string $binding): AuthSession
         'session_binding' => $binding,
         'amr' => ['pwd'],
         'acr' => 'aal1',
-        'last_factor_at' => now(),
+        'weakest_satisfied_at' => now(),
     ]);
 }
 

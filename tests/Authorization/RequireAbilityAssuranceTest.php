@@ -74,6 +74,8 @@ function abilityAssuranceRow(string $acr, array $extra = []): AuthSession
         'user_id' => 7,
         'amr' => ['password'],
         'acr' => $acr,
+        'assurance_proof' => sessionProof(7, $acr),
+        'weakest_satisfied_at' => now(),
     ], $extra));
 }
 

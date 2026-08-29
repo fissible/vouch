@@ -43,19 +43,20 @@ it('reads the assurance attributes back as real booleans', function (): void {
 });
 
 it('reads session evidence back as arrays, not raw json', function (): void {
-    // amr and assurance_facts are read as structures by the assurance evaluator.
-    // Uncast they arrive as JSON strings and every array read silently fails.
+    // amr and assurance_proof are read as structures by the evidence adapter.
+    // Uncast they arrive as JSON strings and every array read silently fails,
+    // which on the proof means authorization sees no evidence at all.
     $id = DB::table('auth_sessions')->insertGetId([
         'session_binding' => str_repeat('a', 64), 'user_id' => 7,
         'amr' => json_encode(['password', 'totp']),
-        'assurance_facts' => json_encode(['multi_factor' => true]),
+        'assurance_proof' => json_encode(['factors' => [['factor_id' => 'password']]]),
         'created_at' => now(), 'updated_at' => now(),
     ]);
 
     $session = AuthSession::findOrFail($id);
 
     expect($session->amr)->toBe(['password', 'totp'])
-        ->and($session->assurance_facts)->toBe(['multi_factor' => true]);
+        ->and($session->assurance_proof)->toBe(['factors' => [['factor_id' => 'password']]]);
 });
 
 it('reads the grace deadline back as a date, not a string', function (): void {
@@ -200,7 +201,7 @@ it('reads session and credential timestamps back as dates', function (): void {
      */
     $sessionId = DB::table('auth_sessions')->insertGetId([
         'session_binding' => str_repeat('t', 64), 'user_id' => 7, 'amr' => json_encode(['password']),
-        'last_factor_at' => now(), 'revoked_at' => now(),
+        'weakest_satisfied_at' => now(), 'revoked_at' => now(),
         'created_at' => now(), 'updated_at' => now(),
     ]);
     $credentialId = DB::table('auth_credentials')->insertGetId([
@@ -212,7 +213,7 @@ it('reads session and credential timestamps back as dates', function (): void {
     $session = AuthSession::findOrFail($sessionId);
     $credential = AuthCredential::findOrFail($credentialId);
 
-    expect($session->last_factor_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
+    expect($session->weakest_satisfied_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
         ->and($session->revoked_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
         ->and($credential->last_used_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
         ->and($credential->disabled_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);

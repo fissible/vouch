@@ -348,6 +348,8 @@ final class AbilityAssuranceRouteTest extends TestCase
             'user_id' => 7,
             'amr' => ['password'],
             'acr' => $acr,
+            'assurance_proof' => sessionProof(7, $acr),
+            'weakest_satisfied_at' => now(),
         ]);
 
         $this->actingAs($user);

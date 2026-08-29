@@ -119,6 +119,41 @@ success through `SessionLifecycle` to the adapter to the comparator.
 The equivalent constraint tests for token identity and duplicate rejection stay in
 Task 2, where the mapping table they constrain first exists.
 
+**The four existing call sites move, or nothing changes.** `RequireAssurance`,
+`RequireAbilityAssurance`, `AssuranceGateHook` and `CredentialSelfService` all
+call `AssuranceComparator::isSufficient()`, which reads `AuthSession::$acr`. A new
+evidence model built beside them would satisfy every new test and leave live
+authorization exactly as it was. `isSufficient()` is therefore removed rather than
+deprecated; the level vocabulary it also carries (`ORDER`, `isKnown()`,
+`strength()`) stays put, because 2.3d's `AssuranceRequirements` depends on it and
+that dependency is unrelated to cached-level comparison.
+
+**Existing tests change, and that is phase-1 work.** Roughly eight suites build
+sessions as bare `acr` rows and expect authorization to succeed — `Http/
+RequireAssuranceTest`, `Http/OpenRedirectTest`, `Http/StepUpReturnTargetTest`, the
+`Authorization/*` set, `Database/CredentialSelfServiceTest`, `Recovery/
+GraceControllerTest`. Under 2a those rows prove nothing and their assertions
+correctly begin to fail. The duet rule is that the implementer never edits a test,
+so converting them onto a shared proven-session helper is part of the frozen
+contract, committed and re-frozen before handoff — never left for phase 3 to
+discover and fix.
+
+**`aal3` turns out to be unsatisfiable, and 2a is what exposes it.**
+`NistAssuranceVocabulary` caps at `aal2` deliberately — AAL3 needs hardware-binding
+evidence the kernel never observes — so no real login has ever produced
+`acr='aal3'`. Only hand-written test rows carry it, and several existing tests use
+such a row to assert that an `aal3` route can be satisfied. Once the level is
+derived from a proof rather than read from a column, those rows cannot exist and
+the underlying fact becomes visible: a host configuring an `aal3` requirement has
+built a route nobody can ever reach.
+
+Two consequences, both owned by this task. The affected fixtures are resolved
+during the first green run under phase-1 amendment rules — by the specifier, in
+their own commit, re-frozen — rather than guessed at now against an
+implementation that does not exist. And the host-facing docs must say plainly
+that `aal3` is not satisfiable without a custom `AssuranceVocabulary`, because
+configuring one today fails closed silently.
+
 **Gate — strict, and deliberately blocking.** Session evidence must be written and
 read correctly before token issuance or enforcement is built on it. Specifically: a
 real successful login persists a proof; authorization refuses a session whose
