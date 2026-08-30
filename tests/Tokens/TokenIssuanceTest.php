@@ -10,6 +10,7 @@ use Fissible\Vouch\Kernel\Assurance\AssuranceFacts;
 use Fissible\Vouch\Kernel\Factor\FactorKind;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
+use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthPolicy;
 use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\Sessions\RevokedReason;
@@ -17,7 +18,6 @@ use Fissible\Vouch\Sessions\SessionLifecycle;
 use Fissible\Vouch\Tests\Support\Tokens\TokenUser;
 use Fissible\Vouch\Tests\Support\Tokens\UsesSanctumSchema;
 use Fissible\Vouch\Tests\TestCase;
-use Fissible\Vouch\Tokens\ActorKind;
 use Fissible\Vouch\Tokens\IssuanceRefused;
 use Fissible\Vouch\Tokens\SubjectKey;
 use Fissible\Vouch\Tokens\TokenGrant;
@@ -25,6 +25,7 @@ use Fissible\Vouch\Vouch;
 use Fissible\Vouch\VouchServiceProvider;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
+use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Sanctum\SanctumServiceProvider;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -33,10 +34,14 @@ use PHPUnit\Framework\Attributes\Test;
  *
  * Issuance is the one place a long-lived credential is created from a
  * short-lived one, so every refusal here is a refusal to convert a session into
- * something that outlives it. The session requirements are not ceremony: a
- * token minted from a revoked session is a revocation that did not take, and a
- * token minted from a grace session is a recovery flow that granted more than
- * recovery.
+ * something that outlives it.
+ *
+ * THE SESSION IS RESOLVED, NOT SUPPLIED. An earlier draft took an AuthSession
+ * parameter, which makes the caller's Eloquent object the authority: a stale
+ * model still holds the proof and revoked_at it was loaded with, so a caller
+ * could hand over a session the database has since killed. Live host
+ * authentication is what establishes current validity, and the server row is
+ * re-read under the lock.
  */
 final class TokenIssuanceTest extends TestCase
 {
@@ -65,8 +70,8 @@ final class TokenIssuanceTest extends TestCase
         TokenUser::query()->create(['id' => 8, 'name' => 'grace']);
 
         // token_issue is an ordinary Vouch policy scope, resolved through the
-        // same parser and evaluator as login. A separate mechanism here would
-        // be a second policy language to keep in step with the first.
+        // same parser and evaluator as login. A separate mechanism would be a
+        // second policy language to keep in step with the first.
         AuthPolicy::query()->create([
             'tenant_id' => null,
             'scope' => 'token_issue',
@@ -80,23 +85,43 @@ final class TokenIssuanceTest extends TestCase
         return SubjectKey::of((new TokenUser)->getMorphClass(), $id);
     }
 
-    /** @return list<SatisfiedFactor> */
-    private function proof(): array
+    /**
+     * Enrol REAL credentials and return them by factor id.
+     *
+     * Issuance revalidates and locks the credentials named in the proof, so a
+     * proof carrying invented ids can only ever be refused. An earlier draft
+     * used 'cred-1'/'cred-2' literals, which would have made every success test
+     * unsatisfiable against a correct implementation.
+     *
+     * @return array<string, AuthCredential>
+     */
+    private function enrolled(int $userId = 7): array
     {
+        app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class)->enroll($userId, ['password' => 'correct horse battery staple']);
+        app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)->enroll($userId, ['label' => 'ada@acme.example']);
+
         return [
-            new SatisfiedFactor('password', 'cred-1', FactorKind::Knowledge, FactorStrength::Knowledge,
-                false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00')),
-            new SatisfiedFactor('totp', 'cred-2', FactorKind::Possession, FactorStrength::Possession,
-                false, false, false, null, new DateTimeImmutable('2026-08-13T10:05:00+00:00')),
+            'password' => AuthCredential::query()->where('user_id', $userId)->where('type', 'password')->firstOrFail(),
+            'totp' => AuthCredential::query()->where('user_id', $userId)->where('type', 'totp')->firstOrFail(),
         ];
     }
 
-    /** @param list<SatisfiedFactor>|null $factors */
-    private function establishedSession(int $userId = 7, ?array $factors = null): AuthSession
+    /** @param list<string> $factorIds */
+    private function establishedSession(int $userId = 7, array $factorIds = ['password', 'totp']): AuthSession
     {
-        session()->start();
-        $factors ??= $this->proof();
+        $credentials = $this->enrolled($userId);
+        $at = ['password' => '2026-08-13T10:00:00+00:00', 'totp' => '2026-08-13T10:05:00+00:00'];
+        $strength = ['password' => FactorStrength::Knowledge, 'totp' => FactorStrength::Possession];
 
+        $factors = array_map(
+            fn (string $id): SatisfiedFactor => new SatisfiedFactor(
+                $id, (string) $credentials[$id]->id, FactorKind::Knowledge, $strength[$id],
+                false, false, false, null, new DateTimeImmutable($at[$id]),
+            ),
+            $factorIds,
+        );
+
+        session()->start();
         app(SessionLifecycle::class)->establish(
             new AuthSuccess($userId, $factors, AssuranceFacts::fromFactors($factors), 'ignored', 'ignored'),
         );
@@ -104,17 +129,19 @@ final class TokenIssuanceTest extends TestCase
         return AuthSession::query()->where('user_id', $userId)->firstOrFail();
     }
 
-    private function grant(int $subjectId = 7, ?string $tenantId = null, ActorKind $actor = ActorKind::Human): TokenGrant
+    private function grant(int $subjectId = 7, ?string $tenantId = null): TokenGrant
     {
-        return new TokenGrant($this->subject($subjectId), 'api', ['orders:read'], $tenantId, $actor);
+        return new TokenGrant($this->subject($subjectId), 'api', ['orders:read'], $tenantId);
     }
 
     #[Test]
     public function it_issues_from_a_session_whose_proof_satisfies_the_intent(): void
     {
-        $issued = Vouch::issueToken($this->establishedSession(), $this->grant());
+        $this->establishedSession();
 
-        self::assertNotSame('', $issued->plainTextToken);
+        $issued = Vouch::issueToken($this->grant());
+
+        self::assertNotSame('', $issued->plainText);
         self::assertSame(1, DB::table('auth_token_assurances')->count());
         self::assertSame(2, DB::table('auth_token_credentials')->count());
     }
@@ -123,14 +150,26 @@ final class TokenIssuanceTest extends TestCase
     public function it_refuses_to_mint_for_a_subject_other_than_the_session_holder(): void
     {
         /*
-         * THE substitution guard. A caller that can name the subject can
+         * THE substitution guard. A caller that can name the subject could
          * otherwise mint a token for anyone from their own session — the whole
-         * of authentication bypassed by one parameter. The session's subject is
+         * of authentication bypassed by one parameter. The resolved session is
          * the authority; the grant's subject is a request.
          */
+        $this->establishedSession(userId: 7);
+
         $this->expectException(IssuanceRefused::class);
 
-        Vouch::issueToken($this->establishedSession(userId: 7), $this->grant(subjectId: 8));
+        Vouch::issueToken($this->grant(subjectId: 8));
+    }
+
+    #[Test]
+    public function it_refuses_when_no_session_is_authenticated(): void
+    {
+        // No host session at all. Issuance has no authority to draw on and must
+        // not fall back to an ambient user.
+        $this->expectException(IssuanceRefused::class);
+
+        Vouch::issueToken($this->grant());
     }
 
     #[Test]
@@ -140,11 +179,31 @@ final class TokenIssuanceTest extends TestCase
         // take: the session is dead and its holder walks away with a credential
         // that outlives it.
         $session = $this->establishedSession();
-        $session->update(['revoked_at' => now(), 'revoked_reason' => RevokedReason::PasswordChanged]);
+        $session->update(['revoked_at' => now(), 'revoked_reason' => RevokedReason::Logout]);
 
         $this->expectException(IssuanceRefused::class);
 
-        Vouch::issueToken($session->fresh(), $this->grant());
+        Vouch::issueToken($this->grant());
+    }
+
+    #[Test]
+    public function it_refuses_a_session_revoked_after_the_request_began(): void
+    {
+        /*
+         * THE staleness guard, and the reason the session is re-read rather than
+         * trusted. An in-memory model still carries the revoked_at it was loaded
+         * with, so an implementation holding one from earlier in the request
+         * issues happily against a session the database has since killed.
+         */
+        $session = $this->establishedSession();
+
+        // Revoked by another request, invisible to anything already loaded.
+        DB::table('auth_sessions')->where('id', $session->id)
+            ->update(['revoked_at' => now(), 'revoked_reason' => RevokedReason::Logout->value]);
+
+        $this->expectException(IssuanceRefused::class);
+
+        Vouch::issueToken($this->grant());
     }
 
     #[Test]
@@ -154,35 +213,79 @@ final class TokenIssuanceTest extends TestCase
         // recovery flow into a durable credential, which is more than recovery
         // was ever allowed to grant.
         $session = $this->establishedSession();
-        $session->update(['recovery_grace_expires_at' => now()->addMinutes(15)]);
+        DB::table('auth_sessions')->where('id', $session->id)
+            ->update(['recovery_grace_expires_at' => now()->addMinutes(15)]);
 
         $this->expectException(IssuanceRefused::class);
 
-        Vouch::issueToken($session->fresh(), $this->grant());
+        Vouch::issueToken($this->grant());
     }
 
     #[Test]
     public function it_refuses_a_session_whose_proof_does_not_satisfy_the_intent(): void
     {
-        /*
-         * The policy refusal. token_issue here requires password AND totp; this
-         * session proved only a password, so it may browse but may not mint.
-         */
-        $weak = [new SatisfiedFactor('password', 'cred-1', FactorKind::Knowledge, FactorStrength::Knowledge,
-            false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'))];
+        // token_issue requires password AND totp; this session proved only a
+        // password, so it may browse but may not mint.
+        $this->establishedSession(factorIds: ['password']);
 
         $this->expectException(IssuanceRefused::class);
 
-        Vouch::issueToken($this->establishedSession(factors: $weak), $this->grant());
+        Vouch::issueToken($this->grant());
+    }
+
+    #[Test]
+    public function it_selects_a_satisfying_branch_through_the_ordinary_evaluator(): void
+    {
+        /*
+         * PROVES REUSE, not just outcome. A stub hard-coding "password and totp"
+         * satisfies every other policy test here. This one uses a policy whose
+         * correct answer requires real parsing and real branch selection:
+         *
+         *     any_of: [ all_of:[totp], all_of:[password, totp] ]
+         *
+         * The session proved BOTH factors, so it satisfies the policy either
+         * way — but the recorded mappings must still carry EVERY credential the
+         * session actually used, per addendum §3 as amended. An implementation
+         * that recorded the winning branch would map totp alone, and disabling
+         * the password would then fail to revoke a token it helped authorize.
+         */
+        AuthPolicy::query()->where('scope', 'token_issue')->update([
+            'document' => ['any_of' => [['all_of' => ['totp']], ['all_of' => ['password', 'totp']]]],
+        ]);
+
+        $credentials = $this->enrolledFromSession($this->establishedSession());
+
+        Vouch::issueToken($this->grant());
+
+        $mapped = DB::table('auth_token_credentials')->orderBy('credential_id')->pluck('credential_id')->all();
+
+        self::assertSame(
+            $credentials,
+            array_map(static fn (mixed $c): string => stringValue($c), $mapped),
+            'The mapping recorded a policy branch rather than the session proof.',
+        );
+    }
+
+    /** @return list<string> credential ids in the session proof, ascending */
+    private function enrolledFromSession(AuthSession $session): array
+    {
+        $proof = \Fissible\Vouch\Sessions\SessionEvidence::for($session);
+        self::assertNotNull($proof);
+
+        $ids = array_map(static fn (SatisfiedFactor $f): string => $f->credentialId, $proof->factors);
+        sort($ids);
+
+        return $ids;
     }
 
     #[Test]
     public function it_refuses_a_session_carrying_no_proof(): void
     {
-        // A pre-2.4 session cannot mint. It has no evidence to evaluate, and
+        // A pre-2.4 session cannot mint: it has no evidence to evaluate, and
         // adopting its cached acr would assert a fact nobody witnessed.
-        $legacy = AuthSession::query()->create([
-            'session_binding' => str_repeat('z', 64),
+        session()->start();
+        AuthSession::query()->create([
+            'session_binding' => \Fissible\Vouch\Sessions\SessionBinding::for(session()->getId(), \Fissible\Vouch\Sessions\BindingDomain::Session),
             'user_id' => 7,
             'amr' => ['password', 'totp'],
             'acr' => 'aal2',
@@ -191,7 +294,7 @@ final class TokenIssuanceTest extends TestCase
 
         $this->expectException(IssuanceRefused::class);
 
-        Vouch::issueToken($legacy, $this->grant());
+        Vouch::issueToken($this->grant());
     }
 
     #[Test]
@@ -200,10 +303,11 @@ final class TokenIssuanceTest extends TestCase
         /*
          * The token inherits the SESSION's evidence, not a fresh assertion. If
          * issuance recorded anything else, a token could outrank the login that
-         * produced it — and the whole point of deriving assurance from evidence
-         * would be lost at the one boundary that creates durable credentials.
+         * produced it.
          */
-        Vouch::issueToken($this->establishedSession(), $this->grant());
+        $this->establishedSession();
+
+        Vouch::issueToken($this->grant());
 
         $row = DB::table('auth_token_assurances')->first();
 
@@ -219,27 +323,18 @@ final class TokenIssuanceTest extends TestCase
     }
 
     #[Test]
-    public function it_maps_every_credential_in_the_proof(): void
-    {
-        Vouch::issueToken($this->establishedSession(), $this->grant());
-
-        $mapped = DB::table('auth_token_credentials')->orderBy('credential_id')->pluck('credential_id')->all();
-
-        self::assertSame(['cred-1', 'cred-2'], array_map(static fn (mixed $c): string => stringValue($c), $mapped));
-    }
-
-    #[Test]
     public function it_never_persists_the_plaintext(): void
     {
         /*
          * The plaintext is returned once and stored nowhere. Sanctum hashes its
-         * own column; the risk is Vouch's tables, which are new and adjacent and
-         * would be the last place anyone thought to look.
+         * own column — included here because it is the likeliest place for a
+         * plaintext to survive by accident, and the one Vouch does not own.
          */
-        $issued = Vouch::issueToken($this->establishedSession(), $this->grant());
-        $plain = $issued->plainTextToken;
+        $this->establishedSession();
 
-        foreach (['auth_token_assurances', 'auth_token_credentials', 'auth_sessions'] as $table) {
+        $plain = Vouch::issueToken($this->grant())->plainText;
+
+        foreach (['auth_token_assurances', 'auth_token_credentials', 'auth_sessions', 'personal_access_tokens'] as $table) {
             foreach (DB::table($table)->get() as $row) {
                 self::assertStringNotContainsString(
                     $plain,
@@ -251,29 +346,29 @@ final class TokenIssuanceTest extends TestCase
     }
 
     #[Test]
-    public function the_issued_token_authorizes_without_consulting_the_session(): void
+    public function an_ordinary_logout_does_not_revoke_the_tokens_a_session_minted(): void
     {
         /*
-         * THE GATE for this task. A token is a durable credential in its own
-         * right: once issued it must stand on its recorded evidence, so
-         * revoking the session that minted it does not silently revoke every
-         * token derived from it.
+         * A token is a durable credential in its own right. Ordinary logout and
+         * administrative session revocation must NOT cascade, or every API token
+         * dies whenever its creator closes a browser tab.
          *
-         * That is a deliberate policy rather than an oversight — §6.5 gives
-         * credential change its own sweep precisely because session revocation
-         * is NOT it.
+         * Deliberately labelled Logout rather than PasswordChanged: credential
+         * change has its own subject-wide sweep (§6.5), and that cascade is
+         * Task 5's to prove. Using a credential-change reason here would assert
+         * the opposite of what Task 5 must establish.
          */
-        $session = $this->establishedSession();
-        $issued = Vouch::issueToken($session, $this->grant());
+        $this->establishedSession();
+        $issued = Vouch::issueToken($this->grant());
 
-        $session->update(['revoked_at' => now(), 'revoked_reason' => RevokedReason::PasswordChanged]);
+        DB::table('auth_sessions')->update(['revoked_at' => now(), 'revoked_reason' => RevokedReason::Logout->value]);
 
-        $record = app(\Fissible\Vouch\Tokens\TokenAssuranceRecord::class)->read(
-            new \Fissible\Vouch\Tokens\ResolvedToken('sanctum', $issued->tokenKey, $this->subject(), true),
+        self::assertSame(1, PersonalAccessToken::query()->count());
+        self::assertSame(
+            1,
+            DB::table('auth_token_assurances')->where('token_key', $issued->tokenKey)->count(),
+            'Session revocation destroyed a token assurance record it does not own.',
         );
-
-        self::assertNotNull($record->evidence);
-        self::assertSame('aal2', $record->evidence->derivedAcr());
     }
 
     #[Test]
@@ -284,29 +379,33 @@ final class TokenIssuanceTest extends TestCase
          * ability list could ease issuance, a client would be choosing its own
          * assurance requirement by asking for more.
          */
-        $narrow = Vouch::issueToken($this->establishedSession(), new TokenGrant($this->subject(), 'a', ['orders:read']));
+        $this->establishedSession();
 
-        DB::table('auth_token_assurances')->delete();
-        DB::table('auth_token_credentials')->delete();
+        Vouch::issueToken(new TokenGrant($this->subject(), 'wide', ['*', 'admin:everything']));
 
-        $wide = Vouch::issueToken($this->establishedSession(), new TokenGrant($this->subject(), 'b', ['*', 'admin:everything']));
-
-        self::assertSame(
-            DB::table('auth_token_assurances')->value('acr'),
-            'aal2',
-            'A wider ability list changed the recorded assurance.',
-        );
-        self::assertNotSame($narrow->plainTextToken, $wide->plainTextToken);
+        self::assertSame('aal2', DB::table('auth_token_assurances')->value('acr'));
     }
 
     #[Test]
-    public function a_tenant_scoped_session_mints_a_tenant_scoped_token(): void
+    public function tenant_scoped_issuance_is_unreachable_until_sessions_carry_a_tenant(): void
     {
-        // Tenancy travels with the evidence. A global session minting a
-        // tenant-scoped token would create evidence under a policy that never
-        // governed it.
+        /*
+         * RECORDED LIMITATION, not a passing feature. SessionLifecycle writes
+         * evidence with a null tenant, so no session can currently produce
+         * tenant-scoped evidence, and a tenant grant has nothing to match
+         * against. Issuance must refuse rather than mint a token under a policy
+         * that never governed the login.
+         *
+         * The same shape as aal3 being unsatisfiable with the shipped
+         * vocabulary: the refusal is correct today, and the capability arrives
+         * only when session evidence learns to carry a tenant. Task 3 does not
+         * add that; asserting the refusal stops the gap being mistaken for
+         * support.
+         */
+        $this->establishedSession();
+
         $this->expectException(IssuanceRefused::class);
 
-        Vouch::issueToken($this->establishedSession(), $this->grant(tenantId: 'acme'));
+        Vouch::issueToken($this->grant(tenantId: 'acme'));
     }
 }

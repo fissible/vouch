@@ -90,9 +90,10 @@ final class TokenIssuanceAtomicityTest extends TestCase
         return AuthCredential::query()->where('user_id', 7)->where('type', 'password')->firstOrFail();
     }
 
-    private function establishedSession(AuthCredential $credential): AuthSession
+    private function establishedSessionFor(?AuthCredential $credential = null): AuthSession
     {
         session()->start();
+        $credential ??= AuthCredential::query()->where('user_id', 7)->where('type', 'password')->firstOrFail();
         $factors = [new SatisfiedFactor('password', (string) $credential->id, FactorKind::Knowledge,
             FactorStrength::Knowledge, false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'))];
 
@@ -118,11 +119,11 @@ final class TokenIssuanceAtomicityTest extends TestCase
          * minted, or a disable races an issuance and loses silently.
          */
         $credential = $this->credentials();
-        $session = $this->establishedSession($credential);
+        $session = $this->establishedSessionFor($credential);
         $credential->update(['disabled_at' => now()]);
 
         try {
-            Vouch::issueToken($session, $this->grant());
+            Vouch::issueToken($this->grant());
             self::fail('Issuance proceeded on a disabled credential.');
         } catch (IssuanceRefused) {
             // Expected.
@@ -144,12 +145,12 @@ final class TokenIssuanceAtomicityTest extends TestCase
          * until a user reports that their token does nothing.
          */
         $credential = $this->credentials();
-        $session = $this->establishedSession($credential);
+        $session = $this->establishedSessionFor($credential);
 
         AuthPolicy::query()->where('scope', 'token_issue')->update(['document' => ['all_of' => ['password', 'totp']]]);
 
         try {
-            Vouch::issueToken($session, $this->grant());
+            Vouch::issueToken($this->grant());
             self::fail('Issuance proceeded against an unsatisfied policy.');
         } catch (IssuanceRefused) {
             // Expected.
@@ -170,11 +171,11 @@ final class TokenIssuanceAtomicityTest extends TestCase
          * connection Vouch was handed rather than one it opened.
          */
         $credential = $this->credentials();
-        $session = $this->establishedSession($credential);
+        $session = $this->establishedSessionFor($credential);
 
         try {
-            DB::transaction(function () use ($session): void {
-                Vouch::issueToken($session, $this->grant());
+            DB::transaction(function (): void {
+                Vouch::issueToken($this->grant());
 
                 throw new \RuntimeException('The host failed after issuance.');
             });
@@ -188,23 +189,42 @@ final class TokenIssuanceAtomicityTest extends TestCase
     }
 
     #[Test]
-    public function it_commits_before_returning_the_plaintext(): void
+    public function it_never_opens_or_commits_a_transaction_of_its_own(): void
     {
         /*
-         * The plaintext is the only copy that ever exists. Returning it before
-         * the commit means a caller can hold a working-looking token for a
-         * transaction that then rolls back — and unlike every other failure
-         * here, the user has already been shown the value.
+         * SETTLED DESIGN, and it replaces a contradiction. An earlier draft
+         * asserted BOTH that issuance commits before returning the plaintext AND
+         * that it enlists in a caller's transaction. Those are mutually
+         * exclusive: a synchronous call cannot both guarantee committed state on
+         * return and leave the commit to a caller who may still roll back.
+         *
+         * Enlistment wins, because the alternative is the failure this whole
+         * file exists to prevent — a host rolling back its surrounding work and
+         * being left with a live token and assurance record it believes it
+         * undid. The cost is a HOST OBLIGATION: the plaintext is returned before
+         * the outer commit and must not be disclosed or used until it commits.
+         *
+         * Asserted by observing that issuance neither begins nor commits at the
+         * top level: after a direct call the transaction level is unchanged, and
+         * inside a caller's transaction the writes are still pending.
          */
-        $credential = $this->credentials();
-        $issued = Vouch::issueToken($this->establishedSession($credential), $this->grant());
+        $this->credentials();
+        $this->establishedSessionFor();
 
-        // Read on a fresh connection so an uncommitted write cannot answer.
-        DB::disconnect();
+        self::assertSame(0, DB::transactionLevel());
 
-        self::assertSame(1, DB::table('auth_token_assurances')->count());
-        self::assertSame(1, PersonalAccessToken::query()->count());
-        self::assertNotSame('', $issued->plainTextToken);
+        DB::beginTransaction();
+        Vouch::issueToken($this->grant());
+
+        // Still inside the caller's transaction: issuance did not commit it out
+        // from under them, and did not leave a nested one open.
+        self::assertSame(1, DB::transactionLevel());
+
+        DB::rollBack();
+
+        self::assertSame(0, PersonalAccessToken::query()->count());
+        self::assertSame(0, DB::table('auth_token_assurances')->count());
+        self::assertSame(0, DB::table('auth_token_credentials')->count());
     }
 
     #[Test]
@@ -216,10 +236,10 @@ final class TokenIssuanceAtomicityTest extends TestCase
          * exactly one record — not one token with two.
          */
         $credential = $this->credentials();
-        $session = $this->establishedSession($credential);
+        $session = $this->establishedSessionFor($credential);
 
-        $first = Vouch::issueToken($session, $this->grant());
-        $second = Vouch::issueToken($session, $this->grant());
+        $first = Vouch::issueToken($this->grant());
+        $second = Vouch::issueToken($this->grant());
 
         self::assertNotSame($first->tokenKey, $second->tokenKey);
         self::assertSame(2, DB::table('auth_token_assurances')->count());
@@ -270,7 +290,7 @@ final class TokenIssuanceAtomicityTest extends TestCase
             }
         });
 
-        Vouch::issueToken(AuthSession::query()->firstOrFail(), $this->grant());
+        Vouch::issueToken($this->grant());
 
         $ids = array_values(array_filter(array_merge(...array_map('array_values', $locked)), 'is_numeric'));
 
@@ -280,5 +300,49 @@ final class TokenIssuanceAtomicityTest extends TestCase
             array_values(array_unique(array_map('intval', $ids))),
             'Credential locks were not taken in ascending id order.',
         );
+    }
+
+    #[Test]
+    public function a_failure_after_the_issuer_succeeds_leaves_no_token_behind(): void
+    {
+        /*
+         * THE token-without-assurance leak, injected where it can actually
+         * happen. The policy-refusal test fails BEFORE the issuer runs, so it
+         * cannot catch this: the dangerous window is after Sanctum's row exists
+         * and before assurance is written.
+         *
+         * Injected by removing the assurance table, so the write that follows
+         * issuance fails on a real statement rather than a mocked seam. The
+         * token must not survive: a credential that authenticates and can never
+         * authorize is invisible until a user reports their token does nothing.
+         */
+        $this->credentials();
+        $this->establishedSessionFor();
+
+        \Illuminate\Support\Facades\Schema::drop('auth_token_assurances');
+
+        try {
+            Vouch::issueToken($this->grant());
+            self::fail('Issuance completed with no assurance table.');
+        } catch (\Throwable) {
+            // Expected; the assertion is what survived.
+        }
+
+        self::assertSame(0, PersonalAccessToken::query()->count(), 'A token outlived a failed issuance.');
+    }
+
+    #[Test]
+    public function the_assurance_record_is_keyed_by_the_composite_identity(): void
+    {
+        // token_key alone is not identity: another issuer may mint the same key.
+        $this->credentials();
+        $this->establishedSessionFor();
+
+        $issued = Vouch::issueToken($this->grant());
+
+        self::assertSame(1, DB::table('auth_token_assurances')
+            ->where('issuer_key', $issued->issuerKey)
+            ->where('token_key', $issued->tokenKey)
+            ->count());
     }
 }
