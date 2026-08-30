@@ -478,4 +478,39 @@ final class TokenEvidenceTest extends TestCase
             'empty' => [''],
         ];
     }
+
+    #[Test]
+    public function the_recency_anchor_reads_as_one_instant_under_any_process_timezone(): void
+    {
+        /*
+         * PARITY WITH auth_sessions, which Task 2a gave a UTC cast for exactly
+         * this reason. A plain datetime cast resolves the stored column against
+         * the process timezone, so the same row reads hours apart on two hosts.
+         *
+         * The adapter is not the exposure — it parses offsets out of the proof
+         * JSON and is correct either way, which is why the cross-surface test
+         * cannot see this: both surfaces run under one timezone there. The
+         * exposure is everything that reads the MODEL: Task 5's retention
+         * sweep, Task 6's audit command, and any host filtering tokens by
+         * recency. Measured drift before this landed: +7h under
+         * America/Los_Angeles, -9h under Asia/Tokyo.
+         */
+        $this->stored();
+
+        $expected = (new DateTimeImmutable('2026-08-13T10:00:00+00:00'))->getTimestamp();
+        $original = date_default_timezone_get();
+
+        try {
+            foreach (['UTC', 'America/Los_Angeles', 'Asia/Tokyo'] as $zone) {
+                date_default_timezone_set($zone);
+
+                $anchor = \Fissible\Vouch\Models\AuthTokenAssurance::query()->firstOrFail()->weakest_satisfied_at;
+
+                self::assertNotNull($anchor, "No anchor under {$zone}.");
+                self::assertSame($expected, $anchor->getTimestamp(), "The stored anchor drifted under {$zone}.");
+            }
+        } finally {
+            date_default_timezone_set($original);
+        }
+    }
 }
