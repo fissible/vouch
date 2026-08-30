@@ -12,6 +12,7 @@ use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\SanctumServiceProvider;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
@@ -176,16 +177,33 @@ final class TokenAssuranceSchemaTest extends TestCase
     }
 
     #[Test]
-    public function the_assurance_record_rejects_an_empty_issuer_or_token_key(): void
+    #[DataProvider('emptyIdentityHalves')]
+    public function the_assurance_record_rejects_an_empty_identity_half(string $column, mixed $value): void
     {
         /*
          * An empty identity half is not a token. Permitted, it creates a row
          * that every composite lookup misses and no revocation sweep can find,
          * which reads as "this token has no assurance" forever.
+         *
+         * BOTH halves and BOTH empties. An earlier draft tested only a null
+         * token_key, which left three of the four cases unasserted — and an
+         * ordinary non-null string column happily accepts '', so the null half
+         * alone proves very little.
          */
         $this->expectException(QueryException::class);
 
-        DB::table('auth_token_assurances')->insert($this->row(['token_key' => null]));
+        DB::table('auth_token_assurances')->insert($this->row([$column => $value]));
+    }
+
+    /** @return array<string, array{string, mixed}> */
+    public static function emptyIdentityHalves(): array
+    {
+        return [
+            'null issuer' => ['issuer_key', null],
+            'null token' => ['token_key', null],
+            'empty issuer' => ['issuer_key', ''],
+            'empty token' => ['token_key', ''],
+        ];
     }
 
     #[Test]

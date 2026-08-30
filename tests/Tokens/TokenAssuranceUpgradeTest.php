@@ -40,17 +40,23 @@ final class TokenAssuranceUpgradeTest extends TestCase
     }
 
     #[Test]
-    public function the_dropped_table_still_has_no_runtime_authorization_consumer(): void
+    public function no_code_outside_the_canonical_adapter_reads_the_table_directly(): void
     {
         /*
-         * The safety claim behind drop-and-recreate, asserted against src/.
-         * AuthTokenAssurance may be referenced by the model and by fixtures; it
-         * must not be READ on an authorization path, because then discarding
-         * rows would be discarding live authority rather than dead fixture data.
+         * WHAT THIS PROVES, precisely: no file outside the model and the
+         * canonical record adapter touches this table. It does NOT prove "no
+         * runtime authorization consumer", which is what an earlier version of
+         * this test claimed while exempting TokenAssuranceRecord — the very
+         * reader that authorization goes through. A scan cannot support that
+         * stronger claim while excluding the reader it would have to examine.
          *
-         * Scoped to Vouch-owned consumers, deliberately and no wider: a host's
-         * raw SQL or reporting job is invisible here, which is exactly why the
-         * upgrade note tells hosts about the drop instead of relying on this.
+         * The narrower property is still worth holding: it keeps table access
+         * funnelled through one adapter, so the read-boundary refusals cannot be
+         * bypassed by a second reader that forgets them.
+         *
+         * Scoped to Vouch-owned code, deliberately and no wider: a host's raw
+         * SQL or reporting job is invisible here, which is why the upgrade note
+         * tells hosts about the drop rather than relying on this.
          */
         $root = (string) realpath(__DIR__ . '/../../src');
         $offenders = [];
@@ -100,7 +106,7 @@ final class TokenAssuranceUpgradeTest extends TestCase
             }
         }
 
-        self::assertSame([], $offenders, 'A runtime consumer appeared; drop-and-recreate is no longer safe.');
+        self::assertSame([], $offenders, 'A second direct reader appeared; table access must stay funnelled through TokenAssuranceRecord.');
     }
 
     #[Test]

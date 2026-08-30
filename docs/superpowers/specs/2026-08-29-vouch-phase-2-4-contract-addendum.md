@@ -225,12 +225,17 @@ cannot establish that an installed host has no raw SQL, reporting job or securit
 integration reading this table. A host that reads it directly is an incompatible migration
 condition, stated in the upgrade notes rather than assumed away.
 
-- `issuer_key` — driver-owned, unique, immutable, `string(64)`.
+- `issuer_key` — driver-owned, immutable, `string(64)`. NOT unique on its own: an
+  issuer records many tokens. Uniqueness is on the COMPOSITE `(issuer_key, token_key)`,
+  and putting it on this column alone would permit exactly one record per issuer.
 - `token_key` — driver-owned canonical string, `string(191)` for index compatibility.
   Sanctum renders its integer primary key as a decimal string. Drivers must produce a
   stable, comparable representation; equality is byte equality, never numeric coercion.
 - `subject_key` — `provider:id`, one string column, indexed. See §6.
-- `auth_token_credentials(issuer_key, token_key, credential_id)` — composite index.
+- `auth_token_credentials(issuer_key, token_key, credential_id)` — UNIQUE on the triple,
+  not merely indexed: a duplicate mapping row makes a revocation sweep miscount and, if the
+  sweep is ever made idempotent by count, hides a failure to delete. A separate non-unique
+  index on `credential_id` alone serves the credential-to-tokens lookup.
 
 ## 5. The RFC 9470 wire contract
 
@@ -256,7 +261,8 @@ Vary: Authorization, Cookie
 or in parent spec §6.3 — is illustrative only; emitting it as continuation lines would be
 obsolete header folding (RFC 7230 §3.2.4). Every parameter value is double-quoted per
 RFC 7235 §2.1, and `max_age` is a non-negative count of seconds per RFC 9470 §3.
-**Both bodies are empty** — no detail travels in the body. Six separately tested cases: invalid, expired, revoked, unrecorded,
+**Both bodies are empty** — no detail travels in the body. Six cases that Task 4 MUST test
+at the HTTP boundary, and which nothing tests yet: invalid, expired, revoked, unrecorded,
 insufficient-level, insufficient-recency. The first four must be byte-identical.
 
 ## 6. Subject and tenant keys

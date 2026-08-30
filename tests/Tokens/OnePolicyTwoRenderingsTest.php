@@ -250,12 +250,22 @@ final class OnePolicyTwoRenderingsTest extends TestCase
             ($parameter->getType() instanceof \ReflectionUnionType) ? $parameter->getType()->getTypes() : [],
         );
 
-        self::assertContains(\Fissible\Vouch\Assurance\EvidenceRead::class, $arms);
-        self::assertNotContains(\Fissible\Vouch\Sessions\SessionEvidenceRead::class, $arms);
-        self::assertCount(
-            1,
-            array_filter($arms, static fn (string $arm): bool => str_ends_with($arm, 'EvidenceRead')),
-            'The comparator grew a second read type; that union is where the surfaces drift apart.',
-        );
+        /*
+         * The COMPLETE union, not merely "no second read type". An earlier
+         * draft only forbade another *EvidenceRead arm, which would still admit
+         * AssuranceEvidence|EvidenceRead|ResolvedToken|null — per-surface
+         * comparator logic reintroduced without a new read type, which is the
+         * same drift by another name.
+         *
+         * The bare AssuranceEvidence arm stays: Task 2a's value-level tests
+         * judge evidence with no adapter in play, which is legitimate.
+         */
+        sort($arms);
+
+        self::assertSame([
+            \Fissible\Vouch\Assurance\AssuranceEvidence::class,
+            \Fissible\Vouch\Assurance\EvidenceRead::class,
+            'null',
+        ], $arms, 'The comparator accepts a surface-specific type; that is where the two models diverge.');
     }
 }
