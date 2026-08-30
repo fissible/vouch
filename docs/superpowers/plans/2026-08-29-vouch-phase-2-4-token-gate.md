@@ -232,7 +232,12 @@ What Task 2 must establish that 2a could not:
   proof (§7 as amended) so disabling any one of them invalidates the token;
 - `actor_kind`, with machine tokens carrying no human factors and satisfying no
   AAL requirement;
-- token revocation and expiry as read-boundary refusals with their own reasons.
+- token refusals that the adapter can actually see, each with its own reason: no
+  assurance record, subject mismatch, malformed proof, machine actor, and a human
+  record missing its anchor. NOT revocation and expiry, which an earlier draft
+  listed here before it was measured: Sanctum returns no `ResolvedToken` for
+  either, so neither reaches the adapter. Only a third-party issuer reporting
+  `usable: false` produces `TokenUnusable`. See addendum §3b.
 
 Replace the old token assurance schema with the composite issuer/token identity,
 canonical subject key, tenant, actor kind, weakest timestamp, persisted-proof
@@ -244,9 +249,12 @@ authorization never branches on persisted `acr` alone.
 
 Schema assertions must test CONSTRAINTS, not column existence. A migration that
 merely has the right column names can still lack a unique `(issuer_key, token_key)`,
-store `token_key` numerically so `42` and `042` collide, leave
-`weakest_satisfied_at` nullable, omit indexes, or permit a cross-issuer mapping
-read. Assert persisted values, duplicate rejection, string identity, null-tenant
+store `token_key` numerically so `42` and `042` collide, omit indexes, or permit
+a cross-issuer mapping read. `weakest_satisfied_at` being nullable is NOT such a
+defect — an earlier draft listed it as one. A machine token has no
+authentication instant, so a non-null column would force every machine record to
+store a fiction. The defect is a HUMAN record without an anchor, which the
+adapter refuses at the read boundary. Assert persisted values, duplicate rejection, string identity, null-tenant
 persistence and issuer-scoped mappings.
 
 ## Task 3 — Transactional issuance and public API

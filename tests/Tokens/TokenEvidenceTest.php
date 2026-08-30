@@ -23,6 +23,7 @@ use Fissible\Vouch\VouchServiceProvider;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\SanctumServiceProvider;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use Psr\Clock\ClockInterface;
 
@@ -432,5 +433,49 @@ final class TokenEvidenceTest extends TestCase
         $this->stored();
 
         self::assertSame('aal2', DB::table('auth_token_assurances')->value('acr'));
+    }
+
+    #[Test]
+    #[DataProvider('unusableProjections')]
+    public function an_absent_or_unrecognised_projection_cannot_deny(mixed $stored): void
+    {
+        /*
+         * THE third case, and the one the tampering tests miss. Those vary the
+         * column between VALID levels, so an implementation that treats the
+         * projection as advisory passes them. This varies it to values that are
+         * not levels at all.
+         *
+         * A projection is still an authorization input if it can DENY. An
+         * adapter that returned null on a missing acr, or threw on an
+         * unrecognised one, would make a display column decide authorization —
+         * in the one direction the "never an input" rule is easiest to violate
+         * by accident, because failing closed feels safe.
+         *
+         * The proof derives aal2 in every case here, so aal2 must be granted.
+         */
+        $this->stored();
+        DB::table('auth_token_assurances')->update(['acr' => $stored]);
+
+        $read = $this->record()->read(new ResolvedToken('sanctum', '42', $this->subject(), true));
+
+        self::assertNotNull($read->evidence);
+        self::assertSame('aal2', $read->evidence->derivedAcr());
+        self::assertSame(
+            AssuranceOutcome::Sufficient,
+            app(EvidenceComparator::class)
+                ->compare($read, AssuranceRequirement::from('aal2'), $this->clock(), null)
+                ->outcome,
+        );
+    }
+
+    /** @return array<string, array{mixed}> */
+    public static function unusableProjections(): array
+    {
+        return [
+            'absent' => [null],
+            'unrecognised level' => ['aal9'],
+            'not a level at all' => ['definitely-not-a-level'],
+            'empty' => [''],
+        ];
     }
 }
