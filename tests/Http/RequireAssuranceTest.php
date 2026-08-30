@@ -45,7 +45,7 @@ function assuranceRow(string $acr, array $extra = []): AuthSession
         'acr' => $acr,
         // 2.4 Task 2a: a level without a proof is refused. Fixtures that mean
         // "a session at this level" must now carry evidence of it.
-        'assurance_proof' => $acr === null ? null : sessionProof(7, $acr),
+        'assurance_proof' => sessionProof(7, $acr),
         'weakest_satisfied_at' => now(),
     ], $extra));
 }

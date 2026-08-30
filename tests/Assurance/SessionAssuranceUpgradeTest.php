@@ -23,14 +23,31 @@ use Illuminate\Support\Facades\Schema;
 
 function migrationsDirectory(): string
 {
-    return (string) realpath(__DIR__ . '/../../database/migrations');
+    $dir = realpath(__DIR__ . '/../../database/migrations');
+
+    if ($dir === false) {
+        throw new RuntimeException('The migrations directory does not exist.');
+    }
+
+    return $dir;
+}
+
+/**
+ * @return list<string>
+ */
+function phpFilesIn(string $directory): array
+{
+    $files = glob($directory . '/*.php');
+
+    return $files === false ? [] : $files;
 }
 
 function upgradeMigrationFile(): string
 {
     $matches = glob(migrationsDirectory() . '/*_session_assurance_proof*.php');
+    $matches = $matches === false ? [] : $matches;
 
-    expect($matches)->toBeArray()->toHaveCount(1);
+    expect($matches)->toHaveCount(1);
 
     return $matches[0];
 }
@@ -47,7 +64,7 @@ function stagePreUpgradeMigrations(): string
         mkdir($staged, 0777, true);
     }
 
-    foreach ((array) glob(migrationsDirectory() . '/*.php') as $file) {
+    foreach (phpFilesIn(migrationsDirectory()) as $file) {
         if ($file !== upgradeMigrationFile()) {
             copy($file, $staged . '/' . basename($file));
         }
@@ -71,7 +88,7 @@ afterEach(function (): void {
     Artisan::call('migrate:fresh');
 
     $staged = sys_get_temp_dir() . '/vouch-pre-2a-' . getmypid();
-    foreach ((array) glob($staged . '/*.php') as $file) {
+    foreach (phpFilesIn($staged) as $file) {
         unlink($file);
     }
     if (is_dir($staged)) {
@@ -105,10 +122,9 @@ it('carries an existing session across the upgrade', function (): void {
 
     migrateForwardOneStep();
 
-    $row = DB::table('auth_sessions')->where('user_id', 11)->first();
+    $row = requiredRow(DB::table('auth_sessions')->where('user_id', 11)->first());
 
-    expect($row)->not->toBeNull()
-        ->and($row->session_binding)->toBe(str_repeat('f', 64))
+    expect($row->session_binding)->toBe(str_repeat('f', 64))
         ->and($row->acr)->toBe('aal2')
         // No proof is invented for it. The row survives; its authority does not.
         ->and($row->assurance_proof)->toBeNull();

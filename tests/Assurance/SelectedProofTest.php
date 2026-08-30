@@ -98,8 +98,12 @@ function proofSubmit(string $handle, array $input): mixed
 
 function proofTotpCode(int $userId = 7): string
 {
-    $secret = (string) AuthCredential::query()
-        ->where('user_id', $userId)->where('type', 'totp')->firstOrFail()->secret;
+    $secret = stringValue(AuthCredential::query()
+        ->where('user_id', $userId)->where('type', 'totp')->firstOrFail()->secret);
+
+    if ($secret === '') {
+        throw new RuntimeException('The enrolled TOTP credential has no secret.');
+    }
 
     /*
      * Built the way the DRIVER builds it: the container's ClockInterface passed
@@ -125,10 +129,9 @@ it('persists exactly the factors a single-factor policy required', function (): 
     session()->start();
     app(SessionLifecycle::class)->establish($result->success);
 
-    $evidence = SessionEvidence::for(\Fissible\Vouch\Models\AuthSession::query()->firstOrFail());
+    $evidence = usableEvidence(\Fissible\Vouch\Models\AuthSession::query()->firstOrFail());
 
-    expect($evidence)->not->toBeNull()
-        ->and(array_map(static fn ($f): string => $f->factorId, $evidence->factors))->toBe(['password'])
+    expect(array_map(static fn ($f): string => $f->factorId, $evidence->factors))->toBe(['password'])
         ->and($evidence->derivedAcr())->toBe('aal1');
 });
 
@@ -148,7 +151,7 @@ it('persists both factors of an all_of policy, and no others', function (): void
     session()->start();
     app(SessionLifecycle::class)->establish($result->success);
 
-    $evidence = SessionEvidence::for(\Fissible\Vouch\Models\AuthSession::query()->firstOrFail());
+    $evidence = usableEvidence(\Fissible\Vouch\Models\AuthSession::query()->firstOrFail());
 
     expect(array_map(static fn ($f): string => $f->factorId, $evidence->factors))
         ->toEqualCanonicalizing(['password', 'totp'])
@@ -181,10 +184,16 @@ it('anchors the persisted column to the oldest factor the flow recorded', functi
     $result = proofSubmit($handle, ['code' => proofTotpCode()]);
     assert($result instanceof Authenticated);
 
-    $expected = min(array_map(
+    $stamps = array_map(
         static fn ($f): int => $f->satisfiedAt->getTimestamp(),
         $result->success->factors,
-    ));
+    );
+
+    if ($stamps === []) {
+        throw new RuntimeException('The flow authenticated with no factors.');
+    }
+
+    $expected = min($stamps);
 
     session()->start();
     app(SessionLifecycle::class)->establish($result->success);
@@ -193,8 +202,8 @@ it('anchors the persisted column to the oldest factor the flow recorded', functi
 
     expect($result->success->factors)->toHaveCount(2)
         ->and($session->weakest_satisfied_at)->not->toBeNull()
-        ->and($session->weakest_satisfied_at->getTimestamp())->toBe($expected)
-        ->and(SessionEvidence::for($session)->weakestSatisfiedAt()->getTimestamp())->toBe($expected);
+        ->and(requiredCarbon($session->weakest_satisfied_at)->getTimestamp())->toBe($expected)
+        ->and(usableEvidence($session)->weakestSatisfiedAt()->getTimestamp())->toBe($expected);
 });
 
 it('persists the same set the flow derived its acr from', function (): void {
@@ -218,9 +227,9 @@ it('persists the same set the flow derived its acr from', function (): void {
 
     $session = \Fissible\Vouch\Models\AuthSession::query()->firstOrFail();
 
-    expect(SessionEvidence::for($session)->derivedAcr())->toBe($result->success->acr)
+    expect(usableEvidence($session)->derivedAcr())->toBe($result->success->acr)
         ->and($session->acr)->toBe($result->success->acr)
-        ->and(SessionEvidence::for($session)->factors)->toEqual($result->success->factors);
+        ->and(usableEvidence($session)->factors)->toEqual($result->success->factors);
 });
 
 it('keeps a factor the policy did not need, on a real any_of login', function (): void {
@@ -247,7 +256,7 @@ it('keeps a factor the policy did not need, on a real any_of login', function ()
     app(SessionLifecycle::class)->establish($result->success);
 
     $session = \Fissible\Vouch\Models\AuthSession::query()->firstOrFail();
-    $evidence = SessionEvidence::for($session);
+    $evidence = usableEvidence($session);
 
     expect(array_map(static fn ($f): string => $f->factorId, $result->success->factors))
         ->toEqualCanonicalizing(['password', 'totp'])
@@ -285,8 +294,8 @@ it('records a single-factor login as aal1', function (): void {
 
     $session = \Fissible\Vouch\Models\AuthSession::query()->firstOrFail();
 
-    expect(array_map(static fn ($f): string => $f->factorId, SessionEvidence::for($session)->factors))
+    expect(array_map(static fn ($f): string => $f->factorId, usableEvidence($session)->factors))
         ->toBe(['totp'])
-        ->and(SessionEvidence::for($session)->derivedAcr())->toBe('aal1')
+        ->and(usableEvidence($session)->derivedAcr())->toBe('aal1')
         ->and($session->acr)->toBe('aal1');
 });

@@ -51,9 +51,11 @@ it('has no assurance level property for authorization to read', function (): voi
      */
     $evidence = evidenceFor([evidenceFactor()]);
 
-    expect(property_exists($evidence, 'acr'))->toBeFalse()
-        ->and(property_exists($evidence, 'level'))->toBeFalse()
-        ->and(method_exists($evidence, 'derivedAcr'))->toBeTrue();
+    $shape = new ReflectionClass($evidence::class);
+
+    expect($shape->hasProperty('acr'))->toBeFalse()
+        ->and($shape->hasProperty('level'))->toBeFalse()
+        ->and($shape->hasMethod('derivedAcr'))->toBeTrue();
 });
 
 it('derives its level from the factors, matching the kernel', function (): void {

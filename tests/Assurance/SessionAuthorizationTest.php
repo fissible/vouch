@@ -50,7 +50,7 @@ function enforcedRequest(string $uri = '/admin/settings'): Request
      * therefore the binding — is identical.
      */
     $request = Request::create($uri);
-    $request->setLaravelSession(session()->driver());
+    $request->setLaravelSession(sessionStore());
 
     return $request;
 }
@@ -81,7 +81,7 @@ it('removes the cached-level comparison rather than leaving it callable', functi
      * ORDER, isKnown(), strength() -- stays where 2.3d's AssuranceRequirements
      * already depends on it; only the comparison that reads a stored acr goes.
      */
-    expect(method_exists(AssuranceComparator::class, 'isSufficient'))->toBeFalse()
+    expect((new ReflectionClass(AssuranceComparator::class))->hasMethod('isSufficient'))->toBeFalse()
         ->and(AssuranceComparator::isKnown('aal2'))->toBeTrue();
 });
 
@@ -141,7 +141,7 @@ it('refuses an interactive route whose requirement has gone stale', function ():
      * not express it at all -- there was no timestamp authorization read -- so
      * this is new behaviour, not a regression guard.
      */
-    $this->travelTo(new DateTimeImmutable('2026-08-13T12:00:00+00:00'));
+    Illuminate\Support\Carbon::setTestNow(Illuminate\Support\Carbon::parse('2026-08-13T12:00:00+00:00'));
     establishSession(proofSuccess([proofFactor('password', '2026-08-13T10:00:00+00:00')]));
 
     $response = app(RequireAssurance::class)->handle(
@@ -248,7 +248,7 @@ it('leaves an unmapped ability alone, even for a legacy session', function (): v
 function abilityRequest(string $uri = '/invoices/approve'): Request
 {
     $request = Request::create($uri);
-    $request->setLaravelSession(session()->driver());
+    $request->setLaravelSession(sessionStore());
     $request->setRouteResolver(static function () use ($uri): Illuminate\Routing\Route {
         $route = new Illuminate\Routing\Route(['GET'], $uri, ['middleware' => ['can:invoices.approve']]);
 
@@ -333,7 +333,7 @@ it('never reports a derived level it did not authorize from', function (): void 
     $request->setUserResolver(static fn (): object => abilityUser());
 
     $response = app(RequireAbilityAssurance::class)->handle($request, reachedHandler());
-    $body = json_decode(stringValue($response->getContent()), true);
+    $body = jsonBody($response->getContent());
 
     expect($response->getStatusCode())->toBe(403)
         ->and($body['held'])->toBe('aal1');
@@ -362,7 +362,7 @@ it('reports no held level when there is no usable evidence', function (array $ex
     $request->setUserResolver(static fn (): object => abilityUser());
 
     $response = app(RequireAbilityAssurance::class)->handle($request, reachedHandler());
-    $body = json_decode(stringValue($response->getContent()), true);
+    $body = jsonBody($response->getContent());
 
     expect($response->getStatusCode())->toBe(403)
         ->and($body['held'])->toBeNull();

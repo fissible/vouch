@@ -96,7 +96,7 @@ it('reconstructs the exact factors the flow presented', function (): void {
         proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
     ];
 
-    $evidence = SessionEvidence::for(establishSession(proofSuccess($factors)));
+    $evidence = usableEvidence(establishSession(proofSuccess($factors)));
 
     expect($evidence)->not->toBeNull()
         ->and($evidence->factors)->toEqual($factors);
@@ -115,13 +115,10 @@ it('stores the subject key the token path would render for the same user', funct
      * no morph map is registered, so it would have passed here while producing
      * session evidence that can never bind to a real token.
      */
-    $model = stringValue(config('auth.providers.users.model'));
-    $principal = new $model;
-
-    $evidence = SessionEvidence::for(establishSession(proofSuccess(userId: 7)));
+    $evidence = usableEvidence(establishSession(proofSuccess(userId: 7)));
 
     expect($evidence->subject->render())
-        ->toBe(SubjectKey::of($principal->getMorphClass(), 7)->render());
+        ->toBe(SubjectKey::of(configuredUserProvider(), 7)->render());
 });
 
 it('canonicalizes the subject through the morph map, as the token path does', function (): void {
@@ -134,7 +131,7 @@ it('canonicalizes the subject through the morph map, as the token path does', fu
      * ever agree on whom they belong to. The test above passes under either
      * implementation; this one does not.
      */
-    $model = stringValue(config('auth.providers.users.model'));
+    $model = configuredUserModel();
 
     // morphMap(), not enforceMorphMap(): the latter also sets Laravel's global
     // requireMorphMap flag, which resetting the map alone does NOT clear, so
@@ -145,11 +142,12 @@ it('canonicalizes the subject through the morph map, as the token path does', fu
     try {
         $session = establishSession(proofSuccess(userId: 7));
         $read = SessionEvidence::read(AuthSession::query()->findOrFail($session->id));
+        $mapped = usableEvidence(AuthSession::query()->findOrFail($session->id));
 
         // The writer stores the alias...
         expect($read->evidence)->not->toBeNull()
-            ->and($read->evidence->subject->provider)->toBe('vouch_user')
-            ->and($read->evidence->subject->render())->toBe('vouch_user:7')
+            ->and($mapped->subject->provider)->toBe('vouch_user')
+            ->and($mapped->subject->render())->toBe('vouch_user:7')
             // ...and the reader ACCEPTS it. Storing the right thing while the
             // reader rejected it would lock every mapped host out completely,
             // and the write assertion alone cannot tell the difference.
@@ -194,7 +192,7 @@ it('anchors the persisted recency column to the oldest factor', function (): voi
     ]));
 
     expect($session->weakest_satisfied_at)->not->toBeNull()
-        ->and($session->weakest_satisfied_at->toIso8601String())
+        ->and(requiredCarbon($session->weakest_satisfied_at)->toIso8601String())
         ->toBe('2026-07-01T10:00:00+00:00');
 });
 
@@ -207,7 +205,7 @@ it('still writes acr, and still does not authorize from it', function (): void {
     $session = establishSession(proofSuccess());
 
     expect($session->acr)->toBe('aal1')
-        ->and(SessionEvidence::for($session)->derivedAcr())->toBe('aal1');
+        ->and(usableEvidence($session)->derivedAcr())->toBe('aal1');
 });
 
 it('replaces the proof on rotation rather than accumulating rows', function (): void {
@@ -223,8 +221,8 @@ it('replaces the proof on rotation rather than accumulating rows', function (): 
     $session = AuthSession::query()->firstOrFail();
 
     expect(AuthSession::query()->count())->toBe(1)
-        ->and(SessionEvidence::for($session)->factors)->toHaveCount(2)
-        ->and(SessionEvidence::for($session)->derivedAcr())->toBe('aal2');
+        ->and(usableEvidence($session)->factors)->toHaveCount(2)
+        ->and(usableEvidence($session)->derivedAcr())->toBe('aal2');
 });
 
 it('fails the login closed when the proof cannot be serialized', function (): void {
@@ -353,7 +351,7 @@ it('refuses a session whose persisted acr disagrees with its factors', function 
     $session->refresh();
 
     expect($session->acr)->toBe('aal3')
-        ->and(SessionEvidence::for($session)->derivedAcr())->toBe('aal1');
+        ->and(usableEvidence($session)->derivedAcr())->toBe('aal1');
 });
 
 it('yields no evidence for a revoked session', function (): void {
@@ -452,8 +450,10 @@ it('reads the proof through the model casts the adapter relies on', function ():
      */
     $session = establishSession(proofSuccess());
 
-    expect($session->fresh()->assurance_proof)->toBeArray()
-        ->and($session->fresh()->weakest_satisfied_at)->toBeInstanceOf(Illuminate\Support\Carbon::class);
+    $fresh = AuthSession::query()->findOrFail($session->id);
+
+    expect($fresh->assurance_proof)->toBeArray()
+        ->and($fresh->weakest_satisfied_at)->toBeInstanceOf(Illuminate\Support\Carbon::class);
 });
 
 it('reads the recency anchor as the same instant under any process timezone', function (): void {
@@ -473,9 +473,9 @@ it('reads the recency anchor as the same instant under any process timezone', fu
         foreach (['UTC', 'America/Los_Angeles', 'Asia/Tokyo'] as $zone) {
             date_default_timezone_set($zone);
 
-            expect(AuthSession::query()->findOrFail($session->id)->weakest_satisfied_at->getTimestamp())
+            expect(requiredCarbon(AuthSession::query()->findOrFail($session->id)->weakest_satisfied_at)->getTimestamp())
                 ->toBe($expected)
-                ->and(SessionEvidence::for(AuthSession::query()->findOrFail($session->id))->weakestSatisfiedAt()->getTimestamp())
+                ->and(usableEvidence(AuthSession::query()->findOrFail($session->id))->weakestSatisfiedAt()->getTimestamp())
                 ->toBe($expected);
         }
     } finally {
@@ -617,7 +617,7 @@ it('authorizes from the proof even when the stored level is LOWER', function ():
     $fresh = AuthSession::query()->findOrFail($session->id);
 
     expect($fresh->acr)->toBe('aal1')
-        ->and(SessionEvidence::for($fresh)->derivedAcr())->toBe('aal2')
+        ->and(usableEvidence($fresh)->derivedAcr())->toBe('aal2')
         ->and(app(EvidenceComparator::class)->compare(
             SessionEvidence::read($fresh),
             AssuranceRequirement::from('aal2'),
@@ -700,8 +700,7 @@ it('refuses a proof that belongs to somebody else', function (): void {
      * hard-coded 'App\Models\User' differs from the configured model too — so
      * it refused on both halves at once and proved nothing about the id.
      */
-    $model = stringValue(config('auth.providers.users.model'));
-    $provider = (new $model)->getMorphClass();
+    $provider = configuredUserProvider();
 
     $session = establishSession(proofSuccess(userId: 7));
 
@@ -725,11 +724,10 @@ it('refuses a proof that belongs to somebody else', function (): void {
 
 it('refuses a foreign proof at the authorization boundary too', function (): void {
     // The adapter refusing is only useful if the refusal reaches a decision.
-    $model = stringValue(config('auth.providers.users.model'));
     $session = establishSession(proofSuccess(userId: 7));
     DB::table('auth_sessions')->where('id', $session->id)->update([
         'assurance_proof' => json_encode((new \Fissible\Vouch\Assurance\AssuranceEvidence(
-            \Fissible\Vouch\Tokens\SubjectKey::of((new $model)->getMorphClass(), 8),
+            \Fissible\Vouch\Tokens\SubjectKey::of(configuredUserProvider(), 8),
             null,
             [
                 proofFactor('password', '2026-08-13T10:00:00+00:00'),
@@ -817,7 +815,7 @@ it('treats a morph-map change as invalidating, and says so loudly', function ():
      * same footing as rotating an app key. This test exists so that the cost is
      * measured and documented rather than discovered.
      */
-    $model = stringValue(config('auth.providers.users.model'));
+    $model = configuredUserModel();
 
     // Written with no map: provider is the FQCN.
     $session = establishSession(proofSuccess(userId: 7));

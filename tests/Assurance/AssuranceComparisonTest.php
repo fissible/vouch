@@ -38,6 +38,9 @@ function comparisonClock(string $now): ClockInterface
     };
 }
 
+/**
+ * @param  string|array<string, mixed>  $requirement
+ */
 function compareFully(
     ?AssuranceEvidence $evidence,
     string|array $requirement,
@@ -52,6 +55,9 @@ function compareFully(
     );
 }
 
+/**
+ * @param  string|array<string, mixed>  $requirement
+ */
 function compareEvidence(
     ?AssuranceEvidence $evidence,
     string|array $requirement,

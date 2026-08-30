@@ -89,7 +89,7 @@ function sessionProof(int $userId = 7, string $level = 'aal2', string $at = '202
 
     $factors = [evidenceFactor('password', $at)];
 
-    if ($level === 'aal2' || $level === 'aal3') {
+    if ($level === 'aal2') {
         // A second DISTINCT credential, which is what raises the derived level.
         // Two factors sharing one credentialId are one authenticator.
         $factors[] = evidenceFactor('totp', $at, \Fissible\Vouch\Kernel\Factor\FactorStrength::Possession, 'cred-2');
@@ -111,11 +111,112 @@ function sessionProof(int $userId = 7, string $level = 'aal2', string $at = '202
  */
 function sessionProofFrom(int $userId, array $factors): array
 {
-    $model = stringValue(config('auth.providers.users.model'));
-
     return (new \Fissible\Vouch\Assurance\AssuranceEvidence(
-        \Fissible\Vouch\Tokens\SubjectKey::of((new $model)->getMorphClass(), $userId),
+        \Fissible\Vouch\Tokens\SubjectKey::of(configuredUserProvider(), $userId),
         null,
         $factors,
     ))->toArray();
+}
+
+/**
+ * The provider half of a subject key for the configured user model.
+ *
+ * Resolves and NARROWS rather than assuming: config returns mixed, and
+ * getMorphClass() lives on Eloquent's Model, so an unrelated configured class
+ * must fail loudly here rather than at an unrelated assertion later.
+ */
+function configuredUserProvider(): string
+{
+    $model = configuredUserModel();
+
+    return (new $model)->getMorphClass();
+}
+
+/**
+ * Narrow a nullable adapter read to usable evidence, or fail loudly.
+ *
+ * SessionEvidence::for() is legitimately nullable, so every chained assertion
+ * off it is a possible null dereference. Mirrors timestepOf() in
+ * TotpFactorTest: a real check that names the problem, not a suppression.
+ */
+function usableEvidence(?\Fissible\Vouch\Models\AuthSession $session): \Fissible\Vouch\Assurance\AssuranceEvidence
+{
+    $evidence = \Fissible\Vouch\Sessions\SessionEvidence::for($session);
+
+    if (! $evidence instanceof \Fissible\Vouch\Assurance\AssuranceEvidence) {
+        throw new RuntimeException('Expected usable session evidence, got none.');
+    }
+
+    return $evidence;
+}
+
+/**
+ * The configured user model class, narrowed to a class-string.
+ *
+ * @return class-string<\Illuminate\Database\Eloquent\Model>
+ */
+function configuredUserModel(): string
+{
+    $model = stringValue(config('auth.providers.users.model'));
+
+    if ($model === '' || ! is_subclass_of($model, \Illuminate\Database\Eloquent\Model::class)) {
+        throw new RuntimeException('auth.providers.users.model is not an Eloquent model.');
+    }
+
+    return $model;
+}
+
+/** Narrow a nullable timestamp cast, or fail loudly. */
+function requiredCarbon(mixed $value): \Illuminate\Support\Carbon
+{
+    if (! $value instanceof \Illuminate\Support\Carbon) {
+        throw new RuntimeException('Expected a Carbon timestamp, got none.');
+    }
+
+    return $value;
+}
+
+/**
+ * The request-bindable session Store.
+ *
+ * session() returns a SessionManager; Request::setLaravelSession() requires
+ * Illuminate\Contracts\Session\Session. The driver is the same Store the
+ * manager proxies to, so the id — and the binding — is identical.
+ */
+function sessionStore(): \Illuminate\Contracts\Session\Session
+{
+    $store = session()->driver();
+
+    if (! $store instanceof \Illuminate\Contracts\Session\Session) {
+        throw new RuntimeException('Expected a session Store.');
+    }
+
+    return $store;
+}
+
+/** Narrow a query-builder row, or fail loudly. */
+function requiredRow(mixed $row): stdClass
+{
+    if (! $row instanceof stdClass) {
+        throw new RuntimeException('Expected a database row, got none.');
+    }
+
+    return $row;
+}
+
+/**
+ * Narrow a decoded JSON body to an array, or fail loudly.
+ *
+ * @return array<string, mixed>
+ */
+function jsonBody(mixed $content): array
+{
+    $decoded = json_decode(stringValue($content), true);
+
+    if (! is_array($decoded)) {
+        throw new RuntimeException('Expected a JSON object body.');
+    }
+
+    /** @var array<string, mixed> $decoded */
+    return $decoded;
 }

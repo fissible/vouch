@@ -304,12 +304,12 @@ it('re-evaluates the acting session assurance after removing a factor', function
         'weakest_satisfied_at' => now(),
     ]);
 
-    expect(SessionEvidence::for($acting)?->derivedAcr())->toBe('aal2');
+    expect(usableEvidence($acting)->derivedAcr())->toBe('aal2');
 
     app(CredentialSelfService::class)->removeFactor($acting, $totp->id);
 
     $reloaded = $acting->refresh();
-    $evidence = SessionEvidence::for($reloaded);
+    $evidence = usableEvidence($reloaded);
 
     /*
      * Exact, not "not aal2": null, aal0 or garbage would all satisfy the looser
@@ -318,7 +318,6 @@ it('re-evaluates the acting session assurance after removing a factor', function
      * column beside it.
      */
     expect($reloaded->acr)->toBe('aal1')
-        ->and($evidence)->not->toBeNull()
         ->and($evidence->derivedAcr())->toBe('aal1')
         ->and(array_map(static fn ($f): string => $f->credentialId, $evidence->factors))
         ->not->toContain((string) $totp->id);
