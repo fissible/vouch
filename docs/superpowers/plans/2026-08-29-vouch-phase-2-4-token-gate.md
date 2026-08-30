@@ -80,7 +80,20 @@ custom groups, and unsupported transactional drivers.
 write disappears, including side writes; no `auth_token_assurances` row is written
 by this task yet.
 
-## Task 2a — Persist session assurance evidence (prerequisite)
+## Task 2a — Persist session assurance evidence (prerequisite) — DONE (d09aefd)
+
+**Completed 2026-08-29.** Suite 1690 passed / 1 skipped, PHPStan 0. Duet: eight
+phase-1 review rounds to APPROVE, then five implementer stops on real contract
+defects — every one a genuine contradiction in the frozen tests rather than an
+implementer shortcut, and none of them findable by another review round.
+
+Carried forward, agreed with the implementer and deliberately NOT done here:
+`AssuranceEvidence::derivedAcr()` resolves the vocabulary through `app()`, so a
+readonly value object depends on ambient container state and the same evidence
+can derive different levels. Fixing it means moving vocabulary resolution to the
+adapter boundary across every caller and any host shipping a custom
+`AssuranceVocabulary` — a cross-cutting change that belongs in its own task, not
+smuggled into this one.
 
 **Why this exists, and why it is not folded into Task 2.** The addendum's central
 claim is that `acr` is a projection and authorization reads the immutable persisted
