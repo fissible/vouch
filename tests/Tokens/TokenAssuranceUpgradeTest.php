@@ -218,12 +218,21 @@ final class TokenAssuranceUpgradeTest extends TestCase
     public function the_old_columns_are_gone_rather_than_left_nullable(): void
     {
         /*
-         * A leftover acr/amr/credential_ids column is not inert: it is a cached
-         * assurance level sitting beside the proof that replaced it, which is
+         * A leftover amr/credential_ids column is not inert: it is a cached
+         * assurance summary sitting beside the proof that replaced it, which is
          * precisely the shape Task 2a spent its existence removing from
          * auth_sessions. Nothing should be able to authorize from it again.
+         *
+         * `acr` is DELIBERATELY ABSENT from this list, and its absence is the
+         * point rather than an oversight. The column survives the replacement,
+         * but not its old meaning: it was an authoritative stored level and is
+         * now a projection, nullable, rewritten from the proof on every store,
+         * and forbidden from deciding anything in either direction. That
+         * contract is pinned by TokenAssuranceSchemaTest and TokenEvidenceTest;
+         * banning the column here would contradict them, which is exactly what
+         * an earlier draft of this list did.
          */
-        foreach (['token_id', 'acr', 'amr', 'credential_ids', 'issuing_session_id'] as $column) {
+        foreach (['token_id', 'amr', 'credential_ids', 'issuing_session_id'] as $column) {
             self::assertFalse(
                 Schema::hasColumn('auth_token_assurances', $column),
                 "Legacy column {$column} survived the replacement.",
