@@ -16,6 +16,9 @@ enum AssuranceReason
     case RecoveryGrace;
     case SubjectMismatch;
     case TenantMismatch;
+    case NoAssuranceRecord;
+    case TokenUnusable;
+    case MachineActor;
 
     public function outcome(): AssuranceOutcome
     {

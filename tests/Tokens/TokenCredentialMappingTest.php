@@ -188,4 +188,69 @@ final class TokenCredentialMappingTest extends TestCase
         self::assertSame(1, DB::table('auth_token_credentials')->where('issuer_key', 'passport')->count());
         self::assertSame(1, DB::table('auth_token_assurances')->where('issuer_key', 'passport')->count());
     }
+
+    #[Test]
+    public function a_rolled_back_store_leaves_neither_a_record_nor_its_mappings(): void
+    {
+        /*
+         * Atomicity, tested through the seam Task 3 will actually use rather
+         * than by injecting a failure mid-write — which has no portable
+         * expression across three engines.
+         *
+         * store() must enlist in an enclosing transaction, so a caller that
+         * rolls back leaves nothing behind. Two half-states are possible if it
+         * does not: an assurance record with no mappings, which no credential
+         * revocation can ever reach; or mappings with no record, which make a
+         * revocation sweep report work against a token that does not exist.
+         *
+         * This is also precisely what Task 3 needs, since issuance wraps token
+         * creation and assurance persistence in one outer transaction.
+         */
+        $before = ['assurances' => DB::table('auth_token_assurances')->count(), 'mappings' => DB::table('auth_token_credentials')->count()];
+
+        try {
+            DB::transaction(function (): void {
+                $this->store([
+                    $this->factor('password', 'cred-pw', FactorStrength::Knowledge),
+                    $this->factor('totp', 'cred-totp', FactorStrength::Possession),
+                ]);
+
+                throw new \RuntimeException('The caller failed after recording assurance.');
+            });
+        } catch (\RuntimeException) {
+            // Expected; the assertion is about what survived.
+        }
+
+        self::assertSame($before['assurances'], DB::table('auth_token_assurances')->count());
+        self::assertSame($before['mappings'], DB::table('auth_token_credentials')->count());
+        self::assertSame([], $this->mapped());
+    }
+
+    #[Test]
+    public function a_rolled_back_replacement_leaves_the_previous_record_intact(): void
+    {
+        /*
+         * The harder half. store() REPLACES by deleting first, so a rollback
+         * must restore what it deleted — otherwise a failed re-issuance
+         * destroys a working token's assurance, and the token silently stops
+         * authorizing under default-deny with nothing to point at.
+         */
+        $this->store([
+            $this->factor('password', 'cred-pw', FactorStrength::Knowledge),
+            $this->factor('totp', 'cred-totp', FactorStrength::Possession),
+        ]);
+
+        try {
+            DB::transaction(function (): void {
+                $this->store([$this->factor('password', 'cred-pw', FactorStrength::Knowledge)]);
+
+                throw new \RuntimeException('The replacement failed after deleting the old record.');
+            });
+        } catch (\RuntimeException) {
+            // Expected.
+        }
+
+        self::assertSame(['cred-pw', 'cred-totp'], $this->mapped());
+        self::assertSame(1, DB::table('auth_token_assurances')->count());
+    }
 }

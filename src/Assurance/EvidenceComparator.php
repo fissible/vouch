@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Assurance;
 
-use Fissible\Vouch\Sessions\SessionEvidenceRead;
 use Psr\Clock\ClockInterface;
 
 final readonly class EvidenceComparator
 {
-    public function compare(AssuranceEvidence|SessionEvidenceRead|null $candidate, AssuranceRequirement $requirement, ClockInterface $clock, ?string $tenantId): AssuranceComparison
+    public function compare(AssuranceEvidence|EvidenceRead|null $candidate, AssuranceRequirement $requirement, ClockInterface $clock, ?string $tenantId): AssuranceComparison
     {
-        if ($candidate instanceof SessionEvidenceRead) {
+        if ($candidate instanceof EvidenceRead) {
             if (! $candidate->reason->outcome()->isSufficient()) {
                 return new AssuranceComparison($candidate->reason->outcome(), $candidate->reason);
             }

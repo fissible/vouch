@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Sessions;
 
 use Fissible\Vouch\Assurance\AssuranceEvidence;
+use Fissible\Vouch\Assurance\EvidenceRead;
 use Fissible\Vouch\Assurance\AssuranceReason;
 use Fissible\Vouch\Assurance\MalformedEvidence;
 use Fissible\Vouch\Models\AuthSession;
@@ -18,21 +19,21 @@ final class SessionEvidence
         return self::read($session)->evidence;
     }
 
-    public static function read(?AuthSession $session): SessionEvidenceRead
+    public static function read(?AuthSession $session): EvidenceRead
     {
         if (! $session instanceof AuthSession) {
-            return new SessionEvidenceRead(null, AssuranceReason::NoEvidence);
+            return new EvidenceRead(null, AssuranceReason::NoEvidence);
         }
         // This order is the refusal contract: later checks must not relabel a
         // revoked session as grace, legacy, malformed, or subject-mismatched.
         if ($session->revoked_at !== null) {
-            return new SessionEvidenceRead(null, AssuranceReason::SessionRevoked);
+            return new EvidenceRead(null, AssuranceReason::SessionRevoked);
         }
         if ($session->isRecoveryGrace()) {
-            return new SessionEvidenceRead(null, AssuranceReason::RecoveryGrace);
+            return new EvidenceRead(null, AssuranceReason::RecoveryGrace);
         }
         if ($session->assurance_proof === null) {
-            return new SessionEvidenceRead(null, AssuranceReason::LegacyNoProof);
+            return new EvidenceRead(null, AssuranceReason::LegacyNoProof);
         }
         // Misconfiguration is an operational failure, not malformed tenant
         // data. Resolve it before parsing so ProofMalformed stays truthful.
@@ -42,13 +43,13 @@ final class SessionEvidence
             $evidence = AssuranceEvidence::fromArray($session->assurance_proof);
             $expected = SubjectKey::of((new $model)->getMorphClass(), $session->user_id);
             if (! $evidence->subject->equals($expected)) {
-                return new SessionEvidenceRead(null, AssuranceReason::SubjectMismatch);
+                return new EvidenceRead(null, AssuranceReason::SubjectMismatch);
             }
         } catch (MalformedEvidence) {
-            return new SessionEvidenceRead(null, AssuranceReason::ProofMalformed);
+            return new EvidenceRead(null, AssuranceReason::ProofMalformed);
         }
 
-        return new SessionEvidenceRead($evidence, AssuranceReason::Sufficient);
+        return new EvidenceRead($evidence, AssuranceReason::Sufficient);
     }
 
     /** @return class-string<Model> */
