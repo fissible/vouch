@@ -185,6 +185,32 @@ lifecycle model can report unusability — Passport, or a host driver over a tab
 seam for others rather than a live path, in the same way §3a records that `aal3` is
 unsatisfiable with the shipped vocabulary.
 
+## 3c. Retention: the token assurance record is authentication history
+
+`auth_token_assurances` stores what a person proved and when — factor ids, credential ids,
+satisfaction timestamps, and a provider-qualified subject. That is more sensitive than the
+token it describes: Sanctum's own row is an id and a hash, while this one is a description
+of how someone authenticated. §3b notes that retention surface is why Sanctum declines to
+keep revoked tokens; Vouch must not quietly create a worse version of it.
+
+**Sessions are already bounded.** `vouch.sessions.revocation_retention_days` (default 30)
+prunes revoked sessions, and the proof added by Task 2a rides along on that policy.
+
+**Token assurances are NOT, and this is an obligation on Task 5.** `VouchPruneCommand` does
+not touch the table, and records are orphaned silently: Sanctum ships `sanctum:prune-expired`
+for hosts to schedule, and `$user->tokens()->delete()` is the ordinary revoke-all. Both hard
+-delete rows without telling Vouch, so a record outlives its token indefinitely.
+
+**Do NOT prune by `weakest_satisfied_at`.** It is authentication-evidence time, not token
+age. A legitimately long-lived token has an old anchor, so an age-based sweep deletes records
+for LIVE tokens — and because §2's gate is default-deny, those tokens then stop working with
+no diagnosable cause. This is the obvious fix and it is wrong.
+
+The sound mechanism is an orphan sweep: only the issuer knows whether a token still exists,
+so `TokenIssuer` gains an existence check and the sweep reclaims records the issuer no longer
+recognises. Explicit revocation is handled separately by `forget()` on the revocation path.
+Both belong to Task 5, where revocation and the issuer contract are already open.
+
 ## 4. Schema and migration
 
 The existing table is keyed by unique `token_id`; the new key is `(issuer_key, token_key)`.

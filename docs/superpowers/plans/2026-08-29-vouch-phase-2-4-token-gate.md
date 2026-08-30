@@ -303,6 +303,20 @@ unchanged.
 
 ## Task 5 — Credential and subject revocation protocol
 
+**Carries a retention obligation from Task 2 (addendum §3c).** The token assurance
+record is authentication history — what a person proved, with which credentials,
+when — and nothing reclaims it. Sessions are bounded by
+`revocation_retention_days`; token assurances have no policy, and
+`sanctum:prune-expired` and `$user->tokens()->delete()` orphan rows with no
+notification. Task 5 must add an orphan sweep driven by an issuer existence
+check, because only the issuer knows whether a token still exists, and must NOT
+prune by `weakest_satisfied_at`: that is evidence age, not token age, so it
+would delete records for live long-lived tokens and make them fail closed with
+no diagnosable cause.
+
+Add a guard test too — nothing currently catches a new table shipping without a
+retention policy, which is how this one got missed.
+
 Create one `CredentialMutation` facade owning connection, transaction, subject lock,
 credential locks, assurance/mapping deletion, and credential writes. Route all
 sixteen current credential writers through it and add a boundary architecture test
