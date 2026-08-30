@@ -121,26 +121,14 @@ final class TokenCredentialMappingTest extends TestCase
         self::assertSame(['cred-1'], $this->mapped());
     }
 
-    #[Test]
-    public function mappings_are_written_in_deterministic_credential_order(): void
-    {
-        /*
-         * Task 3 acquires locks in credential order to make concurrent issuance
-         * and revocation deadlock-free. That ordering has to be a property of
-         * the stored set, not of whatever order the proof happened to arrive in,
-         * or two callers holding the same credentials can still cross.
-         */
-        $this->store([
-            $this->factor('totp', 'cred-z', FactorStrength::Possession),
-            $this->factor('password', 'cred-a', FactorStrength::Knowledge),
-        ], key: '1');
-        $this->store([
-            $this->factor('password', 'cred-a', FactorStrength::Knowledge),
-            $this->factor('totp', 'cred-z', FactorStrength::Possession),
-        ], key: '2');
-
-        self::assertSame($this->mapped('1'), $this->mapped('2'));
-    }
+    /*
+     * A "deterministic write order" test stood here and was removed rather than
+     * repaired. It sorted the rows on READ, so both orderings passed it, and
+     * database row order is not a locking guarantee in any case. The property
+     * it was reaching for — that concurrent issuance and revocation acquire
+     * credential locks in one order and cannot deadlock — is a property of the
+     * lock acquisition, and belongs to Task 3's contract where the locks exist.
+     */
 
     #[Test]
     public function re_recording_a_token_replaces_its_mappings(): void

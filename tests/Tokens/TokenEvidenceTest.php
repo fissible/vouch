@@ -252,4 +252,108 @@ final class TokenEvidenceTest extends TestCase
         self::assertNotNull($evidence);
         self::assertSame('aal1', $evidence->derivedAcr());
     }
+
+    #[Test]
+    public function a_human_record_refuses_an_empty_or_recovery_only_proof(): void
+    {
+        /*
+         * The actor-specific stored invariant, which the machine tests alone do
+         * not pin. A human record with no factors is a token that proved
+         * nothing while claiming a person authorized it — and since a machine
+         * record legitimately has none, an implementation could satisfy every
+         * other test by writing humans the same way.
+         */
+        $recovery = new SatisfiedFactor('recovery_code', 'cred-r', FactorKind::Knowledge, FactorStrength::Recovery,
+            false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'));
+
+        foreach ([[], [$recovery]] as $factors) {
+            try {
+                $this->record()->store('sanctum', 'x', $this->subject(), null, ActorKind::Human, $factors);
+                self::fail('A human record accepted a proof that proves nothing.');
+            } catch (\Throwable $e) {
+                self::assertInstanceOf(\Fissible\Vouch\Assurance\MalformedEvidence::class, $e);
+            }
+        }
+    }
+
+    #[Test]
+    public function a_machine_record_refuses_human_factors(): void
+    {
+        /*
+         * The other direction. A machine token carrying a person's factors
+         * would tie a service credential to a human's credential lifecycle and,
+         * worse, make actor_kind a label rather than a fact about the row.
+         */
+        $this->expectException(\Fissible\Vouch\Assurance\MalformedEvidence::class);
+
+        $this->record()->store('sanctum', 'svc-2', $this->subject(), null, ActorKind::Machine, $this->proof());
+    }
+
+    #[Test]
+    public function the_stored_anchor_is_the_proofs_oldest_timestamp(): void
+    {
+        /*
+         * weakest_satisfied_at is non-null by schema, which means an
+         * implementation MUST put something there — and for a machine record,
+         * with no factors, there is no authentication instant to put. Pin the
+         * meaning for both actor kinds rather than leaving a fabricated
+         * issuance timestamp to satisfy the constraint silently.
+         */
+        $this->stored();
+
+        self::assertSame(
+            '2026-08-13 10:00:00',
+            substr((string) DB::table('auth_token_assurances')->value('weakest_satisfied_at'), 0, 19),
+        );
+    }
+
+    #[Test]
+    public function a_machine_record_does_not_fabricate_an_authentication_instant(): void
+    {
+        /*
+         * A machine token has no authentication evidence, so any value in the
+         * recency column would be a fiction — and a max_age requirement reading
+         * it would be answering a question that was never asked. The record
+         * must be storable without inventing one.
+         */
+        $this->record()->store('sanctum', 'svc-1', $this->subject(), null, ActorKind::Machine, []);
+
+        $anchor = DB::table('auth_token_assurances')->where('token_key', 'svc-1')->value('weakest_satisfied_at');
+
+        self::assertNull($anchor);
+    }
+
+    #[Test]
+    public function it_refuses_a_record_whose_stored_json_is_not_decodable(): void
+    {
+        // Distinct from a well-formed envelope with a bad factor: a truncated
+        // write, or a column that lost its cast, produces a string that is not
+        // JSON at all.
+        $this->stored();
+        DB::table('auth_token_assurances')->update(['assurance_proof' => '{"subject":']);
+
+        $read = $this->record()->read(new ResolvedToken('sanctum', '42', $this->subject(), true));
+
+        self::assertNull($read->evidence);
+        self::assertSame(AssuranceReason::ProofMalformed, $read->reason);
+    }
+
+    #[Test]
+    public function it_refuses_a_human_record_with_no_recency_anchor(): void
+    {
+        /*
+         * The read-side half of the actor-scoped invariant. The column is
+         * nullable so machine records can exist, which means a human row CAN be
+         * hand-edited or half-written into a state its proof contradicts.
+         * Authorization must refuse it rather than compare a requirement
+         * against a missing instant.
+         */
+        $this->stored();
+        DB::table('auth_token_assurances')->update(['weakest_satisfied_at' => null]);
+
+        $read = $this->record()->read(new ResolvedToken('sanctum', '42', $this->subject(), true));
+
+        self::assertNull($read->evidence);
+        self::assertSame(AssuranceReason::ProofMalformed, $read->reason);
+    }
 }

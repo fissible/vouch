@@ -112,17 +112,32 @@ final class TokenAssuranceSchemaTest extends TestCase
     }
 
     #[Test]
-    public function the_recency_anchor_cannot_be_null(): void
+    public function the_recency_anchor_is_nullable_because_machine_records_have_none(): void
     {
         /*
-         * A null anchor is unanswerable for a max_age requirement: treated as
-         * "no limit" it fails open for every recorded token, and treated as
-         * "infinitely old" it locks out every one. Neither is a policy, so the
-         * column must refuse the case outright.
+         * A null anchor is unanswerable for a max_age requirement — read as "no
+         * limit" it fails open, read as "infinitely old" it locks out — so the
+         * obvious move is NOT NULL. That is wrong here, and the contract said
+         * so in two places at once until this was caught.
+         *
+         * A machine token carries no authentication evidence, so it has no
+         * instant to record, and forcing the column non-null would make every
+         * machine record store a fabricated timestamp — a fiction a later
+         * recency check would happily read.
+         *
+         * The invariant is therefore actor-scoped and lives in the adapter, not
+         * the column: a HUMAN record always has an anchor because its proof is
+         * non-empty, a machine record has none, and a human row found without
+         * one is refused at the read boundary. Machines never reach a recency
+         * comparison anyway — MachineActor refuses first.
          */
-        $this->expectException(QueryException::class);
+        DB::table('auth_token_assurances')->insert($this->row([
+            'token_key' => 'svc-1',
+            'actor_kind' => 'machine',
+            'weakest_satisfied_at' => null,
+        ]));
 
-        DB::table('auth_token_assurances')->insert($this->row(['weakest_satisfied_at' => null]));
+        self::assertNull(DB::table('auth_token_assurances')->where('token_key', 'svc-1')->value('weakest_satisfied_at'));
     }
 
     #[Test]
@@ -137,25 +152,39 @@ final class TokenAssuranceSchemaTest extends TestCase
     }
 
     #[Test]
-    public function credential_mappings_are_scoped_to_their_issuer(): void
+    public function two_issuers_may_map_the_same_credential_to_the_same_token_key(): void
     {
         /*
-         * The mapping table is read on a revocation path: "which tokens does
-         * this credential authorize?" Scoped by credential alone, disabling a
-         * credential would revoke a DIFFERENT issuer's token that happens to
-         * share a token key — and, worse, would miss nothing while appearing to
-         * work.
+         * The schema half of issuer scoping: the uniqueness must be on the
+         * TRIPLE, not on (token_key, credential_id). If this throws, one
+         * issuer's mapping blocks another's and the second driver can never
+         * record.
+         *
+         * An earlier draft "proved" scoping by issuing a query with the issuer
+         * predicate already in it — which demonstrates the test's own WHERE
+         * clause and nothing about the schema. Whether a revocation sweep
+         * actually scopes its reads is a property of the sweep, and belongs to
+         * Task 5 where the sweep exists.
          */
         DB::table('auth_token_credentials')->insert([
             ['issuer_key' => 'sanctum', 'token_key' => '42', 'credential_id' => '9'],
             ['issuer_key' => 'passport', 'token_key' => '42', 'credential_id' => '9'],
         ]);
 
-        $scoped = DB::table('auth_token_credentials')
-            ->where('issuer_key', 'sanctum')->where('credential_id', '9')->get();
+        self::assertSame(2, DB::table('auth_token_credentials')->count());
+    }
 
-        self::assertCount(1, $scoped);
-        self::assertSame('sanctum', $scoped->first()?->issuer_key);
+    #[Test]
+    public function the_assurance_record_rejects_an_empty_issuer_or_token_key(): void
+    {
+        /*
+         * An empty identity half is not a token. Permitted, it creates a row
+         * that every composite lookup misses and no revocation sweep can find,
+         * which reads as "this token has no assurance" forever.
+         */
+        $this->expectException(QueryException::class);
+
+        DB::table('auth_token_assurances')->insert($this->row(['token_key' => null]));
     }
 
     #[Test]

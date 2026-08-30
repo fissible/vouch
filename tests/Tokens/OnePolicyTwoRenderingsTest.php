@@ -145,8 +145,15 @@ final class OnePolicyTwoRenderingsTest extends TestCase
          * requirement below is judged twice and required to agree — including
          * the refusals, and including WHY they were refused.
          */
+        /*
+         * BOTH sides enter the comparator as an EvidenceRead. An earlier draft
+         * passed the session as a bare AssuranceEvidence and the token as a
+         * read result, which is asymmetric: it would keep passing under a
+         * comparator that had grown a separate union arm per surface, which is
+         * precisely the drift this file exists to catch.
+         */
         $factors = $this->proof();
-        $session = SessionEvidence::for($this->establishedSession($factors));
+        $session = SessionEvidence::read($this->establishedSession($factors));
         $token = app(TokenAssuranceRecord::class)->read($this->recordedToken($factors));
         $comparator = app(EvidenceComparator::class);
 
@@ -180,7 +187,7 @@ final class OnePolicyTwoRenderingsTest extends TestCase
          * Both proofs are six weeks old. Both must be refused.
          */
         $factors = $this->proof(oldest: '2026-07-01T10:00:00+00:00');
-        $session = SessionEvidence::for($this->establishedSession($factors));
+        $session = SessionEvidence::read($this->establishedSession($factors));
         $token = app(TokenAssuranceRecord::class)->read($this->recordedToken($factors));
         $requirement = AssuranceRequirement::from(['level' => 'aal2', 'max_age' => 'PT1H']);
         $comparator = app(EvidenceComparator::class);
@@ -199,7 +206,7 @@ final class OnePolicyTwoRenderingsTest extends TestCase
     public function both_surfaces_refuse_a_tenant_mismatch_identically(): void
     {
         $factors = $this->proof();
-        $session = SessionEvidence::for($this->establishedSession($factors));
+        $session = SessionEvidence::read($this->establishedSession($factors));
         $token = app(TokenAssuranceRecord::class)->read($this->recordedToken($factors));
         $comparator = app(EvidenceComparator::class);
 
@@ -228,5 +235,27 @@ final class OnePolicyTwoRenderingsTest extends TestCase
         self::assertInstanceOf(\Fissible\Vouch\Assurance\EvidenceRead::class, $sessionRead);
         self::assertInstanceOf(\Fissible\Vouch\Assurance\EvidenceRead::class, $tokenRead);
         self::assertSame($sessionRead::class, $tokenRead::class);
+
+        /*
+         * And the comparator's own signature carries no per-surface arm. The
+         * bare AssuranceEvidence form stays — Task 2a's value-level tests judge
+         * evidence with no adapter in play, which is legitimate and does not
+         * create drift. What must never appear is a SECOND read type, because
+         * that is a union that grows once per surface and is where the two
+         * assurance models diverge.
+         */
+        $parameter = (new \ReflectionMethod(EvidenceComparator::class, 'compare'))->getParameters()[0];
+        $arms = array_map(
+            static fn (\ReflectionNamedType $t): string => $t->getName(),
+            ($parameter->getType() instanceof \ReflectionUnionType) ? $parameter->getType()->getTypes() : [],
+        );
+
+        self::assertContains(\Fissible\Vouch\Assurance\EvidenceRead::class, $arms);
+        self::assertNotContains(\Fissible\Vouch\Sessions\SessionEvidenceRead::class, $arms);
+        self::assertCount(
+            1,
+            array_filter($arms, static fn (string $arm): bool => str_ends_with($arm, 'EvidenceRead')),
+            'The comparator grew a second read type; that union is where the surfaces drift apart.',
+        );
     }
 }

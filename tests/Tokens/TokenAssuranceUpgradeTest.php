@@ -8,6 +8,7 @@ use Fissible\Vouch\Tests\Support\Tokens\UsesSanctumSchema;
 use Fissible\Vouch\Tests\TestCase;
 use Fissible\Vouch\VouchServiceProvider;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\SanctumServiceProvider;
@@ -64,9 +65,15 @@ final class TokenAssuranceUpgradeTest extends TestCase
             $path = (string) $file->getRealPath();
             $relative = str_replace($root . '/', '', $path);
 
-            // The model itself is the surface being described, and the new
-            // record adapter legitimately owns the replacement table.
-            if ($relative === 'Models/AuthTokenAssurance.php' || str_starts_with($relative, 'Tokens/')) {
+            /*
+             * Whitelist the two files that legitimately own this table, and
+             * NOTHING wider. An earlier draft excluded all of src/Tokens/ —
+             * which is exactly where the new adapter and any future
+             * authorization reader live, so a Tokens/TokenGate reading the
+             * table directly would have passed the assertion designed to catch
+             * it.
+             */
+            if (in_array($relative, ['Models/AuthTokenAssurance.php', 'Tokens/TokenAssuranceRecord.php'], true)) {
                 continue;
             }
 
@@ -94,6 +101,96 @@ final class TokenAssuranceUpgradeTest extends TestCase
         }
 
         self::assertSame([], $offenders, 'A runtime consumer appeared; drop-and-recreate is no longer safe.');
+    }
+
+    #[Test]
+    public function an_installed_host_on_the_old_shape_is_carried_forward(): void
+    {
+        /*
+         * THE upgrade, which the rest of this file does not test.
+         * DatabaseMigrations starts from an empty database, so editing the
+         * original create migration in place satisfies every other assertion
+         * here while an installed 0.1.1 host keeps its token_id table forever
+         * and never runs anything. The replacement must therefore be a NEW
+         * migration, and it must run over the historic shape.
+         *
+         * Built by hand rather than by rolling back, because the historic shape
+         * is what shipped — reconstructing it from the current migration would
+         * test today's code against itself.
+         */
+        Schema::dropIfExists('auth_token_assurances');
+        Schema::dropIfExists('auth_token_credentials');
+
+        Schema::create('auth_token_assurances', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('token_id')->unique();
+            $table->string('acr', 64);
+            $table->json('amr');
+            $table->json('credential_ids');
+            $table->string('issuing_session_id', 255)->index();
+            $table->timestamp('issued_at');
+            $table->timestamps();
+        });
+
+        DB::table('auth_token_assurances')->insert([
+            'token_id' => 42,
+            'acr' => 'aal2',
+            'amr' => json_encode(['password', 'totp']),
+            'credential_ids' => json_encode([9]),
+            'issuing_session_id' => 'sess-1',
+            'issued_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $migration = self::replacementMigration();
+        $migration->up();
+
+        // Recreated, not altered: the old row is GONE rather than half-migrated
+        // into a shape whose proof column nobody ever wrote.
+        self::assertFalse(Schema::hasColumn('auth_token_assurances', 'token_id'));
+        self::assertTrue(Schema::hasColumn('auth_token_assurances', 'issuer_key'));
+        self::assertSame(0, DB::table('auth_token_assurances')->count());
+        self::assertTrue(Schema::hasTable('auth_token_credentials'));
+    }
+
+    #[Test]
+    public function the_replacement_ships_as_a_new_migration_not_an_edit_to_history(): void
+    {
+        /*
+         * The distinction an installed host depends on. Editing
+         * 2026_08_12_000009_create_auth_token_assurances.php changes nothing for
+         * anyone who already migrated; only a new file runs.
+         */
+        $original = glob(self::migrationsDirectory() . '/*create_auth_token_assurances*.php');
+        $replacement = glob(self::migrationsDirectory() . '/*token_assurance_identity*.php');
+
+        self::assertNotSame([], $original === false ? [] : $original, 'The historic migration must remain.');
+        self::assertCount(1, $replacement === false ? [] : $replacement);
+    }
+
+    private static function migrationsDirectory(): string
+    {
+        $dir = realpath(__DIR__ . '/../../database/migrations');
+
+        if ($dir === false) {
+            throw new \RuntimeException('The migrations directory does not exist.');
+        }
+
+        return $dir;
+    }
+
+    private static function replacementMigration(): \Illuminate\Database\Migrations\Migration
+    {
+        $matches = glob(self::migrationsDirectory() . '/*token_assurance_identity*.php');
+        $matches = $matches === false ? [] : $matches;
+
+        self::assertCount(1, $matches);
+
+        /** @var \Illuminate\Database\Migrations\Migration $migration */
+        $migration = require $matches[0];
+
+        return $migration;
     }
 
     #[Test]
