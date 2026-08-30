@@ -275,7 +275,13 @@ persistence and issuer-scoped mappings.
 
 Add `Vouch::issueToken()` (or the approved service seam) that:
 
-1. requires a server-resolved, non-revoked, non-expired, non-grace session;
+1. requires a session RESOLVED from live host authentication — currently
+   authenticated, non-revoked, non-grace. NOT "non-expired": `auth_sessions` has
+   no expiry column and none is added mid-phase, because browser-session
+   lifetime belongs to the host's session driver, not to Vouch. And not a
+   caller-supplied `AuthSession`: a passed model still carries the `revoked_at`
+   it was loaded with, so a caller could hand over a session the database has
+   since killed. The server row is re-read under the lock;
 2. binds the session subject exactly to the requested subject;
 3. evaluates the closed `token_issue` intent and obtains the persisted proof;
 4. acquires the per-subject lock, then a lock on EVERY credential in that proof, in ID
@@ -284,7 +290,26 @@ Add `Vouch::issueToken()` (or the approved service seam) that:
 5. revalidates credentials;
 6. calls the issuer on the same connection;
 7. writes assurance and credential mappings; and
-8. commits before returning plaintext.
+8. NEVER opens or commits a transaction of its own — it enlists in the
+   caller's, so a host that wraps issuance with its own writes and rolls back is
+   not left holding a live token and assurance record it believes it undid.
+
+An earlier draft of this list said "commits before returning plaintext", which
+contradicts enlistment: a synchronous call cannot both guarantee committed state
+on return and leave the commit to a caller who may still roll back. Enlistment
+wins, and the cost is a HOST OBLIGATION recorded here and in the API docs — the
+plaintext is returned before the outer commit and must not be disclosed or used
+until that commit succeeds.
+
+**Tenant-scoped issuance is unavailable in this release.** `SessionLifecycle`
+persists evidence with a null tenant, so no session can produce tenant-scoped
+evidence and a tenant grant has nothing to match; issuance refuses, which is
+correct and fail-closed. This is NOT the same as `aal3` being unsatisfiable: the
+flow already knows the attempt's tenant and drops it before the session writer,
+so the capability is a wiring gap rather than a missing vocabulary. No new column
+is needed — the persisted proof already carries `tenant_id`. Tracked follow-up:
+carry the attempt tenant into `AuthSuccess` and through to persisted session
+evidence.
 
 Client Sanctum abilities never become policy input; the host constructs the
 immutable grant.

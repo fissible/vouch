@@ -121,9 +121,19 @@ raw session or token ids, and a bare mutable `acr`.
 
 ## Issuance invariants
 
-Server-side session required; session subject === token subject; session not revoked, not
-expired, not recovery-grace; a persisted proof satisfying `token_issue` at issuance time.
-Never derived from an ambient `auth()->user()`.
+Session RESOLVED from live host authentication — not supplied by the caller, because a
+passed model carries the state it was loaded with rather than the state the database now
+holds. Session subject === token subject; not revoked; not recovery-grace; a persisted proof
+satisfying `token_issue` at issuance time. Never derived from an ambient `auth()->user()`.
+
+"Not expired" is deliberately absent: `auth_sessions` has no expiry column, and browser
+session lifetime belongs to the host's session driver. Current validity IS the live host
+authentication, which is why the session is resolved rather than accepted.
+
+Issuance never opens or commits a transaction of its own. It enlists in the caller's, so a
+host rolling back its surrounding work is not left holding a live token. The plaintext is
+therefore returned before the outer commit, and the host must not disclose it until that
+commit succeeds.
 
 `token_issue` is a closed typed intent resolved through the ordinary policy chain, taking a
 server-constructed `TokenIssuanceContext`. Client-supplied Sanctum abilities never become

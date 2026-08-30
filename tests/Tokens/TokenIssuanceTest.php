@@ -113,15 +113,26 @@ final class TokenIssuanceTest extends TestCase
         $at = ['password' => '2026-08-13T10:00:00+00:00', 'totp' => '2026-08-13T10:05:00+00:00'];
         $strength = ['password' => FactorStrength::Knowledge, 'totp' => FactorStrength::Possession];
 
+        // The KINDS the shipped drivers actually emit. An earlier draft marked
+        // totp as Knowledge, which persists evidence no real login could
+        // produce and would mask an implementation that copied the wrong field.
+        $kind = ['password' => FactorKind::Knowledge, 'totp' => FactorKind::Possession];
+
         $factors = array_map(
             fn (string $id): SatisfiedFactor => new SatisfiedFactor(
-                $id, (string) $credentials[$id]->id, FactorKind::Knowledge, $strength[$id],
+                $id, (string) $credentials[$id]->id, $kind[$id], $strength[$id],
                 false, false, false, null, new DateTimeImmutable($at[$id]),
             ),
             $factorIds,
         );
 
+        // AUTHENTICATE THE HOST GUARD. Issuance resolves the session from live
+        // host authentication, so a helper that only writes an auth_sessions row
+        // would let every test here pass against an implementation that trusts a
+        // surviving Vouch row after logout.
+        $this->actingAs(TokenUser::query()->findOrFail($userId));
         session()->start();
+
         app(SessionLifecycle::class)->establish(
             new AuthSuccess($userId, $factors, AssuranceFacts::fromFactors($factors), 'ignored', 'ignored'),
         );
@@ -407,5 +418,27 @@ final class TokenIssuanceTest extends TestCase
         $this->expectException(IssuanceRefused::class);
 
         Vouch::issueToken($this->grant(tenantId: 'acme'));
+    }
+
+    #[Test]
+    public function it_refuses_when_the_vouch_row_outlives_the_host_login(): void
+    {
+        /*
+         * THE discriminating case for resolving from live authentication. The
+         * auth_sessions row is intact and not revoked — only the host principal
+         * is gone, which is what an ordinary logout leaves behind until the
+         * record is pruned.
+         *
+         * An implementation that looks the row up by binding and asks no further
+         * question mints happily here, and every other test in this file passes
+         * for it.
+         */
+        $this->establishedSession();
+
+        auth()->logout();
+
+        $this->expectException(IssuanceRefused::class);
+
+        Vouch::issueToken($this->grant());
     }
 }

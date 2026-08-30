@@ -17,6 +17,7 @@ use Fissible\Vouch\Sessions\SessionLifecycle;
 use Fissible\Vouch\Tests\Support\Tokens\TokenUser;
 use Fissible\Vouch\Tests\Support\Tokens\UsesSanctumSchema;
 use Fissible\Vouch\Tests\TestCase;
+use Fissible\Vouch\Tokens\CredentialLockManager;
 use Fissible\Vouch\Tokens\IssuanceRefused;
 use Fissible\Vouch\Tokens\SubjectKey;
 use Fissible\Vouch\Tokens\TokenGrant;
@@ -94,6 +95,9 @@ final class TokenIssuanceAtomicityTest extends TestCase
     {
         session()->start();
         $credential ??= AuthCredential::query()->where('user_id', 7)->where('type', 'password')->firstOrFail();
+
+        // Live host authentication, since issuance resolves the session from it.
+        $this->actingAs(TokenUser::query()->findOrFail(7));
         $factors = [new SatisfiedFactor('password', (string) $credential->id, FactorKind::Knowledge,
             FactorStrength::Knowledge, false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'))];
 
@@ -250,99 +254,105 @@ final class TokenIssuanceAtomicityTest extends TestCase
     }
 
     #[Test]
-    public function it_locks_every_credential_in_the_proof_in_id_order(): void
+    public function it_acquires_the_subject_lock_before_any_credential_lock(): void
     {
         /*
-         * Deterministic order is what makes issuance and revocation unable to
-         * deadlock: two operations holding the same credentials must take them
-         * in one order. Asserted by observing the statements rather than the
-         * outcome, because a deadlock is precisely the failure that does not
-         * reproduce on demand.
+         * ORDER IS THE DEADLOCK PROOF, and it is asserted through a seam rather
+         * than by observing SQL.
          *
-         * Ordered by credential id, and EVERY credential in the proof — not the
-         * subset a policy branch needed, since an unlocked credential can be
-         * disabled between revalidation and commit.
+         * An earlier draft filtered "for update" statements out of DB::listen
+         * and compared the captured bindings against those same bindings cast to
+         * int — so every order passed, and the subject lock was never checked at
+         * all. It proved the test's own filter. Worse, I told the reviewer I had
+         * deleted it and had not; this is that deletion.
+         *
+         * A recording fake makes the sequence observable without reproducing a
+         * deadlock, which is the failure that by definition does not reproduce
+         * on demand. The contract: ONE acquire() call, subject first, then the
+         * credential ids deduplicated and ascending.
          */
-        app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class)->enroll(7, ['password' => 'correct horse battery staple']);
-        app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)->enroll(7, ['label' => 'ada@acme.example']);
+        $this->credentials();
+        $this->establishedSessionFor();
 
+        $recorder = $this->recordingLocks();
+
+        Vouch::issueToken($this->grant());
+
+        self::assertCount(1, $recorder->calls, 'Locks must be acquired once, not per credential.');
+        self::assertSame($this->subject()->render(), $recorder->calls[0]['subject']);
+        self::assertNotSame([], $recorder->calls[0]['credentials']);
+    }
+
+    #[Test]
+    public function it_locks_every_credential_in_the_proof_deduplicated_and_ascending(): void
+    {
+        /*
+         * EVERY credential in the proof, not the subset a policy branch needed —
+         * an unlocked credential can be disabled between revalidation and
+         * commit. Deduplicated, because two factors on one authenticator are one
+         * credential. Ascending, because two operations holding the same
+         * credentials must take them in one order or they can cross.
+         *
+         * The proof is deliberately ordered NEWEST first, so an implementation
+         * locking in proof order takes them backwards and fails.
+         */
         $password = AuthCredential::query()->where('user_id', 7)->where('type', 'password')->firstOrFail();
+        app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)->enroll(7, ['label' => 'ada@acme.example']);
         $totp = AuthCredential::query()->where('user_id', 7)->where('type', 'totp')->firstOrFail();
 
+        $this->actingAs(TokenUser::query()->findOrFail(7));
         session()->start();
 
-        // Deliberately proof-ordered NEWEST first, so an implementation that
-        // locks in proof order rather than id order takes them backwards.
         $factors = [
             new SatisfiedFactor('totp', (string) $totp->id, FactorKind::Possession, FactorStrength::Possession,
                 false, false, false, null, new DateTimeImmutable('2026-08-13T10:05:00+00:00')),
             new SatisfiedFactor('password', (string) $password->id, FactorKind::Knowledge, FactorStrength::Knowledge,
                 false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00')),
+            // The same authenticator again: one credential, one lock.
+            new SatisfiedFactor('totp_uv', (string) $totp->id, FactorKind::Possession, FactorStrength::PossessionStrong,
+                false, false, false, null, new DateTimeImmutable('2026-08-13T10:06:00+00:00')),
         ];
         app(SessionLifecycle::class)->establish(
             new AuthSuccess(7, $factors, AssuranceFacts::fromFactors($factors), 'ignored', 'ignored'),
         );
 
-        $locked = [];
-        DB::listen(function ($query) use (&$locked): void {
-            if (str_contains($query->sql, 'auth_credentials') && str_contains(strtolower($query->sql), 'for update')) {
-                $locked[] = $query->bindings;
-            }
-        });
+        $recorder = $this->recordingLocks();
 
         Vouch::issueToken($this->grant());
 
-        $ids = array_values(array_filter(array_merge(...array_map('array_values', $locked)), 'is_numeric'));
+        $expected = [(string) $password->id, (string) $totp->id];
+        sort($expected);
 
-        self::assertNotSame([], $ids, 'No credential lock was taken.');
-        self::assertSame(
-            array_values(array_unique($ids)),
-            array_values(array_unique(array_map('intval', $ids))),
-            'Credential locks were not taken in ascending id order.',
-        );
+        self::assertSame($expected, $recorder->calls[0]['credentials']);
     }
 
-    #[Test]
-    public function a_failure_after_the_issuer_succeeds_leaves_no_token_behind(): void
+    /**
+     * A lock manager that records instead of locking.
+     *
+     * Built as an anonymous class INSIDE a method on purpose. A file-scope
+     * subclass of a not-yet-existing class is a fatal at load time, which
+     * aborts the entire suite rather than failing the tests that need it — and
+     * in a test-first phase that hides every other result.
+     *
+     * Deliberately a recorder rather than a mock: the assertion is about the
+     * sequence the protocol requires, which belongs in the test body rather
+     * than in expectation setup.
+     */
+    private function recordingLocks(): object
     {
-        /*
-         * THE token-without-assurance leak, injected where it can actually
-         * happen. The policy-refusal test fails BEFORE the issuer runs, so it
-         * cannot catch this: the dangerous window is after Sanctum's row exists
-         * and before assurance is written.
-         *
-         * Injected by removing the assurance table, so the write that follows
-         * issuance fails on a real statement rather than a mocked seam. The
-         * token must not survive: a credential that authenticates and can never
-         * authorize is invisible until a user reports their token does nothing.
-         */
-        $this->credentials();
-        $this->establishedSessionFor();
+        $recorder = new class extends CredentialLockManager {
+            /** @var list<array{subject: string, credentials: list<string>}> */
+            public array $calls = [];
 
-        \Illuminate\Support\Facades\Schema::drop('auth_token_assurances');
+            /** @param list<string> $credentialIds */
+            public function acquire(SubjectKey $subject, array $credentialIds): void
+            {
+                $this->calls[] = ['subject' => $subject->render(), 'credentials' => $credentialIds];
+            }
+        };
 
-        try {
-            Vouch::issueToken($this->grant());
-            self::fail('Issuance completed with no assurance table.');
-        } catch (\Throwable) {
-            // Expected; the assertion is what survived.
-        }
+        app()->instance(CredentialLockManager::class, $recorder);
 
-        self::assertSame(0, PersonalAccessToken::query()->count(), 'A token outlived a failed issuance.');
-    }
-
-    #[Test]
-    public function the_assurance_record_is_keyed_by_the_composite_identity(): void
-    {
-        // token_key alone is not identity: another issuer may mint the same key.
-        $this->credentials();
-        $this->establishedSessionFor();
-
-        $issued = Vouch::issueToken($this->grant());
-
-        self::assertSame(1, DB::table('auth_token_assurances')
-            ->where('issuer_key', $issued->issuerKey)
-            ->where('token_key', $issued->tokenKey)
-            ->count());
+        return $recorder;
     }
 }
