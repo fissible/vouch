@@ -214,21 +214,25 @@ comparator can distinguish invalid token identity from insufficient assurance.
 Keep `weakest_satisfied_at` as authentication-evidence time, never issuance time,
 and `(issuer_key, token_key)` as the canonical token identity from the outset.
 
-Introduce `AssuranceEvidence` as the common immutable value consumed by both session
-and token authorization. Add strict deserialization into non-nullable
-`SatisfiedFactor` values; malformed persisted evidence fails closed at the read
-boundary.
+**Already delivered by Task 2a, and NOT repeated here.** `AssuranceEvidence`,
+its strict deserialization, `AssuranceRequirement`, the typed
+`AssuranceComparison`/`AssuranceReason`, `EvidenceComparator` and
+`AssuranceLevelComparator` all exist and are covered. Task 2's job is the TOKEN
+ADAPTER and its storage — a second adapter onto one model, not a second model.
+Re-asserting the value-level rules here would duplicate coverage and, worse,
+create a place for the two surfaces to drift apart.
 
-Generalize `AssuranceComparator` from `AuthSession` to evidence adapters while
-preserving the existing session behavior. Define and test:
+What Task 2 must establish that 2a could not:
 
-- persisted-proof identity and deterministic credential ordering;
-- derived ACR versus re-derived authorization;
-- `weakest_satisfied_at = MIN(satisfied_at)`;
-- UTC comparison against injected `ClockInterface`;
-- ISO-8601 configuration to integer RFC `max_age` rendering;
-- revoked and recovery-grace sessions/tokens;
-- missing or malformed evidence.
+- a token adapter producing the same `AssuranceEvidence` a session adapter does,
+  judged by the same comparator against the same requirement;
+- `(issuer_key, token_key)` composite identity, string-typed, replacing the old
+  single `token_id`;
+- the normalized credential mapping table, carrying EVERY credential in the
+  proof (§7 as amended) so disabling any one of them invalidates the token;
+- `actor_kind`, with machine tokens carrying no human factors and satisfying no
+  AAL requirement;
+- token revocation and expiry as read-boundary refusals with their own reasons.
 
 Replace the old token assurance schema with the composite issuer/token identity,
 canonical subject key, tenant, actor kind, weakest timestamp, persisted-proof
