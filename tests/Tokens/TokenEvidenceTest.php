@@ -317,7 +317,7 @@ final class TokenEvidenceTest extends TestCase
 
         self::assertSame(
             '2026-08-13 10:00:00',
-            substr((string) DB::table('auth_token_assurances')->value('weakest_satisfied_at'), 0, 19),
+            substr(stringValue(DB::table('auth_token_assurances')->value('weakest_satisfied_at')), 0, 19),
         );
     }
 

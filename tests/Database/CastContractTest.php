@@ -244,14 +244,18 @@ it('reads identifier, challenge and assurance timestamps back as dates', functio
     ]);
     $assuranceId = DB::table('auth_token_assurances')->insertGetId([
         /*
-         * token_id is unsignedBigInteger. A string here passes on SQLite, whose
-         * dynamic typing accepts it, and is rejected outright by MySQL's strict
-         * mode -- so the wrong literal survived until this test first ran on the
-         * matrix. The column's type is what the value has to match.
+         * 2.4 Task 2 replaced this table's shape. token_key is a STRING now,
+         * deliberately: '42' and '042' are different tokens and an integer
+         * column collides them. The old note here warned that a string in the
+         * unsignedBigInteger token_id passed on SQLite and failed MySQL strict
+         * mode; the hazard has inverted, and a numeric literal is now the wrong
+         * type for a column whose identity is byte equality.
          */
-        'token_id' => 90001, 'amr' => json_encode(['password']),
-        'credential_ids' => json_encode([1]), 'acr' => 'aal1',
-        'issuing_session_id' => str_repeat('w', 64), 'issued_at' => now(),
+        'issuer_key' => 'sanctum', 'token_key' => '90001',
+        'subject_key' => 'App\\Models\\User:7', 'tenant_id' => null,
+        'actor_kind' => 'human', 'acr' => 'aal1',
+        'assurance_proof' => json_encode(['subject' => 'App\\Models\\User:7', 'tenant_id' => null, 'factors' => []]),
+        'weakest_satisfied_at' => now(),
         'created_at' => now(), 'updated_at' => now(),
     ]);
 
@@ -264,7 +268,9 @@ it('reads identifier, challenge and assurance timestamps back as dates', functio
         ->and($outbox->dispatched_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
         ->and($outbox->delivered_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
         ->and($outbox->undeliverable_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
-        ->and(\Fissible\Vouch\Models\AuthTokenAssurance::findOrFail($assuranceId)->issued_at)
+        // issued_at is gone with the replaced shape: recency is authentication
+        // time, never issuance time (addendum section 3).
+        ->and(\Fissible\Vouch\Models\AuthTokenAssurance::findOrFail($assuranceId)->weakest_satisfied_at)
         ->toBeInstanceOf(\Illuminate\Support\Carbon::class);
 });
 

@@ -69,7 +69,7 @@ final class TokenCredentialMappingTest extends TestCase
         return SubjectKey::of((new TokenUser)->getMorphClass(), 7);
     }
 
-    /** @param list<SatisfiedFactor> $factors */
+    /** @param  list<SatisfiedFactor>  $factors */
     private function store(array $factors, string $key = '42'): void
     {
         app(TokenAssuranceRecord::class)
@@ -79,12 +79,12 @@ final class TokenCredentialMappingTest extends TestCase
     /** @return list<string> */
     private function mapped(string $key = '42'): array
     {
-        return array_map(
-            static fn (mixed $v): string => (string) $v,
+        return array_values(array_map(
+            static fn (mixed $v): string => stringValue($v),
             DB::table('auth_token_credentials')
                 ->where('issuer_key', 'sanctum')->where('token_key', $key)
                 ->orderBy('credential_id')->pluck('credential_id')->all(),
-        );
+        ));
     }
 
     #[Test]

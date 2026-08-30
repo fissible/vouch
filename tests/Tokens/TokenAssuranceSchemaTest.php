@@ -39,7 +39,10 @@ final class TokenAssuranceSchemaTest extends TestCase
         return [SanctumServiceProvider::class, VouchServiceProvider::class];
     }
 
-    /** @param array<string, mixed> $overrides */
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
     private function row(array $overrides = []): array
     {
         return array_merge([
@@ -110,7 +113,7 @@ final class TokenAssuranceSchemaTest extends TestCase
 
         $keys = DB::table('auth_token_assurances')->orderBy('id')->pluck('token_key')->all();
 
-        self::assertSame(['42', '042'], array_map(static fn (mixed $k): string => (string) $k, $keys));
+        self::assertSame(['42', '042'], array_map(static fn (mixed $k): string => stringValue($k), $keys));
     }
 
     #[Test]
@@ -258,7 +261,7 @@ final class TokenAssuranceSchemaTest extends TestCase
 
         $ids = DB::table('auth_token_credentials')->orderBy('id')->pluck('credential_id')->all();
 
-        self::assertSame(['9', '09'], array_map(static fn (mixed $i): string => (string) $i, $ids));
+        self::assertSame(['9', '09'], array_map(static fn (mixed $i): string => stringValue($i), $ids));
     }
 
     #[Test]

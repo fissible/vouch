@@ -77,31 +77,47 @@ it('allows only one policy per tenant and scope', function (): void {
     AuthPolicy::create($attributes);
 })->throws(\Illuminate\Database\QueryException::class);
 
-it('stores an amr list and credential ids as arrays', function (): void {
+it('reads the stored proof back as a structure, not raw json', function (): void {
+    /*
+     * 2.4 Task 2 replaced this table. The old amr/credential_ids/acr columns
+     * were a derived SUMMARY beside the evidence; the row now carries the
+     * immutable proof itself, and the adapter reads it as a structure. Uncast,
+     * it arrives as a JSON string and every structural read silently sees
+     * nothing — which fails closed for every token at once and looks identical
+     * to a deployment with no evidence recorded.
+     */
     $assurance = AuthTokenAssurance::create([
-        'token_id' => 42,
+        'issuer_key' => 'sanctum',
+        'token_key' => '42',
+        'subject_key' => 'App\\Models\\User:7',
+        'tenant_id' => null,
+        'actor_kind' => 'human',
         'acr' => 'aal2',
-        'amr' => ['password', 'totp'],
-        'credential_ids' => [7, 9],
-        'issuing_session_id' => 'sess-1',
-        'issued_at' => now(),
+        'assurance_proof' => ['subject' => 'App\\Models\\User:7', 'tenant_id' => null, 'factors' => []],
+        'weakest_satisfied_at' => now(),
     ]);
 
     $fresh = AuthTokenAssurance::findOrFail($assurance->id);
 
-    expect($fresh->amr)->toBe(['password', 'totp'])
-        ->and($fresh->credential_ids)->toBe([7, 9])
+    expect($fresh->assurance_proof)->toBeArray()
+        ->and($fresh->weakest_satisfied_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
         ->and($fresh->acr)->toBe('aal2');
 });
 
-it('allows only one assurance record per token', function (): void {
+it('allows only one assurance record per issuer and token', function (): void {
+    /*
+     * The key is now the COMPOSITE. token_id alone stopped being unique when
+     * the issuer became pluggable: two drivers can each mint id 42, and one
+     * token's record would then validate the other.
+     */
     $attributes = [
-        'token_id' => 42,
+        'issuer_key' => 'sanctum',
+        'token_key' => '42',
+        'subject_key' => 'App\\Models\\User:7',
+        'actor_kind' => 'human',
         'acr' => 'aal2',
-        'amr' => ['password'],
-        'credential_ids' => [7],
-        'issuing_session_id' => 'sess-1',
-        'issued_at' => now(),
+        'assurance_proof' => ['subject' => 'App\\Models\\User:7', 'tenant_id' => null, 'factors' => []],
+        'weakest_satisfied_at' => now(),
     ];
 
     AuthTokenAssurance::create($attributes);

@@ -131,7 +131,7 @@ it('re-enables rather than duplicating on re-enrollment, preserving the credenti
     /*
      * The unique (user_id, type, identifier_id) index counts disabled rows, and
      * a partial index is not portable across the three engines. Preserving the
-     * ID keeps auth_token_assurances.credential_ids references and kernel
+     * ID keeps auth_token_credentials mappings and kernel
      * distinctness coherent — a new row would silently orphan both.
      *
      * Honest only because OTP credentials are secretless: the code lives in

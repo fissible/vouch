@@ -91,7 +91,11 @@ final class OnePolicyTwoRenderingsTest extends TestCase
         };
     }
 
-    /** Establish a real session carrying the given proof. */
+    /**
+     * Establish a real session carrying the given proof.
+     *
+     * @param  list<SatisfiedFactor>  $factors
+     */
     private function establishedSession(array $factors): AuthSession
     {
         TokenUser::query()->create(['id' => 7, 'name' => 'ada']);
@@ -104,7 +108,11 @@ final class OnePolicyTwoRenderingsTest extends TestCase
         return AuthSession::query()->firstOrFail();
     }
 
-    /** Record a token assurance carrying the given proof, for the same subject. */
+    /**
+     * Record a token assurance carrying the given proof, for the same subject.
+     *
+     * @param  list<SatisfiedFactor>  $factors
+     */
     private function recordedToken(array $factors, string $tokenKey = '1'): ResolvedToken
     {
         $subject = SubjectKey::of((new TokenUser)->getMorphClass(), 7);
@@ -245,10 +253,16 @@ final class OnePolicyTwoRenderingsTest extends TestCase
          * assurance models diverge.
          */
         $parameter = (new \ReflectionMethod(EvidenceComparator::class, 'compare'))->getParameters()[0];
-        $arms = array_map(
-            static fn (\ReflectionNamedType $t): string => $t->getName(),
-            ($parameter->getType() instanceof \ReflectionUnionType) ? $parameter->getType()->getTypes() : [],
-        );
+        $type = $parameter->getType();
+        $members = $type instanceof \ReflectionUnionType ? $type->getTypes() : [];
+        $arms = [];
+
+        foreach ($members as $member) {
+            // getTypes() may yield intersection types; a union arm that is not a
+            // plain named type is itself a finding, so it is not silently skipped.
+            self::assertInstanceOf(\ReflectionNamedType::class, $member);
+            $arms[] = $member->getName();
+        }
 
         /*
          * The COMPLETE union, not merely "no second read type". An earlier

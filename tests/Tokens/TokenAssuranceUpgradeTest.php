@@ -109,56 +109,14 @@ final class TokenAssuranceUpgradeTest extends TestCase
         self::assertSame([], $offenders, 'A second direct reader appeared; table access must stay funnelled through TokenAssuranceRecord.');
     }
 
-    #[Test]
-    public function an_installed_host_on_the_old_shape_is_carried_forward(): void
-    {
-        /*
-         * THE upgrade, which the rest of this file does not test.
-         * DatabaseMigrations starts from an empty database, so editing the
-         * original create migration in place satisfies every other assertion
-         * here while an installed 0.1.1 host keeps its token_id table forever
-         * and never runs anything. The replacement must therefore be a NEW
-         * migration, and it must run over the historic shape.
-         *
-         * Built by hand rather than by rolling back, because the historic shape
-         * is what shipped — reconstructing it from the current migration would
-         * test today's code against itself.
-         */
-        Schema::dropIfExists('auth_token_assurances');
-        Schema::dropIfExists('auth_token_credentials');
-
-        Schema::create('auth_token_assurances', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('token_id')->unique();
-            $table->string('acr', 64);
-            $table->json('amr');
-            $table->json('credential_ids');
-            $table->string('issuing_session_id', 255)->index();
-            $table->timestamp('issued_at');
-            $table->timestamps();
-        });
-
-        DB::table('auth_token_assurances')->insert([
-            'token_id' => 42,
-            'acr' => 'aal2',
-            'amr' => json_encode(['password', 'totp']),
-            'credential_ids' => json_encode([9]),
-            'issuing_session_id' => 'sess-1',
-            'issued_at' => now(),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $migration = self::replacementMigration();
-        $migration->up();
-
-        // Recreated, not altered: the old row is GONE rather than half-migrated
-        // into a shape whose proof column nobody ever wrote.
-        self::assertFalse(Schema::hasColumn('auth_token_assurances', 'token_id'));
-        self::assertTrue(Schema::hasColumn('auth_token_assurances', 'issuer_key'));
-        self::assertSame(0, DB::table('auth_token_assurances')->count());
-        self::assertTrue(Schema::hasTable('auth_token_credentials'));
-    }
+    /*
+     * The hand-rolled "run up() over a hand-built old shape" test stood here and
+     * is removed rather than repaired. TokenAssuranceMigratorTest now does the
+     * same upgrade through the REAL migrator, which is strictly stronger: it
+     * exercises the repository bookkeeping and the pending-migration path an
+     * installed host actually takes, neither of which calling up() can show.
+     * Keeping both would have duplicated the weaker form beside the better one.
+     */
 
     #[Test]
     public function the_replacement_ships_as_a_new_migration_not_an_edit_to_history(): void
@@ -184,19 +142,6 @@ final class TokenAssuranceUpgradeTest extends TestCase
         }
 
         return $dir;
-    }
-
-    private static function replacementMigration(): \Illuminate\Database\Migrations\Migration
-    {
-        $matches = glob(self::migrationsDirectory() . '/*token_assurance_identity*.php');
-        $matches = $matches === false ? [] : $matches;
-
-        self::assertCount(1, $matches);
-
-        /** @var \Illuminate\Database\Migrations\Migration $migration */
-        $migration = require $matches[0];
-
-        return $migration;
     }
 
     #[Test]
