@@ -39,11 +39,18 @@ beforeEach(function (): void {
 
 function enforcedRequest(string $uri = '/admin/settings'): Request
 {
-    // The container session, not a detached Store: establishSession() rotates
-    // and binds THAT session, so a separate store would never match the binding
-    // and every test below would pass by finding no row at all.
+    /*
+     * The container session, not a detached Store: establishSession() rotates
+     * and binds THAT session, so a separate store would never match the binding
+     * and every test below would pass by finding no row at all.
+     *
+     * driver(), not session() itself: the helper returns a SessionManager,
+     * while setLaravelSession() requires Illuminate\Contracts\Session\Session.
+     * The driver is the same Store the manager proxies to, so the id — and
+     * therefore the binding — is identical.
+     */
     $request = Request::create($uri);
-    $request->setLaravelSession(session());
+    $request->setLaravelSession(session()->driver());
 
     return $request;
 }
@@ -241,7 +248,7 @@ it('leaves an unmapped ability alone, even for a legacy session', function (): v
 function abilityRequest(string $uri = '/invoices/approve'): Request
 {
     $request = Request::create($uri);
-    $request->setLaravelSession(session());
+    $request->setLaravelSession(session()->driver());
     $request->setRouteResolver(static function () use ($uri): Illuminate\Routing\Route {
         $route = new Illuminate\Routing\Route(['GET'], $uri, ['middleware' => ['can:invoices.approve']]);
 
