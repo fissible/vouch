@@ -60,7 +60,11 @@ moment more than one guard, model or driver exists.
 - Subject key = provider/model namespace plus id. Enforcement requires the stored evidence
   subject to equal the resolved token subject; a mismatch is `invalid_token`, NEVER an
   assurance failure — the two mean different things and only one of them is safe to say.
-- Token key = `(issuer_key, token_key)`, `issuer_key` unique and immutable per driver.
+- Token key = `(issuer_key, token_key)`. `issuer_key` is a unique IDENTIFIER FOR A DRIVER —
+  two drivers may not share one — and is immutable. It is NOT a unique database column: an
+  issuer records many tokens, so the uniqueness constraint is on the composite. Conflating
+  the two permits exactly one record per issuer, which breaks multi-issuer support while
+  reading as compliant.
 - If more than one resolver claims a request, Vouch fails closed. `resolveForRequest()`
   means "I authenticated the effective request principal", not "I can parse a credential
   out of this request".
@@ -74,9 +78,16 @@ moment more than one guard, model or driver exists.
 - `resolveForRequest(Request): ?ResolvedToken` — the DRIVER answers "did I authenticate
   this request, and under which key". Mechanism detection stays behind the seam rather
   than Vouch reaching into guard internals, which is the whole reason the seam exists.
-  `ResolvedToken` is immutable: `(issuer_key, token_key, subject_id, usable)`, where
-  `usable` accounts for expiry, deletion, revocation and tokenable validity — not a bare
-  row lookup.
+  `ResolvedToken` is immutable: `(issuer_key, token_key, subject, usable)`, where `subject`
+  is a `SubjectKey` — the provider-qualified identity of §3a, not a bare id, because an id
+  alone cannot distinguish two providers' user 7.
+
+  `usable` is the ISSUER's verdict on lifecycle. An earlier draft said it "accounts for
+  expiry, deletion, revocation and tokenable validity", which measurement disproved for the
+  shipped driver: Sanctum's guard returns no principal for an expired or deleted token, so
+  `resolveForRequest()` returns `null` and none of those states ever produce a
+  `ResolvedToken` at all. The flag is retained as a seam for issuers whose lifecycle model
+  CAN report unusability. See addendum §3b.
 - `issue(ConnectionInterface, TokenGrant): IssuedToken` — must enlist in the supplied
   transaction, or the driver declares itself unsupported for assurance-bound human tokens.
   Rollback is tested against the CONTRACT, not the Sanctum implementation.

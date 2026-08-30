@@ -136,9 +136,22 @@ final class TokenAssuranceMigratorTest extends TestCase
         Artisan::call('migrate:fresh', ['--path' => self::stagedDirectory(), '--realpath' => true]);
         Artisan::call('migrate', ['--path' => self::replacementFile(), '--realpath' => true]);
 
+        /*
+         * The repository row is the proof. A second migrate exiting 0 shows
+         * only that nothing blew up — an idempotent migration that RE-RAN would
+         * also exit 0, and so would one the migrator skipped for the wrong
+         * reason. Assert the exact file is recorded.
+         */
+        $recorded = DB::table('migrations')
+            ->where('migration', basename(self::replacementFile(), '.php'))
+            ->count();
+
+        self::assertSame(1, $recorded, 'The replacement is not recorded; it will re-run on the next deploy.');
+
         $exitCode = Artisan::call('migrate', ['--path' => self::replacementFile(), '--realpath' => true]);
 
         self::assertSame(0, $exitCode);
+        self::assertSame(1, DB::table('migrations')->where('migration', basename(self::replacementFile(), '.php'))->count());
         self::assertTrue(Schema::hasColumn('auth_token_assurances', 'issuer_key'));
     }
 }

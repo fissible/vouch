@@ -224,6 +224,30 @@ final class TokenAssuranceSchemaTest extends TestCase
     }
 
     #[Test]
+    #[DataProvider('emptyCredentialIds')]
+    public function a_mapping_rejects_an_empty_credential_id(mixed $value): void
+    {
+        /*
+         * credential_id is the LOOKUP key on the credential-disable path: the
+         * sweep asks "which tokens does this credential authorize?" A mapping
+         * with an empty id answers no such question and is therefore
+         * unreachable — the token it describes silently survives every
+         * revocation of the credential that authorized it.
+         */
+        $this->expectException(QueryException::class);
+
+        DB::table('auth_token_credentials')->insert([
+            'issuer_key' => 'sanctum', 'token_key' => '42', 'credential_id' => $value,
+        ]);
+    }
+
+    /** @return array<string, array{mixed}> */
+    public static function emptyCredentialIds(): array
+    {
+        return ['null' => [null], 'empty string' => ['']];
+    }
+
+    #[Test]
     public function the_credential_id_is_string_identity_too(): void
     {
         // Same hazard as token_key, on the table that decides revocation reach.

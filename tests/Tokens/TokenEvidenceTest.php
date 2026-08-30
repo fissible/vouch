@@ -395,6 +395,32 @@ final class TokenEvidenceTest extends TestCase
         self::assertNotNull($down);
         self::assertSame('aal2', $up->derivedAcr());
         self::assertSame('aal2', $down->derivedAcr());
+
+        /*
+         * And the DECISION, not merely the derived value. An implementation can
+         * derive correctly here and still consult the stored column somewhere on
+         * the way to a verdict — which is the failure this rule exists to stop,
+         * and which the two assertions above cannot see.
+         */
+        $comparator = app(EvidenceComparator::class);
+        $requirement = AssuranceRequirement::from('aal2');
+
+        DB::table('auth_token_assurances')->update(['acr' => 'aal1']);
+        $tamperedDown = $this->record()->read(new ResolvedToken('sanctum', '42', $this->subject(), true));
+
+        DB::table('auth_token_assurances')->update(['acr' => 'aal3']);
+        $tamperedUp = $this->record()->read(new ResolvedToken('sanctum', '42', $this->subject(), true));
+
+        // The column said aal1; the proof says aal2, so aal2 is granted.
+        self::assertSame(
+            AssuranceOutcome::Sufficient,
+            $comparator->compare($tamperedDown, $requirement, $this->clock(), null)->outcome,
+        );
+        // The column said aal3; the proof says aal2, so aal3 is refused.
+        self::assertSame(
+            AssuranceOutcome::InsufficientLevel,
+            $comparator->compare($tamperedUp, AssuranceRequirement::from('aal3'), $this->clock(), null)->outcome,
+        );
     }
 
     #[Test]
