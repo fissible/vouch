@@ -222,6 +222,18 @@ it('REFUSES a malformed proof rather than skipping the bad row', function (array
 
         // Enumerations and flags.
         'unknown strength' => [$with(['strength' => 'telepathy'])],
+        /*
+         * One value, one encoding. The canonical key is 'possession_weak'; the
+         * case-name spelling must NOT also decode.
+         *
+         * Added after the implementation shipped a fallback accepting both,
+         * commented as compatibility for "existing case-name-derived rows" --
+         * of which there are none, since assurance_proof is created by this
+         * task's own migration. It was removed, and this is what stops it
+         * coming back: without a test, the widening looks harmless.
+         */
+        'non-canonical strength spelling' => [$with(['strength' => 'possessionweak'])],
+        'canonical spelling with different case' => [$with(['strength' => 'Possession'])],
         'strength missing' => [$without('strength')],
         'unknown kind' => [$with(['kind' => 'vibes'])],
         'kind missing' => [$without('kind')],

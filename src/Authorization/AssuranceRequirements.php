@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Authorization;
 
-use Fissible\Vouch\Http\AssuranceComparator;
+use Fissible\Vouch\Assurance\AssuranceLevelComparator;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -31,7 +31,7 @@ final readonly class AssuranceRequirements
             if (! is_string($ability) || ! self::canonical($ability)) {
                 throw new InvalidArgumentException('Configuration "vouch.assurance_requirements" has an invalid ability name ' . self::describe($ability) . '.');
             }
-            if (! is_string($level) || ! AssuranceComparator::isKnown($level)) {
+            if (! is_string($level) || ! AssuranceLevelComparator::isKnown($level)) {
                 throw new InvalidArgumentException('Configuration "vouch.assurance_requirements" has invalid level ' . self::describe($level) . ' for "' . $ability . '".');
             }
             $requirements[$ability] = $level;
@@ -69,7 +69,7 @@ final readonly class AssuranceRequirements
             $level = $this->levelFor($ability);
             if (
                 $level !== null
-                && ($strongest === null || AssuranceComparator::strength($level) > AssuranceComparator::strength($strongest))
+                && ($strongest === null || AssuranceLevelComparator::strength($level) > AssuranceLevelComparator::strength($strongest))
             ) {
                 $strongest = $level;
             }

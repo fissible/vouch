@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Models;
 
+use Fissible\Vouch\Models\Casts\UtcDateTime;
 use Fissible\Vouch\Sessions\RevokedReason;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
@@ -14,8 +15,8 @@ use Illuminate\Support\Carbon;
  * @property int $user_id
  * @property list<string> $amr
  * @property string|null $acr
- * @property array<string, mixed>|null $assurance_facts
- * @property Carbon|null $last_factor_at
+ * @property array<string, mixed>|null $assurance_proof
+ * @property Carbon|null $weakest_satisfied_at
  * @property Carbon|null $recovery_grace_expires_at
  * @property Carbon|null $revoked_at
  * @property RevokedReason|null $revoked_reason
@@ -40,8 +41,8 @@ final class AuthSession extends Model
             // different user, not for PDO representation differences.
             'user_id' => 'integer',
             'amr' => 'array',
-            'assurance_facts' => 'array',
-            'last_factor_at' => 'datetime',
+            'assurance_proof' => 'array',
+            'weakest_satisfied_at' => UtcDateTime::class,
             'recovery_grace_expires_at' => 'datetime',
             'revoked_at' => 'datetime',
             'revoked_reason' => RevokedReason::class,
