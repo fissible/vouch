@@ -483,6 +483,43 @@ it('reads the recency anchor as the same instant under any process timezone', fu
     }
 });
 
+
+/**
+ * Build one of the rows that yield no usable evidence.
+ *
+ * Called from inside a test body, never from a dataset. Pest evaluates datasets
+ * before RefreshDatabase has booted the application, so creating rows there
+ * fails on a null connection — and the failure looks like a broken adapter
+ * rather than a broken fixture.
+ */
+function noEvidenceRow(string $kind): ?AuthSession
+{
+    return match ($kind) {
+        'none' => null,
+        'legacy' => AuthSession::query()->create([
+            'session_binding' => str_repeat('m', 64), 'user_id' => 7,
+            'amr' => ['password'], 'acr' => 'aal2', 'assurance_proof' => null,
+        ]),
+        'corrupt' => AuthSession::query()->create([
+            'session_binding' => str_repeat('n', 64), 'user_id' => 7,
+            'amr' => ['password'], 'acr' => 'aal2',
+            'assurance_proof' => ['subject' => 'App\\Models\\User:7', 'factors' => [['factor_id' => 'password']]],
+        ]),
+        'revoked' => AuthSession::query()->create([
+            'session_binding' => str_repeat('o', 64), 'user_id' => 7,
+            'amr' => ['password'], 'acr' => 'aal1',
+            'assurance_proof' => sessionProof(7, 'aal1'), 'revoked_at' => now(),
+        ]),
+        'grace' => AuthSession::query()->create([
+            'session_binding' => str_repeat('p', 64), 'user_id' => 7,
+            'amr' => ['recovery_code'], 'acr' => null,
+            'assurance_proof' => sessionProof(7, 'aal1'),
+            'recovery_grace_expires_at' => now()->addMinutes(15),
+        ]),
+        default => throw new InvalidArgumentException("Unknown no-evidence row kind: {$kind}."),
+    };
+}
+
 /*
  * The adapter's read result.
  *
@@ -494,43 +531,17 @@ it('reads the recency anchor as the same instant under any process timezone', fu
  * responses. read() carries the cause; nothing renders it to a client.
  */
 
-it('reports why there is no usable evidence', function (AuthSession|null $session, AssuranceReason $reason): void {
+it('reports why there is no usable evidence', function (string $kind, AssuranceReason $reason): void {
+    $session = noEvidenceRow($kind);
+
     expect(SessionEvidence::read($session)->evidence)->toBeNull()
         ->and(SessionEvidence::read($session)->reason)->toBe($reason);
 })->with(static fn (): array => [
-    'no session at all' => [null, AssuranceReason::NoEvidence],
-    'legacy row with no proof' => [
-        AuthSession::query()->create([
-            'session_binding' => str_repeat('m', 64), 'user_id' => 7,
-            'amr' => ['password'], 'acr' => 'aal2', 'assurance_proof' => null,
-        ]),
-        AssuranceReason::LegacyNoProof,
-    ],
-    'corrupt proof' => [
-        AuthSession::query()->create([
-            'session_binding' => str_repeat('n', 64), 'user_id' => 7,
-            'amr' => ['password'], 'acr' => 'aal2',
-            'assurance_proof' => ['subject' => 'App\\Models\\User:7', 'factors' => [['factor_id' => 'password']]],
-        ]),
-        AssuranceReason::ProofMalformed,
-    ],
-    'revoked' => [
-        AuthSession::query()->create([
-            'session_binding' => str_repeat('o', 64), 'user_id' => 7,
-            'amr' => ['password'], 'acr' => 'aal1',
-            'assurance_proof' => sessionProof(7, 'aal1'), 'revoked_at' => now(),
-        ]),
-        AssuranceReason::SessionRevoked,
-    ],
-    'recovery grace' => [
-        AuthSession::query()->create([
-            'session_binding' => str_repeat('p', 64), 'user_id' => 7,
-            'amr' => ['recovery_code'], 'acr' => null,
-            'assurance_proof' => sessionProof(7, 'aal1'),
-            'recovery_grace_expires_at' => now()->addMinutes(15),
-        ]),
-        AssuranceReason::RecoveryGrace,
-    ],
+    'no session at all' => ['none', AssuranceReason::NoEvidence],
+    'legacy row with no proof' => ['legacy', AssuranceReason::LegacyNoProof],
+    'corrupt proof' => ['corrupt', AssuranceReason::ProofMalformed],
+    'revoked' => ['revoked', AssuranceReason::SessionRevoked],
+    'recovery grace' => ['grace', AssuranceReason::RecoveryGrace],
 ]);
 
 it('keeps for() and read() from ever disagreeing', function (): void {
@@ -615,12 +626,14 @@ it('authorizes from the proof even when the stored level is LOWER', function ():
         )->outcome)->toBe(AssuranceOutcome::Sufficient);
 });
 
-it('carries every no-evidence cause through the comparator, not just one', function (AuthSession|null $session, AssuranceReason $reason): void {
+it('carries every no-evidence cause through the comparator, not just one', function (string $kind, AssuranceReason $reason): void {
     /*
      * The forwarding test covered ProofMalformed alone, which an implementation
      * could satisfy while flattening the other four to NoEvidence -- undoing the
      * whole point of read(). Each cause is driven through compare() here.
      */
+    $session = noEvidenceRow($kind);
+
     $clock = new class implements \Psr\Clock\ClockInterface {
         public function now(): DateTimeImmutable
         {
@@ -638,39 +651,11 @@ it('carries every no-evidence cause through the comparator, not just one', funct
     expect($comparison->outcome)->toBe(AssuranceOutcome::InvalidEvidence)
         ->and($comparison->reason)->toBe($reason);
 })->with(static fn (): array => [
-    'absent' => [null, AssuranceReason::NoEvidence],
-    'legacy' => [
-        AuthSession::query()->create([
-            'session_binding' => str_repeat('s', 64), 'user_id' => 7,
-            'amr' => ['password'], 'acr' => 'aal2', 'assurance_proof' => null,
-        ]),
-        AssuranceReason::LegacyNoProof,
-    ],
-    'corrupt' => [
-        AuthSession::query()->create([
-            'session_binding' => str_repeat('t', 64), 'user_id' => 7,
-            'amr' => ['password'], 'acr' => 'aal2',
-            'assurance_proof' => ['subject' => 'App\\Models\\User:7', 'factors' => [['factor_id' => 'password']]],
-        ]),
-        AssuranceReason::ProofMalformed,
-    ],
-    'revoked' => [
-        AuthSession::query()->create([
-            'session_binding' => str_repeat('u', 64), 'user_id' => 7,
-            'amr' => ['password'], 'acr' => 'aal1',
-            'assurance_proof' => sessionProof(7, 'aal1'), 'revoked_at' => now(),
-        ]),
-        AssuranceReason::SessionRevoked,
-    ],
-    'grace' => [
-        AuthSession::query()->create([
-            'session_binding' => str_repeat('v', 64), 'user_id' => 7,
-            'amr' => ['recovery_code'], 'acr' => null,
-            'assurance_proof' => sessionProof(7, 'aal1'),
-            'recovery_grace_expires_at' => now()->addMinutes(15),
-        ]),
-        AssuranceReason::RecoveryGrace,
-    ],
+    'absent' => ['none', AssuranceReason::NoEvidence],
+    'legacy' => ['legacy', AssuranceReason::LegacyNoProof],
+    'corrupt' => ['corrupt', AssuranceReason::ProofMalformed],
+    'revoked' => ['revoked', AssuranceReason::SessionRevoked],
+    'grace' => ['grace', AssuranceReason::RecoveryGrace],
 ]);
 
 it('prefers revocation over corruption when a row is both', function (): void {

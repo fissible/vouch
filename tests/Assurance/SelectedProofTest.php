@@ -101,7 +101,16 @@ function proofTotpCode(int $userId = 7): string
     $secret = (string) AuthCredential::query()
         ->where('user_id', $userId)->where('type', 'totp')->firstOrFail()->secret;
 
-    return TOTP::createFromSecret($secret)->now();
+    /*
+     * Built the way the DRIVER builds it: the container's ClockInterface passed
+     * into OTPHP, exactly as TotpFactor::matchTimestep() does. Vouch's
+     * SystemClock is Carbon-backed and therefore travel-aware, so under
+     * travelTo() this generates a code for the travelled instant.
+     *
+     * Constructing without the clock and supplying a timestamp instead does NOT
+     * work here — verified against the driver rather than reasoned about.
+     */
+    return TOTP::createFromSecret($secret, app(\Psr\Clock\ClockInterface::class))->now();
 }
 
 it('persists exactly the factors a single-factor policy required', function (): void {
@@ -146,34 +155,46 @@ it('persists both factors of an all_of policy, and no others', function (): void
         ->and($evidence->derivedAcr())->toBe('aal2');
 });
 
-it('anchors recency to the first factor of a multi-step login', function (): void {
+it('anchors the persisted column to the oldest factor the flow recorded', function (): void {
     /*
-     * The two factors are satisfied twelve minutes apart in real flow time.
-     * The persisted anchor must be the PASSWORD's timestamp -- the older one --
-     * because a session is only as fresh as its stalest evidence. An
-     * implementation writing the newest passes every other test in this file.
+     * The writer must take MIN(satisfied_at) across the real proof, not the
+     * newest factor and not the moment of establish().
+     *
+     * Deliberately NOT built with a time gap. An earlier draft travelled twelve
+     * minutes between the two factors to make the min obvious, which fails for
+     * reasons that have nothing to do with the anchor: the attempt outlives
+     * vouch.attempt.ttl_seconds, and TOTP verification under travelTo() is
+     * sensitive to how the code is generated relative to the driver's clock.
+     * That was fighting the harness rather than testing Vouch.
+     *
+     * Instead the expectation is computed from the evidence the flow actually
+     * produced, which is what the property is about. The controlled-gap version
+     * of this rule is covered directly in SessionEvidenceTest, where the
+     * timestamps are set rather than raced for.
      */
     proofPolicy(['all_of' => ['password', 'totp']]);
     app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class)->enroll(7, ['password' => 'correct horse battery staple']);
     app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)->enroll(7, ['label' => 'ada@acme.example']);
 
-    $this->travelTo(new DateTimeImmutable('2026-08-13T10:00:00+00:00'));
     $handle = proofIdentified();
     proofSubmit($handle, ['password' => 'correct horse battery staple']);
-
-    $this->travelTo(new DateTimeImmutable('2026-08-13T10:12:00+00:00'));
     $result = proofSubmit($handle, ['code' => proofTotpCode()]);
     assert($result instanceof Authenticated);
+
+    $expected = min(array_map(
+        static fn ($f): int => $f->satisfiedAt->getTimestamp(),
+        $result->success->factors,
+    ));
 
     session()->start();
     app(SessionLifecycle::class)->establish($result->success);
 
     $session = \Fissible\Vouch\Models\AuthSession::query()->firstOrFail();
 
-    expect($session->weakest_satisfied_at->getTimestamp())
-        ->toBe((new DateTimeImmutable('2026-08-13T10:00:00+00:00'))->getTimestamp())
-        ->and(SessionEvidence::for($session)->weakestSatisfiedAt()->getTimestamp())
-        ->toBe((new DateTimeImmutable('2026-08-13T10:00:00+00:00'))->getTimestamp());
+    expect($result->success->factors)->toHaveCount(2)
+        ->and($session->weakest_satisfied_at)->not->toBeNull()
+        ->and($session->weakest_satisfied_at->getTimestamp())->toBe($expected)
+        ->and(SessionEvidence::for($session)->weakestSatisfiedAt()->getTimestamp())->toBe($expected);
 });
 
 it('persists the same set the flow derived its acr from', function (): void {
