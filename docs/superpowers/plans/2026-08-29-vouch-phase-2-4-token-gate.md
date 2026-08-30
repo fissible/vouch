@@ -273,7 +273,15 @@ persistence and issuer-scoped mappings.
 
 ## Task 3 — Transactional issuance and public API
 
-Add `Vouch::issueToken()` (or the approved service seam) that:
+Add `Vouch::issueToken(TokenGrant $grant, ?ConnectionInterface $connection = null)` that:
+
+The connection parameter is what makes enlistment implementable. Without it,
+"enlists in the caller's transaction" holds only for callers on the configured
+default connection: Vouch would resolve its own, and an implementation ignoring
+the supplied one passes every default-connection rollback test, because both
+happen to use the same connection. The issuer, the assurance writer and the lock
+manager must all receive that exact instance.
+
 
 1. requires a session RESOLVED from live host authentication — currently
    authenticated, non-revoked, non-grace. NOT "non-expired": `auth_sessions` has

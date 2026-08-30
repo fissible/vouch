@@ -227,9 +227,13 @@ token issued a moment earlier.
 
 So issuance and credential mutation share one protocol:
 
-- Issuance locks every credential in the persisted proof, in a deterministic order (by
-  credential id, so two concurrent operations cannot deadlock), re-checks each credential
-  is still valid, then inserts the assurance record and its mappings, then commits.
+- Issuance takes the per-subject lock first, then every credential in the persisted proof
+  in a deterministic order (by credential id, so two concurrent operations cannot deadlock),
+  re-checks each credential is still valid, then inserts the assurance record and its
+  mappings — and does NOT commit. It enlists in the caller's transaction and leaves the
+  commit to them. An earlier draft ended this sentence with "then commits", which
+  contradicts the issuance invariants above; enlistment is the settled behaviour and the
+  host carries the obligation not to disclose the plaintext until its own commit.
 - Every disable, replace and revoke path takes the same locks, invalidates the credential,
   and removes matching assurance records and mappings atomically.
 
