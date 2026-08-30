@@ -600,4 +600,65 @@ final class TokenIssuanceAtomicityTest extends TestCase
 
         Vouch::issueToken($this->grant());
     }
+
+    #[Test]
+    public function the_canonical_credential_order_is_opaque_string_order(): void
+    {
+        /*
+         * DIRECT, because the issuance test cannot discriminate. That test uses
+         * two auto-increment credentials whose ids are single digits, so string
+         * and numeric order agree and a future sweep switching to
+         * orderBy('id') would pass it unchanged.
+         *
+         * This names the order exactly. '09' and '9' are DIFFERENT credentials
+         * per addendum §4 — the ids are opaque strings, not numbers — so
+         * numeric ordering is not merely a different answer, it is one that
+         * cannot express the identity the schema guarantees.
+         *
+         * Duplicates collapse, because two factors on one authenticator are one
+         * credential and one lock.
+         */
+        self::assertSame(
+            ['09', '10', '2', '9'],
+            CredentialLockManager::canonicalCredentialIds(['9', '09', '10', '2', '2']),
+        );
+    }
+
+    #[Test]
+    public function it_refuses_a_session_revoked_between_the_read_and_the_locks(): void
+    {
+        /*
+         * THE TOCTOU window. issueToken() reads the session, then acquires
+         * locks; a revocation landing in between is invisible to a check made
+         * only before the read. The consequence is the one issuance exists to
+         * prevent: a token minted from a session that was already dead when the
+         * lock was taken.
+         *
+         * The lock manager is the seam where the revocation happens, because it
+         * runs at exactly the moment between the two — which is why the
+         * recorder is a subclass rather than a mock.
+         */
+        $this->credentials();
+        $session = $this->establishedSessionFor();
+
+        $revoker = new class extends CredentialLockManager {
+            public ?int $sessionId = null;
+
+            /** @param list<string> $credentialIds */
+            public function acquire(ConnectionInterface $connection, SubjectKey $subject, array $credentialIds): void
+            {
+                // Another request revokes the session while issuance holds it.
+                $connection->table('auth_sessions')->where('id', $this->sessionId)
+                    ->update(['revoked_at' => now(), 'revoked_reason' => 'logout']);
+
+                parent::acquire($connection, $subject, $credentialIds);
+            }
+        };
+        $revoker->sessionId = $session->id;
+        app()->instance(CredentialLockManager::class, $revoker);
+
+        $this->expectException(IssuanceRefused::class);
+
+        $this->issue();
+    }
 }

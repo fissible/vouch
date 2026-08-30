@@ -368,6 +368,24 @@ unchanged.
 
 ## Task 5 — Credential and subject revocation protocol
 
+**Two obligations carried from Task 3, both raised by the implementer at
+consensus.**
+
+`CredentialLockManager::lockSubject()` is not yet a durable per-subject lock: it
+locks the first `auth_sessions` row for the user, with no stable subject
+serialization row and no deterministic anchor. That is adequate for issuance,
+where a session row always exists, and NOT adequate for a subject-wide sweep,
+which must serialize against a subject that may have no live session at all.
+Task 5 owns giving the subject a lockable anchor. Note
+`canonicalCredentialIds()` is the single credential order and must be used
+rather than `orderBy('id')` — the ids are opaque strings, so `'09'` and `'9'`
+are different credentials and primary-key order cannot express that.
+
+Machine-token issuance has no path. `Vouch::issueToken()` refuses machine grants
+outright, and the design still calls for a separate machine path. Task 4 can
+ENFORCE existing machine records but must not become the first consumer that
+also creates them.
+
 **Carries a retention obligation from Task 2 (addendum §3c).** The token assurance
 record is authentication history — what a person proved, with which credentials,
 when — and nothing reclaims it. Sessions are bounded by
