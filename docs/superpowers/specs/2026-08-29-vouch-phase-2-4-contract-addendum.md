@@ -144,6 +144,47 @@ and human token to need re-authentication. Vouch does not migrate subject keys a
 change, because there is no way to distinguish "this alias replaced that class" from "this
 alias now names a different model" without the host saying so.
 
+## 3b. Token lifecycle causes are coarser than session causes, and why
+
+Session refusals carry a precise operational cause — revoked, recovery-grace, legacy,
+malformed, subject mismatch. Token refusals cannot, and the reason is Sanctum's design
+rather than an oversight in Vouch. Measured against the shipped driver:
+
+| token state | what reaches the token adapter |
+| --- | --- |
+| live | `ResolvedToken(usable: true)` |
+| expired | nothing — `resolveForRequest()` returns `null` |
+| revoked | nothing — `resolveForRequest()` returns `null` |
+
+`Guard::__invoke()` returns null for every rejection, collapsing not-found, expired,
+wrong-provider and callback-rejected into one answer. `SanctumTokenIssuer` defers to that
+guard deliberately (§2: reading the bearer header would falsely claim requests where
+Sanctum selected a cookie actor), so neither state is visible to Vouch's adapter.
+
+**Revoked is not recoverable at any layer.** Sanctum revokes by DELETING the row — there is
+no `revoked_at`, no soft delete — so a revoked token is indistinguishable from one that
+never existed, in the database and not merely in the API. Retaining revoked tokens would
+change Sanctum's storage model and its retention surface; this is a design decision, not a
+defect, and no upstream issue is warranted.
+
+**Expired IS recoverable, and is left as future work.** `Sanctum::authenticateAccessTokensUsing()`
+is a documented extension point whose callback receives `($accessToken, $isValid)`, so a
+host or Vouch itself can observe "a token was found and judged invalid". Vouch does not
+register it today: it is global mutable state on a third-party facade, and claiming it
+would collide with any host already using it. If token-expiry diagnostics are wanted later,
+that hook is the seam — not a change to the resolver.
+
+None of this reaches the wire. RFC 6750 renders every one of these as `invalid_token`, and
+§5 keeps that deliberately indistinguishable. The cost is confined to operator diagnostics.
+
+**What the token adapter CAN distinguish, and does:** no assurance record, subject mismatch,
+malformed proof, undecodable payload, machine actor, and a human record missing its recency
+anchor. `AssuranceReason::TokenUnusable` is retained as a guard for third-party issuers whose
+lifecycle model can report unusability — Passport, or a host driver over a table with a
+`revoked_at`. No shipped issuer produces it, which is stated here so it is understood as a
+seam for others rather than a live path, in the same way §3a records that `aal3` is
+unsatisfiable with the shipped vocabulary.
+
 ## 4. Schema and migration
 
 The existing table is keyed by unique `token_id`; the new key is `(issuer_key, token_key)`.

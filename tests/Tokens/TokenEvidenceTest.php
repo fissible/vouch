@@ -130,10 +130,23 @@ final class TokenEvidenceTest extends TestCase
     public function it_refuses_a_token_the_issuer_reported_unusable(): void
     {
         /*
-         * `usable` is the issuer's verdict on revocation and expiry — Vouch does
-         * not own token lifecycle and must not second-guess it. A stored proof
-         * is still a true record of a past login, so the refusal has to come
+         * `usable` is the issuer's verdict on lifecycle — Vouch does not own
+         * token expiry or revocation and must not second-guess it. A stored
+         * proof remains a true record of a past login, so the refusal comes
          * from the token's state, never from the evidence being absent.
+         *
+         * NO SHIPPED ISSUER PRODUCES THIS. Measured against Sanctum: an expired
+         * token and a revoked one both make resolveForRequest() return null, so
+         * neither ever reaches this adapter, and SanctumTokenIssuer only ever
+         * constructs usable: true. Sanctum deletes on revoke — there is no
+         * revoked_at — so the state is not recoverable at any layer (addendum
+         * §3b).
+         *
+         * The path is kept as a seam for third-party issuers whose lifecycle
+         * model CAN report unusability: Passport, or a host driver over a table
+         * that marks rather than deletes. Recorded as unreachable-today so a
+         * later reader does not mistake it for a live branch, the same way §3a
+         * records that aal3 is unsatisfiable with the shipped vocabulary.
          */
         $token = $this->stored();
         $unusable = new ResolvedToken($token->issuerKey, $token->tokenKey, $token->subject, false);
