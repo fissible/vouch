@@ -369,4 +369,42 @@ final class TokenEvidenceTest extends TestCase
         self::assertNull($read->evidence);
         self::assertSame(AssuranceReason::ProofMalformed, $read->reason);
     }
+
+    #[Test]
+    public function the_stored_level_is_a_projection_and_never_an_authorization_input(): void
+    {
+        /*
+         * Same rule as auth_sessions.acr, asserted the same way and in both
+         * directions, because the token table is a fresh chance to make the
+         * mistake Task 2a spent its existence removing.
+         *
+         * A record tampered UP must not authorize at the claimed level, and one
+         * tampered DOWN must not cap what the proof actually derives — the
+         * second is the half an implementation passes by accident while still
+         * requiring the column to agree.
+         */
+        $this->stored();
+
+        DB::table('auth_token_assurances')->update(['acr' => 'aal3']);
+        $up = $this->record()->read(new ResolvedToken('sanctum', '42', $this->subject(), true))->evidence;
+
+        DB::table('auth_token_assurances')->update(['acr' => 'aal1']);
+        $down = $this->record()->read(new ResolvedToken('sanctum', '42', $this->subject(), true))->evidence;
+
+        self::assertNotNull($up);
+        self::assertNotNull($down);
+        self::assertSame('aal2', $up->derivedAcr());
+        self::assertSame('aal2', $down->derivedAcr());
+    }
+
+    #[Test]
+    public function storing_writes_the_projection_from_the_proof(): void
+    {
+        // The column has a writer from the first commit, so it cannot become
+        // another assurance_facts: a column nobody writes, that a later reader
+        // mistakes for authority.
+        $this->stored();
+
+        self::assertSame('aal2', DB::table('auth_token_assurances')->value('acr'));
+    }
 }

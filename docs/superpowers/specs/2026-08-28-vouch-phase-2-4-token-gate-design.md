@@ -127,11 +127,37 @@ machine actors; `human` is the default.
 
 ## Schema
 
-- `auth_token_assurances`: keyed `(issuer_key, token_key)`; adds `weakest_satisfied_at`
-  (indexed), `actor_kind`, and the persisted-proof payload. Recency is measured from the
-  authentication evidence, never `issued_at`.
-- `auth_token_credentials(issuer_key, token_key, credential_id)`, indexed. No JSON
-  containment on a revocation path.
+- `auth_token_assurances`: keyed `(issuer_key, token_key)`; carries `subject_key`,
+  `tenant_id`, `actor_kind`, `acr`, `weakest_satisfied_at` and the persisted-proof payload.
+  Recency is measured from the authentication evidence, never `issued_at`.
+- `auth_token_credentials(issuer_key, token_key, credential_id)`. No JSON containment on a
+  revocation path.
+
+**Indexes, fixed now rather than added later**, because this table holds live authorization
+data and a missing index is invisible — the queries still return the right answer, by
+scanning. Each is tied to a query Task 5 is already specified to run:
+
+| index | columns | the query it serves |
+| --- | --- | --- |
+| `auth_token_assurance_identity_unique` | `(issuer_key, token_key)` | every adapter read |
+| `auth_token_assurance_subject_index` | `(subject_key, actor_kind)` | password-change sweep of a subject's HUMAN tokens |
+| `auth_token_assurance_recency_index` | `(weakest_satisfied_at)` | audit and reporting reads |
+| `auth_token_credential_unique` | `(issuer_key, token_key, credential_id)` | one mapping per triple |
+| `auth_token_credential_lookup_index` | `(credential_id)` | credential disable → which tokens |
+
+`acr` is a display and index projection under exactly the rule §3 gives the session column:
+never a comparison input, in either direction. It exists so a host listing "which of my
+tokens are aal2" need not deserialize every proof — a host deserializing the payload is a
+host one step from authorizing on it. Nullable, because a machine token has no human level
+to project, and written on every store so it cannot become another `assurance_facts`: a
+column with no writer that a later reader mistakes for authority.
+
+**No actor column, and this is deliberate.** Impersonation gives a SESSION two principals,
+which is why `auth_sessions` will need the split — but the planned capability matrix
+(PROJECT.md, post-2.4) starts impersonated sessions at "may not mint tokens". No token is
+minted under impersonation, so the token record has one principal and the read-boundary rule
+"evidence subject equals token subject" stays sound. If that capability is ever granted, this
+decision is what has to be revisited first.
 
 ## Responses
 

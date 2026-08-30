@@ -47,6 +47,7 @@ final class TokenAssuranceSchemaTest extends TestCase
             'subject_key' => 'App\\Models\\User:7',
             'tenant_id' => null,
             'actor_kind' => 'human',
+            'acr' => 'aal2',
             'assurance_proof' => json_encode(['subject' => 'App\\Models\\User:7', 'tenant_id' => null, 'factors' => []]),
             'weakest_satisfied_at' => '2026-08-13 10:00:00',
             'created_at' => now(),
@@ -216,5 +217,65 @@ final class TokenAssuranceSchemaTest extends TestCase
         $ids = DB::table('auth_token_credentials')->orderBy('id')->pluck('credential_id')->all();
 
         self::assertSame(['9', '09'], array_map(static fn (mixed $i): string => (string) $i, $ids));
+    }
+
+    #[Test]
+    public function it_declares_the_indexes_task_5_revocation_depends_on(): void
+    {
+        /*
+         * Named now because adding an index later means another migration on a
+         * live authorization table, and because a missing one is invisible: the
+         * queries still return the right answer, just by scanning.
+         *
+         * Each is tied to a query Task 5 is already specified to run:
+         *  - credential -> tokens, on every credential disable/replace/revoke.
+         *    Unindexed this scans the whole revocation path, which is the one
+         *    place latency turns into a security problem.
+         *  - subject + actor kind, for the password-change sweep of a subject's
+         *    HUMAN tokens; machine tokens are deliberately excluded from it.
+         *  - the recency anchor, which the design doc specified as indexed for
+         *    audit and reporting reads.
+         */
+        $expected = [
+            'auth_token_assurances' => [
+                'auth_token_assurance_identity_unique' => ['issuer_key', 'token_key'],
+                'auth_token_assurance_subject_index' => ['subject_key', 'actor_kind'],
+                'auth_token_assurance_recency_index' => ['weakest_satisfied_at'],
+            ],
+            'auth_token_credentials' => [
+                'auth_token_credential_unique' => ['issuer_key', 'token_key', 'credential_id'],
+                'auth_token_credential_lookup_index' => ['credential_id'],
+            ],
+        ];
+
+        foreach ($expected as $table => $indexes) {
+            $actual = collect(Schema::getIndexes($table))->keyBy('name');
+
+            foreach ($indexes as $name => $columns) {
+                self::assertTrue($actual->has($name), "Missing index {$name} on {$table}.");
+                self::assertSame($columns, $actual->get($name)['columns'] ?? null);
+            }
+        }
+    }
+
+    #[Test]
+    public function it_carries_a_derived_level_projection_for_hosts_to_index(): void
+    {
+        /*
+         * PARITY WITH auth_sessions, and a projection under exactly the same
+         * rule: never an authorization input, in either direction. Without it a
+         * host listing "which of my tokens are aal2" must deserialize every
+         * proof, which pushes them toward reading the payload themselves — and
+         * a host reading the payload is a host one step from authorizing on it.
+         *
+         * Nullable, because a machine token has no human level to project.
+         */
+        DB::table('auth_token_assurances')->insert($this->row(['acr' => 'aal2']));
+        DB::table('auth_token_assurances')->insert($this->row([
+            'token_key' => 'svc-1', 'actor_kind' => 'machine', 'acr' => null, 'weakest_satisfied_at' => null,
+        ]));
+
+        self::assertSame('aal2', DB::table('auth_token_assurances')->where('token_key', '42')->value('acr'));
+        self::assertNull(DB::table('auth_token_assurances')->where('token_key', 'svc-1')->value('acr'));
     }
 }
