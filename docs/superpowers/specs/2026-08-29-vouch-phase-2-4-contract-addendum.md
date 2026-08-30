@@ -347,7 +347,17 @@ rather than discovered.
 4. **Machine tokens are an actor class, not an assurance marker.** A departure from §6.5
    point 5, accepted for compatibility: a machine token never satisfies a human AAL
    requirement.
-5. **`vouch:audit-tokens` is not expected in host CI by default.** It reports; `--strict`
+5. **`auth_token_assurances` is no longer keyed by a cascading Sanctum token id.** The
+   2.1 persistence design specifies "FK to `personal_access_tokens` with cascade delete;
+   assurance level, `amr`, credential IDs, issuing session ID, `issued_at`". Every part of
+   that is replaced: the key is the composite `(issuer_key, token_key)` because a bare id
+   stops being unique once the issuer is pluggable; the FK and its cascade are gone because
+   Vouch does not own the issuer's schema and Sanctum's table may not exist when Vouch
+   migrates; and the derived `acr`/`amr`/`credential_ids` summary is replaced by the
+   immutable proof plus a normalized mapping table. Declared here because the parent
+   document is otherwise still authoritative and an implementer reading it would build the
+   superseded shape.
+6. **`vouch:audit-tokens` is not expected in host CI by default.** It reports; `--strict`
    is opt-in. An "unknown seam" is a call site or route group the static pass could not
    resolve — a dynamic method call, a variable middleware string, a route macro. `--strict`
    fails on those as well as on known-bad ones, which makes it noisy by design; that noise

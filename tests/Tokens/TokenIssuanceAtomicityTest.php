@@ -124,6 +124,21 @@ final class TokenIssuanceAtomicityTest extends TestCase
         return new TokenGrant($this->subject(), 'api', ['orders:read']);
     }
 
+    /**
+     * Issue inside a transaction, as a host must.
+     *
+     * Issuance refuses without a surrounding transaction, and IssuanceRefused
+     * is what the refusal tests assert — so a bare call would make them pass
+     * for the wrong reason. Tests that deliberately manage their own
+     * transaction call Vouch::issueToken() directly.
+     */
+    private function issue(?TokenGrant $grant = null): \Fissible\Vouch\Tokens\IssuedToken
+    {
+        $grant ??= $this->grant();
+
+        return DB::transaction(static fn (): \Fissible\Vouch\Tokens\IssuedToken => Vouch::issueToken($grant));
+    }
+
     #[Test]
     public function it_refuses_when_a_credential_in_the_proof_is_no_longer_valid(): void
     {
@@ -138,7 +153,7 @@ final class TokenIssuanceAtomicityTest extends TestCase
         $credential->update(['disabled_at' => now()]);
 
         try {
-            Vouch::issueToken($this->grant());
+            $this->issue();
             self::fail('Issuance proceeded on a disabled credential.');
         } catch (IssuanceRefused) {
             // Expected.
@@ -165,7 +180,7 @@ final class TokenIssuanceAtomicityTest extends TestCase
         AuthPolicy::query()->where('scope', 'token_issue')->update(['document' => ['all_of' => ['password', 'totp']]]);
 
         try {
-            Vouch::issueToken($this->grant());
+            $this->issue();
             self::fail('Issuance proceeded against an unsatisfied policy.');
         } catch (IssuanceRefused) {
             // Expected.
@@ -253,8 +268,8 @@ final class TokenIssuanceAtomicityTest extends TestCase
         $credential = $this->credentials();
         $session = $this->establishedSessionFor($credential);
 
-        $first = Vouch::issueToken($this->grant());
-        $second = Vouch::issueToken($this->grant());
+        $first = $this->issue();
+        $second = $this->issue();
 
         self::assertNotSame($first->tokenKey, $second->tokenKey);
         self::assertSame(2, DB::table('auth_token_assurances')->count());
@@ -287,7 +302,7 @@ final class TokenIssuanceAtomicityTest extends TestCase
 
         $recorder = $this->recordingLocks();
 
-        Vouch::issueToken($this->grant());
+        $this->issue();
 
         self::assertCount(1, $recorder->calls, 'Locks must be acquired once, not per credential.');
         self::assertSame($this->subject()->render(), $recorder->calls[0]['subject']);
@@ -343,7 +358,7 @@ final class TokenIssuanceAtomicityTest extends TestCase
 
         $recorder = $this->recordingLocks();
 
-        Vouch::issueToken($this->grant());
+        $this->issue();
 
         $expected = [(string) $password->id, (string) $totp->id];
         sort($expected);
@@ -437,6 +452,15 @@ final class TokenIssuanceAtomicityTest extends TestCase
 
         \Illuminate\Support\Facades\Schema::drop('auth_token_assurances');
 
+        /*
+         * Inside a CALLER transaction, because issuance opens none of its own.
+         * An earlier draft called it bare, which under autocommit meant the
+         * issuer's row was already committed when the assurance write failed —
+         * so the assertion that no token survives could not hold, and the
+         * contract contradicted itself.
+         */
+        DB::beginTransaction();
+
         $issuerRan = false;
         DB::listen(function ($query) use (&$issuerRan): void {
             if (str_contains($query->sql, 'personal_access_tokens')
@@ -450,6 +474,10 @@ final class TokenIssuanceAtomicityTest extends TestCase
             self::fail('Issuance completed with no assurance table.');
         } catch (\Throwable) {
             // Expected; the assertions are ordering and survival.
+        } finally {
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
         }
 
         self::assertTrue($issuerRan, 'The issuer never ran, so this proves nothing about the leak.');
@@ -463,7 +491,7 @@ final class TokenIssuanceAtomicityTest extends TestCase
         $this->credentials();
         $this->establishedSessionFor();
 
-        $issued = Vouch::issueToken($this->grant());
+        $issued = $this->issue();
 
         self::assertSame(1, DB::table('auth_token_assurances')
             ->where('issuer_key', $issued->issuerKey)
@@ -545,5 +573,28 @@ final class TokenIssuanceAtomicityTest extends TestCase
             $recorder->calls[0]['connection'],
             'The lock manager did not use the connection issuance was given.',
         );
+    }
+
+    #[Test]
+    public function it_refuses_to_issue_outside_a_transaction(): void
+    {
+        /*
+         * The precondition that makes enlistment coherent. Issuance writes in
+         * three places and opens no transaction of its own, so without a
+         * surrounding one every write autocommits and a failure part-way leaves
+         * a committed token nothing can undo.
+         *
+         * Refusing is the only option that keeps both settled decisions: it does
+         * not open a transaction behind the caller's back, and it does not issue
+         * unsafely. Fail closed, and make the host declare its boundary.
+         */
+        $this->credentials();
+        $this->establishedSessionFor();
+
+        self::assertSame(0, DB::transactionLevel());
+
+        $this->expectException(IssuanceRefused::class);
+
+        Vouch::issueToken($this->grant());
     }
 }

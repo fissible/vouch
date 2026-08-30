@@ -301,6 +301,16 @@ manager must all receive that exact instance.
 8. NEVER opens or commits a transaction of its own — it enlists in the
    caller's, so a host that wraps issuance with its own writes and rolls back is
    not left holding a live token and assurance record it believes it undid.
+   It therefore REQUIRES an active transaction and refuses without one.
+
+That last clause closes a contradiction rather than adding a rule. Issuance
+writes in three places; if it opens no transaction and none is active, each
+write autocommits, so a failure after the issuer succeeds leaves a committed
+token that nothing can undo — the exact leak the atomicity tests exist to catch,
+made unfixable by the enlistment decision. The settled wording already assumed a
+surrounding transaction ("the caller must not disclose it until the surrounding
+transaction commits"); refusing without one makes that assumption enforceable
+instead of implicit, and fails closed rather than issuing unsafely.
 
 An earlier draft of this list said "commits before returning plaintext", which
 contradicts enlistment: a synchronous call cannot both guarantee committed state

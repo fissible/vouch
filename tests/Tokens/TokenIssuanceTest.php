@@ -145,12 +145,26 @@ final class TokenIssuanceTest extends TestCase
         return new TokenGrant($this->subject($subjectId), 'api', ['orders:read'], $tenantId);
     }
 
+    /**
+     * Issue inside a transaction, as a host must.
+     *
+     * EVERY call goes through here, refusals included. Issuance refuses without
+     * a surrounding transaction, and IssuanceRefused is also what the refusal
+     * tests assert — so a bare call would make every one of them pass for the
+     * wrong reason, asserting a precondition failure while claiming to test
+     * subject substitution or a revoked session.
+     */
+    private function issue(TokenGrant $grant): \Fissible\Vouch\Tokens\IssuedToken
+    {
+        return DB::transaction(static fn (): \Fissible\Vouch\Tokens\IssuedToken => Vouch::issueToken($grant));
+    }
+
     #[Test]
     public function it_issues_from_a_session_whose_proof_satisfies_the_intent(): void
     {
         $this->establishedSession();
 
-        $issued = Vouch::issueToken($this->grant());
+        $issued = $this->issue($this->grant());
 
         self::assertNotSame('', $issued->plainText);
         self::assertSame(1, DB::table('auth_token_assurances')->count());
@@ -170,7 +184,7 @@ final class TokenIssuanceTest extends TestCase
 
         $this->expectException(IssuanceRefused::class);
 
-        Vouch::issueToken($this->grant(subjectId: 8));
+        $this->issue($this->grant(subjectId: 8));
     }
 
     #[Test]
@@ -180,7 +194,7 @@ final class TokenIssuanceTest extends TestCase
         // not fall back to an ambient user.
         $this->expectException(IssuanceRefused::class);
 
-        Vouch::issueToken($this->grant());
+        $this->issue($this->grant());
     }
 
     #[Test]
@@ -194,7 +208,7 @@ final class TokenIssuanceTest extends TestCase
 
         $this->expectException(IssuanceRefused::class);
 
-        Vouch::issueToken($this->grant());
+        $this->issue($this->grant());
     }
 
     #[Test]
@@ -214,7 +228,7 @@ final class TokenIssuanceTest extends TestCase
 
         $this->expectException(IssuanceRefused::class);
 
-        Vouch::issueToken($this->grant());
+        $this->issue($this->grant());
     }
 
     #[Test]
@@ -229,7 +243,7 @@ final class TokenIssuanceTest extends TestCase
 
         $this->expectException(IssuanceRefused::class);
 
-        Vouch::issueToken($this->grant());
+        $this->issue($this->grant());
     }
 
     #[Test]
@@ -241,7 +255,7 @@ final class TokenIssuanceTest extends TestCase
 
         $this->expectException(IssuanceRefused::class);
 
-        Vouch::issueToken($this->grant());
+        $this->issue($this->grant());
     }
 
     #[Test]
@@ -266,7 +280,7 @@ final class TokenIssuanceTest extends TestCase
 
         $credentials = $this->enrolledFromSession($this->establishedSession());
 
-        Vouch::issueToken($this->grant());
+        $this->issue($this->grant());
 
         $mapped = DB::table('auth_token_credentials')->orderBy('credential_id')->pluck('credential_id')->all();
 
@@ -305,7 +319,7 @@ final class TokenIssuanceTest extends TestCase
 
         $this->expectException(IssuanceRefused::class);
 
-        Vouch::issueToken($this->grant());
+        $this->issue($this->grant());
     }
 
     #[Test]
@@ -318,7 +332,7 @@ final class TokenIssuanceTest extends TestCase
          */
         $this->establishedSession();
 
-        Vouch::issueToken($this->grant());
+        $this->issue($this->grant());
 
         $row = DB::table('auth_token_assurances')->first();
 
@@ -343,7 +357,7 @@ final class TokenIssuanceTest extends TestCase
          */
         $this->establishedSession();
 
-        $plain = Vouch::issueToken($this->grant())->plainText;
+        $plain = $this->issue($this->grant())->plainText;
 
         foreach (['auth_token_assurances', 'auth_token_credentials', 'auth_sessions', 'personal_access_tokens'] as $table) {
             foreach (DB::table($table)->get() as $row) {
@@ -370,7 +384,7 @@ final class TokenIssuanceTest extends TestCase
          * the opposite of what Task 5 must establish.
          */
         $this->establishedSession();
-        $issued = Vouch::issueToken($this->grant());
+        $issued = $this->issue($this->grant());
 
         DB::table('auth_sessions')->update(['revoked_at' => now(), 'revoked_reason' => RevokedReason::Logout->value]);
 
@@ -392,7 +406,7 @@ final class TokenIssuanceTest extends TestCase
          */
         $this->establishedSession();
 
-        Vouch::issueToken(new TokenGrant($this->subject(), 'wide', ['*', 'admin:everything']));
+        $this->issue(new TokenGrant($this->subject(), 'wide', ['*', 'admin:everything']));
 
         self::assertSame('aal2', DB::table('auth_token_assurances')->value('acr'));
     }
@@ -417,7 +431,7 @@ final class TokenIssuanceTest extends TestCase
 
         $this->expectException(IssuanceRefused::class);
 
-        Vouch::issueToken($this->grant(tenantId: 'acme'));
+        $this->issue($this->grant(tenantId: 'acme'));
     }
 
     #[Test]
@@ -439,6 +453,6 @@ final class TokenIssuanceTest extends TestCase
 
         $this->expectException(IssuanceRefused::class);
 
-        Vouch::issueToken($this->grant());
+        $this->issue($this->grant());
     }
 }
