@@ -336,7 +336,10 @@ final class TokenIssuanceAtomicityTest extends TestCase
          * The proof is deliberately ordered NEWEST first, so an implementation
          * locking in proof order takes them backwards and fails.
          */
-        $password = AuthCredential::query()->where('user_id', 7)->where('type', 'password')->firstOrFail();
+        // Enrol the password BEFORE querying for it. An earlier draft queried
+        // first and enrolled only the totp, so the test died in its own setup
+        // without ever reaching issuance.
+        $password = $this->credentials();
         app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)->enroll(7, ['label' => 'ada@acme.example']);
         $totp = AuthCredential::query()->where('user_id', 7)->where('type', 'totp')->firstOrFail();
 
