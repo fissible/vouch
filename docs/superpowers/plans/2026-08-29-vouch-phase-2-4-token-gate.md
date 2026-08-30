@@ -201,7 +201,21 @@ persisted `acr` disagrees with its factors; a legacy proofless session is refuse
 and the typed result reports the right case for each of the four outcomes. No later
 task starts until those pass on all three engines.
 
-## Task 2 — Evidence model, persistence, and comparator
+## Task 2 — Evidence model, persistence, and comparator — DONE (2c57d52)
+
+**Completed 2026-08-30.** Suite 1749 passed / 1 skipped, PHPStan 0. Duet: six
+phase-1 review rounds to APPROVE, then three implementer stops — two on
+contradictions I had left in the contract, one on a defect whose cause the
+implementer diagnosed better than I did.
+
+`OnePolicyTwoRenderingsTest` passes, which is the phase's central claim moving
+from assertion to fact.
+
+**Verified on SQLite only.** The empty-string CHECK constraints are per-driver
+raw DDL, and MySQL commits DDL implicitly. The three-engine matrix in CI is what
+settles whether `auth_token_assurances` and `auth_token_credentials` build and
+behave on MySQL 8 and PostgreSQL 16 — treat a matrix failure there as expected
+information rather than a surprise.
 
 **Depends on Task 2a**, which establishes the evidence value, the strict
 deserialization rule and the typed comparison result for sessions. Task 2 extends
