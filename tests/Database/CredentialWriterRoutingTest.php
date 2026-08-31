@@ -22,6 +22,7 @@ use Fissible\Vouch\Tokens\SubjectKey;
 use Fissible\Vouch\Tokens\TokenAssuranceRecord;
 use Fissible\Vouch\Tokens\TokenIssuerRegistry;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use OTPHP\TOTP;
@@ -868,3 +869,61 @@ it('rolls the credential write back when invalidation fails', function (Closure 
      */
     expect(routingCredentialState())->toBe($before);
 })->with('revoking writers');
+
+
+/* ---- the facade must share the writer's connection ---------------------- */
+
+it('keeps the credential write and the invalidation on one connection', function (): void {
+    /*
+     * FirstCredentialEnrollment takes an injected Connection — the contention
+     * suite constructs it on a named one — but resolved CredentialMutation from
+     * the container, which is bound to the DEFAULT connection. The credential
+     * write then happened on the caller's connection while the locks and the
+     * assurance invalidation happened on another.
+     *
+     * That is not a slow path or a style problem: the two halves are in
+     * different transactions on different connections, so they cannot roll back
+     * together. Rolling the caller's connection back undoes the credential
+     * change and leaves the invalidation committed — a subject whose password
+     * did not change, with its tokens revoked — and the mirror case loses the
+     * revocation instead.
+     *
+     * Proven by rolling back and requiring BOTH halves to be untouched. On one
+     * connection that is automatic; across two it cannot hold.
+     */
+    routingUser();
+    app(PasswordFactor::class)->enroll(7, ['password' => 'old-password']);
+    $password = AuthCredential::query()->where('user_id', 7)->where('type', 'password')->firstOrFail();
+    app(PasswordFactor::class)->revoke($password);
+    $secretBefore = stringValue(AuthCredential::query()->findOrFail($password->id)->secret);
+
+    routingToken('cites-the-reused-row', [stringValue($password->id)]);
+    routingIssuer();
+
+    Config::set('database.connections.enrolling', Config::array(
+        'database.connections.' . Config::string('database.default'),
+    ));
+    $connection = DB::connection('enrolling');
+
+    $connection->beginTransaction();
+
+    try {
+        app()->makeWith(\Fissible\Vouch\Enrollment\FirstCredentialEnrollment::class, [
+            'connection' => $connection,
+        ])->enroll(new \Fissible\Vouch\Enrollment\FirstCredentialRequest(
+            userId: 7,
+            identifierType: 'email',
+            identifierValue: 'ada-again@acme.example',
+            password: 'a-replacement-password',
+            tenantId: null,
+            clientIp: '203.0.113.10',
+        ));
+    } finally {
+        $connection->rollBack();
+    }
+
+    // Both halves rolled back together, or neither is trustworthy.
+    expect(stringValue(AuthCredential::query()->findOrFail($password->id)->secret))->toBe($secretBefore)
+        ->and(AuthCredential::query()->whereKey($password->id)->whereNotNull('disabled_at')->exists())->toBeTrue()
+        ->and(routingSurvivors())->toBe(['cites-the-reused-row']);
+});
