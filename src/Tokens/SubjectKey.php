@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Tokens;
 
 use InvalidArgumentException;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Canonical, provider-qualified identity for a token subject.
@@ -32,6 +33,24 @@ final readonly class SubjectKey
         }
 
         return new self($provider, (string) $id);
+    }
+
+    /**
+     * Derive the provider from the host's configured user model.
+     *
+     * Token and session evidence persist the model's morph class, rather than
+     * its PHP class name. Credential writers must use that same identity or a
+     * successful-looking mutation can fail to find the subject's assurances.
+     */
+    public static function forConfiguredUser(mixed $id): self
+    {
+        $model = config('auth.providers.users.model');
+
+        if (! is_string($model) || ! is_subclass_of($model, Model::class)) {
+            throw new \RuntimeException('auth.providers.users.model is not an Eloquent model.');
+        }
+
+        return self::of((new $model)->getMorphClass(), $id);
     }
 
     public static function fromString(string $value): self

@@ -22,6 +22,7 @@ use Fissible\Vouch\Sessions\RevokedReason;
 use Fissible\Vouch\Sessions\SessionLifecycle;
 use Fissible\Vouch\Sessions\SessionEvidence;
 use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Tokens\SubjectKey;
 use Throwable;
 
 /**
@@ -50,10 +51,15 @@ final readonly class CredentialSelfService
         }
 
         return $this->mutateCredentials($authoritative, RevokedReason::PasswordChanged, function () use ($authoritative, $password): void {
-            $this->factors->get('password')->enroll($authoritative->user_id, [
-                'password' => $password,
-                'replace' => true,
-            ]);
+            app(\Fissible\Vouch\Credentials\CredentialMutation::class)->subjectWide(
+                SubjectKey::forConfiguredUser($authoritative->user_id),
+                function () use ($authoritative, $password): void {
+                    $this->factors->get('password')->enroll($authoritative->user_id, [
+                        'password' => $password,
+                        'replace' => true,
+                    ]);
+                },
+            );
         });
     }
 

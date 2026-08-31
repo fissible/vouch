@@ -7,6 +7,7 @@ namespace Fissible\Vouch\Factors\Drivers;
 use Fissible\Vouch\Attempts\Mutations\ConsumeChallenge;
 use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Contracts\Factor;
+use Fissible\Vouch\Credentials\CredentialMutation;
 use Fissible\Vouch\Contracts\RandomSource;
 use Fissible\Vouch\Enrollment\EnrollmentGuard;
 use Fissible\Vouch\Factors\ChallengeRequest;
@@ -20,6 +21,7 @@ use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
 use Fissible\Vouch\Models\AuthChallenge;
 use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
+use Fissible\Vouch\Tokens\SubjectKey;
 use Fissible\Vouch\Notifications\OtpChallengeOutbox;
 use Fissible\Vouch\Support\SystemRandomSource;
 use Fissible\Vouch\Throttle\ChallengeAttemptDecision;
@@ -155,7 +157,9 @@ abstract readonly class OtpFactor implements Factor
          * enforces both on the model write path, so they hold however the row is
          * created — including by code that never read this method.
          */
-        $credential = $this->guard->serialize(
+        $credential = null;
+        $write = function () use ($userId, $identifierId, &$credential): void {
+            $credential = $this->guard->serialize(
             $userId,
             $this->id(),
             $this->maxActiveCredentials(),
@@ -182,7 +186,13 @@ abstract readonly class OtpFactor implements Factor
                     'strength' => $this->strength()->name,
                 ]);
             },
-        );
+            );
+        };
+        $this->mutation()->additive(SubjectKey::forConfiguredUser($userId), $write);
+
+        if (! $credential instanceof AuthCredential) {
+            throw new \LogicException('OTP enrollment did not create a credential.');
+        }
 
         // No one-time secrets: an OTP credential holds nothing to show.
         return new EnrollmentResult([$credential]);
@@ -382,7 +392,14 @@ abstract readonly class OtpFactor implements Factor
 
     public function revoke(AuthCredential $credential): void
     {
-        $credential->update(['disabled_at' => $this->clock->now()]);
+        $this->mutation()->revoking(SubjectKey::forConfiguredUser($credential->user_id), [(string) $credential->id], function () use ($credential): void {
+            $credential->update(['disabled_at' => $this->clock->now()]);
+        });
+    }
+
+    private function mutation(): CredentialMutation
+    {
+        return app()->makeWith(CredentialMutation::class, ['connection' => $this->guard->connection()]);
     }
 
     /**

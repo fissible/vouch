@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Factors\Drivers;
 
 use Fissible\Vouch\Contracts\RandomSource;
+use Fissible\Vouch\Credentials\CredentialMutation;
 use Fissible\Vouch\Support\SystemRandomSource;
 use Fissible\Vouch\Attempts\Mutations\DisableCredential;
 use Fissible\Vouch\Contracts\Factor;
@@ -19,6 +20,7 @@ use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
 use Fissible\Vouch\Models\AuthChallenge;
 use Fissible\Vouch\Models\AuthCredential;
+use Fissible\Vouch\Tokens\SubjectKey;
 use Fissible\Vouch\Secrets\OneTimeSecret;
 use Illuminate\Support\Facades\Hash;
 use InvalidArgumentException;
@@ -123,7 +125,9 @@ final readonly class RecoveryCodeFactor implements Factor
     public function enroll(int $userId, array $data): EnrollmentResult
     {
         /** @var array{codes: list<string>, credentials: list<AuthCredential>} $generated */
-        $generated = $this->guard->serialize(
+        $generated = ['codes' => [], 'credentials' => []];
+        $write = function () use ($userId, &$generated): void {
+            $generated = $this->guard->serialize(
             $userId,
             $this->id(),
             $this->maxActiveCredentials(),
@@ -150,7 +154,15 @@ final readonly class RecoveryCodeFactor implements Factor
 
                 return ['codes' => $codes, 'credentials' => $credentials];
             },
-        );
+            );
+        };
+        $ids = array_values(AuthCredential::query()->where('user_id', $userId)->where('type', $this->id())->whereNull('disabled_at')->get()->map(static fn (AuthCredential $credential): string => (string) $credential->id)->all());
+        $mutation = $this->mutation();
+        if ($ids === []) {
+            $mutation->additive(SubjectKey::forConfiguredUser($userId), $write);
+        } else {
+            $mutation->revoking(SubjectKey::forConfiguredUser($userId), $ids, $write);
+        }
 
         return new EnrollmentResult(
             $generated['credentials'],
@@ -231,7 +243,14 @@ final readonly class RecoveryCodeFactor implements Factor
 
     public function revoke(AuthCredential $credential): void
     {
-        $credential->update(['disabled_at' => $this->clock->now()]);
+        $this->mutation()->revoking(SubjectKey::forConfiguredUser($credential->user_id), [(string) $credential->id], function () use ($credential): void {
+            $credential->update(['disabled_at' => $this->clock->now()]);
+        });
+    }
+
+    private function mutation(): CredentialMutation
+    {
+        return app()->makeWith(CredentialMutation::class, ['connection' => $this->guard->connection()]);
     }
 
     /**
