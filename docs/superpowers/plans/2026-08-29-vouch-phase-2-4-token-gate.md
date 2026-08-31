@@ -271,7 +271,15 @@ store a fiction. The defect is a HUMAN record without an anchor, which the
 adapter refuses at the read boundary. Assert persisted values, duplicate rejection, string identity, null-tenant
 persistence and issuer-scoped mappings.
 
-## Task 3 — Transactional issuance and public API
+## Task 3 — Transactional issuance and public API — DONE
+
+**Completed 2026-08-30.** Suite 1778 passed / 1 skipped, PHPStan 0. Duet: five
+phase-1 rounds to APPROVE (13, 6, 4, 2, 0 findings), then implementer stops on
+three contract defects of mine, and a consensus review that found a real
+session-revocation TOCTOU window in its own implementation.
+
+Two obligations carried to Task 5, recorded in that section: `lockSubject()` is
+not yet a durable per-subject lock, and machine-token issuance has no path.
 
 Add `Vouch::issueToken(TokenGrant $grant, ?ConnectionInterface $connection = null)` that:
 
