@@ -273,7 +273,15 @@ final class TokenGateResponseTest extends TestCase
         // this boundary, and nowhere else.
         $response = $this->withToken($this->recordedToken($this->proof(strong: false)))->getJson('/gated');
 
-        self::assertStringContainsString('max_age="900"', (string) $response->headers->get('WWW-Authenticate'));
+        /*
+         * The tuple carries max_age="900" literally, so it proves the
+         * conversion and everything else at once. The explicit PT15M check
+         * stays only to name the failure mode a reader should picture: config
+         * takes ISO-8601 because it maps to DateInterval, the wire takes
+         * seconds because RFC 9470 §3 says so, and leaking the config form onto
+         * the wire is the mistake.
+         */
+        self::assertSame($this->canonicalChallenge('aal2', 900), $this->responseTuple($response));
         self::assertStringNotContainsString('PT15M', (string) $response->headers->get('WWW-Authenticate'));
     }
 
