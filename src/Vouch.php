@@ -82,9 +82,24 @@ final class Vouch
 
         app(CredentialLockManager::class)->acquire($connection, $grant->subject, $credentialIds);
 
-        // The locks make this read durable. The first validation is advisory:
-        // a session can be revoked after it and before lock acquisition.
-        $evidence = self::validatedSessionEvidence($connection, $hostSessionId, $principalSubject, $grant);
+        /*
+         * Preserve the issuance protocol's anchor -> credential order, then
+         * lock the exact session selected by session_binding before reading its
+         * proof. Session-revocation paths only lock/update auth_sessions rows and do
+         * not subsequently acquire subject or credential locks, so this adds
+         * no reverse lock edge (and therefore no deadlock cycle).
+         *
+         * The first validation is advisory: a session can be revoked after it
+         * and before lock acquisition. This locked validation is durable until
+         * the caller's transaction commits.
+         */
+        $evidence = self::validatedSessionEvidence(
+            $connection,
+            $hostSessionId,
+            $principalSubject,
+            $grant,
+            lockForUpdate: true,
+        );
         $revalidatedCredentialIds = CredentialLockManager::canonicalCredentialIds(array_map(
             static fn ($factor): string => $factor->credentialId,
             $evidence->factors,
@@ -130,10 +145,14 @@ final class Vouch
         string $hostSessionId,
         SubjectKey $principalSubject,
         TokenGrant $grant,
+        bool $lockForUpdate = false,
     ): AssuranceEvidence {
-        $sessionRow = $connection->table((new AuthSession())->getTable())
-            ->where('session_binding', SessionBinding::for($hostSessionId, BindingDomain::Session))
-            ->first();
+        $sessionQuery = $connection->table((new AuthSession())->getTable())
+            ->where('session_binding', SessionBinding::for($hostSessionId, BindingDomain::Session));
+        if ($lockForUpdate) {
+            $sessionQuery->lockForUpdate();
+        }
+        $sessionRow = $sessionQuery->first();
         $session = $sessionRow === null ? null : (new AuthSession())->newFromBuilder(get_object_vars($sessionRow));
 
         $sessionSubject = $session instanceof AuthSession

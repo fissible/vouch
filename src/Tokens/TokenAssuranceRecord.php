@@ -128,6 +128,52 @@ final readonly class TokenAssuranceRecord
         $delete();
     }
 
+    /** @return array<string, list<string>> */
+    public function tokenKeysByIssuer(): array
+    {
+        $keysByIssuer = [];
+        $rows = $this->connection->table('auth_token_assurances')
+            ->orderBy('issuer_key')
+            ->orderBy('token_key')
+            ->get(['issuer_key', 'token_key']);
+
+        foreach ($rows as $row) {
+            if (! is_string($row->issuer_key) || ! is_string($row->token_key)) {
+                throw new \LogicException('Token assurance storage returned an invalid identity.');
+            }
+
+            $keysByIssuer[$row->issuer_key][] = $row->token_key;
+        }
+
+        return $keysByIssuer;
+    }
+
+    /**
+     * @param list<string> $tokenKeys
+     */
+    public function forgetMany(string $issuerKey, array $tokenKeys): int
+    {
+        foreach ($tokenKeys as $tokenKey) {
+            $this->assertIdentity($issuerKey, $tokenKey);
+        }
+
+        if ($tokenKeys === []) {
+            return 0;
+        }
+
+        return $this->connection->transaction(function () use ($issuerKey, $tokenKeys): int {
+            $this->connection->table('auth_token_credentials')
+                ->where('issuer_key', $issuerKey)
+                ->whereIn('token_key', $tokenKeys)
+                ->delete();
+
+            return $this->connection->table('auth_token_assurances')
+                ->where('issuer_key', $issuerKey)
+                ->whereIn('token_key', $tokenKeys)
+                ->delete();
+        });
+    }
+
     private function assertIdentity(string $issuerKey, string $tokenKey): void
     {
         if ($issuerKey === '' || $tokenKey === '') {

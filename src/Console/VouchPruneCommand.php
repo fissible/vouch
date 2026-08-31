@@ -8,6 +8,8 @@ use DateInterval;
 use Fissible\Vouch\Notifications\OtpOutboxStatus;
 use Fissible\Vouch\Support\DatabaseTime;
 use Fissible\Vouch\Throttle\ThrottleConfiguration;
+use Fissible\Vouch\Tokens\TokenAssuranceSweep;
+use Fissible\Vouch\Tokens\TokenAssuranceSweepResult;
 use Illuminate\Console\Command;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\Config;
@@ -34,7 +36,7 @@ final class VouchPruneCommand extends Command
 
     protected $description = 'Prune expired Vouch security state and classify OTP delivery health.';
 
-    public function handle(DatabaseTime $time, ThrottleConfiguration $throttle): int
+    public function handle(DatabaseTime $time, ThrottleConfiguration $throttle, TokenAssuranceSweep $tokenAssurances): int
     {
         try {
             $result = $this->sweep(DB::connection(), $time, $throttle);
@@ -46,6 +48,36 @@ final class VouchPruneCommand extends Command
 
             return CommandExit::Failure->value;
         }
+
+        try {
+            $tokenResult = $tokenAssurances->sweep();
+        } catch (Throwable $exception) {
+            $tokenResult = new TokenAssuranceSweepResult(
+                reclaimed: 0,
+                retained: 0,
+                unsupported: 0,
+                errored: 1,
+                errors: [sprintf('token assurance sweep: %s', $exception->getMessage())],
+            );
+        }
+
+        $result = new PruneResult(
+            attempts: $result->attempts,
+            challenges: $result->challenges,
+            revokedSessions: $result->revokedSessions,
+            throttleCounters: $result->throttleCounters,
+            expiredLocks: $result->expiredLocks,
+            tupleMarkers: $result->tupleMarkers,
+            deliveredOutbox: $result->deliveredOutbox,
+            undeliveredOutbox: $result->undeliveredOutbox,
+            deliveryReservations: $result->deliveryReservations,
+            reclaimedTokenAssurances: $tokenResult->reclaimed,
+            retainedTokenAssurances: $tokenResult->retained,
+            unsupportedTokenAssurances: $tokenResult->unsupported,
+            erroredTokenAssurances: $tokenResult->errored,
+            tokenAssuranceSweepErrors: $tokenResult->errors,
+            unsupportedTokenAssuranceIssuers: $tokenResult->unsupportedIssuers,
+        );
 
         $this->components->info(sprintf(
             'Pruned %d attempt(s), %d challenge(s), %d revoked session(s), '
@@ -62,6 +94,25 @@ final class VouchPruneCommand extends Command
             $result->undeliveredOutbox,
             $result->deliveryReservations,
         ));
+
+        $this->components->info(sprintf(
+            'Token assurance sweep records: reclaimed %d, retained %d, unsupported %d, errored %d.',
+            $result->reclaimedTokenAssurances,
+            $result->retainedTokenAssurances,
+            $result->unsupportedTokenAssurances,
+            $result->erroredTokenAssurances,
+        ));
+
+        foreach ($result->tokenAssuranceSweepErrors as $error) {
+            $this->components->warn(sprintf('Token assurance sweep error: %s', $error));
+        }
+
+        if ($result->unsupportedTokenAssuranceIssuers !== []) {
+            $this->components->warn(sprintf(
+                'Unsupported token assurance issuer(s): %s',
+                implode(', ', $result->unsupportedTokenAssuranceIssuers),
+            ));
+        }
 
         if ($result->foundUndeliveredWork()) {
             $this->components->warn(sprintf(
@@ -193,6 +244,12 @@ final class VouchPruneCommand extends Command
                 deliveredOutbox: $deliveredOutbox,
                 undeliveredOutbox: $undeliveredOutbox,
                 deliveryReservations: $deliveryReservations,
+                reclaimedTokenAssurances: 0,
+                retainedTokenAssurances: 0,
+                unsupportedTokenAssurances: 0,
+                erroredTokenAssurances: 0,
+                tokenAssuranceSweepErrors: [],
+                unsupportedTokenAssuranceIssuers: [],
             );
         });
     }

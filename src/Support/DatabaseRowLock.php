@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Support;
 
-use Illuminate\Database\Connection;
+use Illuminate\Database\ConnectionInterface;
 use RuntimeException;
 
 /**
@@ -16,7 +16,7 @@ use RuntimeException;
  */
 final readonly class DatabaseRowLock
 {
-    public function __construct(private Connection $connection) {}
+    public function __construct(private ConnectionInterface $connection) {}
 
     /**
      * @param array<string, mixed> $insert

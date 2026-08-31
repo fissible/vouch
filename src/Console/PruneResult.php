@@ -17,6 +17,14 @@ final readonly class PruneResult
         public int $deliveredOutbox,
         public int $undeliveredOutbox,
         public int $deliveryReservations,
+        public int $reclaimedTokenAssurances,
+        public int $retainedTokenAssurances,
+        public int $unsupportedTokenAssurances,
+        public int $erroredTokenAssurances,
+        /** @var list<string> */
+        public array $tokenAssuranceSweepErrors,
+        /** @var list<string> */
+        public array $unsupportedTokenAssuranceIssuers,
     ) {}
 
     public function foundUndeliveredWork(): bool

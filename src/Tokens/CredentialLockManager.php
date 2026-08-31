@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Tokens;
 
 use Illuminate\Database\ConnectionInterface;
+use Fissible\Vouch\Support\DatabaseRowLock;
 
 /**
  * Serializes human-token issuance with credential mutation.
@@ -52,10 +53,11 @@ class CredentialLockManager
 
     protected function lockSubject(SubjectKey $subject): void
     {
-        $this->connection()->table('auth_sessions')
-            ->where('user_id', $subject->id)
-            ->lockForUpdate()
-            ->first();
+        (new DatabaseRowLock($this->connection()))->ensureAndLock(
+            'auth_subject_locks',
+            ['subject_key' => $subject->toString()],
+            ['subject_key' => $subject->toString()],
+        );
     }
 
     protected function lockCredential(string $credentialId): void
