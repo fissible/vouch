@@ -235,6 +235,59 @@ final class CredentialMutationTest extends TestCase
     }
 
     #[Test]
+    public function a_credential_disabled_during_the_write_is_invalidated_too(): void
+    {
+        /*
+         * The TOCTOU codex found by reading the implementation rather than the
+         * tests, and the reason this assertion is not about concurrency.
+         *
+         * The replacement writers collect their active credential ids BEFORE
+         * calling the facade, so the list is snapshotted outside the subject
+         * lock. A credential created between the snapshot and the lock gets
+         * disabled by the replacement's write — it disables everything active —
+         * but is absent from the id list, so tokens citing it keep their
+         * assurance records. The credential is gone and its tokens still work,
+         * which is the exact failure this whole task exists to prevent.
+         *
+         * Stated as a property rather than a race, because a property can be
+         * tested deterministically: whatever the caller listed, a credential
+         * this mutation DISABLES must have its tokens invalidated. That holds
+         * under any interleaving, and it cannot be satisfied by a snapshot
+         * taken before the lock.
+         */
+        DB::table('auth_credentials')->insert([
+            'id' => 606,
+            'user_id' => 7,
+            'type' => 'password',
+            'secret' => 'appeared-after-the-snapshot',
+            'strength' => 'knowledge',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->tokenCiting('cites-the-listed-one', ['101']);
+        $this->tokenCiting('cites-the-unlisted-one', ['606']);
+        $issuer = new RecordingIssuer('sanctum');
+
+        // The caller lists only 101 — the snapshot it took before the lock.
+        $this->mutation($issuer)->revoking(
+            $this->subject(),
+            ['101'],
+            static function (ConnectionInterface $connection): void {
+                // ...but the write disables everything active, as a replacement does.
+                $connection->table('auth_credentials')
+                    ->where('user_id', 7)->whereNull('disabled_at')
+                    ->update(['disabled_at' => now()]);
+            },
+        );
+
+        self::assertSame([], $this->survivingTokens());
+        self::assertSame(
+            ['cites-the-listed-one', 'cites-the-unlisted-one'],
+            $this->sorted($issuer->revoked),
+        );
+    }
+
+    #[Test]
     public function a_password_change_sweeps_this_subjects_human_tokens(): void
     {
         $this->tokenCiting('human-a', ['101']);
