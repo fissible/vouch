@@ -259,7 +259,9 @@ final class TokenGateResponseTest extends TestCase
         // which accepts tabs and other client-visible control characters inside
         // a quoted value, and read a normalized header rather than asserting how
         // many fields were emitted.
-        self::assertSame([$this->challengeLine('aal2', 900)], $response->headers->all('WWW-Authenticate'));
+        // The whole tuple as well, so no test in this file asserts a rejection
+        // by a weaker form than the contract it claims to pin.
+        self::assertSame($this->canonicalChallenge('aal2', 900), $this->responseTuple($response));
         self::assertSame(0, preg_match('/[\x00-\x1F\x7F]/', $header), 'Control characters in the challenge.');
     }
 
@@ -286,12 +288,19 @@ final class TokenGateResponseTest extends TestCase
         config(['vouch.assurance_requirements' => []]);
         Route::middleware(['api', 'vouch.token:aal2'])->get('/gated-level-only', fn (): string => 'reached');
 
+        /*
+         * The CANONICAL TUPLE with max_age omitted, not string containment.
+         * Containment left status, header multiplicity, cache control, Vary and
+         * the empty body unconstrained — the third time in this contract that a
+         * rejection was asserted by a weaker form than the one it claims to
+         * pin. The first two were bare assertStatus(401); sweeping for that
+         * shape alone missed this one, which is why canonicalChallenge() takes
+         * a nullable max_age: the omission is part of the contract, not an
+         * absence to check for separately.
+         */
         $response = $this->withToken($this->recordedToken($this->proof(strong: false)))->getJson('/gated-level-only');
 
-        $header = (string) $response->headers->get('WWW-Authenticate');
-
-        self::assertStringContainsString('acr_values="vouch:aal2"', $header);
-        self::assertStringNotContainsString('max_age', $header);
+        self::assertSame($this->canonicalChallenge('aal2'), $this->responseTuple($response));
     }
 
 
