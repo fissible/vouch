@@ -72,7 +72,26 @@ it('redispatches stale live rows by database time and skips expired rows', funct
         $job->outboxId === $live->opaque_id);
 });
 
-it('redispatches exactly at the stale deadline but not one second before it', function (): void {
+it('redispatches a row at the stale deadline and leaves a fresher one alone', function (): void {
+    /*
+     * The stale row sits EXACTLY at the deadline, which is the assertion that
+     * distinguishes `<=` from `<`. That direction is safe against a slow
+     * runner: elapsed time only makes a row staler, never fresher.
+     *
+     * The fresh row deliberately sits well inside the window rather than one
+     * second inside it. The one-second form was a real race, not a theoretical
+     * one — the eligibility predicate compares against the DATABASE clock at
+     * query time, so a row stamped at "now minus 59 seconds" becomes eligible
+     * the moment a second of wall clock passes between the UPDATE and the
+     * command. It failed on CI under the mutation job's coverage
+     * instrumentation, and reproduces locally with a 1.1s delay injected
+     * before the dispatch call.
+     *
+     * There is no seam to pin: DatabaseTime evaluates CURRENT_TIMESTAMP in the
+     * database precisely so no application clock can be substituted. The exact
+     * deadline constant is therefore pinned by the test below this one, which
+     * needs no clock at all.
+     */
     $stale = dispatchableOutbox();
     $fresh = dispatchableOutbox();
     $time = app(DatabaseTime::class);
@@ -87,7 +106,7 @@ it('redispatches exactly at the stale deadline but not one second before it', fu
         'UPDATE auth_challenge_outbox SET dispatched_at = '
         . $time->deadlineSqlHere()
         . ' WHERE id = ?',
-        [-59, $fresh->id],
+        [-30, $fresh->id],
     );
     Queue::fake();
 
@@ -98,6 +117,45 @@ it('redispatches exactly at the stale deadline but not one second before it', fu
         $job->outboxId === $stale->opaque_id);
     Queue::assertNotPushed(DeliverOtpChallenge::class, fn (DeliverOtpChallenge $job): bool =>
         $job->outboxId === $fresh->opaque_id);
+});
+
+it('measures the redispatch deadline as exactly sixty seconds', function (): void {
+    /*
+     * The half of the boundary a wall clock cannot assert deterministically.
+     * The test above proves the comparison is inclusive and that fresher rows
+     * are left alone; this proves the window is 60 seconds and not 59 or 30,
+     * which is what the removed one-second row used to catch.
+     *
+     * Asserted on the bound parameter rather than by timing, because the
+     * binding is the constant. A behavioural form would have to observe the
+     * database within one second of stamping a row, which no loaded runner can
+     * be held to.
+     */
+    dispatchableOutbox();
+    Queue::fake();
+    DB::enableQueryLog();
+
+    Artisan::call('vouch:otp-outbox:dispatch');
+
+    $deadlines = [];
+    foreach (DB::getRawQueryLog() as $entry) {
+        // The eligibility predicate only; the command's own dispatched_at
+        // write also names the column and carries no deadline.
+        if (str_contains((string) $entry['raw_query'], 'dispatched_at <=')) {
+            $deadlines[] = $entry['raw_query'];
+        }
+    }
+    DB::disableQueryLog();
+
+    /*
+     * Every engine renders the bound interval differently -- SQLite
+     * printf('%+d seconds', -60), MySQL INTERVAL -60 SECOND, PostgreSQL
+     * (-60 * INTERVAL '1 second') -- and all three carry the literal -60.
+     */
+    expect($deadlines)->not->toBeEmpty();
+    foreach ($deadlines as $query) {
+        expect($query)->toContain('-60');
+    }
 });
 
 it('rejects a synchronous queue even when there is no pending work', function (): void {
