@@ -513,20 +513,49 @@ freeze does not grow.
 
 ### The writers, measured
 
-Fifteen credential-row write sites, not the sixteen this plan first assumed —
-counted from source rather than carried forward:
+Sixteen credential-row WRITE SITES, counted from source rather than carried
+forward. The architecture guard detects FIFTEEN statements, because
+`DatabaseAttemptStore::apply()` performs both of its credential writes inside
+one `match` expression and a statement-splitting detector cannot separate them;
+that file's manifest entry names both mutations instead. Callers are not sites: `CredentialSelfService::changePassword` routes a
+subject-wide mutation but writes no credential row itself, and it is covered by
+the routing tests rather than listed here. The first count here said fifteen and missed one:
+`FirstCredentialEnrollment` has TWO branches, and the second does not create a
+row — it reuses a disabled password credential, writing a new secret and
+clearing `disabled_at`. That is a password change, so it takes the SUBJECT-WIDE
+sweep, not precise revocation. The contrast with `OtpFactor`'s reactivation is
+the secret: OTP re-enables an unchanged credential, so a proof citing it stays
+true.
 
 | Class | Sites |
 | --- | --- |
 | Create (preserve) | `FirstCredentialEnrollment:146`, `OtpFactor:177`, `PasswordFactor:96`, `RecoveryCodeFactor:143`, `TotpFactor:158` |
-| Disable / replace (revoke) | `PasswordFactor:93`, `PasswordFactor:169`, `TotpFactor:155`, `TotpFactor:256`, `RecoveryCodeFactor:135`, `RecoveryCodeFactor:234`, `OtpFactor:385`, `DatabaseAttemptStore` `DisableCredential` |
-| Bookkeeping (never revoke) | `DatabaseAttemptStore` `AdvanceCredentialTimestep`, `OtpFactor:172` (re-enable) |
+| Subject-wide (password change) | `FirstCredentialEnrollment:136` — disabled-row reuse, writing a new secret |
+| Disable / replace (revoke) | `PasswordFactor:93`, `PasswordFactor:169`, `TotpFactor:155`, `TotpFactor:256`, `RecoveryCodeFactor:135`, `RecoveryCodeFactor:234`, `OtpFactor:385` |
+| Bookkeeping (never revoke) | `DatabaseAttemptStore` `AdvanceCredentialTimestep`, `DatabaseAttemptStore` `DisableCredential`, `OtpFactor:172` (re-enable) |
 
-The trap is concrete and lives in one method: `DatabaseAttemptStore::apply()`
-handles BOTH `DisableCredential` and `AdvanceCredentialTimestep`. The latter
-advances `last_used_timestep` on every successful TOTP verification — it is the
-replay guard — so a facade that routed "every credential write" would make every
-TOTP login revoke the user's own tokens.
+**Both of `DatabaseAttemptStore::apply()`'s credential writes are bookkeeping,
+and the second one is a trap wearing a misleading name.** Corrected after codex
+asked for a behavioural test of the branch:
+
+- `AdvanceCredentialTimestep` advances `last_used_timestep` on every successful
+  TOTP verification. It is the replay guard.
+- `DisableCredential` SOUNDS like a revocation. Its only emitter in the package
+  is `RecoveryCodeFactor:225`, burning a single-use code on a SUCCESSFUL RECOVERY VERIFICATION, which yields recovery grace rather than a host-guard login.
+
+So a facade that routed "every credential write" through a revoking path would
+make every TOTP login revoke the user's tokens, AND make every recovery-code
+verification do the same. The second is worse, because the identifier invites the wrong
+classification: a reviewer reading `DisableCredential` and classifying it by its
+name gets it exactly backwards.
+
+Being precise about what it is NOT: a valid recovery code yields recovery grace,
+not a host-guard login, and recovery-only evidence cannot be token assurance —
+so no legitimate human token is ever issued from a recovery-code-only proof.
+The rule is narrower and still load-bearing: burning a single-use credential
+during verification is CONSUMPTION BOOKKEEPING, not a revocation event, so it
+must not trigger token invalidation for any token that cites that credential
+from some other authentication.
 
 `OtpFactor:172` re-enables a disabled credential (`disabled_at => null`) during
 enrollment. Additive by the rule above: it makes a credential live again and
