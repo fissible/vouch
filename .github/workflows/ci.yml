@@ -85,7 +85,12 @@ jobs:
     # cannot interrupt itself out of a blocked driver call. Without this the
     # job runs to the platform limit and has to be cancelled by hand, which is
     # what happened on the first run this repository ever did.
-    timeout-minutes: 25
+    #
+    # 35, not 25: 2.4 roughly doubled the Tokens suite, and MySQL was cancelled
+    # at 25 while still making steady progress — every test passing, none
+    # hanging. The MySQL service is tuned below to address the actual cost; this
+    # keeps headroom without turning the hang guard into a rubber stamp.
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -98,9 +103,20 @@ jobs:
           MYSQL_ROOT_PASSWORD: password
           MYSQL_DATABASE: vouch_test
         ports: ['3306:3306']
+        # Durability off. This database exists for the length of one job and is
+        # thrown away, so fsync-per-commit buys nothing and costs a great deal:
+        # DatabaseMigrations migrates and rolls back the whole set around every
+        # test, and MySQL has no transactional DDL, so each test is thousands of
+        # real statements. With defaults the Tokens suite alone took the job
+        # past its timeout; the same suite runs in ~150s against an untuned
+        # local container, which is what made the CI number look like a hang
+        # rather than what it was.
         options: >-
           --health-cmd="mysqladmin ping -ppassword"
           --health-interval=10s --health-timeout=5s --health-retries=10
+          --innodb-flush-log-at-trx-commit=0
+          --sync-binlog=0
+          --skip-log-bin
       postgres:
         image: postgres:16
         env:
