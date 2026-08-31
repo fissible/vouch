@@ -16,7 +16,7 @@ final readonly class TokenAssuranceRecord
     public function __construct(private ConnectionInterface $connection) {}
 
     /** @param list<SatisfiedFactor> $factors */
-    public function store(string $issuerKey, string $tokenKey, SubjectKey $subject, ?string $tenantId, ActorKind $actor, array $factors): void
+    public function store(string $issuerKey, string $tokenKey, SubjectKey $subject, ?string $tenantId, ActorKind $actor, array $factors, ?ConnectionInterface $connection = null): void
     {
         $this->assertIdentity($issuerKey, $tokenKey);
 
@@ -30,13 +30,14 @@ final readonly class TokenAssuranceRecord
             $this->assertCredentialIds($evidence->factors);
         }
 
-        $this->connection->transaction(function () use ($issuerKey, $tokenKey, $subject, $tenantId, $actor, $evidence): void {
-            $this->connection->table('auth_token_credentials')
+        $connection ??= $this->connection;
+        $write = function () use ($connection, $issuerKey, $tokenKey, $subject, $tenantId, $actor, $evidence): void {
+            $connection->table('auth_token_credentials')
                 ->where('issuer_key', $issuerKey)->where('token_key', $tokenKey)->delete();
-            $this->connection->table('auth_token_assurances')
+            $connection->table('auth_token_assurances')
                 ->where('issuer_key', $issuerKey)->where('token_key', $tokenKey)->delete();
 
-            $this->connection->table('auth_token_assurances')->insert([
+            $connection->table('auth_token_assurances')->insert([
                 'issuer_key' => $issuerKey,
                 'token_key' => $tokenKey,
                 'subject_key' => $subject->render(),
@@ -51,14 +52,22 @@ final readonly class TokenAssuranceRecord
 
             if ($evidence !== null) {
                 $credentialIds = array_values(array_unique(array_map(static fn (SatisfiedFactor $factor): string => $factor->credentialId, $evidence->factors)));
-                $this->connection->table('auth_token_credentials')->insert(array_map(
+                $connection->table('auth_token_credentials')->insert(array_map(
                     static fn (string $credentialId): array => [
                         'issuer_key' => $issuerKey, 'token_key' => $tokenKey, 'credential_id' => $credentialId,
                     ],
                     $credentialIds,
                 ));
             }
-        });
+        };
+
+        if ($connection->transactionLevel() < 1) {
+            $connection->transaction($write);
+
+            return;
+        }
+
+        $write();
     }
 
     public function read(ResolvedToken $token): EvidenceRead
@@ -101,13 +110,22 @@ final readonly class TokenAssuranceRecord
         return new EvidenceRead($evidence, AssuranceReason::Sufficient);
     }
 
-    public function forget(string $issuerKey, string $tokenKey): void
+    public function forget(string $issuerKey, string $tokenKey, ?ConnectionInterface $connection = null): void
     {
         $this->assertIdentity($issuerKey, $tokenKey);
-        $this->connection->transaction(function () use ($issuerKey, $tokenKey): void {
-            $this->connection->table('auth_token_credentials')->where('issuer_key', $issuerKey)->where('token_key', $tokenKey)->delete();
-            $this->connection->table('auth_token_assurances')->where('issuer_key', $issuerKey)->where('token_key', $tokenKey)->delete();
-        });
+        $connection ??= $this->connection;
+        $delete = static function () use ($connection, $issuerKey, $tokenKey): void {
+            $connection->table('auth_token_credentials')->where('issuer_key', $issuerKey)->where('token_key', $tokenKey)->delete();
+            $connection->table('auth_token_assurances')->where('issuer_key', $issuerKey)->where('token_key', $tokenKey)->delete();
+        };
+
+        if ($connection->transactionLevel() < 1) {
+            $connection->transaction($delete);
+
+            return;
+        }
+
+        $delete();
     }
 
     private function assertIdentity(string $issuerKey, string $tokenKey): void

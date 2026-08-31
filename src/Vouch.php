@@ -4,7 +4,26 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch;
 
+use Fissible\Vouch\Kernel\Policy\PolicyParser;
+use Fissible\Vouch\Kernel\Satisfiability\SatisfiabilityEvaluator;
+use Fissible\Vouch\Assurance\AssuranceEvidence;
+use Fissible\Vouch\Models\AuthCredential;
+use Fissible\Vouch\Models\AuthPolicy;
+use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\Http\IntendedDestination;
+use Fissible\Vouch\Sessions\BindingDomain;
+use Fissible\Vouch\Sessions\SessionBinding;
+use Fissible\Vouch\Sessions\SessionEvidence;
+use Fissible\Vouch\Tokens\ActorKind;
+use Fissible\Vouch\Tokens\CredentialLockManager;
+use Fissible\Vouch\Tokens\IssuedToken;
+use Fissible\Vouch\Tokens\IssuanceRefused;
+use Fissible\Vouch\Tokens\SubjectKey;
+use Fissible\Vouch\Tokens\TokenAssuranceRecord;
+use Fissible\Vouch\Tokens\TokenGrant;
+use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\DatabaseManager;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -22,6 +41,132 @@ use RuntimeException;
  */
 final class Vouch
 {
+    /**
+     * Mint a human token from the currently authenticated, live Vouch session.
+     * The caller owns the transaction and must not disclose plaintext before it
+     * commits.
+     *
+     * @throws IssuanceRefused
+     */
+    public static function issueToken(TokenGrant $grant, ?ConnectionInterface $connection = null): IssuedToken
+    {
+        /** @var DatabaseManager $database */
+        $database = app('db');
+        $connection ??= $database->connection();
+
+        if ($connection->transactionLevel() < 1) {
+            throw new IssuanceRefused('Token issuance requires an active caller transaction.');
+        }
+
+        if ($grant->actor !== ActorKind::Human) {
+            throw new IssuanceRefused('Machine-token issuance is unavailable.');
+        }
+
+        $principal = auth()->user();
+        if (! $principal instanceof Model || $principal->getKey() === null) {
+            throw new IssuanceRefused('Token issuance requires live host authentication.');
+        }
+
+        $hostSessionId = session()->getId();
+        if ($hostSessionId === '') {
+            throw new IssuanceRefused('Token issuance requires a live host session.');
+        }
+
+        $principalSubject = SubjectKey::of($principal->getMorphClass(), $principal->getKey());
+        $evidence = self::validatedSessionEvidence($connection, $hostSessionId, $principalSubject, $grant);
+
+        $credentialIds = CredentialLockManager::canonicalCredentialIds(array_map(
+            static fn ($factor): string => $factor->credentialId,
+            $evidence->factors,
+        ));
+
+        app(CredentialLockManager::class)->acquire($connection, $grant->subject, $credentialIds);
+
+        // The locks make this read durable. The first validation is advisory:
+        // a session can be revoked after it and before lock acquisition.
+        $evidence = self::validatedSessionEvidence($connection, $hostSessionId, $principalSubject, $grant);
+        $revalidatedCredentialIds = CredentialLockManager::canonicalCredentialIds(array_map(
+            static fn ($factor): string => $factor->credentialId,
+            $evidence->factors,
+        ));
+        if ($revalidatedCredentialIds !== $credentialIds) {
+            throw new IssuanceRefused('The session proof changed while token issuance was acquiring locks.');
+        }
+
+        foreach ($credentialIds as $credentialId) {
+            if ($connection->table((new AuthCredential())->getTable())
+                ->where('id', $credentialId)->whereNull('disabled_at')->doesntExist()) {
+                throw new IssuanceRefused('A credential in the session proof is no longer live.');
+            }
+        }
+
+        /** @var \Fissible\Vouch\Contracts\TokenIssuer $issuer */
+        $issuer = app(\Fissible\Vouch\Contracts\TokenIssuer::class);
+        if (! $issuer->supportsTransactionalIssuance()) {
+            throw new IssuanceRefused('The configured token issuer cannot enlist in this transaction.');
+        }
+
+        $issued = $issuer->issue($connection, $grant);
+        app(TokenAssuranceRecord::class)->store(
+            $issued->issuerKey,
+            $issued->tokenKey,
+            $grant->subject,
+            $grant->tenantId,
+            $grant->actor,
+            $evidence->factors,
+            $connection,
+        );
+
+        return $issued;
+    }
+
+    /**
+     * Read and validate the currently bound session on the issuing connection.
+     *
+     * @throws IssuanceRefused
+     */
+    private static function validatedSessionEvidence(
+        ConnectionInterface $connection,
+        string $hostSessionId,
+        SubjectKey $principalSubject,
+        TokenGrant $grant,
+    ): AssuranceEvidence {
+        $sessionRow = $connection->table((new AuthSession())->getTable())
+            ->where('session_binding', SessionBinding::for($hostSessionId, BindingDomain::Session))
+            ->first();
+        $session = $sessionRow === null ? null : (new AuthSession())->newFromBuilder(get_object_vars($sessionRow));
+
+        $sessionSubject = $session instanceof AuthSession
+            ? SubjectKey::of($principalSubject->provider, $session->user_id)
+            : null;
+        if ($sessionSubject === null || ! $sessionSubject->equals($principalSubject)) {
+            throw new IssuanceRefused('Token issuance requires the authenticated host session.');
+        }
+
+        $evidence = SessionEvidence::read($session)->evidence;
+        if ($evidence === null) {
+            throw new IssuanceRefused('The authenticated session has no usable assurance proof.');
+        }
+
+        if (! $evidence->subject->equals($grant->subject) || ! $principalSubject->equals($grant->subject)) {
+            throw new IssuanceRefused('The token grant subject does not match the authenticated session.');
+        }
+
+        if ($grant->tenantId !== null && $evidence->tenantId === null) {
+            throw new IssuanceRefused('Tenant-scoped issuance is unavailable without tenant session evidence.');
+        }
+
+        $policy = AuthPolicy::query()->where('scope', 'token_issue')
+            ->where('tenant_id', $evidence->tenantId)
+            ->first();
+        if (! $policy instanceof AuthPolicy || ! (new SatisfiabilityEvaluator())
+            ->evaluate((new PolicyParser())->parse($policy->document), $evidence->factors)->satisfied) {
+            throw new IssuanceRefused('The session proof does not satisfy token issuance policy.');
+        }
+
+        return $evidence;
+    }
+
     /**
      * Send the caller to the step-up presentation, remembering where they were.
      *
