@@ -24,7 +24,9 @@ function lifecycle(): SessionLifecycle
 
 function lifecycleFactor(string $id = 'password'): SatisfiedFactor
 {
-    return new SatisfiedFactor($id, '7', FactorKind::Knowledge, FactorStrength::Knowledge,
+    // A DISTINCT credential per factor id: the derived level counts distinct
+    // credentials, so two factors sharing one credential are one authenticator.
+    return new SatisfiedFactor($id, 'cred-' . $id, FactorKind::Knowledge, FactorStrength::Knowledge,
         false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'));
 }
 
@@ -61,11 +63,28 @@ it('never stores the raw session id', function (): void {
 });
 
 it('rotates in place rather than adding a row', function (): void {
-    // 2.1 established rotate-in-place; a second row would orphan the first
-    // binding and leave a session nothing can revoke.
+    /*
+     * 2.1 established rotate-in-place; a second row would orphan the first
+     * binding and leave a session nothing can revoke.
+     *
+     * The second establish() raises the evidence rather than passing a stronger
+     * acr string. Since 2.4 Task 2a the writer DERIVES acr from the persisted
+     * proof, so a hand-built AuthSuccess claiming aal2 over a single knowledge
+     * factor no longer produces an aal2 row -- and should not: that fabricated
+     * disagreement between the column and its evidence is the defect Task 2a
+     * removes.
+     */
     session()->start();
     lifecycle()->establish(lifecycleSuccess());
-    lifecycle()->establish(lifecycleSuccess(acr: 'aal2'));
+
+    $stronger = [lifecycleFactor(), lifecycleFactor('totp')];
+    lifecycle()->establish(new AuthSuccess(
+        7,
+        $stronger,
+        AssuranceFacts::fromFactors($stronger),
+        'aal2',
+        'ignored',
+    ));
 
     expect(AuthSession::count())->toBe(1)
         ->and(AuthSession::firstOrFail()->acr)->toBe('aal2');

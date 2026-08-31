@@ -60,7 +60,11 @@ moment more than one guard, model or driver exists.
 - Subject key = provider/model namespace plus id. Enforcement requires the stored evidence
   subject to equal the resolved token subject; a mismatch is `invalid_token`, NEVER an
   assurance failure — the two mean different things and only one of them is safe to say.
-- Token key = `(issuer_key, token_key)`, `issuer_key` unique and immutable per driver.
+- Token key = `(issuer_key, token_key)`. `issuer_key` is a unique IDENTIFIER FOR A DRIVER —
+  two drivers may not share one — and is immutable. It is NOT a unique database column: an
+  issuer records many tokens, so the uniqueness constraint is on the composite. Conflating
+  the two permits exactly one record per issuer, which breaks multi-issuer support while
+  reading as compliant.
 - If more than one resolver claims a request, Vouch fails closed. `resolveForRequest()`
   means "I authenticated the effective request principal", not "I can parse a credential
   out of this request".
@@ -74,9 +78,16 @@ moment more than one guard, model or driver exists.
 - `resolveForRequest(Request): ?ResolvedToken` — the DRIVER answers "did I authenticate
   this request, and under which key". Mechanism detection stays behind the seam rather
   than Vouch reaching into guard internals, which is the whole reason the seam exists.
-  `ResolvedToken` is immutable: `(issuer_key, token_key, subject_id, usable)`, where
-  `usable` accounts for expiry, deletion, revocation and tokenable validity — not a bare
-  row lookup.
+  `ResolvedToken` is immutable: `(issuer_key, token_key, subject, usable)`, where `subject`
+  is a `SubjectKey` — the provider-qualified identity of §3a, not a bare id, because an id
+  alone cannot distinguish two providers' user 7.
+
+  `usable` is the ISSUER's verdict on lifecycle. An earlier draft said it "accounts for
+  expiry, deletion, revocation and tokenable validity", which measurement disproved for the
+  shipped driver: Sanctum's guard returns no principal for an expired or deleted token, so
+  `resolveForRequest()` returns `null` and none of those states ever produce a
+  `ResolvedToken` at all. The flag is retained as a seam for issuers whose lifecycle model
+  CAN report unusability. See addendum §3b.
 - `issue(ConnectionInterface, TokenGrant): IssuedToken` — must enlist in the supplied
   transaction, or the driver declares itself unsupported for assurance-bound human tokens.
   Rollback is tested against the CONTRACT, not the Sanctum implementation.
@@ -86,7 +97,9 @@ moment more than one guard, model or driver exists.
 ## Evidence
 
 `AssuranceEvidence` is the canonical value both sessions and tokens adapt into, carrying
-the SELECTED satisfying proof rather than all historical session factors: canonical subject
+the factors satisfied in the successful attempt rather than all historical session factors
+(§3 as amended; an earlier draft said the policy-SELECTED subset, which was measured and
+reversed): canonical subject
 key, tenant, derived ACR, `weakest_satisfied_at`, and per factor — `factor_id`, `kind`,
 `strength`, `credential_id`, `user_verified`, `phishing_resistant`, `is_multi_factor`,
 `authenticator_id`, `satisfied_at`, at their existing types. Those are the keys actually
@@ -95,7 +108,12 @@ adaptation is lossless reuse of the Kernel's model rather than new vocabulary. A
 draft said "factor", which would have collapsed `factor_id` and `kind` into one field.
 
 Derived ACR is a display and index projection ONLY. Authorization re-evaluates the
-immutable selected factors; it never trusts a stored level.
+immutable persisted factors; it never trusts a stored level, in either direction — a
+stored level is not a floor and not a ceiling.
+
+"Persisted factors" means every factor satisfied in the successful attempt, per the
+amendment to §3 of the contract addendum. An earlier draft said "selected", meaning the
+subset a policy branch used; that was measured and reversed.
 
 Deliberately NOT in the evidence value, because they are provenance or lifecycle and using
 them as comparison input launders assurance: `issued_at`, `last_used_at`, session binding,
@@ -103,9 +121,19 @@ raw session or token ids, and a bare mutable `acr`.
 
 ## Issuance invariants
 
-Server-side session required; session subject === token subject; session not revoked, not
-expired, not recovery-grace; a selected proof satisfying `token_issue` at issuance time.
-Never derived from an ambient `auth()->user()`.
+Session RESOLVED from live host authentication — not supplied by the caller, because a
+passed model carries the state it was loaded with rather than the state the database now
+holds. Session subject === token subject; not revoked; not recovery-grace; a persisted proof
+satisfying `token_issue` at issuance time. Never derived from an ambient `auth()->user()`.
+
+"Not expired" is deliberately absent: `auth_sessions` has no expiry column, and browser
+session lifetime belongs to the host's session driver. Current validity IS the live host
+authentication, which is why the session is resolved rather than accepted.
+
+Issuance never opens or commits a transaction of its own. It enlists in the caller's, so a
+host rolling back its surrounding work is not left holding a live token. The plaintext is
+therefore returned before the outer commit, and the host must not disclose it until that
+commit succeeds.
 
 `token_issue` is a closed typed intent resolved through the ordinary policy chain, taking a
 server-constructed `TokenIssuanceContext`. Client-supplied Sanctum abilities never become
@@ -120,11 +148,37 @@ machine actors; `human` is the default.
 
 ## Schema
 
-- `auth_token_assurances`: keyed `(issuer_key, token_key)`; adds `weakest_satisfied_at`
-  (indexed), `actor_kind`, and the selected-proof payload. Recency is measured from the
-  authentication evidence, never `issued_at`.
-- `auth_token_credentials(issuer_key, token_key, credential_id)`, indexed. No JSON
-  containment on a revocation path.
+- `auth_token_assurances`: keyed `(issuer_key, token_key)`; carries `subject_key`,
+  `tenant_id`, `actor_kind`, `acr`, `weakest_satisfied_at` and the persisted-proof payload.
+  Recency is measured from the authentication evidence, never `issued_at`.
+- `auth_token_credentials(issuer_key, token_key, credential_id)`. No JSON containment on a
+  revocation path.
+
+**Indexes, fixed now rather than added later**, because this table holds live authorization
+data and a missing index is invisible — the queries still return the right answer, by
+scanning. Each is tied to a query Task 5 is already specified to run:
+
+| index | columns | the query it serves |
+| --- | --- | --- |
+| `auth_token_assurance_identity_unique` | `(issuer_key, token_key)` | every adapter read |
+| `auth_token_assurance_subject_index` | `(subject_key, actor_kind)` | password-change sweep of a subject's HUMAN tokens |
+| `auth_token_assurance_recency_index` | `(weakest_satisfied_at)` | audit and reporting reads |
+| `auth_token_credential_unique` | `(issuer_key, token_key, credential_id)` | one mapping per triple |
+| `auth_token_credential_lookup_index` | `(credential_id)` | credential disable → which tokens |
+
+`acr` is a display and index projection under exactly the rule §3 gives the session column:
+never a comparison input, in either direction. It exists so a host listing "which of my
+tokens are aal2" need not deserialize every proof — a host deserializing the payload is a
+host one step from authorizing on it. Nullable, because a machine token has no human level
+to project, and written on every store so it cannot become another `assurance_facts`: a
+column with no writer that a later reader mistakes for authority.
+
+**No actor column, and this is deliberate.** Impersonation gives a SESSION two principals,
+which is why `auth_sessions` will need the split — but the planned capability matrix
+(PROJECT.md, post-2.4) starts impersonated sessions at "may not mint tokens". No token is
+minted under impersonation, so the token record has one principal and the read-boundary rule
+"evidence subject equals token subject" stays sound. If that capability is ever granted, this
+decision is what has to be revisited first.
 
 ## Responses
 
@@ -173,9 +227,13 @@ token issued a moment earlier.
 
 So issuance and credential mutation share one protocol:
 
-- Issuance locks every selected credential dimension in a deterministic order (by
-  credential id, so two concurrent operations cannot deadlock), re-checks each credential
-  is still valid, then inserts the assurance record and its mappings, then commits.
+- Issuance takes the per-subject lock first, then every credential in the persisted proof
+  in a deterministic order (by credential id, so two concurrent operations cannot deadlock),
+  re-checks each credential is still valid, then inserts the assurance record and its
+  mappings — and does NOT commit. It enlists in the caller's transaction and leaves the
+  commit to them. An earlier draft ended this sentence with "then commits", which
+  contradicts the issuance invariants above; enlistment is the settled behaviour and the
+  host carries the obligation not to disclose the plaintext until its own commit.
 - Every disable, replace and revoke path takes the same locks, invalidates the credential,
   and removes matching assurance records and mappings atomically.
 

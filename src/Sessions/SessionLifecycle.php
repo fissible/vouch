@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Sessions;
 
 use Fissible\Vouch\Flow\AuthSuccess;
+use Fissible\Vouch\Assurance\AssuranceEvidence;
 use Fissible\Vouch\Models\AuthSession;
+use Fissible\Vouch\Tokens\SubjectKey;
 use Illuminate\Contracts\Session\Session;
+use Illuminate\Database\Eloquent\Model;
 use Psr\Clock\ClockInterface;
 use Throwable;
 
@@ -40,6 +43,12 @@ final readonly class SessionLifecycle
         $binding = SessionBinding::for($this->session->getId(), BindingDomain::Session);
 
         try {
+            $model = self::configuredUserModel();
+            $proof = new AssuranceEvidence(
+                SubjectKey::of((new $model)->getMorphClass(), $success->userId),
+                null,
+                $success->factors,
+            );
             // 2. Rotate in place. 2.1 ships this shape with a test that the row
             //    count stays at one; a second row would orphan the old binding
             //    and leave a session nothing can revoke.
@@ -48,7 +57,9 @@ final readonly class SessionLifecycle
                 [
                     'session_binding' => $binding,
                     'amr' => $success->amr(),
-                    'acr' => $success->acr,
+                    'acr' => $proof->derivedAcr(),
+                    'assurance_proof' => $proof->toArray(),
+                    'weakest_satisfied_at' => $proof->weakestSatisfiedAt(),
                     'recovery_grace_expires_at' => null,
                 ],
             );
@@ -76,5 +87,17 @@ final readonly class SessionLifecycle
             ->where('session_binding', '!=', $keepBinding)
             ->whereNull('revoked_at')
             ->update(['revoked_at' => $this->clock->now(), 'revoked_reason' => $reason]);
+    }
+
+    /** @return class-string<Model> */
+    private static function configuredUserModel(): string
+    {
+        $model = config('auth.providers.users.model');
+
+        if (! is_string($model) || ! is_subclass_of($model, Model::class)) {
+            throw new \RuntimeException('auth.providers.users.model is not an Eloquent model.');
+        }
+
+        return $model;
     }
 }

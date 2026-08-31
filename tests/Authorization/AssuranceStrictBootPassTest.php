@@ -49,6 +49,8 @@ final class AssuranceStrictBootPassTest extends TestCase
             'user_id' => 7,
             'amr' => ['password'],
             'acr' => 'aal1',
+            'assurance_proof' => sessionProof(7, 'aal1'),
+            'weakest_satisfied_at' => now(),
         ]);
 
         $user = new PlainProbeUser;

@@ -6,7 +6,8 @@ namespace Fissible\Vouch\SelfService;
 
 use Fissible\Vouch\Contracts\Factor;
 use Fissible\Vouch\Factors\FactorRegistry;
-use Fissible\Vouch\Http\AssuranceComparator;
+use Fissible\Vouch\Assurance\AssuranceRequirement;
+use Fissible\Vouch\Assurance\EvidenceComparator;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Kernel\Policy\AllOf;
 use Fissible\Vouch\Kernel\Policy\AnyOf;
@@ -19,6 +20,7 @@ use Fissible\Vouch\Models\AuthPolicy;
 use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\Sessions\RevokedReason;
 use Fissible\Vouch\Sessions\SessionLifecycle;
+use Fissible\Vouch\Sessions\SessionEvidence;
 use Fissible\Vouch\Support\DatabaseTime;
 use Throwable;
 
@@ -34,7 +36,8 @@ final readonly class CredentialSelfService
 {
     public function __construct(
         private FactorRegistry $factors,
-        private AssuranceComparator $assurance,
+        private EvidenceComparator $evidenceComparator,
+        private \Psr\Clock\ClockInterface $clock,
         private SessionLifecycle $sessions,
         private DatabaseTime $databaseTime,
     ) {}
@@ -156,7 +159,7 @@ final readonly class CredentialSelfService
 
         return $this->mutateCredentials($authoritative, RevokedReason::CredentialChanged, function () use ($factor, $credential): void {
             $factor->revoke($credential);
-        });
+        }, $credential->id);
     }
 
     /** @return AuthSession|SelfServiceOutcome */
@@ -177,13 +180,13 @@ final readonly class CredentialSelfService
             return $graceAllowed ? $authoritative : SelfServiceOutcome::RecoveryRestricted;
         }
 
-        return $this->assurance->isSufficient($authoritative, 'aal2')
+        return $this->evidenceComparator->compare(SessionEvidence::read($authoritative), AssuranceRequirement::from('aal2'), $this->clock, null)->outcome->isSufficient()
             ? $authoritative
             : SelfServiceOutcome::StepUpRequired;
     }
 
     /** @param callable(): void $mutation */
-    private function mutateCredentials(AuthSession $session, RevokedReason $reason, callable $mutation): SelfServiceOutcome
+    private function mutateCredentials(AuthSession $session, RevokedReason $reason, callable $mutation, ?int $removedCredentialId = null): SelfServiceOutcome
     {
         // Do not wrap these writes together: the first commit must survive a
         // failed credential mutation, and is externally observable by design.
@@ -197,24 +200,54 @@ final readonly class CredentialSelfService
         }
 
         $this->sessions->revokeSiblings($session->user_id, $session->session_binding, $reason);
-        $this->downgradeWhenOnlyPasswordRemains($session);
+        $this->removeCredentialFromEvidence($session, $removedCredentialId);
 
         return SelfServiceOutcome::Completed;
     }
 
-    private function downgradeWhenOnlyPasswordRemains(AuthSession $session): void
+    private function removeCredentialFromEvidence(AuthSession $session, ?int $credentialId): void
     {
-        $types = AuthCredential::query()
-            ->where('user_id', $session->user_id)
-            ->whereNull('disabled_at')
-            ->pluck('type')
-            ->unique()
-            ->values()
-            ->all();
-
-        if ($types === ['password']) {
-            AuthSession::query()->whereKey($session->id)->update(['acr' => 'aal1']);
+        if ($credentialId === null) {
+            return;
         }
+
+        $authoritative = AuthSession::query()->find($session->id);
+        $evidence = SessionEvidence::for($authoritative);
+
+        if ($authoritative === null || $evidence === null) {
+            return;
+        }
+
+        $remaining = array_values(array_filter(
+            $evidence->factors,
+            static fn ($factor): bool => $factor->credentialId !== (string) $credentialId,
+        ));
+
+        if (count($remaining) === count($evidence->factors)) {
+            return;
+        }
+
+        if ($remaining === []) {
+            $authoritative->update([
+                'acr' => null,
+                'assurance_proof' => null,
+                'weakest_satisfied_at' => null,
+            ]);
+
+            return;
+        }
+
+        $rewritten = new \Fissible\Vouch\Assurance\AssuranceEvidence(
+            $evidence->subject,
+            $evidence->tenantId,
+            $remaining,
+        );
+
+        $authoritative->update([
+            'acr' => $rewritten->derivedAcr(),
+            'assurance_proof' => $rewritten->toArray(),
+            'weakest_satisfied_at' => $rewritten->weakestSatisfiedAt(),
+        ]);
     }
 
     private function wouldBreakLoginPolicy(int $userId, AuthCredential $removing): bool

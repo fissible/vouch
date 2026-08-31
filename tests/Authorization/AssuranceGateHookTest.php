@@ -54,6 +54,10 @@ function gateHookRow(string $acr, array $extra = []): AuthSession
         'user_id' => 7,
         'amr' => ['password'],
         'acr' => $acr,
+        // 2.4 Task 2a: authorization re-derives from the proof, so a fixture
+        // carrying only a level proves nothing and is refused.
+        'assurance_proof' => sessionProof(7, $acr),
+        'weakest_satisfied_at' => now(),
     ], $extra));
 }
 
@@ -75,14 +79,17 @@ beforeEach(function (): void {
 });
 
 it('defers on an ability the map does not name', function (): void {
-    gateHookRow('aal0');
+    // aal0 until 2.4 Task 2a. The level is irrelevant here -- the hook defers
+    // because the ability is unmapped -- and aal0 is not derivable from any
+    // proof, so the fixture now uses the weakest level that actually exists.
+    gateHookRow('aal1');
 
     expect(gateHook()->decide(gateHookUser(), 'invoices.view', gateHookRequest()))->toBeNull();
 });
 
 it('defers when the map is empty', function (): void {
     config(['vouch.assurance_requirements' => []]);
-    gateHookRow('aal0');
+    gateHookRow('aal1');
 
     expect(gateHook()->decide(gateHookUser(), 'invoices.approve', gateHookRequest()))->toBeNull();
 });
@@ -107,7 +114,7 @@ it('DEFERS rather than granting when the assurance is sufficient', function (): 
      * them. The hook is deny-only, so a satisfied requirement means "no
      * opinion", not "allow".
      */
-    gateHookRow('aal3');
+    gateHookRow('aal2');
 
     expect(gateHook()->decide(gateHookUser(), 'invoices.approve', gateHookRequest()))->toBeNull();
 });
@@ -117,12 +124,33 @@ it('never returns true for any level, mapped or not', function (string $acr, str
 
     expect(gateHook()->decide(gateHookUser(), $ability, gateHookRequest()))->not->toBeTrue();
 })->with([
-    ['aal0', 'invoices.approve'],
+    // Only the derivable levels appear. aal0 and aal3 stood here and were
+    // fabricated: no proof produces either, so a row claiming one carried an
+    // acr its evidence contradicted. The property under test -- that the hook
+    // never grants -- is unchanged.
     ['aal1', 'invoices.approve'],
     ['aal2', 'invoices.approve'],
-    ['aal3', 'invoices.approve'],
-    ['aal0', 'invoices.view'],
-    ['aal3', 'invoices.view'],
+    ['aal1', 'invoices.view'],
+    ['aal2', 'invoices.view'],
+]);
+
+it('never returns true for a tampered or unknown stored level either', function (string $tampered): void {
+    /*
+     * Restores the hostile-input half that the aal0/aal3 dataset entries used to
+     * carry. Those rows were fabricating levels no proof derives; the property
+     * they were protecting -- that a stored acr, however strange, can never turn
+     * the deny-only hook into a grant -- is real and is asserted here against a
+     * row whose acr is edited AFTER a valid proof was written.
+     */
+    $session = gateHookRow('aal1');
+    Illuminate\Support\Facades\DB::table('auth_sessions')->where('id', $session->id)->update(['acr' => $tampered]);
+
+    expect(gateHook()->decide(gateHookUser(), 'invoices.approve', gateHookRequest()))->not->toBeTrue();
+})->with([
+    'fabricated stronger level' => ['aal3'],
+    'fabricated weakest level' => ['aal0'],
+    'level outside the lattice' => ['aal9'],
+    'empty' => [''],
 ]);
 
 it('denies a mapped ability when the request has a session but no vouch session row', function (): void {
@@ -156,7 +184,7 @@ it('denies when the session on file belongs to a different user', function (): v
      * Gate is being asked about. Reading it anyway would let one user's
      * assurance answer for another's ability check.
      */
-    gateHookRow('aal3', ['user_id' => 999]);
+    gateHookRow('aal2', ['user_id' => 999]);
 
     expect(gateHook()->decide(gateHookUser(), 'invoices.approve', gateHookRequest()))->toBeFalse();
 });

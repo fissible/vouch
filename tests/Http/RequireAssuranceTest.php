@@ -43,6 +43,10 @@ function assuranceRow(string $acr, array $extra = []): AuthSession
         'user_id' => 7,
         'amr' => ['password'],
         'acr' => $acr,
+        // 2.4 Task 2a: a level without a proof is refused. Fixtures that mean
+        // "a session at this level" must now carry evidence of it.
+        'assurance_proof' => sessionProof(7, $acr),
+        'weakest_satisfied_at' => now(),
     ], $extra));
 }
 
@@ -117,7 +121,7 @@ it('fails closed when no presentation url is configured', function (): void {
 });
 
 it('refuses a revoked session however strong its recorded assurance', function (): void {
-    assuranceRow('aal3', ['revoked_at' => now(), 'revoked_reason' => RevokedReason::PasswordChanged]);
+    assuranceRow('aal2', ['revoked_at' => now(), 'revoked_reason' => RevokedReason::PasswordChanged]);
 
     expect(assuranceMiddleware()->handle(assuranceRequest(), reached(), 'aal1')->getStatusCode())->toBe(302);
 });

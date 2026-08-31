@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Models;
 
+use Fissible\Vouch\Models\Casts\UtcDateTime;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
- * @property int $token_id
- * @property string $acr
- * @property list<string> $amr
- * @property list<int> $credential_ids
- * @property string $issuing_session_id
- * @property Carbon $issued_at
+ * @property string $issuer_key
+ * @property string $token_key
+ * @property string $subject_key
+ * @property string|null $tenant_id
+ * @property string $actor_kind
+ * @property string|null $acr
+ * @property array<string,mixed>|null $assurance_proof
+ * @property Carbon|null $weakest_satisfied_at
  * @property Carbon $created_at
  * @property Carbon $updated_at
  */
@@ -30,9 +33,8 @@ final class AuthTokenAssurance extends Model
     protected function casts(): array
     {
         return [
-            'amr' => 'array',
-            'credential_ids' => 'array',
-            'issued_at' => 'datetime',
+            'assurance_proof' => 'array',
+            'weakest_satisfied_at' => UtcDateTime::class,
         ];
     }
 }

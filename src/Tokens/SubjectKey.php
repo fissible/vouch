@@ -50,6 +50,11 @@ final readonly class SubjectKey
         return $this->provider . ':' . $this->id;
     }
 
+    public function render(): string
+    {
+        return $this->toString();
+    }
+
     public function equals(self $other): bool
     {
         return $this->provider === $other->provider && $this->id === $other->id;

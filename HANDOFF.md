@@ -111,3 +111,10 @@ lists are available.
 At the checkpoint before mutation work, the ordinary suite was green with
 file-backed SQLite (1,161 passed, 0 skipped, 4,092 assertions) and PHPStan
 level 9 was clean. Preserve the clean tree while measuring.
+
+**The corpus below predates 2.4 and needs re-baselining.** As of Task 2a
+(d09aefd) the suite is 1,690 passed / 1 skipped / 5,208 assertions with PHPStan
+still clean. 2.4 added `src/Assurance/` and `Sessions/SessionEvidence` and
+changed four authorization call sites, so every `(file, mutator, expression)`
+tuple touching assurance is stale. Re-measure before trusting a row in this
+ledger against current code.

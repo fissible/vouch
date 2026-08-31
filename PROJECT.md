@@ -1783,7 +1783,14 @@ Four things break quietly under that approach:
 person may impersonate that person, including any role-hierarchy rule — Vouch does not
 know what a role is. Same seam as `TenantResolver`: the host checks, then calls, and
 Vouch enforces safety rather than permission. The authorization half is already
-anticipated by 2.3d Task 5b's example, `'users.impersonate' => 'aal3'`.
+anticipated by 2.3d Task 5b's example, `'users.impersonate' => 'aal2'`.
+
+That example read `aal3` until 2.4 Task 2a, which made it visible that
+`NistAssuranceVocabulary` caps at `aal2` by design — AAL3 needs hardware-binding
+evidence the kernel never observes, so no real login has ever produced it. A
+route requiring `aal3` is one nobody can reach. Impersonation must therefore
+demand `aal2`, or ship its own `AssuranceVocabulary` that can actually emit a
+higher level, rather than naming one no proof derives.
 
 **Gated on 2.4.** "Staff member X acted as customer Y between 14:02 and 14:19" is the
 highest-value audit event this package will produce, and `AuditSink` does not exist
@@ -1818,7 +1825,7 @@ privilege-escalation feature with a friendly name.
    something); how step-up targets the actor's factors while the session reads as the
    subject; and what revoking either principal's sessions does.
 2. *The capability matrix*, on the recovery-grace precedent — a capability axis separate
-   from the assurance ladder. "The actor proved aal3" is not the same claim as "aal3-gated
+   from the assurance ladder. "The actor proved aal2" is not the same claim as "aal2-gated
    actions are appropriate as this subject", and many deployments want impersonation to be
    effectively read-only. Starting position: may view; may not change credentials; may not
    mint tokens; may not impersonate further.

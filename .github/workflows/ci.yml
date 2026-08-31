@@ -85,7 +85,12 @@ jobs:
     # cannot interrupt itself out of a blocked driver call. Without this the
     # job runs to the platform limit and has to be cancelled by hand, which is
     # what happened on the first run this repository ever did.
-    timeout-minutes: 25
+    #
+    # 35, not 25: 2.4 roughly doubled the Tokens suite, and MySQL was cancelled
+    # at 25 while still making steady progress — every test passing, none
+    # hanging. The MySQL service is tuned below to address the actual cost; this
+    # keeps headroom without turning the hang guard into a rubber stamp.
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -98,6 +103,10 @@ jobs:
           MYSQL_ROOT_PASSWORD: password
           MYSQL_DATABASE: vouch_test
         ports: ['3306:3306']
+        # NOTE: service `options` are docker create arguments, not mysqld
+        # arguments, and GitHub does not allow overriding a service's command —
+        # so server tuning cannot live here. It is applied at runtime by the
+        # "Tune MySQL for a disposable database" step below.
         options: >-
           --health-cmd="mysqladmin ping -ppassword"
           --health-interval=10s --health-timeout=5s --health-retries=10
@@ -127,6 +136,21 @@ jobs:
       # VOUCH_SQLITE_PATH is a FILE, never :memory:. Each connection to an
       # in-memory SQLite database gets its own private database, so the
       # contention tests would pass without anything having raced.
+      # Durability off, at runtime because service options cannot carry mysqld
+      # flags. This database exists for one job and is discarded, so
+      # fsync-per-commit buys nothing and costs a great deal: DatabaseMigrations
+      # migrates and rolls back the whole set around every test, and MySQL has
+      # no transactional DDL, so each test is thousands of real statements.
+      # sync_binlog is settable at runtime; log_bin is not, which is why this is
+      # a mitigation rather than the full local-container speedup.
+      - name: Tune MySQL for a disposable database
+        if: matrix.db == 'mysql'
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -u root -ppassword -e "
+            SET GLOBAL innodb_flush_log_at_trx_commit = 0;
+            SET GLOBAL sync_binlog = 0;
+          "
+
       - name: Database suite
         env:
           VOUCH_TEST_DB: ${{ matrix.db }}

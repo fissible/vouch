@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Http\Middleware;
 
 use Closure;
+use Fissible\Vouch\Assurance\AssuranceRequirement;
+use Fissible\Vouch\Assurance\EvidenceComparator;
 use Fissible\Vouch\Authorization\AssuranceRequirements;
 use Fissible\Vouch\Authorization\RouteAbilityScanner;
-use Fissible\Vouch\Http\AssuranceComparator;
 use Fissible\Vouch\Http\IntendedDestination;
 use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\Sessions\BindingDomain;
 use Fissible\Vouch\Sessions\SessionBinding;
+use Fissible\Vouch\Sessions\SessionEvidence;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,7 +23,7 @@ use Symfony\Component\HttpFoundation\Response;
 /** Primary assurance enforcement, before an earlier authorization grant can short-circuit Gate. */
 final readonly class RequireAbilityAssurance
 {
-    public function __construct(private AssuranceRequirements $requirements, private RouteAbilityScanner $scanner, private AssuranceComparator $comparator) {}
+    public function __construct(private AssuranceRequirements $requirements, private RouteAbilityScanner $scanner, private EvidenceComparator $evidenceComparator, private \Psr\Clock\ClockInterface $clock) {}
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -39,10 +41,11 @@ final readonly class RequireAbilityAssurance
             $session = AuthSession::query()->where('session_binding', SessionBinding::for($request->session()->getId(), BindingDomain::Session))->first();
         }
         $identifier = $user->getAuthIdentifier();
-        if ($session instanceof AuthSession && $session->user_id === $identifier && $this->comparator->isSufficient($session, $required)) {
+        $read = SessionEvidence::read($session);
+        if ($session instanceof AuthSession && $session->user_id === $identifier && $this->evidenceComparator->compare($read, AssuranceRequirement::from($required), $this->clock, null)->outcome->isSufficient()) {
             return $next($request);
         }
-        $held = $session instanceof AuthSession ? $session->acr : null;
+        $held = $read->evidence?->derivedAcr();
         if ($request->expectsJson() || ! $request->hasSession()) {
             return new JsonResponse(['error' => 'insufficient_assurance', 'required' => $required, 'held' => $held], 403);
         }

@@ -78,6 +78,8 @@ it('registers a gate hook that actually denies, not merely a callback', function
         'user_id' => 7,
         'amr' => ['password'],
         'acr' => 'aal1',
+        'assurance_proof' => sessionProof(7, 'aal1'),
+        'weakest_satisfied_at' => now(),
     ]);
 
     $user = new Fissible\Vouch\Tests\Support\Authorization\Models\PlainProbeUser;

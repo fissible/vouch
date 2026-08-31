@@ -3,8 +3,6 @@
 declare(strict_types=1);
 
 use Fissible\Vouch\Http\IntendedDestination;
-use Fissible\Vouch\Models\AuthSession;
-use Fissible\Vouch\Http\AssuranceComparator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -68,79 +66,17 @@ it('refuses anything that could leave this origin', function (string $candidate)
     'empty' => [''],
 ]);
 
-it('never treats a revoked or grace session as sufficient assurance', function (): void {
-    /*
-     * Two fail-closed arms on the same method. A revoked session is one the host
-     * has already invalidated; a grace session is a constrained recovery
-     * capability that must never satisfy an assurance requirement, which is the
-     * whole distinction recovery grace exists to draw.
-     */
-    $comparator = app(AssuranceComparator::class);
-
-    $revoked = new AuthSession(['acr' => 'aal2', 'revoked_at' => now()]);
-    $grace = new AuthSession(['acr' => 'aal2', 'recovery_grace_expires_at' => now()->addMinutes(15)]);
-
-    expect($comparator->isSufficient(null, 'aal1'))->toBeFalse()
-        ->and($comparator->isSufficient($revoked, 'aal1'))->toBeFalse()
-        ->and($comparator->isSufficient($grace, 'aal1'))->toBeFalse();
-});
-
-it('refuses an assurance level it does not recognise, in either position', function (): void {
-    /*
-     * array_search() returns false for an unknown level, and false is not a
-     * position -- comparing it numerically would make an unrecognised acr look
-     * weaker or stronger than everything rather than unusable. Both directions
-     * must refuse: an unknown stored acr and an unknown requirement.
-     */
-    $comparator = app(AssuranceComparator::class);
-
-    $unknownHeld = new AuthSession(['acr' => 'aal9', 'user_id' => 7]);
-    $known = new AuthSession(['acr' => 'aal2', 'user_id' => 7]);
-
-    expect($comparator->isSufficient($unknownHeld, 'aal1'))->toBeFalse()
-        ->and($comparator->isSufficient($known, 'aal9'))->toBeFalse()
-        // And the ordering itself still works.
-        ->and($comparator->isSufficient($known, 'aal1'))->toBeTrue()
-        ->and($comparator->isSufficient($known, 'aal3'))->toBeFalse();
-});
-
-it('orders every assurance level, and each one exactly', function (): void {
-    /*
-     * The ORDER constant IS the assurance lattice. Removing a level does not
-     * error -- array_search() simply returns false for it, and the class then
-     * refuses everything involving that level while every OTHER comparison keeps
-     * working. A missing rung is therefore invisible except to a test that names
-     * all four.
-     *
-     * Asserted as a full ordering rather than a couple of pairs: sufficiency must
-     * hold downwards and fail upwards at every step, which is what makes the
-     * lattice a lattice.
-     */
-    $comparator = app(AssuranceComparator::class);
-    $levels = ['aal0', 'aal1', 'aal2', 'aal3'];
-
-    foreach ($levels as $heldIndex => $held) {
-        $session = new AuthSession(['acr' => $held, 'user_id' => 7]);
-
-        foreach ($levels as $wantIndex => $want) {
-            expect($comparator->isSufficient($session, $want))
-                ->toBe($heldIndex >= $wantIndex, "held {$held} vs required {$want}");
-        }
-    }
-});
-
-it('refuses an unrecognised level even against the weakest requirement', function (): void {
-    /*
-     * `$held === false || $want === false`. array_search() returns false for an
-     * unknown level, and false is not a position -- compared numerically it
-     * coerces to 0, which SATISFIES a requirement of aal0. So the guard has to
-     * fire before the comparison, and the weakest requirement is the only case
-     * that can tell the difference.
-     */
-    $comparator = app(AssuranceComparator::class);
-
-    expect($comparator->isSufficient(new AuthSession(['acr' => 'aal9', 'user_id' => 7]), 'aal0'))
-        ->toBeFalse()
-        ->and($comparator->isSufficient(new AuthSession(['acr' => 'aal2', 'user_id' => 7]), 'aal9'))
-        ->toBeFalse();
-});
+/*
+ * Four AssuranceComparator::isSufficient() tests stood here — revoked/grace
+ * refusal, unknown levels in either position, and the full ordering matrix.
+ * They were squatting in a file about open redirects, and 2.4 Task 2a removes
+ * the method they exercised: authorization now re-derives the level from the
+ * persisted proof instead of comparing a stored acr string.
+ *
+ * The properties they protected were re-expressed, not dropped:
+ *
+ *   - revoked, grace and absent sessions -> tests/Assurance/SessionEvidenceTest
+ *   - unknown requirement level          -> AssuranceComparisonTest, requirement parsing
+ *   - unknown HELD level                 -> unrepresentable now; asserted as such
+ *   - the full ordering matrix           -> AssuranceComparisonTest, the lattice group
+ */

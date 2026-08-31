@@ -142,7 +142,11 @@ final class AbilityAssuranceRouteTest extends TestCase
     #[Test]
     public function a_stronger_session_satisfies_a_weaker_requirement(): void
     {
-        $this->signIn(acr: 'aal3');
+        // aal2 over an aal1 requirement. This read aal3-over-aal2 until 2.4
+        // Task 2a, when it became clear no proof derives aal3 and the fixture
+        // had been asserting an unreachable session all along.
+        config(['vouch.assurance_requirements' => ['invoices.approve' => 'aal1']]);
+        $this->signIn(acr: 'aal2');
 
         $this->post('/spatie/approve')->assertOk();
     }
@@ -157,7 +161,7 @@ final class AbilityAssuranceRouteTest extends TestCase
          * this is the test that would catch it.
          */
         config(['vouch_test.held_permissions' => []]);
-        $this->signIn(acr: 'aal3');
+        $this->signIn(acr: 'aal2');
 
         $this->post('/spatie/approve')->assertForbidden();
     }
@@ -166,7 +170,9 @@ final class AbilityAssuranceRouteTest extends TestCase
     public function a_route_whose_ability_is_not_mapped_is_untouched(): void
     {
         Gate::define('invoices.view', fn (): bool => true);
-        $this->signIn(acr: 'aal0');
+        // aal0 was never derivable from a proof; the level is incidental to a
+        // route whose ability is unmapped.
+        $this->signIn(acr: 'aal1');
 
         $this->post('/gate/view')->assertOk()->assertSee('controller reached');
     }
@@ -261,7 +267,7 @@ final class AbilityAssuranceRouteTest extends TestCase
     {
         config(['vouch_test.held_permissions' => []]);
         Gate::define('invoices.approve', fn (): bool => false);
-        $this->signIn(acr: 'aal3');
+        $this->signIn(acr: 'aal2');
 
         $this->post('/gate/direct')->assertSee('denied');
     }
@@ -291,16 +297,21 @@ final class AbilityAssuranceRouteTest extends TestCase
          * This user is admitted by the ROLE alone and holds no permission at
          * all, which is what makes the collision real rather than
          * hypothetical: `admin` is a role name that the map treats as an
-         * ability name, and it carries the higher requirement. aal2 clears the
-         * permission branch's aal2 and is still refused.
+         * ability name, and it carries the higher requirement. aal1 clears the
+         * permission branch's aal1 and is still refused.
+         *
+         * The two levels were aal3 and aal2 until 2.4 Task 2a. All the
+         * collision needs is that they differ; aal3 is not derivable from any
+         * proof, so the pair moved down a rung rather than asserting a session
+         * nobody can hold.
          */
         config([
-            'vouch.assurance_requirements' => ['admin' => 'aal3', 'invoices.approve' => 'aal2'],
+            'vouch.assurance_requirements' => ['admin' => 'aal2', 'invoices.approve' => 'aal1'],
             'vouch_test.held_permissions' => [],
             'vouch_test.held_roles' => ['admin'],
         ]);
 
-        $this->signInAs(new RoleBearingProbeUser, acr: 'aal2');
+        $this->signInAs(new RoleBearingProbeUser, acr: 'aal1');
 
         $this->post('/either/approve')->assertRedirect('/auth/step-up');
     }
@@ -315,12 +326,12 @@ final class AbilityAssuranceRouteTest extends TestCase
          * spatie's role branch really does admit here.
          */
         config([
-            'vouch.assurance_requirements' => ['admin' => 'aal3', 'invoices.approve' => 'aal2'],
+            'vouch.assurance_requirements' => ['admin' => 'aal2', 'invoices.approve' => 'aal1'],
             'vouch_test.held_permissions' => [],
             'vouch_test.held_roles' => ['admin'],
         ]);
 
-        $this->signInAs(new RoleBearingProbeUser, acr: 'aal3');
+        $this->signInAs(new RoleBearingProbeUser, acr: 'aal2');
 
         $this->post('/either/approve')->assertOk()->assertSee('controller reached');
     }
@@ -348,6 +359,8 @@ final class AbilityAssuranceRouteTest extends TestCase
             'user_id' => 7,
             'amr' => ['password'],
             'acr' => $acr,
+            'assurance_proof' => sessionProof(7, $acr),
+            'weakest_satisfied_at' => now(),
         ]);
 
         $this->actingAs($user);

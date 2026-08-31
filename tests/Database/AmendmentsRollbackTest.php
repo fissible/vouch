@@ -18,7 +18,21 @@ use Illuminate\Support\Facades\Schema;
  * VouchServiceProvider, exactly as the real Pest suite does) exercises the
  * same down()/up() pairs Testbench would have, against the same driver.
  */
-it('rolls back and re-applies all amendment migrations cleanly', function (): void {
+it('rolls back and re-applies every migration cleanly', function (): void {
+    /*
+     * ROLLS BACK EVERYTHING, deliberately, rather than a literal --step count.
+     *
+     * This read `--step => 12` and was coupled to the total number of
+     * migrations in the package: 2.4 Task 2 added one, which shifted the window
+     * so the rollback removed a different set than the assertions below
+     * describe, and the re-migrate did not restore what it had taken. The
+     * damage was not confined to this test — the process kept running against a
+     * half-rolled-back schema, so six unrelated suites failed with missing
+     * columns they never touch.
+     *
+     * A full reset has no count to drift, and exercises every down() rather
+     * than the most recent twelve — which is what this file is for.
+     */
     Artisan::call('migrate:fresh');
 
     expect(Schema::hasColumn('auth_credentials', 'identifier_id'))->toBeTrue()
@@ -34,7 +48,7 @@ it('rolls back and re-applies all amendment migrations cleanly', function (): vo
         ->and(Schema::hasColumn('auth_challenges', 'is_decoy'))->toBeTrue()
         ->and(Schema::hasTable('auth_challenge_outbox'))->toBeTrue();
 
-    expect(Artisan::call('migrate:rollback', ['--step' => 12]))->toBe(0);
+    expect(Artisan::call('migrate:reset'))->toBe(0);
 
     expect(Schema::hasColumn('auth_credentials', 'identifier_id'))->toBeFalse()
         ->and(Schema::hasColumn('auth_credentials', 'last_used_timestep'))->toBeFalse()
