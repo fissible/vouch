@@ -338,11 +338,48 @@ final class TokenEvidenceTest extends TestCase
     }
 
     #[Test]
-    public function it_refuses_a_record_whose_stored_json_is_not_decodable(): void
+    public function it_refuses_a_record_whose_payload_is_not_an_evidence_envelope(): void
     {
-        // Distinct from a well-formed envelope with a bad factor: a truncated
-        // write, or a column that lost its cast, produces a string that is not
-        // JSON at all.
+        /*
+         * Valid JSON of the WRONG SHAPE, which is storable on every engine.
+         *
+         * An earlier draft wrote truncated bytes ('{"subject":') and passed on
+         * SQLite while failing the matrix: the migration uses a text column on
+         * SQLite and a real json column on MySQL and PostgreSQL, and those
+         * engines validate on write, so the UPDATE was rejected before the read
+         * path was ever reached. The state the test described could not exist
+         * there.
+         *
+         * A JSON scalar is valid JSON, so it stores everywhere, and it still
+         * cannot be an evidence envelope.
+         */
+        $this->stored();
+        DB::table('auth_token_assurances')->update(['assurance_proof' => '"not an envelope"']);
+
+        $read = $this->record()->read(new ResolvedToken('sanctum', '42', $this->subject(), true));
+
+        self::assertNull($read->evidence);
+        self::assertSame(AssuranceReason::ProofMalformed, $read->reason);
+    }
+
+    #[Test]
+    public function it_refuses_bytes_that_are_not_json_at_all_where_that_can_happen(): void
+    {
+        /*
+         * ENGINE-SPECIFIC BY NECESSITY, and the asymmetry is worth recording
+         * rather than hiding behind a skip.
+         *
+         * On MySQL and PostgreSQL `assurance_proof` is a json column, so the
+         * database itself guarantees the payload parses and this state is
+         * unreachable. On SQLite it is a text column with no such guarantee, so
+         * a truncated write or a lost cast really can leave bytes that are not
+         * JSON — which makes the adapter's decode guard load-bearing on SQLite
+         * and belt-and-braces elsewhere.
+         */
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            self::markTestSkipped('Only SQLite stores the proof in a column that permits non-JSON bytes.');
+        }
+
         $this->stored();
         DB::table('auth_token_assurances')->update(['assurance_proof' => '{"subject":']);
 

@@ -211,6 +211,22 @@ so `TokenIssuer` gains an existence check and the sweep reclaims records the iss
 recognises. Explicit revocation is handled separately by `forget()` on the revocation path.
 Both belong to Task 5, where revocation and the issuer contract are already open.
 
+## 3d. The proof column is not the same guarantee on every engine
+
+`assurance_proof` is a `json` column on MySQL and PostgreSQL and a `text` column on SQLite.
+Those engines validate JSON on write; SQLite does not. Two consequences worth stating,
+because a test written against one engine's behaviour will not hold on another:
+
+- On MySQL and PostgreSQL the database itself guarantees the payload parses, so the
+  adapter's decode guard is belt-and-braces. On SQLite it is load-bearing: a truncated write
+  or a lost cast really can leave bytes that are not JSON.
+- A test that injects malformed bytes is therefore **unreachable** on MySQL and PostgreSQL —
+  the UPDATE is rejected before the read path runs. Injecting valid JSON of the wrong SHAPE
+  (a scalar rather than an envelope) exercises the same refusal on all three.
+
+This was found by the matrix rather than by review: the truncated-bytes injection passed on
+SQLite and failed PostgreSQL with a 22P02 on the write, not the read.
+
 ## 4. Schema and migration
 
 The existing table is keyed by unique `token_id`; the new key is `(issuer_key, token_key)`.
