@@ -195,6 +195,55 @@ final class CredentialMutationContentionTest extends TestCase
         }
     }
 
+    /**
+     * Report whether $work was BLOCKED, WITHOUT opening a transaction first.
+     *
+     * The facade owns its transaction — it refuses to run inside a caller's,
+     * because joining one would leave Vouch's invalidation uncommitted when the
+     * driver's revoke() is called, which is the ordering the whole protocol
+     * rests on. So a probe that wrapped the call could not exercise the real
+     * entry path at all.
+     *
+     * PostgreSQL's bound is therefore SET (session), not SET LOCAL, which
+     * applies only inside a transaction and would silently be a no-op here.
+     */
+    private function blockedTopLevel(Connection $connection, callable $work): bool
+    {
+        $connection->statement(match ($connection->getDriverName()) {
+            'mysql', 'mariadb' => 'SET SESSION innodb_lock_wait_timeout = 1',
+            'pgsql' => "SET lock_timeout = '1s'",
+            default => 'SELECT 1',
+        });
+
+        try {
+            $work($connection);
+
+            return false;
+        } catch (Throwable $exception) {
+            if ($exception instanceof QueryException) {
+                if (! (new LockContention())->isVerified($connection, $exception)) {
+                    throw $exception;
+                }
+
+                return true;
+            }
+
+            if ($connection->getDriverName() === 'sqlite'
+                && $exception instanceof PDOException
+                && ($exception->getCode() === 5 || ($exception->errorInfo[1] ?? null) === 5)) {
+                return true;
+            }
+
+            throw $exception;
+        } finally {
+            $connection->statement(match ($connection->getDriverName()) {
+                'mysql', 'mariadb' => 'SET SESSION innodb_lock_wait_timeout = DEFAULT',
+                'pgsql' => 'SET lock_timeout = DEFAULT',
+                default => 'SELECT 1',
+            });
+        }
+    }
+
     #[Test]
     public function a_subject_wide_sweep_excludes_a_concurrent_issuance(): void
     {
@@ -214,18 +263,22 @@ final class CredentialMutationContentionTest extends TestCase
         $this->establishSession();
         app()->instance(TokenIssuerRegistry::class, new TokenIssuerRegistry([new RecordingIssuer('sanctum')]));
 
-        $sweeper = DB::connection('mutation_a');
-        $sweeper->beginTransaction();
-        app()->makeWith(CredentialMutation::class, ['connection' => $sweeper])
-            ->subjectWide($this->subject(), static fn (Connection $connection) => null);
+        /*
+         * The sweep runs at TOP LEVEL, owning its own transaction as the
+         * protocol requires, and the competing issuance is attempted from
+         * INSIDE its write closure — the only point at which the sweep's locks
+         * are demonstrably held. Wrapping the facade in a transaction of our
+         * own would be refused, and would also be asserting a transaction model
+         * the contract forbids.
+         */
+        $wasBlocked = null;
 
-        try {
-            $wasBlocked = $this->blocked(DB::connection('mutation_b'), function (Connection $connection): void {
-                $this->issueOn($connection);
+        app()->makeWith(CredentialMutation::class, ['connection' => DB::connection('mutation_a')])
+            ->subjectWide($this->subject(), function (Connection $held) use (&$wasBlocked): void {
+                $wasBlocked = $this->blocked(DB::connection('mutation_b'), function (Connection $connection): void {
+                    $this->issueOn($connection);
+                });
             });
-        } finally {
-            $sweeper->rollBack();
-        }
 
         self::assertTrue($wasBlocked);
     }
@@ -251,7 +304,9 @@ final class CredentialMutationContentionTest extends TestCase
         $this->issueOn($issuing);
 
         try {
-            $wasBlocked = $this->blocked(DB::connection('mutation_b'), function (Connection $connection): void {
+            // Top level: the facade owns its transaction, so this probe must not
+            // open one around it.
+            $wasBlocked = $this->blockedTopLevel(DB::connection('mutation_b'), function (Connection $connection): void {
                 app()->makeWith(CredentialMutation::class, ['connection' => $connection])
                     ->subjectWide($this->subject(), static fn (Connection $inner) => null);
             });
@@ -317,9 +372,9 @@ final class CredentialMutationContentionTest extends TestCase
         app(CredentialLockManager::class)->acquire($holder, $this->subject(), ['101']);
 
         try {
-            $wasBlocked = $this->blocked(DB::connection('mutation_b'), function (Connection $connection): void {
+            $wasBlocked = $this->blockedTopLevel(DB::connection('mutation_b'), function (Connection $connection): void {
                 app()->makeWith(CredentialMutation::class, ['connection' => $connection])
-                    ->revoking($this->subject(), ['101'], static fn (Connection $connection) => null);
+                    ->revoking($this->subject(), ['101'], static fn (Connection $inner) => null);
             });
         } finally {
             $holder->rollBack();
