@@ -341,4 +341,71 @@ final class TokenGateResponseTest extends TestCase
         self::assertStringNotContainsString('max_age', $header);
     }
 
+
+    #[Test]
+    public function an_issuer_reporting_the_token_unusable_renders_the_same_bytes(): void
+    {
+        /*
+         * The fifth invalid_token case, and the only one Sanctum cannot produce.
+         * §3b records why: Sanctum returns no principal for an expired or
+         * revoked token, so `usable: false` never reaches the adapter through
+         * it. A third-party driver whose lifecycle model CAN report
+         * unusability — Passport, or a host driver over a table that marks
+         * rather than deletes — does reach it, and must render identically.
+         */
+        $issuer = new class($this->subject()) implements \Fissible\Vouch\Contracts\TokenIssuer {
+            public function __construct(private SubjectKey $subject) {}
+
+            public function issuerKey(): string
+            {
+                return 'third-party';
+            }
+
+            public function supportsTransactionalIssuance(): bool
+            {
+                return true;
+            }
+
+            public function issue(\Illuminate\Database\ConnectionInterface $connection, \Fissible\Vouch\Tokens\TokenGrant $grant): \Fissible\Vouch\Tokens\IssuedToken
+            {
+                throw new \RuntimeException('not used');
+            }
+
+            public function resolveForRequest(\Illuminate\Http\Request $request): \Fissible\Vouch\Tokens\ResolvedToken
+            {
+                return new \Fissible\Vouch\Tokens\ResolvedToken('third-party', '1', $this->subject, usable: false);
+            }
+
+            public function revoke(string $tokenKey): void {}
+        };
+
+        app()->instance(\Fissible\Vouch\Tokens\TokenIssuerRegistry::class,
+            new \Fissible\Vouch\Tokens\TokenIssuerRegistry([$issuer]));
+
+        $response = $this->withToken('a-third-party-token')->getJson('/gated');
+
+        self::assertSame($this->canonicalRejection(), $this->responseTuple($response));
+    }
+
+    #[Test]
+    public function a_tenant_mismatch_renders_the_same_bytes(): void
+    {
+        /*
+         * Moved here from the enforcement tests, where it asserted only a 401.
+         * A rejection whose wire shape is unspecified could ship as a challenge,
+         * with a body, or without cache controls — and a cross-tenant record is
+         * emphatically not a step-up candidate: the credential may be aal3 and
+         * still never apply here.
+         */
+        config(['vouch.tenant' => 'acme']);
+
+        $user = TokenUser::query()->findOrFail(7);
+        $new = $user->createToken('api');
+        app(TokenAssuranceRecord::class)->store('sanctum', stringValue($new->accessToken->getKey()),
+            $this->subject(), 'other-tenant', ActorKind::Human, $this->proof());
+
+        $response = $this->withToken($new->plainTextToken)->getJson('/gated');
+
+        self::assertSame($this->canonicalRejection(), $this->responseTuple($response));
+    }
 }

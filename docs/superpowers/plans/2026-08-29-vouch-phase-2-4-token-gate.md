@@ -370,7 +370,7 @@ Both responses are one physical `WWW-Authenticate` line, empty body,
 interactive `RequireAssurance` comparator and add non-interactive rendering without
 duplicating comparison logic.
 
-**Tests:** all six response cases, exact headers/body, cookie API pass-through,
+**Tests:** all seven response cases (five rendering `invalid_token`, two rendering the challenge), exact headers/body, cookie API pass-through,
 Sanctum bearer enforcement, cookie-plus-bearer precedence, unrelated Passport/JWT
 pass-through, custom group alias, and resolver collision.
 

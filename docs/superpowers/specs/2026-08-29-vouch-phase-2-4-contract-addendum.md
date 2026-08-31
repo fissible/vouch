@@ -255,7 +255,10 @@ condition, stated in the upgrade notes rather than assumed away.
 
 ## 5. The RFC 9470 wire contract
 
-Unresolvable, expired, revoked, or unrecorded:
+**Superseded — see the amendment below.** This first block described a response for
+unresolvable, expired and revoked tokens, which the gate never sees. It is kept only as the
+byte-for-byte shape of the `invalid_token` rendering, which is still exactly right for the
+cases that ARE reachable:
 
 ```http
 HTTP/1.1 401 Unauthorized

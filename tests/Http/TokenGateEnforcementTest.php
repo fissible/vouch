@@ -292,26 +292,11 @@ final class TokenGateEnforcementTest extends TestCase
         $this->withToken($issued->plainText)->getJson('/gated')->assertOk()->assertSee('reached');
     }
 
-    #[Test]
-    public function a_tenant_mismatch_is_refused(): void
-    {
-        /*
-         * Evidence minted under one tenant's policy must not authorize under
-         * another's. The comparator enforces it; this proves the gate actually
-         * passes the route's tenant through rather than comparing against null
-         * and letting every tenant-scoped record pass.
-         */
-        config(['vouch.tenant' => 'acme']);
-
-        $user = TokenUser::query()->findOrFail(7);
-        $new = $user->createToken('api');
-        app(TokenAssuranceRecord::class)->store('sanctum', stringValue($new->accessToken->getKey()),
-            $this->subject(), 'other-tenant', ActorKind::Human,
-            [new SatisfiedFactor('password', 'cred-1', FactorKind::Knowledge, FactorStrength::Knowledge,
-                false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'))]);
-
-        $this->withToken($new->plainTextToken)->getJson('/gated')->assertStatus(401);
-    }
+    /*
+     * Tenant mismatch moved to TokenGateResponseTest, where it asserts the
+     * complete canonical tuple. Here it only checked a 401, which would have
+     * admitted a challenge, a body, or missing cache controls.
+     */
 
     #[Test]
     public function the_gate_leaves_sanctum_abilities_alone(): void
@@ -357,5 +342,33 @@ final class TokenGateEnforcementTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
 
         $this->withoutExceptionHandling()->withToken($this->recordedToken())->getJson('/bad-arg');
+    }
+
+    #[Test]
+    #[\PHPUnit\Framework\Attributes\DataProvider('installedGroups')]
+    public function the_gate_installs_into_the_host_middleware_groups(string $group): void
+    {
+        /*
+         * NO EXPLICIT ALIAS. Every other route in this file names vouch.token,
+         * so none of them can tell whether the gate installs itself into the
+         * host's groups — which the plan requires and which is how a host gets
+         * default-deny without editing every route.
+         *
+         * Deliberately mechanism-independent: it asserts observable coverage,
+         * not callAfterResolving, not ordering, not which kernel hook is used.
+         * An unrecorded real Sanctum token on a plain group route must be
+         * refused.
+         */
+        Route::middleware([$group])->get("/grouped-{$group}", fn (): string => 'reached');
+
+        $direct = TokenUser::query()->findOrFail(7)->createToken('direct')->plainTextToken;
+
+        $this->withToken($direct)->getJson("/grouped-{$group}")->assertStatus(401);
+    }
+
+    /** @return array<string, array{string}> */
+    public static function installedGroups(): array
+    {
+        return ['web' => ['web'], 'api' => ['api']];
     }
 }
