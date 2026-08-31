@@ -1807,20 +1807,52 @@ Task 1's identifier-verification ceremony, followed by the rest of 2.3d.
 
 ## 2.4 — open issues
 
-Filed from `docs/2.4-open-findings.md` after phase 2.4. Security first, then capability, then
-housekeeping:
+Filed from `docs/2.4-open-findings.md` after phase 2.4.
 
-| # | Issue | Note |
-| --- | --- | --- |
-| [#3](https://github.com/fissible/vouch/issues/3) | Reclaim orphaned token-assurance records | Authentication history with no retention policy. Do NOT prune by `weakest_satisfied_at`. |
-| [#5](https://github.com/fissible/vouch/issues/5) | Revoke assurance-bound tokens on credential mutation | Task 5's core. Classify which mutations revoke first — a literal "every writer" rule makes TOTP logins self-revoking. |
-| [#4](https://github.com/fissible/vouch/issues/4) | Provider-qualified subject lock | Blocks #5. Keyed by `SubjectKey`, not `user_id`. |
-| [#6](https://github.com/fissible/vouch/issues/6) | Carry the attempt tenant into session evidence | Tenant-scoped issuance is unreachable until this lands. |
-| [#9](https://github.com/fissible/vouch/issues/9) | Machine-token issuance boundary | Design-first: nothing authorizes a machine token today. |
-| [#7](https://github.com/fissible/vouch/issues/7) | Document that the shipped vocabulary cannot emit aal3 | XS. Ship promptly; a host configuring aal3 fails closed silently. |
-| [#8](https://github.com/fissible/vouch/issues/8) | Warn on an underivable assurance requirement | Recommended after #7, not blocked by it. |
-| [#10](https://github.com/fissible/vouch/issues/10) | Remove ambient vocabulary resolution | Deferred by agreement at Task 2a consensus. |
-| [#11](https://github.com/fissible/vouch/issues/11) | Rebaseline affected mutation chunks | Affected chunks only, not the whole corpus. |
+**Execution order.** The `Order` column below is the dependency order. Issue numbers
+reflect drafting order and are NOT a sequence — #3 before #4 in numbering, #4 before #3 in
+work:
+
+1. **#9** machine-token boundary — a DESIGN decision, settled before any machine-token
+   implementation, and explicitly not allowed to expand 5b's freeze.
+2. **#4** provider-qualified subject lock — blocks #5. Task **5a**.
+3. **#3** orphan reclamation and retention policy — Task **5a**, alongside #4 so that
+   #4 gains a real consumer before #5 depends on it.
+4. **#5** credential-mutation revocation — Task **5b**, kept out of 5a's freeze because
+   the sixteen-writer migration is security-critical and should not share a freeze with
+   persistence mechanics.
+5. **#6** tenant propagation — before tenant-scoped issuance is advertised anywhere.
+6. **#10** remove ambient vocabulary resolution.
+7. **#7 / #8** vocabulary documentation and the underivable-requirement diagnostic.
+8. **#11** mutation rebaseline — **last, and re-triggered after each source-changing
+   issue**. Rebaselining early would absorb later behavioral movement into the new
+   baseline and hide it.
+
+This order differs from a purely risk-ranked one in two places, deliberately: #3 is pulled
+forward to ship with #4, and #11 is pinned last rather than run opportunistically.
+
+| Order | # | Issue | Note |
+| --- | --- | --- | --- |
+| 1 | [#9](https://github.com/fissible/vouch/issues/9) | Machine-token issuance boundary | Design decision first: nothing authorizes a machine token today. Must not expand 5b's freeze. |
+| 2 | [#4](https://github.com/fissible/vouch/issues/4) | Provider-qualified subject lock | **Task 5a.** Blocks #5. Keyed by `SubjectKey`, not `user_id`; today's lock is neither provider-qualified nor durable for a subject with no session row. |
+| 3 | [#3](https://github.com/fissible/vouch/issues/3) | Reclaim orphaned token-assurance records | **Task 5a.** Authentication history with no retention policy. Never prune by `weakest_satisfied_at`; reclaim only records whose issuer token is demonstrably absent. |
+| 4 | [#5](https://github.com/fissible/vouch/issues/5) | Revoke assurance-bound tokens on credential mutation | **Task 5b.** Classify which mutations revoke before routing writers — a literal "every writer" rule makes TOTP logins self-revoking. |
+| 5 | [#6](https://github.com/fissible/vouch/issues/6) | Carry the attempt tenant into session evidence | Before tenant-scoped issuance is advertised anywhere. |
+| 6 | [#10](https://github.com/fissible/vouch/issues/10) | Remove ambient vocabulary resolution | Deferred by agreement at Task 2a consensus. |
+| 7 | [#7](https://github.com/fissible/vouch/issues/7) | Document that the shipped vocabulary cannot emit aal3 | XS. Ship promptly; a host configuring aal3 fails closed silently. |
+| 7 | [#8](https://github.com/fissible/vouch/issues/8) | Warn on an underivable assurance requirement | Recommended after #7, not blocked by it. |
+| 8 | [#11](https://github.com/fissible/vouch/issues/11) | Rebaseline affected mutation chunks | Last, and re-triggered after each source-changing issue. Affected chunks only, not the whole corpus. |
+
+**Two findings were deliberately NOT filed.** Named here so a future reader cannot
+mistake their absence for an oversight:
+
+- *An upstream Sanctum issue for revoked-vs-expired observability.* Measured and settled:
+  Sanctum hard-deletes on revoke, so the distinction is unrecoverable in the database, not
+  merely in its API. Filing would invite re-litigating a closed decision. Recorded in
+  addendum §3b.
+- *An issue claiming `usable: false` is unreachable.* It is unreachable **through Sanctum**,
+  and is deliberately retained as a seam for third-party issuers that can report it. Also
+  recorded in §3b.
 
 ## post-2.4 — planned: impersonation
 
