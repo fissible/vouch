@@ -288,6 +288,96 @@ final class CredentialMutationTest extends TestCase
     }
 
     #[Test]
+    public function reviving_a_credential_with_a_new_secret_sweeps_the_subject(): void
+    {
+        /*
+         * The second instance of the same class of bug, found the same way —
+         * by reading, not by any test failing.
+         *
+         * FirstCredentialEnrollment decides subjectWide vs additive BEFORE
+         * acquiring the subject lock, by looking for a disabled password. If it
+         * sees none, a concurrent mutation can disable one before its locked
+         * write runs; the write then reuses that row, replaces its secret and
+         * clears disabled_at — a password change performed under additive, with
+         * the subject's human tokens never swept.
+         *
+         * The caller cannot classify safely outside the lock, and moving the
+         * lookup inside is circular because the entry point IS the
+         * classification. So the facade enforces a FLOOR: whatever the caller
+         * declared, a write that revives a credential with a DIFFERENT secret
+         * is a credential-secret replacement and sweeps the subject's human
+         * tokens.
+         *
+         * That does not weaken the three named methods. The caller still
+         * declares its intent; the facade refuses to let a stale declaration
+         * produce an unswept password change.
+         */
+        DB::table('auth_credentials')->insert([
+            'id' => 707,
+            'user_id' => 7,
+            'type' => 'password',
+            'secret' => 'the-old-secret',
+            'disabled_at' => now(),
+            'strength' => 'knowledge',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->tokenCiting('cites-the-revived-one', ['707']);
+        $this->tokenCiting('cites-something-else', ['101']);
+        app(TokenAssuranceRecord::class)->store(
+            'sanctum', 'machine-token', $this->subject(), null, ActorKind::Machine, [],
+        );
+        $issuer = new RecordingIssuer('sanctum');
+
+        // Declared ADDITIVE — the stale classification a racing writer makes.
+        $this->mutation($issuer)->additive($this->subject(), static function (ConnectionInterface $connection): void {
+            $connection->table('auth_credentials')->where('id', 707)->update([
+                'secret' => 'a-brand-new-secret',
+                'disabled_at' => null,
+            ]);
+        });
+
+        // Swept anyway, and human-only: the machine token is still outside
+        // Vouch's ownership boundary however the sweep was reached.
+        self::assertSame(['machine-token'], $this->survivingTokens());
+        self::assertSame(
+            ['cites-something-else', 'cites-the-revived-one'],
+            $this->sorted($issuer->revoked),
+        );
+    }
+
+    #[Test]
+    public function reviving_a_credential_without_changing_its_secret_sweeps_nothing(): void
+    {
+        /*
+         * The other side, and the reason the floor is keyed on the SECRET
+         * rather than on disabled_at. OtpFactor's reactivation re-enables an
+         * UNCHANGED credential during enrollment: the proof citing it stays
+         * true, so escalating there would revoke tokens for an operation that
+         * changed nothing a proof depended on.
+         */
+        DB::table('auth_credentials')->insert([
+            'id' => 808,
+            'user_id' => 7,
+            'type' => 'otp',
+            'secret' => 'unchanged',
+            'disabled_at' => now(),
+            'strength' => 'possession',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->tokenCiting('cites-the-reenabled-one', ['808']);
+        $issuer = new RecordingIssuer('sanctum');
+
+        $this->mutation($issuer)->additive($this->subject(), static function (ConnectionInterface $connection): void {
+            $connection->table('auth_credentials')->where('id', 808)->update(['disabled_at' => null]);
+        });
+
+        self::assertSame(['cites-the-reenabled-one'], $this->survivingTokens());
+        self::assertSame([], $issuer->revoked);
+    }
+
+    #[Test]
     public function a_password_change_sweeps_this_subjects_human_tokens(): void
     {
         $this->tokenCiting('human-a', ['101']);
