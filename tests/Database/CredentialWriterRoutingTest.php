@@ -7,6 +7,7 @@ use Fissible\Vouch\Factors\Drivers\PasswordFactor;
 use Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor;
 use Fissible\Vouch\Factors\Drivers\TotpFactor;
 use Fissible\Vouch\Flow\AuthFlow;
+use Fissible\Vouch\Flow\Continuing;
 use Fissible\Vouch\Flow\FlowRequest;
 use Fissible\Vouch\Kernel\Factor\FactorKind;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
@@ -48,7 +49,7 @@ uses(DatabaseMigrations::class);
 
 function routingSubject(int $userId = 7): SubjectKey
 {
-    return SubjectKey::of('App\\Models\\User', (string) $userId);
+    return SubjectKey::of(configuredUserProvider(), (string) $userId);
 }
 
 function routingIssuer(): RecordingIssuer
@@ -102,11 +103,29 @@ function routingBinding(): string
     return str_repeat('r', 64);
 }
 
+/**
+ * Begin a flow and return its handle.
+ *
+ * FlowResult is a marker INTERFACE — not every result carries a handle, and
+ * annotating one onto it to satisfy a test would assert something false about
+ * every other implementation. Narrowed to the concrete continuing result here
+ * instead, which is where the handle actually lives.
+ */
+function routingBegin(): string
+{
+    $begun = app(AuthFlow::class)->advance(new FlowRequest(null, 'begin', [], routingBinding()));
+
+    if (! $begun instanceof Continuing || $begun->handle === null) {
+        throw new RuntimeException('The flow did not begin with a continuing handle.');
+    }
+
+    return $begun->handle;
+}
+
 /** Drive the real flow to a TOTP submission, the way a host would. */
 function routingAuthenticateWithTotp(string $password, string $code): void
 {
-    $begun = app(AuthFlow::class)->advance(new FlowRequest(null, 'begin', [], routingBinding()));
-    $handle = stringValue($begun->handle);
+    $handle = routingBegin();
 
     app(AuthFlow::class)->advance(new FlowRequest($handle, 'submit', ['identifier' => 'ada@acme.example'], routingBinding()));
     app(AuthFlow::class)->advance(new FlowRequest($handle, 'submit', ['password' => $password], routingBinding()));
@@ -123,13 +142,18 @@ function routingAuthenticateWithTotp(string $password, string $code): void
  */
 function routingCredentialState(): array
 {
-    return AuthCredential::query()->orderBy('id')->get()
-        ->map(static fn (AuthCredential $credential): array => [
+    $rows = [];
+
+    foreach (AuthCredential::query()->orderBy('id')->get() as $credential) {
+        $rows[] = [
             'id' => (int) $credential->id,
             'type' => stringValue($credential->type),
             'secret' => stringValue($credential->secret),
             'disabled' => $credential->disabled_at !== null,
-        ])->all();
+        ];
+    }
+
+    return $rows;
 }
 
 /** Give a credential a token that cites it, and hand the credential back. */
@@ -149,6 +173,10 @@ function routingTotpCode(int $userId = 7): string
 {
     $secret = stringValue(AuthCredential::query()
         ->where('user_id', $userId)->where('type', 'totp')->firstOrFail()->secret);
+
+    if ($secret === '') {
+        throw new RuntimeException('The enrolled TOTP credential has no secret.');
+    }
 
     // Built the way the DRIVER builds it — the container clock into OTPHP,
     // exactly as TotpFactor::matchTimestep() does.
@@ -263,8 +291,7 @@ it('does not revoke anything when a recovery code is consumed', function (): voi
     routingToken('cites-the-recovery-code', [stringValue($credential->id)]);
     $issuer = routingIssuer();
 
-    $begun = app(AuthFlow::class)->advance(new FlowRequest(null, 'begin', [], routingBinding()));
-    $handle = stringValue($begun->handle);
+    $handle = routingBegin();
     app(AuthFlow::class)->advance(new FlowRequest($handle, 'submit', ['identifier' => 'ada@acme.example'], routingBinding()));
     // 'recover', not 'submit': burning a code is the recovery action, and the
     // flow hands the driver's DisableCredential to the store rather than
@@ -290,7 +317,7 @@ it('does not revoke anything when a recovery code is consumed', function (): voi
         ->toBe($secretBefore);
 
     expect($burned)->toHaveCount(1)
-        ->and((string) $burned[0])->toBe(stringValue($credential->id))
+        ->and(stringValue($burned[0]))->toBe(stringValue($credential->id))
         ->and(routingSurvivors())->toBe(['cites-the-recovery-code'])
         ->and($issuer->revoked)->toBe([]);
 });

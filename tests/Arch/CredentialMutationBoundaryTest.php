@@ -431,6 +431,54 @@ final class CredentialMutationBoundaryTest extends TestCase
     }
 
     #[Test]
+    public function no_writer_hardcodes_the_subject_provider(): void
+    {
+        /*
+         * The bug this package already fixed once, in Task 2a, where
+         * sessionProof() hardcoded App\Models\User while session evidence
+         * compared getMorphClass() — every converted fixture would have been
+         * refused.
+         *
+         * Here the consequence is worse and quieter. A revocation builds a
+         * SubjectKey to find the records to invalidate; if its provider does
+         * not match the one stored on those records, the query matches NOTHING
+         * and the mutation reports success having revoked nothing. A host whose
+         * user model is not literally App\Models\User would remove a
+         * credential and keep every token that credential authorized, with no
+         * error anywhere.
+         *
+         * A test fixture cannot catch it, because the fixture would have to use
+         * a non-default user model to notice — which is why this is asserted
+         * structurally instead.
+         */
+        $root = (string) realpath(__DIR__ . '/../../src');
+        $offenders = [];
+
+        foreach ($this->productionFiles() as $relative) {
+            $source = (string) file_get_contents($root . '/' . $relative);
+
+            foreach (token_get_all($source) as $token) {
+                if (! is_array($token) || $token[0] !== T_CONSTANT_ENCAPSED_STRING) {
+                    continue;
+                }
+
+                if (str_contains($token[1], 'Models\\User') || str_contains($token[1], 'Models\\\\User')) {
+                    $offenders[] = $relative;
+
+                    break;
+                }
+            }
+        }
+
+        self::assertSame([], array_values(array_unique($offenders)), sprintf(
+            'These files hardcode a user model in a string literal: %s. Derive the subject '
+            . 'provider from the configured model\'s getMorphClass(), as Vouch, '
+            . 'SessionLifecycle, SessionEvidence and SanctumTokenIssuer all do.',
+            implode(', ', array_unique($offenders)),
+        ));
+    }
+
+    #[Test]
     public function the_facade_offers_no_general_purpose_entry_point(): void
     {
         /*

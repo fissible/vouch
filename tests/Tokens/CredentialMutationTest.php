@@ -54,7 +54,7 @@ final class CredentialMutationTest extends TestCase
 
     private function subject(): SubjectKey
     {
-        return SubjectKey::of('App\\Models\\User', '7');
+        return SubjectKey::of(configuredUserProvider(), '7');
     }
 
     /*
@@ -327,7 +327,7 @@ final class CredentialMutationTest extends TestCase
     {
         app(TokenAssuranceRecord::class)->store(
             'sanctum', 'other-subject-token',
-            SubjectKey::of('App\\Models\\User', '8'), null, ActorKind::Human,
+            SubjectKey::of(configuredUserProvider(), '8'), null, ActorKind::Human,
             [new SatisfiedFactor('password', '101', FactorKind::Knowledge, FactorStrength::Knowledge,
                 false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'))],
         );

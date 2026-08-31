@@ -288,7 +288,7 @@ final class CredentialMutationContentionTest extends TestCase
             $contended = $this->blocked($b, function (Connection $connection): void {
                 app(CredentialLockManager::class)->acquire(
                     $connection,
-                    SubjectKey::of('App\\Models\\User', '8'),
+                    SubjectKey::of(configuredUserProvider(), '8'),
                     ['102'],
                 );
             });
