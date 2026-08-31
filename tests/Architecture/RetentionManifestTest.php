@@ -7,7 +7,7 @@ namespace Fissible\Vouch\Tests\Architecture;
 use Fissible\Vouch\Console\RetentionManifest;
 use Fissible\Vouch\Tests\TestCase;
 use Fissible\Vouch\VouchServiceProvider;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Test;
@@ -39,7 +39,15 @@ use PHPUnit\Framework\Attributes\Test;
  */
 final class RetentionManifestTest extends TestCase
 {
-    use DatabaseMigrations;
+    /*
+     * RefreshDatabase, not DatabaseMigrations. Nothing here writes to the
+     * default connection — every assertion reads the live schema or the
+     * manifest, and the derivation migrates a separate SQLite probe. On MySQL,
+     * DatabaseMigrations re-runs the whole migration set around every test,
+     * which made this file one of the most expensive in the suite for no
+     * behavioural gain.
+     */
+    use RefreshDatabase;
 
     /** @return array<int, class-string> */
     protected function getPackageProviders($app): array
@@ -64,8 +72,23 @@ final class RetentionManifestTest extends TestCase
      *
      * @return list<string>
      */
+    /** @var list<string>|null */
+    private static ?array $derivedTables = null;
+
+    /** @return list<string> */
     private function packageTables(): array
     {
+        /*
+         * Derived ONCE per process. The derivation runs a full migration, and
+         * running it per test made this file the most expensive thing in the
+         * suite on MySQL, where DatabaseMigrations already re-migrates around
+         * every test. The migration set does not change between tests in a
+         * run, so recomputing it is pure cost.
+         */
+        if (self::$derivedTables !== null) {
+            return self::$derivedTables;
+        }
+
         $path = tempnam(sys_get_temp_dir(), 'vouch-manifest-') ?: sys_get_temp_dir() . '/vouch-manifest.sqlite';
         file_put_contents($path, '');
 
@@ -97,6 +120,7 @@ final class RetentionManifestTest extends TestCase
         // `migrations` is Laravel's own ledger, created by running them at all.
         $tables = array_values(array_diff($after, $before, ['migrations']));
         sort($tables);
+        self::$derivedTables = $tables;
 
         return $tables;
     }
