@@ -475,14 +475,19 @@ final class VouchServiceProvider extends ServiceProvider
         $router->aliasMiddleware('vouch.session', \Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class);
         $router->aliasMiddleware('vouch.assurance', \Fissible\Vouch\Http\Middleware\RequireAssurance::class);
         $router->aliasMiddleware('vouch.ability', \Fissible\Vouch\Http\Middleware\RequireAbilityAssurance::class);
+        $router->aliasMiddleware('vouch.token', \Fissible\Vouch\Http\Middleware\RejectsUnrecordedTokens::class);
         $ensureMiddlewareGroups = function (): void {
             $router = $this->app->make(\Illuminate\Routing\Router::class);
             $middlewareByGroup = [
                 'web' => [
                     \Fissible\Vouch\Http\Middleware\ValidatesVouchSession::class,
                     \Fissible\Vouch\Http\Middleware\RequireAbilityAssurance::class,
+                    \Fissible\Vouch\Http\Middleware\RejectsUnrecordedTokens::class,
                 ],
-                'api' => [\Fissible\Vouch\Http\Middleware\RequireAbilityAssurance::class],
+                'api' => [
+                    \Fissible\Vouch\Http\Middleware\RequireAbilityAssurance::class,
+                    \Fissible\Vouch\Http\Middleware\RejectsUnrecordedTokens::class,
+                ],
             ];
 
             foreach ($middlewareByGroup as $group => $middleware) {

@@ -1760,6 +1760,23 @@ Task 1's identifier-verification ceremony, followed by the rest of 2.3d.
 
 ---
 
+## 2.4 — open issues
+
+Filed from `docs/2.4-open-findings.md` after phase 2.4. Security first, then capability, then
+housekeeping:
+
+| # | Issue | Note |
+| --- | --- | --- |
+| [#3](https://github.com/fissible/vouch/issues/3) | Reclaim orphaned token-assurance records | Authentication history with no retention policy. Do NOT prune by `weakest_satisfied_at`. |
+| [#5](https://github.com/fissible/vouch/issues/5) | Revoke assurance-bound tokens on credential mutation | Task 5's core. Classify which mutations revoke first — a literal "every writer" rule makes TOTP logins self-revoking. |
+| [#4](https://github.com/fissible/vouch/issues/4) | Provider-qualified subject lock | Blocks #5. Keyed by `SubjectKey`, not `user_id`. |
+| [#6](https://github.com/fissible/vouch/issues/6) | Carry the attempt tenant into session evidence | Tenant-scoped issuance is unreachable until this lands. |
+| [#9](https://github.com/fissible/vouch/issues/9) | Machine-token issuance boundary | Design-first: nothing authorizes a machine token today. |
+| [#7](https://github.com/fissible/vouch/issues/7) | Document that the shipped vocabulary cannot emit aal3 | XS. Ship promptly; a host configuring aal3 fails closed silently. |
+| [#8](https://github.com/fissible/vouch/issues/8) | Warn on an underivable assurance requirement | Recommended after #7, not blocked by it. |
+| [#10](https://github.com/fissible/vouch/issues/10) | Remove ambient vocabulary resolution | Deferred by agreement at Task 2a consensus. |
+| [#11](https://github.com/fissible/vouch/issues/11) | Rebaseline affected mutation chunks | Affected chunks only, not the whole corpus. |
+
 ## post-2.4 — planned: impersonation
 
 **Why it belongs in Vouch rather than an authorization package.** `auth_sessions`

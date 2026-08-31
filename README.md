@@ -8,15 +8,15 @@ step-up; it does not reimplement their cryptography or protocols.
 
 Vouch is not an authorization package, token storage, or a UI. Your application
 or its authorization package decides who may act; Vouch records how strongly
-that person authenticated and can require a stronger session for that action.
-Token issuance and token assurance are planned for 2.4, and presentation remains
-the host application's responsibility. OIDC and federation are not planned.
+that person authenticated and can require stronger session or bearer-token
+assurance for that action. Presentation remains the host application's
+responsibility. OIDC and federation are not planned.
 
 ## Requirements and maturity
 
 Vouch requires PHP ^8.4 and Laravel 13 components (`illuminate/*` ^13.0). It
-is pre-1.0 software: account lifecycle and assurance work ships in Phase 2.3,
-the token-issuance gate is planned for 2.4, and standard UI adapters are Phase
+is pre-1.0 software: account lifecycle and session assurance ship in Phase 2.3,
+token issuance and assurance in Phase 2.4, and standard UI adapters are Phase
 3 work. See [the roadmap](PROJECT.md) for those phases.
 
 Its account-lifecycle services cover identifier verification, credential
@@ -132,8 +132,27 @@ the check. The measured package-specific paths and their limits are documented
 in the [authorization integration survey](docs/authorization-integration-survey.md).
 
 For an authenticated request with no Vouch session, a mapped route returns a
-403 response with `insufficient_assurance`; it does not evaluate a bearer token
-or fail open. That remains the boundary until 2.4 adds token assurance.
+403 response with `insufficient_assurance`; the ability map is session
+assurance, not a bearer-token fallback. In 2.4, bearer-token assurance is
+enforced by the separate token gate below.
+
+## Token assurance gate
+
+Vouch adds `vouch.token` to the host's `web` and `api` middleware groups. The
+group installation applies its default `aal1` requirement to tokens claimed by
+a registered issuer; add `vouch.token` explicitly to another or custom group.
+For a stricter route requirement, use the alias arguments
+`->middleware('vouch.token:aal2,PT15M')`: the first argument is the assurance
+level and the optional second argument is an ISO-8601 `max_age` duration.
+
+The token gate ships in `observe` mode (`VOUCH_TOKEN_GATE_MODE=observe`). It
+allows traffic but logs every token it would refuse with `issuer_key` and
+`token_key`, never the plaintext token. Pre-existing tokens are deliberately
+not backfilled. Install Vouch, watch those log records, reissue the affected
+tokens through `Vouch::issueToken`, then set
+`VOUCH_TOKEN_GATE_MODE=enforce` after the log goes quiet. The only valid modes
+are `observe` and `enforce`; a typo in `VOUCH_TOKEN_GATE_MODE` throws a loud
+configuration error instead of silently disarming the gate.
 
 ## Strict maps
 

@@ -9,6 +9,7 @@ use Fissible\Vouch\Tokens\IssuedToken;
 use Fissible\Vouch\Tokens\ResolvedToken;
 use Fissible\Vouch\Tokens\SubjectKey;
 use Fissible\Vouch\Tokens\TokenGrant;
+use Illuminate\Auth\RequestGuard;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -62,9 +63,38 @@ final class SanctumTokenIssuer implements TokenIssuer
 
     public function resolveForRequest(Request $request): ?ResolvedToken
     {
+        // Sanctum is optional for Vouch hosts. The globally-installed gate
+        // must leave a non-Sanctum application's authentication untouched.
+        if (! is_array(config('auth.guards.sanctum'))) {
+            return null;
+        }
+
         // Use Sanctum's actual guard precedence. Reading a bearer header here
         // would falsely claim requests where Sanctum selected a cookie actor.
-        $principal = auth('sanctum')->user();
+        try {
+            $guard = auth('sanctum');
+        } catch (\InvalidArgumentException $exception) {
+            /*
+             * A configured guard can name a driver that is not registered when
+             * Sanctum is absent. Catch only AuthManager's exact missing-driver
+             * error; malformed guards and provider failures remain loud.
+             */
+            $driver = config('auth.guards.sanctum.driver');
+            $message = is_string($driver)
+                ? "Auth driver [{$driver}] for guard [sanctum] is not defined."
+                : null;
+
+            if ($exception->getMessage() === $message) {
+                return null;
+            }
+
+            throw $exception;
+        }
+
+        if ($guard instanceof RequestGuard) {
+            $guard->forgetUser()->setRequest($request);
+        }
+        $principal = $guard->user();
 
         if (! $principal instanceof Model || ! method_exists($principal, 'currentAccessToken')) {
             return null;
