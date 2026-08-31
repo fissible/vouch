@@ -55,9 +55,27 @@ jobs:
   # carries no --min at all — so it gated nothing while running to GitHub's
   # six-hour job limit on every push. It is measurement, not a gate, and it now
   # runs on a schedule in mutation-sweep.yml.
+  # Split into one job per gate, rather than raising a single timeout.
+  #
+  # `mutate:kernel` ran both gates in sequence, and each one re-runs the WHOLE
+  # suite before its mutants. Measured on the run that failed: install ~3m,
+  # suite ~3m, msi mutants ~10.5m, suite again ~2.5m, covered mutants ~11m —
+  # about 30 minutes of genuinely sequential work against a 25-minute cap. The
+  # score itself was fine (87.29% full MSI, floor 80), so this was wall-clock,
+  # not quality.
+  #
+  # The two gates are independent, so they parallelize. That keeps each timeout
+  # tight enough to still mean something: raising one cap to 40 would have
+  # bought the same headroom while making the guard correspondingly weaker, and
+  # this job's cost grows with the suite every phase.
   mutation:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+
+    strategy:
+      fail-fast: false
+      matrix:
+        gate: [msi, covered]
 
     steps:
       - uses: actions/checkout@v5
@@ -73,7 +91,7 @@ jobs:
         run: composer install --prefer-dist --no-progress
 
       - name: Kernel mutation gate
-        run: composer mutate:kernel
+        run: composer mutate:${{ matrix.gate }}
 
   # The adversarial attempt-store matrix. SQLite is a supported target and must
   # be verified, but cannot prove MySQL or Postgres locking, transaction, and
