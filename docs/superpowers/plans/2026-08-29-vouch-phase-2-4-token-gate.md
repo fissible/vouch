@@ -347,7 +347,7 @@ mapping contents, tenant/global equality, and no plaintext persistence.
 **Gate:** failed issuance leaves neither token nor assurance/mapping effects; a
 successful issuance can be resolved and authorized without consulting session state.
 
-## Task 4 — Token-scoped enforcement and RFC 9470 responses
+## Task 4 — Token-scoped enforcement and RFC 9470 responses — DONE (PR #12)
 
 **The gate ships UNARMED.** `vouch.token_gate.mode` defaults to `observe` and
 must be set to `enforce` deliberately. This is not caution for its own sake:
@@ -400,53 +400,131 @@ rejected on every installed Vouch token boundary, while ordinary
 cookie-authenticated SPA requests remain unchanged. With the default
 `mode = observe`, every one of those requests is admitted and recorded instead.
 
-## Task 5 — Credential and subject revocation protocol
+## Task 5a — Durable subject lock and token-assurance retention
 
-**Two obligations carried from Task 3, both raised by the implementer at
-consensus.**
+**Split from Task 5 on 2026-08-31.** Task 5 as written bundled the persistence
+mechanics with a sixteen-writer security migration. Keeping them in one freeze
+would have made a mid-task amendment force a re-freeze of the whole contract,
+and Task 4's phase-4 review found three defects in a surface a fraction of that
+size. 5a also gives #4 a real consumer before #5 depends on it.
 
-`CredentialLockManager::lockSubject()` is not yet a durable per-subject lock: it
-locks the first `auth_sessions` row for the user, with no stable subject
-serialization row and no deterministic anchor. That is adequate for issuance,
-where a session row always exists, and NOT adequate for a subject-wide sweep,
-which must serialize against a subject that may have no live session at all.
-Task 5 owns giving the subject a lockable anchor. Note
-`canonicalCredentialIds()` is the single credential order and must be used
+Issues: [#4](https://github.com/fissible/vouch/issues/4),
+[#3](https://github.com/fissible/vouch/issues/3).
+
+### The subject lock is neither provider-qualified nor durable
+
+`CredentialLockManager::lockSubject()` locks the first `auth_sessions` row
+matching `user_id`. Two defects, both measured against the shipped code:
+
+- It ignores `SubjectKey::$provider`, so two subjects with the same id under
+  different providers serialize against each other, and — worse — a lock taken
+  for one provider does not exclude the other.
+- `->first()` on a subject with NO session row acquires no lock at all. That is
+  adequate for issuance, where a session always exists, and it is exactly wrong
+  for a subject-wide sweep, whose whole purpose is to serialize against a
+  subject that may have no live session.
+
+The package already has the right primitive and a documented precedent for it:
+`DatabaseRowLock::ensureAndLock()`, and `auth_enrollment_locks` — a mutex anchor
+with no id, no timestamps, no foreign key, claimed with `insertOrIgnore` and
+never deleted, whose migration explains each of those choices. 5a follows that
+precedent rather than inventing a second mechanism: an `auth_subject_locks`
+anchor keyed by the canonical `SubjectKey::toString()` (`provider:id`, with the
+final colon as the unambiguous separator and ids barred from containing one).
+
+`canonicalCredentialIds()` remains the single credential order and must be used
 rather than `orderBy('id')` — the ids are opaque strings, so `'09'` and `'9'`
 are different credentials and primary-key order cannot express that.
 
-Machine-token issuance has no path. `Vouch::issueToken()` refuses machine grants
-outright, and the design still calls for a separate machine path. Task 4 can
-ENFORCE existing machine records but must not become the first consumer that
-also creates them.
+### Retention: the orphan sweep
 
-**Carries a retention obligation from Task 2 (addendum §3c).** The token assurance
-record is authentication history — what a person proved, with which credentials,
-when — and nothing reclaims it. Sessions are bounded by
-`revocation_retention_days`; token assurances have no policy, and
-`sanctum:prune-expired` and `$user->tokens()->delete()` orphan rows with no
-notification. Task 5 must add an orphan sweep driven by an issuer existence
-check, because only the issuer knows whether a token still exists, and must NOT
-prune by `weakest_satisfied_at`: that is evidence age, not token age, so it
-would delete records for live long-lived tokens and make them fail closed with
-no diagnosable cause.
+Full contract in addendum §3c as amended. The load-bearing rules:
 
-Add a guard test too — nothing currently catches a new table shipping without a
-retention policy, which is how this one got missed.
+- **Never prune by `weakest_satisfied_at`.** It is evidence age, not token age;
+  a legitimately long-lived token has an old anchor, so an age-based sweep
+  deletes records for LIVE tokens, which then fail closed at the gate with no
+  diagnosable cause. This is the obvious fix and it is wrong.
+- **Reclaim only records whose issuer has affirmatively reported the token
+  absent.** The existence check is an OPTIONAL `ReportsTokenExistence`
+  capability, NOT a `TokenIssuer` method: forcing every issuer to answer makes
+  the cheapest wrong answer — an empty array — mean "delete everything I own".
+- Issuers without the capability are skipped and reported; capability errors
+  retain records and are reported; existing-token results always win over
+  cleanup; returned keys are verified to belong to the requested issuer and
+  duplicates tolerated deterministically; bounded batches, never one unbounded
+  query; the sweep runs outside authorization transactions and attempts no
+  driver revocation.
+
+Folded into `vouch:prune`, not a second scheduled command. `PruneResult` gains
+reclaimed, retained, unsupported, and errored counts so a skipped issuer is
+visible rather than silent.
+
+### The guard that would have caught this
+
+Nothing currently fails when a new table ships with no retention policy, which
+is how `auth_token_assurances` got here. A blanket "every `auth_*` table is
+pruned" rule would be wrong, since some tables are deliberately retained. The
+enforceable form is a checked manifest of package-owned persistent tables, each
+either pruned or listed as retained WITH its reason, failing when a table
+appears in neither list.
+
+**Tests:** provider qualification (same id, two providers, must not exclude each
+other); a subject with no session row still serializes; the anchor is claimed
+once and reused; lock ordering against `canonicalCredentialIds()`; concurrent
+acquisition in both interleavings on every engine; a live long-lived token
+survives a sweep whose evidence is old; an issuer without the capability is
+skipped not swept; a capability error retains records; an issuer returning keys
+it was not asked about cannot reclaim another issuer's records; duplicate keys;
+batch bounds; and the manifest guard failing on an unlisted table.
+
+**Gate:** a subject with no session row cannot have two concurrent subject-wide
+operations proceed; and no sweep deletes a record whose token still exists,
+including when the issuer cannot be asked.
+
+## Task 5b — Credential mutation and assurance-bound revocation
+
+Issue [#5](https://github.com/fissible/vouch/issues/5). Depends on 5a's lock.
+
+**Classify mutations BEFORE routing writers.** `TotpFactor` advances
+`last_used_timestep` on the credential row on every successful verification, so
+a literal "every credential writer passes through the facade and revokes" rule
+would make every TOTP login revoke the user's own tokens. Bookkeeping writes and
+security-relevant mutations are different things and the protocol must say which
+is which before a single writer is moved.
+
+**`revoke(string $tokenKey): void` keeps its signature.** Settled 2026-08-31,
+overruling a proposal to pass the mutation's connection. The design requires two
+transactions — delete Vouch assurance and mappings and COMMIT, then invoke driver
+revocation with retry — and passing the connection invites collapsing them, after
+which a driver failure rolls back the assurance deletion and resurrects
+authorization. The guarantee is therefore stated, not strengthened:
+
+> Vouch authorization is invalidated by the committed assurance deletion. Driver
+> token deletion is best-effort, idempotent, and retried out of band.
+
+If a future driver genuinely needs a connection for its own post-commit work,
+that gets an explicitly post-commit seam rather than an optional parameter
+implying transactional coupling.
+
+Machine-token issuance still has no path: `Vouch::issueToken()` refuses machine
+grants outright. [#9](https://github.com/fissible/vouch/issues/9) settles that
+boundary as a DESIGN decision before 5b, and an undefined machine-token path must
+not be allowed to expand this freeze.
 
 Create one `CredentialMutation` facade owning connection, transaction, subject lock,
-credential locks, assurance/mapping deletion, and credential writes. Route all
-sixteen current credential writers through it and add a boundary architecture test
-that fails when a new writer bypasses the protocol.
+credential locks, assurance/mapping deletion, and credential writes. Route the
+classified writers through it and add a boundary architecture test that fails when a
+new writer bypasses the protocol.
 
 On credential disable/replace/revoke, delete matching assurance records and mappings
 atomically. On password change, apply the configured subject-wide human-token sweep.
 Commit Vouch invalidation before invoking idempotent driver revocation; tolerate and
 retry driver failure out of band.
 
-**Tests:** every writer, invalidation via ANY credential in the proof, password subject sweep,
-missing mapping/idempotent retry, driver failure fail-closed behavior, concurrent
-issuance versus subject-wide revocation in both interleavings, and lock ordering.
+**Tests:** every classified writer, invalidation via ANY credential in the proof, password
+subject sweep, missing mapping/idempotent retry, driver failure fail-closed behavior,
+concurrent issuance versus subject-wide revocation in both interleavings, lock ordering,
+and a bookkeeping write (TOTP verification) that must NOT revoke.
 
 **Gate:** after the assurance-delete commit, no request can authorize the token even
 if driver deletion fails; no issuance can commit after a completed subject-wide

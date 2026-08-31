@@ -74,4 +74,10 @@ final readonly class TokenIssuerRegistry
             static fn (TokenIssuer $issuer): bool => $issuer->supportsTransactionalIssuance(),
         ));
     }
+
+    /** @return IssuerList */
+    public function issuers(): array
+    {
+        return $this->issuers;
+    }
 }

@@ -84,6 +84,23 @@ final class TokenAssuranceUpgradeTest extends TestCase
             }
 
             /*
+             * Console/RetentionManifest.php NAMES the table; it never reads or
+             * writes it. That distinction is the whole point of this guard, and
+             * without the exemption the manifest could only satisfy it by
+             * assembling the name at runtime — which the comment below calls
+             * out as deliberate circumvention. A guard that can only be
+             * satisfied by the thing it forbids teaches the wrong lesson, so
+             * the exemption is explicit and this narrow.
+             *
+             * It is safe because a declaration cannot become an access without
+             * also acquiring a query, which every other assertion here still
+             * catches.
+             */
+            if ($relative === 'Console/RetentionManifest.php') {
+                continue;
+            }
+
+            /*
              * CODE tokens only. A raw string scan matches prose: OtpFactor's
              * docblock mentions auth_token_assurances to explain why it
              * preserves a credential id, and counting that as a consumer would
