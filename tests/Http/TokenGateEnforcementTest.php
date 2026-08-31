@@ -57,6 +57,16 @@ final class TokenGateEnforcementTest extends TestCase
         parent::defineEnvironment($app);
 
         $app['config']->set('auth.providers.users.model', TokenUser::class);
+
+        /*
+         * ARMED EXPLICITLY. The gate ships in observe mode, because installing
+         * it armed would invalidate every pre-existing Sanctum token in a host
+         * application the moment the package booted (see TokenGateModeTest).
+         * Every assertion in this file is about the ARMED behaviour, so it says
+         * so — otherwise these tests would pass vacuously against a gate that
+         * refuses nothing.
+         */
+        $app['config']->set('vouch.token_gate.mode', 'enforce');
     }
 
     protected function setUp(): void

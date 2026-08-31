@@ -349,6 +349,27 @@ successful issuance can be resolved and authorized without consulting session st
 
 ## Task 4 — Token-scoped enforcement and RFC 9470 responses
 
+**The gate ships UNARMED.** `vouch.token_gate.mode` defaults to `observe` and
+must be set to `enforce` deliberately. This is not caution for its own sake:
+`RejectsUnrecordedTokens` installs itself into the host's `web` and `api` groups,
+and §6.5 point 4 forbids backfilling pre-existing tokens — so an armed default
+would invalidate every Sanctum token a host had ever issued, on every API route,
+the moment the package booted. `composer require` would be a breaking change for
+every one of their API consumers.
+
+The package already settled this rule for a smaller blast radius, in
+`config/vouch.php` on throttle dimensions: "Their blast radius makes opt-in
+enforcement the only safe default." The token gate has the largest blast radius
+in the package.
+
+Observe is a RECORDED decision, not a silent pass — mirroring
+`ThrottleDecision::Observed`. It logs what it would have refused, with the
+issuer and token key so an operator can find and reissue it, and never the
+plaintext. The migration is: install, watch, reissue through `Vouch::issueToken`,
+arm when the log goes quiet. The mode value is validated exactly as
+`ThrottleConfiguration` validates its own — a typo must fail loudly rather than
+silently disarming the gate.
+
 Add `RejectsUnrecordedTokens` and the `vouch.token` alias through the existing
 provider group-wiring mechanism. It must not read `Authorization` directly or
 assume `auth:sanctum` has already run. Registered issuers are queried in configured
@@ -374,9 +395,10 @@ duplicating comparison logic.
 Sanctum bearer enforcement, cookie-plus-bearer precedence, unrelated Passport/JWT
 pass-through, custom group alias, and resolver collision.
 
-**Gate:** a directly minted/unrecorded Sanctum token is rejected on every installed
-Vouch token boundary, while ordinary cookie-authenticated SPA requests remain
-unchanged.
+**Gate:** with `mode = enforce`, a directly minted/unrecorded Sanctum token is
+rejected on every installed Vouch token boundary, while ordinary
+cookie-authenticated SPA requests remain unchanged. With the default
+`mode = observe`, every one of those requests is admitted and recorded instead.
 
 ## Task 5 — Credential and subject revocation protocol
 
