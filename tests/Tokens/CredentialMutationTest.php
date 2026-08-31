@@ -6,6 +6,7 @@ namespace Fissible\Vouch\Tests\Tokens;
 
 use DateTimeImmutable;
 use Fissible\Vouch\Credentials\CredentialMutation;
+use Fissible\Vouch\Credentials\CredentialMutationResult;
 use Fissible\Vouch\Kernel\Factor\FactorKind;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
@@ -477,6 +478,7 @@ final class CredentialMutationTest extends TestCase
 
         // After the caller's commit it has been asked, and its failure recorded
         // on the same result — which is why that object is not readonly.
+        self::assertInstanceOf(CredentialMutationResult::class, $result);
         self::assertSame(['doomed'], $issuer->attempted);
         self::assertCount(1, $result->driverFailures);
         self::assertSame('doomed', $result->driverFailures[0]->tokenKey);
