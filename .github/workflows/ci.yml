@@ -103,20 +103,13 @@ jobs:
           MYSQL_ROOT_PASSWORD: password
           MYSQL_DATABASE: vouch_test
         ports: ['3306:3306']
-        # Durability off. This database exists for the length of one job and is
-        # thrown away, so fsync-per-commit buys nothing and costs a great deal:
-        # DatabaseMigrations migrates and rolls back the whole set around every
-        # test, and MySQL has no transactional DDL, so each test is thousands of
-        # real statements. With defaults the Tokens suite alone took the job
-        # past its timeout; the same suite runs in ~150s against an untuned
-        # local container, which is what made the CI number look like a hang
-        # rather than what it was.
+        # NOTE: service `options` are docker create arguments, not mysqld
+        # arguments, and GitHub does not allow overriding a service's command —
+        # so server tuning cannot live here. It is applied at runtime by the
+        # "Tune MySQL for a disposable database" step below.
         options: >-
           --health-cmd="mysqladmin ping -ppassword"
           --health-interval=10s --health-timeout=5s --health-retries=10
-          --innodb-flush-log-at-trx-commit=0
-          --sync-binlog=0
-          --skip-log-bin
       postgres:
         image: postgres:16
         env:
@@ -143,6 +136,21 @@ jobs:
       # VOUCH_SQLITE_PATH is a FILE, never :memory:. Each connection to an
       # in-memory SQLite database gets its own private database, so the
       # contention tests would pass without anything having raced.
+      # Durability off, at runtime because service options cannot carry mysqld
+      # flags. This database exists for one job and is discarded, so
+      # fsync-per-commit buys nothing and costs a great deal: DatabaseMigrations
+      # migrates and rolls back the whole set around every test, and MySQL has
+      # no transactional DDL, so each test is thousands of real statements.
+      # sync_binlog is settable at runtime; log_bin is not, which is why this is
+      # a mitigation rather than the full local-container speedup.
+      - name: Tune MySQL for a disposable database
+        if: matrix.db == 'mysql'
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -u root -ppassword -e "
+            SET GLOBAL innodb_flush_log_at_trx_commit = 0;
+            SET GLOBAL sync_binlog = 0;
+          "
+
       - name: Database suite
         env:
           VOUCH_TEST_DB: ${{ matrix.db }}
