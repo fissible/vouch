@@ -124,6 +124,11 @@ it('excludes a second holder of the same subject that has no session row', funct
      * transaction; B must be blocked. Under the shipped lock both would
      * "succeed" because neither locked anything: there is no session row to
      * lock, and ->first() over an empty result is silent.
+     *
+     * On SQLite this is also satisfied by that engine's database-wide writer
+     * serialization, so the sqlite leg is weaker evidence than it looks. The
+     * discriminating runs are MySQL and PostgreSQL, where nothing but the
+     * anchor would block B.
      */
     $subject = SubjectKey::of('App\\Models\\User', '7');
     $a = DB::connection('subject_a');
@@ -147,9 +152,24 @@ it('does not make two different subjects contend', function (): void {
      * lock row would pass the exclusion test above and serialize the entire
      * application. Different providers with the SAME id are the sharpest case,
      * since a user_id-keyed anchor merges them.
+     *
+     * Lock GRANULARITY is only observable on an engine that has any. SQLite
+     * permits a single writer per database, so an open write transaction
+     * excludes every other writer regardless of which row it touched. Measured
+     * rather than assumed: two DIFFERENT anchors block each other there even
+     * when both rows already exist, because INSERT OR IGNORE still takes the
+     * write lock. That is the engine, not the anchor, and no implementation of
+     * this protocol can exhibit granularity on it.
      */
     $a = DB::connection('subject_a');
     $b = DB::connection('subject_b');
+
+    if ($a->getDriverName() === 'sqlite') {
+        $this->markTestSkipped(
+            'SQLite serializes writers database-wide, so per-subject lock granularity '
+            . 'cannot be observed on it. Asserted on the MySQL and PostgreSQL matrix legs.',
+        );
+    }
 
     $a->beginTransaction();
     app(CredentialLockManager::class)->acquire($a, SubjectKey::of('App\\Models\\User', '7'), []);

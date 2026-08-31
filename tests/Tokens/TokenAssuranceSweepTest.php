@@ -17,6 +17,7 @@ use Fissible\Vouch\Tokens\ActorKind;
 use Fissible\Vouch\Tokens\SubjectKey;
 use Fissible\Vouch\Tokens\TokenAssuranceRecord;
 use Fissible\Vouch\Tokens\TokenAssuranceSweep;
+use Fissible\Vouch\Tokens\TokenAssuranceSweepResult;
 use Fissible\Vouch\Tokens\TokenIssuerRegistry;
 use Fissible\Vouch\VouchServiceProvider;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
@@ -71,7 +72,7 @@ final class TokenAssuranceSweepTest extends TestCase
     }
 
     /** @param array<string, TokenIssuer> $issuers */
-    private function sweepWith(array $issuers, int $batch = 100): object
+    private function sweepWith(array $issuers, int $batch = 100): TokenAssuranceSweepResult
     {
         // The registry is readonly and constructor-injected, so the double is
         // installed as an instance rather than mutated into place.
@@ -83,7 +84,9 @@ final class TokenAssuranceSweepTest extends TestCase
     /** @return list<string> */
     private function remainingKeys(): array
     {
-        return DB::table('auth_token_assurances')->orderBy('token_key')->pluck('token_key')->all();
+        $keys = DB::table('auth_token_assurances')->orderBy('token_key')->pluck('token_key')->all();
+
+        return array_values(array_map(stringValue(...), $keys));
     }
 
     #[Test]

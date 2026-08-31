@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use Fissible\Vouch\Kernel\Factor\FactorKind;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
+use Fissible\Vouch\Contracts\TokenIssuer;
 use Fissible\Vouch\Tests\Support\Tokens\ExistenceReportingIssuer;
 use Fissible\Vouch\Tests\Support\Tokens\SilentIssuer;
 use Fissible\Vouch\Tests\TestCase;
@@ -59,7 +60,7 @@ final class PruneReclaimsTokenAssurancesTest extends TestCase
         );
     }
 
-    /** @param list<object> $issuers */
+    /** @param list<TokenIssuer> $issuers */
     private function withIssuers(array $issuers): void
     {
         app()->instance(TokenIssuerRegistry::class, new TokenIssuerRegistry($issuers));

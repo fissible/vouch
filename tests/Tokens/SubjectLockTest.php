@@ -142,10 +142,11 @@ final class SubjectLockTest extends TestCase
          * disagree about the order deadlock, and a deadlock under a subject-wide
          * sweep is a stuck maintenance job holding a subject hostage.
          */
+        /** @var list<string> $order */
         $order = [];
         $manager = new class($order) extends CredentialLockManager {
             /** @param list<string> $order */
-            public function __construct(private array &$order) {}
+            public function __construct(public array &$order) {}
 
             protected function lockSubject(SubjectKey $subject): void
             {
