@@ -445,6 +445,69 @@ final class CredentialMutationTest extends TestCase
     }
 
     #[Test]
+    public function a_nested_mutation_defers_the_driver_until_the_caller_commits(): void
+    {
+        /*
+         * The construction that replaced a prohibition. The facade used to
+         * refuse a caller's transaction, because joining one left Vouch's
+         * invalidation uncommitted when the driver was asked — the ordering the
+         * whole protocol rests on. Refusing cost 247 pre-existing tests, since
+         * RefreshDatabase wraps every one of them.
+         *
+         * Deferring the driver call to the OUTERMOST commit gives the same
+         * ordering by construction, under any nesting, and asks nothing of the
+         * caller. This test is what stops it regressing to either of the two
+         * worse shapes: a synchronous call inside the caller's transaction
+         * (wrong order), or a refusal (unusable).
+         */
+        $this->tokenCiting('doomed', ['101']);
+        $issuer = new RecordingIssuer('sanctum', throwsOnRevoke: new RuntimeException('driver unreachable'));
+        $mutation = $this->mutation($issuer);
+        $result = null;
+
+        DB::transaction(function () use ($mutation, $issuer, &$result): void {
+            $result = $mutation->revoking($this->subject(), ['101'], static fn (ConnectionInterface $connection) => null);
+
+            // Inside the caller's transaction the driver has NOT been asked:
+            // Vouch's invalidation is not committed yet, so asking now would be
+            // exactly the reversal this defers to avoid.
+            self::assertSame([], $issuer->attempted);
+            self::assertSame([], $result->driverFailures);
+        });
+
+        // After the caller's commit it has been asked, and its failure recorded
+        // on the same result — which is why that object is not readonly.
+        self::assertSame(['doomed'], $issuer->attempted);
+        self::assertCount(1, $result->driverFailures);
+        self::assertSame('doomed', $result->driverFailures[0]->tokenKey);
+        self::assertSame([], $this->survivingTokens());
+    }
+
+    #[Test]
+    public function a_nested_driver_failure_cannot_break_the_callers_transaction(): void
+    {
+        /*
+         * The deferred call runs during the CALLER's commit. A throw escaping
+         * there would turn best-effort driver cleanup into an application-level
+         * failure, and would do it at the worst possible moment — after the
+         * caller believed its work was done.
+         */
+        $this->tokenCiting('doomed', ['101']);
+        $issuer = new RecordingIssuer('sanctum', throwsOnRevoke: new RuntimeException('driver unreachable'));
+        $mutation = $this->mutation($issuer);
+
+        $completed = DB::transaction(function () use ($mutation): string {
+            $mutation->revoking($this->subject(), ['101'], static fn (ConnectionInterface $connection) => null);
+
+            return 'the caller finished';
+        });
+
+        self::assertSame('the caller finished', $completed);
+        self::assertSame(0, DB::transactionLevel());
+        self::assertSame([], $this->survivingTokens());
+    }
+
+    #[Test]
     public function one_driver_failure_does_not_strand_the_other_tokens(): void
     {
         $this->tokenCiting('first', ['101']);
