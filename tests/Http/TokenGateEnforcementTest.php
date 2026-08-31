@@ -20,6 +20,7 @@ use Fissible\Vouch\Tokens\TokenAssuranceRecord;
 use Fissible\Vouch\Tokens\TokenIssuerCollision;
 use Fissible\Vouch\Tokens\TokenIssuerRegistry;
 use Fissible\Vouch\VouchServiceProvider;
+use Illuminate\Contracts\Auth\StatefulGuard;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -342,9 +343,17 @@ final class TokenGateEnforcementTest extends TestCase
         $this->assertSame($before, Auth::getDefaultDriver());
         $this->assertSame('web', Auth::getDefaultDriver());
 
-        // The methods a session host actually calls must remain reachable.
+        /*
+         * The methods a session host actually calls must remain reachable.
+         * Asserted as the guard's contract rather than by attempting a
+         * credential: RequestGuard is not a StatefulGuard, which is exactly
+         * why logout() and attempt() threw. A real Auth::attempt() would also
+         * have queried the fixture's user table for an "email" column it does
+         * not have — engine-dependent, and incidental to the rule being
+         * pinned, which is about which guard is selected, not credentials.
+         */
+        $this->assertInstanceOf(StatefulGuard::class, Auth::guard());
         Auth::logout();
-        $this->assertFalse(Auth::attempt(['email' => 'nobody@example.test', 'password' => 'wrong']));
     }
 
     #[Test]
