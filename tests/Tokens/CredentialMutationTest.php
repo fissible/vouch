@@ -169,7 +169,10 @@ final class CredentialMutationTest extends TestCase
         $this->mutation($issuer)->revoking($this->subject(), ['101'], static fn (ConnectionInterface $connection) => null);
 
         self::assertSame(['cites-two'], $this->survivingTokens());
-        self::assertSame(['cites-one', 'cites-both'], $this->sorted($issuer->revoked));
+        // Lexical order: 'cites-both' sorts before 'cites-one'. The list is
+        // sorted because the facade's revocation order is not contracted; only
+        // the SET is.
+        self::assertSame(['cites-both', 'cites-one'], $this->sorted($issuer->revoked));
 
         /*
          * The mappings go with the record. Deleting the assurance and leaving
