@@ -171,9 +171,20 @@ it('keeps every lock-table mutation in the identifier store except pruning delet
 
     foreach (lockoutProductionFiles() as $file) {
         $source = (string) file_get_contents($file);
+        $relative = str_replace($root . '/', '', $file);
+
+        /*
+         * RetentionManifest DECLARES which tables have a reclaimer. It names
+         * this one without touching it, and a declaration is not a mutation.
+         * Excluded by name rather than by loosening the scan, so a genuine new
+         * writer still lands in $owners and fails.
+         */
+        if ($relative === 'Console/RetentionManifest.php') {
+            continue;
+        }
 
         if (str_contains($source, "'auth_throttle_locks'")) {
-            $owners[] = str_replace($root . '/', '', $file);
+            $owners[] = $relative;
         }
     }
 

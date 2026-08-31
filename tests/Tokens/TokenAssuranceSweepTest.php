@@ -183,7 +183,15 @@ final class TokenAssuranceSweepTest extends TestCase
 
         self::assertSame(['a', 'b'], $this->remainingKeys());
         self::assertSame(0, $result->reclaimed);
-        self::assertSame(1, $result->errored);
+
+        /*
+         * TWO, not one. Every count in this result is a RECORD count, so the
+         * four of them reconcile with the table: an operator watching a table
+         * fail to shrink can see how many records an unreachable issuer is
+         * holding, not merely that one issuer failed. The issuer identity is in
+         * $errors, which is where issuer-level detail belongs.
+         */
+        self::assertSame(2, $result->errored);
         self::assertStringContainsString('sanctum', $result->errors[0]);
         self::assertStringContainsString('driver unreachable', $result->errors[0]);
     }
@@ -271,6 +279,35 @@ final class TokenAssuranceSweepTest extends TestCase
         self::assertSame(['dupe'], $this->remainingKeys());
         self::assertSame(1, $result->retained);
         self::assertSame(1, $result->reclaimed);
+    }
+
+    #[Test]
+    public function numeric_token_keys_are_matched_as_strings(): void
+    {
+        /*
+         * Sanctum token keys ARE numeric strings — the personal access token's
+         * row id. So this is the shipped driver's normal path, not an edge case.
+         *
+         * It works today by accident of PHP array-key coercion: a canonical
+         * decimal string used as an array key becomes an int, and lookups
+         * coerce the same way, so '9' matches. '09' does NOT convert and stays
+         * a distinct key, which is the behaviour this package depends on
+         * everywhere it treats credential and subject ids as opaque strings.
+         *
+         * Pinned because the correctness is implicit. A later change to a
+         * strict in_array, a typed map, or a === comparison would silently stop
+         * reclaiming records for the one issuer that ships with the package,
+         * and every existing test would still pass.
+         */
+        $this->record('sanctum', '9');
+        $this->record('sanctum', '09');
+        $this->record('sanctum', '10');
+
+        $result = $this->sweepWith(['sanctum' => new ExistenceReportingIssuer('sanctum', ['9'])]);
+
+        self::assertSame(['9'], $this->remainingKeys());
+        self::assertSame(2, $result->reclaimed);
+        self::assertSame(1, $result->retained);
     }
 
     #[Test]

@@ -123,6 +123,7 @@ final class RetentionManifestTest extends TestCase
         $declared = array_merge(
             array_keys(RetentionManifest::pruned()),
             array_keys(RetentionManifest::retained()),
+            array_keys(RetentionManifest::unreclaimed()),
         );
 
         $undeclared = array_values(array_diff($this->packageTables(), $declared));
@@ -149,20 +150,69 @@ final class RetentionManifestTest extends TestCase
         $declared = array_merge(
             array_keys(RetentionManifest::pruned()),
             array_keys(RetentionManifest::retained()),
+            array_keys(RetentionManifest::unreclaimed()),
         );
 
         self::assertSame([], array_values(array_diff($declared, $tables)));
     }
 
     #[Test]
-    public function no_table_is_declared_both_pruned_and_retained(): void
+    public function no_table_is_declared_in_two_categories(): void
     {
-        $both = array_values(array_intersect(
-            array_keys(RetentionManifest::pruned()),
-            array_keys(RetentionManifest::retained()),
-        ));
+        $pruned = array_keys(RetentionManifest::pruned());
+        $retained = array_keys(RetentionManifest::retained());
+        $unreclaimed = array_keys(RetentionManifest::unreclaimed());
 
-        self::assertSame([], $both);
+        self::assertSame([], array_values(array_intersect($pruned, $retained)));
+        self::assertSame([], array_values(array_intersect($pruned, $unreclaimed)));
+        self::assertSame([], array_values(array_intersect($retained, $unreclaimed)));
+    }
+
+    #[Test]
+    public function every_unreclaimed_table_names_a_tracking_issue(): void
+    {
+        /*
+         * The category that keeps the guard honest.
+         *
+         * Without it, the only way to make this suite pass is to move an
+         * unbounded table into retained() with a reason like "no reclaimer
+         * owns its lifecycle yet" — which is the defect restated as a
+         * justification, and it makes the guard certify the exact condition it
+         * was built to surface. Six tables were in that position when this
+         * manifest was first written.
+         *
+         * A declared gap is legitimate. A declared gap with nowhere to read
+         * about it is just a quieter version of the original problem, so each
+         * one must name the issue tracking it.
+         */
+        foreach (RetentionManifest::unreclaimed() as $table => $reason) {
+            self::assertMatchesRegularExpression(
+                '/#\d+/',
+                $reason,
+                sprintf('Table "%s" is declared unreclaimed without naming a tracking issue.', $table),
+            );
+        }
+    }
+
+    #[Test]
+    public function no_retained_reason_is_really_an_admission_of_no_reclaimer(): void
+    {
+        /*
+         * The specific laundering this guard has already caught once: a table
+         * with no reclaimer placed in retained() and described as such. If that
+         * is the situation, it belongs in unreclaimed() with an issue.
+         */
+        foreach (RetentionManifest::retained() as $table => $reason) {
+            self::assertDoesNotMatchRegularExpression(
+                '/no (package )?reclaimer|not reclaimed|nothing reclaims|yet\b/i',
+                $reason,
+                sprintf(
+                    'Table "%s" is declared retained, but its reason describes a missing reclaimer. '
+                    . 'Move it to unreclaimed() with a tracking issue instead.',
+                    $table,
+                ),
+            );
+        }
     }
 
     #[Test]
