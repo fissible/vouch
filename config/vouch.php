@@ -61,6 +61,16 @@ return [
      */
     'assurance_strict' => (bool) env('VOUCH_ASSURANCE_STRICT', false),
 
+    'token_gate' => [
+        /*
+         * The gate is installed into the host's web and api groups, while
+         * pre-existing tokens deliberately receive no assurance backfill.
+         * Observe lets an operator identify tokens to reissue before arming
+         * enforcement, rather than breaking existing API consumers at install.
+         */
+        'mode' => env('VOUCH_TOKEN_GATE_MODE', 'observe'),
+    ],
+
     'routes' => [
         'prefix' => env('VOUCH_ROUTE_PREFIX', 'vouch'),
 
