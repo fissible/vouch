@@ -485,6 +485,53 @@ including when the issuer cannot be asked.
 
 Issue [#5](https://github.com/fissible/vouch/issues/5). Depends on 5a's lock.
 
+### The settled mutation rule (2026-08-31)
+
+Classification comes BEFORE routing, and these are contract, not convention:
+
+- **add / enroll — PRESERVE.** An existing token's proof cites the credentials
+  actually used; adding a new one falsifies none of them. Revoking here would
+  make strengthening an account disruptive: enrolling TOTP would log out every
+  API client.
+- **disable / remove / replace — REVOKE** the tokens whose persisted proof cites
+  the affected credential. Precise, not subject-wide.
+- **regenerate — ONE replacement operation.** Recovery-code regeneration
+  disables ten and creates ten; the removal revokes once and the creation does
+  not revoke again. Coalesced, or the user is revoked twice for one action.
+- A host may explicitly rotate every token as its own policy. That must never be
+  implicit in enrollment.
+
+**Password change applies a subject-wide sweep of HUMAN tokens only.** Deleting
+only records whose `actor_kind` is human is part of the `CredentialMutation`
+contract, not an implementation detail of one query. A machine token's authority
+never came from the password, and Vouch does not issue or authorize machine
+tokens in this phase, so revoking them would be collateral behaviour outside its
+ownership boundary. An explicit machine-token revocation API belongs to
+[#9](https://github.com/fissible/vouch/issues/9) — that is the ONLY part of #9
+5b needs decided, and the rest of the machine-token boundary stays open so this
+freeze does not grow.
+
+### The writers, measured
+
+Fifteen credential-row write sites, not the sixteen this plan first assumed —
+counted from source rather than carried forward:
+
+| Class | Sites |
+| --- | --- |
+| Create (preserve) | `FirstCredentialEnrollment:146`, `OtpFactor:177`, `PasswordFactor:96`, `RecoveryCodeFactor:143`, `TotpFactor:158` |
+| Disable / replace (revoke) | `PasswordFactor:93`, `PasswordFactor:169`, `TotpFactor:155`, `TotpFactor:256`, `RecoveryCodeFactor:135`, `RecoveryCodeFactor:234`, `OtpFactor:385`, `DatabaseAttemptStore` `DisableCredential` |
+| Bookkeeping (never revoke) | `DatabaseAttemptStore` `AdvanceCredentialTimestep`, `OtpFactor:172` (re-enable) |
+
+The trap is concrete and lives in one method: `DatabaseAttemptStore::apply()`
+handles BOTH `DisableCredential` and `AdvanceCredentialTimestep`. The latter
+advances `last_used_timestep` on every successful TOTP verification — it is the
+replay guard — so a facade that routed "every credential write" would make every
+TOTP login revoke the user's own tokens.
+
+`OtpFactor:172` re-enables a disabled credential (`disabled_at => null`) during
+enrollment. Additive by the rule above: it makes a credential live again and
+falsifies no existing proof.
+
 **Classify mutations BEFORE routing writers.** `TotpFactor` advances
 `last_used_timestep` on the credential row on every successful verification, so
 a literal "every credential writer passes through the facade and revokes" rule
