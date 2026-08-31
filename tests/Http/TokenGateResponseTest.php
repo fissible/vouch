@@ -9,6 +9,7 @@ use Fissible\Vouch\Kernel\Factor\FactorKind;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
 use Fissible\Vouch\Tests\Support\Tokens\TokenUser;
+use Fissible\Vouch\Tests\Support\Http\AssertsTokenGateResponses;
 use Fissible\Vouch\Tests\Support\Tokens\UsesSanctumSchema;
 use Fissible\Vouch\Tests\TestCase;
 use Fissible\Vouch\Tokens\ActorKind;
@@ -35,6 +36,7 @@ use PHPUnit\Framework\Attributes\Test;
  */
 final class TokenGateResponseTest extends TestCase
 {
+    use AssertsTokenGateResponses;
     use DatabaseMigrations;
     use UsesSanctumSchema;
 
@@ -115,13 +117,6 @@ final class TokenGateResponseTest extends TestCase
         return $new->plainTextToken;
     }
 
-    /** The exact single line an RFC 9470 challenge must be. */
-    private function challengeLine(string $level, int $maxAge): string
-    {
-        return 'Bearer error="insufficient_user_authentication", '
-            . 'error_description="A higher assurance level is required", '
-            . 'acr_values="vouch:' . $level . '", max_age="' . $maxAge . '"';
-    }
 
     #[Test]
     public function a_recorded_token_meeting_the_requirement_passes_through(): void
@@ -163,37 +158,7 @@ final class TokenGateResponseTest extends TestCase
         ];
     }
 
-    /**
-     * The complete observable response, so a case cannot drift in a header the
-     * per-case assertions forgot to name.
-     *
-     * @param  \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>  $response
-     * @return array<string, mixed>
-     */
-    private function responseTuple(\Illuminate\Testing\TestResponse $response): array
-    {
-        return [
-            'status' => $response->getStatusCode(),
-            'www-authenticate' => $response->headers->all('WWW-Authenticate'),
-            'cache-control' => $response->headers->get('Cache-Control'),
-            'vary' => $response->headers->get('Vary'),
-            'body' => $response->getContent(),
-        ];
-    }
 
-    /** @return array<string, mixed> */
-    private function canonicalRejection(): array
-    {
-        return [
-            'status' => 401,
-            // A LIST, so exactly one header field is emitted. Two would let a
-            // client read either, and a normalized lookup hides the second.
-            'www-authenticate' => ['Bearer error="invalid_token"'],
-            'cache-control' => 'no-store',
-            'vary' => 'Authorization, Cookie',
-            'body' => '',
-        ];
-    }
 
     private function prepareCase(string $case): string
     {
@@ -262,13 +227,7 @@ final class TokenGateResponseTest extends TestCase
 
         $response = $this->withToken($token)->getJson('/gated');
 
-        self::assertSame([
-            'status' => 401,
-            'www-authenticate' => [$this->challengeLine('aal2', 900)],
-            'cache-control' => 'no-store',
-            'vary' => 'Authorization, Cookie',
-            'body' => '',
-        ], $this->responseTuple($response));
+        self::assertSame($this->canonicalChallenge('aal2', 900), $this->responseTuple($response));
     }
 
     #[Test]
@@ -281,13 +240,7 @@ final class TokenGateResponseTest extends TestCase
 
         $response = $this->withToken($token)->getJson('/gated');
 
-        self::assertSame([
-            'status' => 401,
-            'www-authenticate' => [$this->challengeLine('aal2', 900)],
-            'cache-control' => 'no-store',
-            'vary' => 'Authorization, Cookie',
-            'body' => '',
-        ], $this->responseTuple($response));
+        self::assertSame($this->canonicalChallenge('aal2', 900), $this->responseTuple($response));
     }
 
     #[Test]

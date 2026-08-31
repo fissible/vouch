@@ -10,6 +10,7 @@ use Fissible\Vouch\Kernel\Factor\FactorKind;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
 use Fissible\Vouch\Tests\Support\Tokens\TokenUser;
+use Fissible\Vouch\Tests\Support\Http\AssertsTokenGateResponses;
 use Fissible\Vouch\Tests\Support\Tokens\UsesSanctumSchema;
 use Fissible\Vouch\Tests\TestCase;
 use Fissible\Vouch\Tokens\ActorKind;
@@ -41,6 +42,7 @@ use PHPUnit\Framework\Attributes\Test;
  */
 final class TokenGateEnforcementTest extends TestCase
 {
+    use AssertsTokenGateResponses;
     use DatabaseMigrations;
     use UsesSanctumSchema;
 
@@ -214,8 +216,11 @@ final class TokenGateEnforcementTest extends TestCase
         Route::middleware(['vouch.token:aal1'])->get('/bare-gated', fn (): string => 'reached');
 
         $this->withToken($this->recordedToken())->getJson('/bare-gated')->assertOk();
-        $this->withToken(TokenUser::query()->findOrFail(7)->createToken('x')->plainTextToken)
-            ->getJson('/bare-gated')->assertStatus(401);
+
+        self::assertSame($this->canonicalRejection(), $this->responseTuple(
+            $this->withToken(TokenUser::query()->findOrFail(7)->createToken('x')->plainTextToken)
+                ->getJson('/bare-gated'),
+        ));
     }
 
     #[Test]
@@ -233,7 +238,11 @@ final class TokenGateEnforcementTest extends TestCase
         $direct = TokenUser::query()->findOrFail(7)->createToken('direct')->plainTextToken;
 
         foreach (['/gated', '/gated-two', '/gated-three'] as $uri) {
-            $this->withToken($direct)->getJson($uri)->assertStatus(401);
+            self::assertSame(
+                $this->canonicalRejection(),
+                $this->responseTuple($this->withToken($direct)->getJson($uri)),
+                "boundary: {$uri}",
+            );
         }
     }
 
@@ -250,8 +259,11 @@ final class TokenGateEnforcementTest extends TestCase
         Route::middleware(['vouch.token:aal1'])->get('/no-auth-middleware', fn (): string => 'reached');
 
         $this->withToken($this->recordedToken())->getJson('/no-auth-middleware')->assertOk();
-        $this->withToken(TokenUser::query()->findOrFail(7)->createToken('y')->plainTextToken)
-            ->getJson('/no-auth-middleware')->assertStatus(401);
+
+        self::assertSame($this->canonicalRejection(), $this->responseTuple(
+            $this->withToken(TokenUser::query()->findOrFail(7)->createToken('y')->plainTextToken)
+                ->getJson('/no-auth-middleware'),
+        ));
     }
 
     #[Test]
@@ -363,7 +375,17 @@ final class TokenGateEnforcementTest extends TestCase
 
         $direct = TokenUser::query()->findOrFail(7)->createToken('direct')->plainTextToken;
 
-        $this->withToken($direct)->getJson("/grouped-{$group}")->assertStatus(401);
+        /*
+         * The CANONICAL TUPLE, not a bare 401. An earlier draft of this very
+         * test asserted only the status — the same weakness that had just been
+         * fixed for tenant mismatch, repeated in the test added to fix it. A
+         * status-only assertion admits a step-up challenge, a body, or missing
+         * cache controls, none of which the contract allows.
+         */
+        self::assertSame(
+            $this->canonicalRejection(),
+            $this->responseTuple($this->withToken($direct)->getJson("/grouped-{$group}")),
+        );
     }
 
     /** @return array<string, array{string}> */
