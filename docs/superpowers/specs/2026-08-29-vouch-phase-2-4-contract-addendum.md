@@ -439,3 +439,46 @@ rather than discovered.
    resolve — a dynamic method call, a variable middleware string, a route macro. `--strict`
    fails on those as well as on known-bad ones, which makes it noisy by design; that noise
    is the honest signal that static analysis cannot prove runtime routing.
+
+
+## 3e. Tenant provenance (settled 2026-09-01, issue #6)
+
+`SessionLifecycle` wrote evidence with a literal `null` tenant, so no session could
+produce tenant-scoped evidence and tenant-scoped issuance was unreachable. The flow
+already knew the attempt's tenant — `AuthFlow` stamps it from `TenantResolver` and uses it
+for posture, throttle keys and policy — and dropped it when constructing `AuthSuccess`.
+
+**The tenant is carried, not re-derived.** `AuthSuccess` gains a REQUIRED `?string
+$tenantId`. Every construction site states it, passing `null` deliberately for global
+authentication rather than receiving global scope by omission — the omission is the bug
+this closes, and a defaulted parameter would reintroduce it. The value comes from trusted
+server-side context (the attempt's stamped tenant), never from request input, and an
+empty string is refused rather than treated as global.
+
+**Issuance requires exact equality**, including null:
+
+    $evidence->tenantId === $grant->tenantId
+
+The grant is a claim about the scope the token will operate under; the evidence is the
+scope the user was authenticated and policy-evaluated under. They must be identical. This
+refuses all three mismatches:
+
+- tenant `acme` evidence → tenant `other` grant;
+- tenant `acme` evidence → global grant;
+- global evidence → tenant grant (the only one previously reachable).
+
+The former asymmetric check — grant tenant set while evidence tenant null — is REMOVED,
+because equality subsumes it. `null` is not an unscoped wildcard: `EvidenceComparator`
+already treats global and tenant scopes as distinct with strict equality, and a global
+token is usable wherever the resolver returns null, which is typically the administrative
+surface rather than nowhere.
+
+**One verified value is used throughout.** The policy lookup and the persisted record take
+the same tenant, not one each from evidence and grant — the previous shape looked policy
+up by evidence and stored by grant, which is what made a mismatch mint a token whose
+policy never governed the login.
+
+**The reader enforces stored consistency.** A record whose serialized proof tenant differs
+from its indexed `tenant_id` column is refused rather than trusted. The two are written
+together and can only disagree through corruption or an out-of-band write; picking either
+one silently would make the disagreement invisible.
