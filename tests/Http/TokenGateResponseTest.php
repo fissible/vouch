@@ -12,6 +12,7 @@ use Fissible\Vouch\Tests\Support\Tokens\TokenUser;
 use Fissible\Vouch\Tests\Support\Http\AssertsTokenGateResponses;
 use Fissible\Vouch\Tests\Support\Tokens\UsesSanctumSchema;
 use Fissible\Vouch\Tests\TestCase;
+use Fissible\Vouch\Contracts\TenantResolver;
 use Fissible\Vouch\Tokens\ActorKind;
 use Fissible\Vouch\Tokens\SubjectKey;
 use Fissible\Vouch\Tokens\TokenAssuranceRecord;
@@ -377,7 +378,18 @@ final class TokenGateResponseTest extends TestCase
          * emphatically not a step-up candidate: the credential may be aal3 and
          * still never apply here.
          */
-        config(['vouch.tenant' => 'acme']);
+        /*
+         * Bound through TenantResolver, the established tenancy seam. An
+         * ambient config scalar would be a second source of truth that only
+         * token enforcement consulted, and a resolver deliberately returning
+         * null could never override it.
+         */
+        $this->app->bind(TenantResolver::class, fn (): TenantResolver => new class implements TenantResolver {
+            public function currentTenantId(): ?string
+            {
+                return 'acme';
+            }
+        });
 
         $user = TokenUser::query()->findOrFail(7);
         $new = $user->createToken('api');

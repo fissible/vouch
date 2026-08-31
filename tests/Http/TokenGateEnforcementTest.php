@@ -22,6 +22,7 @@ use Fissible\Vouch\Tokens\TokenIssuerRegistry;
 use Fissible\Vouch\VouchServiceProvider;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\SanctumServiceProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -321,6 +322,81 @@ final class TokenGateEnforcementTest extends TestCase
      */
 
     #[Test]
+    public function resolving_a_request_never_reselects_the_application_guard(): void
+    {
+        /*
+         * Measured, not assumed: with a resolver that called
+         * auth()->shouldUse('sanctum'), a bare request carrying no bearer
+         * token at all moved the default driver from web to sanctum,
+         * after which Auth::logout() and Auth::attempt() both threw
+         * BadMethodCallException on RequestGuard. The gate ships in the web
+         * group, so that would have broken session login and logout in every
+         * Sanctum-installed host on the day Vouch was installed.
+         *
+         * Asking who a request is must not decide who the application asks.
+         */
+        $before = Auth::getDefaultDriver();
+
+        app(TokenIssuerRegistry::class)->resolveForRequest(Request::create('/dashboard'));
+
+        $this->assertSame($before, Auth::getDefaultDriver());
+        $this->assertSame('web', Auth::getDefaultDriver());
+
+        // The methods a session host actually calls must remain reachable.
+        Auth::logout();
+        $this->assertFalse(Auth::attempt(['email' => 'nobody@example.test', 'password' => 'wrong']));
+    }
+
+    #[Test]
+    public function resolving_a_token_request_also_leaves_the_application_guard_alone(): void
+    {
+        /*
+         * The companion to the test above, and the one that could regress
+         * quietly: it would be tempting to "only" reselect the guard once a
+         * token is actually present.
+         *
+         * Deliberately NO auth:sanctum here. Laravel's own Authenticate
+         * middleware calls shouldUse() on success, so on a route the host
+         * opted in the sanctum driver is correct and the host chose it. This
+         * route is the uncovered case: a request carrying a bearer token that
+         * the gate must still evaluate, on a route whose host never asked for
+         * the sanctum guard. Evaluating it must not select it either.
+         */
+        Route::middleware(['api', 'vouch.token:aal1'])->get('/guard-after', function (): array {
+            return ['driver' => Auth::getDefaultDriver()];
+        });
+
+        $user = TokenUser::query()->findOrFail(7);
+        $new = $user->createToken('api');
+        app(TokenAssuranceRecord::class)->store('sanctum', stringValue($new->accessToken->getKey()),
+            $this->subject(), null, ActorKind::Human,
+            [new SatisfiedFactor('password', 'cred-1', FactorKind::Knowledge, FactorStrength::Knowledge,
+                false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'))]);
+
+        $this->withToken($new->plainTextToken)->getJson('/guard-after')
+            ->assertOk()
+            ->assertJson(['driver' => 'web']);
+    }
+
+    #[Test]
+    public function a_configured_sanctum_guard_whose_driver_is_absent_is_not_a_token_request(): void
+    {
+        /*
+         * The "Sanctum is optional" guard reads config, but config presence
+         * is not driver availability: a host can carry a sanctum guard entry
+         * whose driver was never registered — a published skeleton, a removed
+         * dependency, a renamed driver. Resolving then threw "Auth driver
+         * [sanctum] for guard [sanctum] is not defined" and turned every gated
+         * request into a 500. Unusable machinery means no token, not an error.
+         */
+        config(['auth.guards.sanctum' => ['driver' => 'sanctum-not-registered', 'provider' => 'users']]);
+
+        Route::middleware(['api', 'vouch.token:aal1'])->get('/no-driver', fn (): string => 'reached');
+
+        $this->getJson('/no-driver')->assertOk()->assertSee('reached');
+    }
+
+    #[Test]
     public function the_gate_leaves_sanctum_abilities_alone(): void
     {
         /*
@@ -328,7 +404,15 @@ final class TokenGateEnforcementTest extends TestCase
          * uninterpreted (§3, departure 3). A gate that consumed or reset them
          * would silently widen or narrow every token it admitted.
          */
-        Route::middleware(['api', 'vouch.token:aal1'])->get('/abilities', function (Request $request): array {
+        /*
+         * `auth:sanctum` is on the route because that is how a real host
+         * reaches $request->user() from a token. The original fixture omitted
+         * it, and the only way to satisfy it was for Vouch to select the
+         * sanctum guard application-wide from inside its resolver — which then
+         * broke Auth::logout()/attempt() on every cookie request in the web
+         * group. Vouch does not do the host's guard selection for it.
+         */
+        Route::middleware(['api', 'auth:sanctum', 'vouch.token:aal1'])->get('/abilities', function (Request $request): array {
             // The configured user model is TokenUser, which uses HasApiTokens;
             // narrowing to it is what makes currentAccessToken() a real method
             // rather than a hope about the base class.
