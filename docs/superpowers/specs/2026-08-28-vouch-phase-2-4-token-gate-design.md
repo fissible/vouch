@@ -242,7 +242,7 @@ that part of the enrollment work does transfer, and is what keeps this bounded o
 engine.
 
 **Every credential writer is fenced behind the protocol, and the inventory is tested.**
-Sixteen files touch credentials today, including the attempt store's disable path and
+six files (sixteen conceptual write sites) touch credentials today, including the attempt store's disable path and
 credential self-service. A protocol that only issuance and one revocation path honour is
 not a protocol. This repository already enforces exactly this kind of rule with boundary
 arch tests — KernelBoundaryTest, ThrottleBoundaryTest, ThrottleKeyBoundaryTest,

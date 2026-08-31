@@ -6,6 +6,7 @@ namespace Fissible\Vouch\Factors\Drivers;
 
 use Fissible\Vouch\Attempts\Mutations\AdvanceCredentialTimestep;
 use Fissible\Vouch\Contracts\Factor;
+use Fissible\Vouch\Credentials\CredentialMutation;
 use Fissible\Vouch\Enrollment\EnrollmentGuard;
 use Fissible\Vouch\Factors\ChallengeRequest;
 use Fissible\Vouch\Factors\EnrollmentResult;
@@ -17,6 +18,7 @@ use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
 use Fissible\Vouch\Models\AuthChallenge;
 use Fissible\Vouch\Models\AuthCredential;
+use Fissible\Vouch\Tokens\SubjectKey;
 use Fissible\Vouch\Secrets\OneTimeSecret;
 use InvalidArgumentException;
 use OTPHP\TOTP;
@@ -142,7 +144,9 @@ final readonly class TotpFactor implements Factor
 
         $secret = $totp->getSecret();
 
-        $credential = $this->guard->serialize(
+        $credential = null;
+        $write = function () use ($userId, $secret, $replace, &$credential): void {
+            $credential = $this->guard->serialize(
             $userId,
             $this->id(),
             $this->maxActiveCredentials(),
@@ -163,7 +167,18 @@ final readonly class TotpFactor implements Factor
                     'strength' => $this->strength()->name,
                 ]);
             },
-        );
+            );
+        };
+        $subject = SubjectKey::forConfiguredUser($userId);
+        if ($replace) {
+            $this->mutation()->revoking($subject, array_values(AuthCredential::query()->where('user_id', $userId)->where('type', $this->id())->whereNull('disabled_at')->get()->map(static fn (AuthCredential $credential): string => (string) $credential->id)->all()), $write);
+        } else {
+            $this->mutation()->additive($subject, $write);
+        }
+
+        if (! $credential instanceof AuthCredential) {
+            throw new \LogicException('TOTP enrollment did not create a credential.');
+        }
 
         return new EnrollmentResult(
             [$credential],
@@ -253,7 +268,14 @@ final readonly class TotpFactor implements Factor
 
     public function revoke(AuthCredential $credential): void
     {
-        $credential->update(['disabled_at' => $this->clock->now()]);
+        $this->mutation()->revoking(SubjectKey::forConfiguredUser($credential->user_id), [(string) $credential->id], function () use ($credential): void {
+            $credential->update(['disabled_at' => $this->clock->now()]);
+        });
+    }
+
+    private function mutation(): CredentialMutation
+    {
+        return app()->makeWith(CredentialMutation::class, ['connection' => $this->guard->connection()]);
     }
 
     /**

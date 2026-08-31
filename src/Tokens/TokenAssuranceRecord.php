@@ -128,6 +128,44 @@ final readonly class TokenAssuranceRecord
         $delete();
     }
 
+    /**
+     * Remove human assurance records affected by one credential mutation.
+     *
+     * @param list<string> $credentialIds
+     * @return list<object{issuer_key: string, token_key: string}>
+     */
+    public function forgetHumanForCredentialMutation(SubjectKey $subject, array $credentialIds, bool $subjectWide, ?ConnectionInterface $connection = null): array
+    {
+        if (! $subjectWide && $credentialIds === []) {
+            return [];
+        }
+
+        $connection ??= $this->connection;
+        $query = $connection->table('auth_token_assurances as assurance')
+            ->select('assurance.issuer_key', 'assurance.token_key')
+            ->where('assurance.subject_key', $subject->render())
+            ->where('assurance.actor_kind', ActorKind::Human->value);
+
+        if (! $subjectWide) {
+            $query->join('auth_token_credentials as credential', function ($join) use ($credentialIds): void {
+                $join->on('credential.issuer_key', '=', 'assurance.issuer_key')
+                    ->on('credential.token_key', '=', 'assurance.token_key')
+                    ->whereIn('credential.credential_id', $credentialIds);
+            });
+        }
+
+        /** @var list<object{issuer_key: string, token_key: string}> $rows */
+        $rows = $query->distinct()->orderBy('assurance.issuer_key')->orderBy('assurance.token_key')->get()->all();
+        foreach ($rows as $row) {
+            $connection->table('auth_token_credentials')
+                ->where('issuer_key', $row->issuer_key)->where('token_key', $row->token_key)->delete();
+            $connection->table('auth_token_assurances')
+                ->where('issuer_key', $row->issuer_key)->where('token_key', $row->token_key)->delete();
+        }
+
+        return $rows;
+    }
+
     /** @return array<string, list<string>> */
     public function tokenKeysByIssuer(): array
     {

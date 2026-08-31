@@ -8,6 +8,7 @@ use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\LockContention;
 use Fissible\Vouch\Support\DatabaseRowLock;
 use Illuminate\Database\Connection;
+use Illuminate\Database\DeadlockException;
 use Illuminate\Database\QueryException;
 
 /**
@@ -50,6 +51,12 @@ final class EnrollmentGuard
         $this->rowLock = $rowLock ?? new DatabaseRowLock($connection);
     }
 
+    /** The connection that owns this guard's locks and credential writes. */
+    public function connection(): Connection
+    {
+        return $this->connection;
+    }
+
     /**
      * Run $write with exclusive access to this user's credentials of this type,
      * refusing if the result would exceed $maxActive.
@@ -69,7 +76,7 @@ final class EnrollmentGuard
      */
     public function serialize(int $userId, string $type, ?int $maxActive, callable $write): mixed
     {
-        return $this->connection->transaction(function () use ($userId, $type, $maxActive, $write): mixed {
+        $serialize = function () use ($userId, $type, $maxActive, $write): mixed {
             /*
              * The enrollment budget covers the whole serialized mutation,
              * not just its lock-row claim. A first credential's identifier
@@ -105,7 +112,34 @@ final class EnrollmentGuard
                     return $result;
                 },
             );
-        });
+        };
+
+        /*
+         * This must always be a transaction boundary, including below
+         * CredentialMutation's owner transaction. Laravel implements that as
+         * a savepoint, which lets the guard roll back a refused post-condition
+         * without rolling back the owner's credential/invalidation unit.
+         * Joining the owner leaks the write made before CapacityExceeded.
+         *
+         * Laravel represents a verified MySQL lock timeout thrown from a
+         * nested transaction as DeadlockException. That is framework control
+         * flow, not the driver's outcome: recover the original QueryException
+         * here. The caller decides whether that particular statement can be
+         * neutralized (the identifier path must not claim a durable decoy when
+         * its own bounded write failed). All query failures therefore keep
+         * their original driver semantics at this boundary.
+         */
+        try {
+            return $this->connection->transaction($serialize);
+        } catch (DeadlockException $exception) {
+            $failure = $exception->getPrevious();
+
+            if (! $failure instanceof QueryException) {
+                throw $exception;
+            }
+
+            throw $failure;
+        }
     }
 
     /**

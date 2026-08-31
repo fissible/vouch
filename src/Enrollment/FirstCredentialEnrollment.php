@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Enrollment;
 
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
+use Fissible\Vouch\Credentials\CredentialMutation;
 use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
+use Fissible\Vouch\Tokens\SubjectKey;
 use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\LockContention;
 use Fissible\Vouch\Verification\IdentifierVerificationRequest;
@@ -74,7 +76,9 @@ final readonly class FirstCredentialEnrollment
         }
 
         if ($claimed) {
-            $this->verifier->request($ceremony);
+            $this->afterCredentialCommit(function () use ($ceremony): void {
+                $this->verifier->request($ceremony);
+            });
         } else {
             $this->requestDurableDecoy($ceremony);
         }
@@ -94,7 +98,9 @@ final readonly class FirstCredentialEnrollment
         $guard = new EnrollmentGuard($this->connection, $this->lockWaitSeconds);
         $connection = $this->connection->getName();
 
-        return $guard->serialize(
+        $claimed = null;
+        $write = function () use ($guard, $connection, $request, &$claimed): void {
+            $claimed = $guard->serialize(
             $request->userId,
             'password',
             1,
@@ -152,7 +158,23 @@ final readonly class FirstCredentialEnrollment
 
                 return true;
             },
-        );
+            );
+        };
+        $subject = SubjectKey::forConfiguredUser($request->userId);
+        $hasDisabledPassword = AuthCredential::on($connection)->where('user_id', $request->userId)
+            ->where('type', 'password')->whereNotNull('disabled_at')->exists();
+        $mutation = app()->makeWith(CredentialMutation::class, ['connection' => $this->connection]);
+        if ($hasDisabledPassword) {
+            $mutation->subjectWide($subject, $write);
+        } else {
+            $mutation->additive($subject, $write);
+        }
+
+        if (! is_bool($claimed)) {
+            throw new \LogicException('First credential enrollment did not complete its write.');
+        }
+
+        return $claimed;
     }
 
     private function isIdentifierUniqueViolation(QueryException $failure): bool
@@ -165,6 +187,23 @@ final readonly class FirstCredentialEnrollment
         // claimed identifier instead of issuing the neutral durable decoy.
         return in_array($info[0] ?? null, ['23000', '23505'], true)
             && str_contains($failure->getMessage(), 'auth_identifiers');
+    }
+
+    /**
+     * A caller may own an outer transaction on the injected connection.
+     * Do not let the default-bound ceremony collaborators contend with that
+     * transaction, and never issue a real ceremony for a credential claim that
+     * its owner subsequently rolls back.
+     */
+    private function afterCredentialCommit(callable $callback): void
+    {
+        if ($this->connection->transactionLevel() === 0) {
+            $callback();
+
+            return;
+        }
+
+        $this->connection->afterCommit($callback);
     }
 
     /** Persist the decoy or surface a verified contention after its bounded wait. */

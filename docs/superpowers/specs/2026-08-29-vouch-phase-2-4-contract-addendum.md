@@ -388,8 +388,11 @@ authorizes under another's.
   unusable because its assurance record is gone.
 - A missing mapping is not an error. Revocation is idempotent and converges.
 - Every credential writer obtains the same locks on the same connection. The
-  `CredentialMutationBoundaryTest` enumerates permitted writers — sixteen files touch
-  credentials today — and fails when a new one appears.
+  `CredentialMutationBoundaryTest` enumerates permitted writers — SIX files, carrying
+  sixteen conceptual write sites, touch credentials today — and fails when a new one
+  appears. The guard detects fifteen statements for those sixteen writes, because
+  `DatabaseAttemptStore::apply()` performs two of them in one `match` expression; that
+  file's manifest entry names both, and the arm set is pinned separately.
 
 ## 9. Residual risk
 

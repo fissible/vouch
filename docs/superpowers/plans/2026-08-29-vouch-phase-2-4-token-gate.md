@@ -485,6 +485,82 @@ including when the issuer cannot be asked.
 
 Issue [#5](https://github.com/fissible/vouch/issues/5). Depends on 5a's lock.
 
+### The settled mutation rule (2026-08-31)
+
+Classification comes BEFORE routing, and these are contract, not convention:
+
+- **add / enroll — PRESERVE.** An existing token's proof cites the credentials
+  actually used; adding a new one falsifies none of them. Revoking here would
+  make strengthening an account disruptive: enrolling TOTP would log out every
+  API client.
+- **disable / remove / replace — REVOKE** the tokens whose persisted proof cites
+  the affected credential. Precise, not subject-wide.
+- **regenerate — ONE replacement operation.** Recovery-code regeneration
+  disables ten and creates ten; the removal revokes once and the creation does
+  not revoke again. Coalesced, or the user is revoked twice for one action.
+- A host may explicitly rotate every token as its own policy. That must never be
+  implicit in enrollment.
+
+**Password change applies a subject-wide sweep of HUMAN tokens only.** Deleting
+only records whose `actor_kind` is human is part of the `CredentialMutation`
+contract, not an implementation detail of one query. A machine token's authority
+never came from the password, and Vouch does not issue or authorize machine
+tokens in this phase, so revoking them would be collateral behaviour outside its
+ownership boundary. An explicit machine-token revocation API belongs to
+[#9](https://github.com/fissible/vouch/issues/9) — that is the ONLY part of #9
+5b needs decided, and the rest of the machine-token boundary stays open so this
+freeze does not grow.
+
+### The writers, measured
+
+Sixteen credential-row WRITE SITES, counted from source rather than carried
+forward. The architecture guard detects FIFTEEN statements, because
+`DatabaseAttemptStore::apply()` performs both of its credential writes inside
+one `match` expression and a statement-splitting detector cannot separate them;
+that file's manifest entry names both mutations instead. Callers are not sites: `CredentialSelfService::changePassword` routes a
+subject-wide mutation but writes no credential row itself, and it is covered by
+the routing tests rather than listed here. The first count here said fifteen and missed one:
+`FirstCredentialEnrollment` has TWO branches, and the second does not create a
+row — it reuses a disabled password credential, writing a new secret and
+clearing `disabled_at`. That is a password change, so it takes the SUBJECT-WIDE
+sweep, not precise revocation. The contrast with `OtpFactor`'s reactivation is
+the secret: OTP re-enables an unchanged credential, so a proof citing it stays
+true.
+
+| Class | Sites |
+| --- | --- |
+| Create (preserve) | `FirstCredentialEnrollment:146`, `OtpFactor:177`, `PasswordFactor:96`, `RecoveryCodeFactor:143`, `TotpFactor:158` |
+| Subject-wide (password change) | `FirstCredentialEnrollment:136` — disabled-row reuse, writing a new secret |
+| Disable / replace (revoke) | `PasswordFactor:93`, `PasswordFactor:169`, `TotpFactor:155`, `TotpFactor:256`, `RecoveryCodeFactor:135`, `RecoveryCodeFactor:234`, `OtpFactor:385` |
+| Bookkeeping (never revoke) | `DatabaseAttemptStore` `AdvanceCredentialTimestep`, `DatabaseAttemptStore` `DisableCredential`, `OtpFactor:172` (re-enable) |
+
+**Both of `DatabaseAttemptStore::apply()`'s credential writes are bookkeeping,
+and the second one is a trap wearing a misleading name.** Corrected after codex
+asked for a behavioural test of the branch:
+
+- `AdvanceCredentialTimestep` advances `last_used_timestep` on every successful
+  TOTP verification. It is the replay guard.
+- `DisableCredential` SOUNDS like a revocation. Its only emitter in the package
+  is `RecoveryCodeFactor:225`, burning a single-use code on a SUCCESSFUL RECOVERY VERIFICATION, which yields recovery grace rather than a host-guard login.
+
+So a facade that routed "every credential write" through a revoking path would
+make every TOTP login revoke the user's tokens, AND make every recovery-code
+verification do the same. The second is worse, because the identifier invites the wrong
+classification: a reviewer reading `DisableCredential` and classifying it by its
+name gets it exactly backwards.
+
+Being precise about what it is NOT: a valid recovery code yields recovery grace,
+not a host-guard login, and recovery-only evidence cannot be token assurance —
+so no legitimate human token is ever issued from a recovery-code-only proof.
+The rule is narrower and still load-bearing: burning a single-use credential
+during verification is CONSUMPTION BOOKKEEPING, not a revocation event, so it
+must not trigger token invalidation for any token that cites that credential
+from some other authentication.
+
+`OtpFactor:172` re-enables a disabled credential (`disabled_at => null`) during
+enrollment. Additive by the rule above: it makes a credential live again and
+falsifies no existing proof.
+
 **Classify mutations BEFORE routing writers.** `TotpFactor` advances
 `last_used_timestep` on the credential row on every successful verification, so
 a literal "every credential writer passes through the facade and revokes" rule
