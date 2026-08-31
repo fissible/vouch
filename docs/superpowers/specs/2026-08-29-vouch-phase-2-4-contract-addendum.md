@@ -277,9 +277,35 @@ Vary: Authorization, Cookie
 or in parent spec §6.3 — is illustrative only; emitting it as continuation lines would be
 obsolete header folding (RFC 7230 §3.2.4). Every parameter value is double-quoted per
 RFC 7235 §2.1, and `max_age` is a non-negative count of seconds per RFC 9470 §3.
-**Both bodies are empty** — no detail travels in the body. Six cases that Task 4 MUST test
-at the HTTP boundary, and which nothing tests yet: invalid, expired, revoked, unrecorded,
-insufficient-level, insufficient-recency. The first four must be byte-identical.
+**Both bodies are empty** — no detail travels in the body.
+
+**AMENDED: the gate never sees an unauthenticated token, so it cannot render one.** An
+earlier draft listed six cases Task 4 must test — invalid, expired, revoked, unrecorded,
+insufficient-level, insufficient-recency — with the first four byte-identical. Three of them
+are unreachable, for the reason already measured in §3b: Sanctum's guard returns no principal
+for an unknown, expired or deleted bearer, so `resolveForRequest()` returns `null`, no issuer
+claims the request, and §2 requires it to pass through. Producing `invalid_token` for them
+would take exactly the header sniffing §2 forbids.
+
+That is the correct division rather than a gap. **Vouch gates assurance, not authentication.**
+An expired or revoked credential is an authentication failure and belongs to the host's auth
+middleware, which answers it with its own 401. Vouch answers only for a token that
+authenticated successfully and then failed an assurance question.
+
+The reachable cases, which Task 4 MUST test at the HTTP boundary:
+
+| case | response |
+| --- | --- |
+| claimed, no assurance record (minted outside `issueToken`) | `invalid_token` |
+| claimed, record names a different subject | `invalid_token` |
+| claimed, record is a machine actor on a human-gated route | `invalid_token` |
+| claimed, stored proof malformed | `invalid_token` |
+| claimed, issuer reports `usable: false` (third-party driver; see §3b) | `invalid_token` |
+| claimed, recorded, level too weak | `insufficient_user_authentication` |
+| claimed, recorded, proof too old | `insufficient_user_authentication` |
+
+The five `invalid_token` rows must be **byte-identical**: distinguishing them tells a caller
+whether a subject exists, whether a record exists, or what actor class it holds.
 
 ## 6. Subject and tenant keys
 

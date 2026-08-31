@@ -104,19 +104,19 @@ final class TokenGateEnforcementTest extends TestCase
     }
 
     #[Test]
-    public function an_unauthenticated_request_is_not_the_gates_business(): void
+    public function an_unauthenticated_request_passes_through_rather_than_being_gated(): void
     {
         /*
-         * No principal at all is the host's authentication layer to refuse, not
-         * this gate's. Answering it here would make Vouch the reason an
-         * anonymous request failed, and would answer with a token challenge to
-         * a caller holding no token.
+         * No issuer claims an anonymous request, so §2 requires the gate to
+         * pass it through and let the host's auth middleware decide. This route
+         * deliberately carries no auth:sanctum, so a pass-through reaches the
+         * controller.
+         *
+         * An earlier draft asserted a 401 here — which the framework produces on
+         * a route that HAS auth middleware, so it tested Laravel rather than
+         * Vouch, and would have passed against a gate that rejected everything.
          */
-        $this->getJson('/gated')->assertStatus(401);
-
-        // Whatever refused it, it was not a Vouch step-up challenge.
-        $header = (string) $this->getJson('/gated')->headers->get('WWW-Authenticate');
-        self::assertStringNotContainsString('insufficient_user_authentication', $header);
+        $this->getJson('/gated')->assertOk()->assertSee('reached');
     }
 
     #[Test]
@@ -148,9 +148,14 @@ final class TokenGateEnforcementTest extends TestCase
          * scheme in the application; §2 is explicit that only claimed tokens
          * are gated.
          */
-        app()->instance(TokenIssuerRegistry::class, new TokenIssuerRegistry([]));
-
-        $this->withToken('some-other-schemes-token')->getJson('/gated')->assertOk();
+        /*
+         * Sanctum stays REGISTERED. An earlier draft emptied the registry, which
+         * made the test vacuous: with no issuers at all it cannot catch a gate
+         * that sniffs the Authorization header, nor a Sanctum resolver that
+         * wrongly claims a foreign bearer. The string below is simply one
+         * Sanctum does not recognise.
+         */
+        $this->withToken('passport|or|jwt|not|sanctums')->getJson('/gated')->assertOk()->assertSee('reached');
     }
 
     #[Test]
@@ -247,5 +252,110 @@ final class TokenGateEnforcementTest extends TestCase
         $this->withToken($this->recordedToken())->getJson('/no-auth-middleware')->assertOk();
         $this->withToken(TokenUser::query()->findOrFail(7)->createToken('y')->plainTextToken)
             ->getJson('/no-auth-middleware')->assertStatus(401);
+    }
+
+    #[Test]
+    public function a_valid_vouch_issued_token_passes_the_gate(): void
+    {
+        /*
+         * The end-to-end path, which nothing else here covers: a token minted
+         * through Vouch::issueToken carries an assurance record by construction,
+         * so the gate that rejects directly-minted tokens must admit this one.
+         * Without it, a gate that rejected EVERYTHING would satisfy every other
+         * rejection test in this file.
+         */
+        \Fissible\Vouch\Models\AuthPolicy::query()->create([
+            'tenant_id' => null, 'scope' => 'token_issue',
+            'document' => ['all_of' => ['password']], 'posture' => 'friendly',
+        ]);
+
+        app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class)->enroll(7, ['password' => 'correct horse battery staple']);
+        $credential = \Fissible\Vouch\Models\AuthCredential::query()->where('user_id', 7)->firstOrFail();
+
+        $this->actingAs(TokenUser::query()->findOrFail(7));
+        session()->start();
+
+        $factors = [new SatisfiedFactor('password', stringValue($credential->id), FactorKind::Knowledge,
+            FactorStrength::Knowledge, false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'))];
+
+        app(\Fissible\Vouch\Sessions\SessionLifecycle::class)->establish(
+            new \Fissible\Vouch\Flow\AuthSuccess(7, $factors,
+                \Fissible\Vouch\Kernel\Assurance\AssuranceFacts::fromFactors($factors), 'ignored', 'ignored'),
+        );
+
+        $issued = \Illuminate\Support\Facades\DB::transaction(
+            fn () => \Fissible\Vouch\Vouch::issueToken(
+                new \Fissible\Vouch\Tokens\TokenGrant($this->subject(), 'api', ['orders:read']),
+            ),
+        );
+
+        $this->withToken($issued->plainText)->getJson('/gated')->assertOk()->assertSee('reached');
+    }
+
+    #[Test]
+    public function a_tenant_mismatch_is_refused(): void
+    {
+        /*
+         * Evidence minted under one tenant's policy must not authorize under
+         * another's. The comparator enforces it; this proves the gate actually
+         * passes the route's tenant through rather than comparing against null
+         * and letting every tenant-scoped record pass.
+         */
+        config(['vouch.tenant' => 'acme']);
+
+        $user = TokenUser::query()->findOrFail(7);
+        $new = $user->createToken('api');
+        app(TokenAssuranceRecord::class)->store('sanctum', stringValue($new->accessToken->getKey()),
+            $this->subject(), 'other-tenant', ActorKind::Human,
+            [new SatisfiedFactor('password', 'cred-1', FactorKind::Knowledge, FactorStrength::Knowledge,
+                false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'))]);
+
+        $this->withToken($new->plainTextToken)->getJson('/gated')->assertStatus(401);
+    }
+
+    #[Test]
+    public function the_gate_leaves_sanctum_abilities_alone(): void
+    {
+        /*
+         * Abilities are the host's authorization and cross the boundary
+         * uninterpreted (§3, departure 3). A gate that consumed or reset them
+         * would silently widen or narrow every token it admitted.
+         */
+        Route::middleware(['api', 'vouch.token:aal1'])->get('/abilities', function (Request $request): array {
+            // The configured user model is TokenUser, which uses HasApiTokens;
+            // narrowing to it is what makes currentAccessToken() a real method
+            // rather than a hope about the base class.
+            $user = $request->user();
+            $token = $user instanceof TokenUser ? $user->currentAccessToken() : null;
+
+            return [
+                'can' => $token instanceof \Laravel\Sanctum\PersonalAccessToken && $token->can('orders:read'),
+                'cannot' => $token instanceof \Laravel\Sanctum\PersonalAccessToken && $token->can('admin'),
+            ];
+        });
+
+        $user = TokenUser::query()->findOrFail(7);
+        $new = $user->createToken('api', ['orders:read']);
+        app(TokenAssuranceRecord::class)->store('sanctum', stringValue($new->accessToken->getKey()),
+            $this->subject(), null, ActorKind::Human,
+            [new SatisfiedFactor('password', 'cred-1', FactorKind::Knowledge, FactorStrength::Knowledge,
+                false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'))]);
+
+        $this->withToken($new->plainTextToken)->getJson('/abilities')
+            ->assertOk()
+            ->assertJson(['can' => true, 'cannot' => false]);
+    }
+
+    #[Test]
+    public function a_malformed_recency_argument_is_a_loud_error(): void
+    {
+        // A max_age that failed to parse must not degrade to "no recency
+        // limit", which would silently unenforce the stricter half of a
+        // requirement while the route still looked configured.
+        Route::middleware(['api', 'vouch.token:aal1,15 minutes'])->get('/bad-arg', fn (): string => 'reached');
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        $this->withoutExceptionHandling()->withToken($this->recordedToken())->getJson('/bad-arg');
     }
 }

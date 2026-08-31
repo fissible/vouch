@@ -357,7 +357,11 @@ order; two claims are a loud configuration error.
 For a claimed usable token, require matching subject/tenant and a valid assurance
 record. Render exactly:
 
-- invalid, expired, revoked, unrecorded, or subject-mismatched: `invalid_token`;
+- unrecorded, subject-mismatched, machine-actor, malformed-proof, or an issuer
+  reporting `usable: false`: `invalid_token`. NOT invalid/expired/revoked — see
+  addendum §5 as amended: Sanctum returns no principal for those, so no issuer
+  claims the request and it passes through to the host's auth middleware. Vouch
+  gates assurance, not authentication;
 - recorded but insufficient level/recency: `insufficient_user_authentication` with
   `acr_values` and integer `max_age`.
 

@@ -56,6 +56,15 @@ final class TokenGateResponseTest extends TestCase
     {
         parent::setUp();
 
+        /*
+         * A FIXED CLOCK, because the routes below demand PT15M recency. An
+         * earlier draft minted proofs dated 2026-08-13 and asserted they passed
+         * a fifteen-minute requirement at the real clock — every success test
+         * would have failed on recency rather than proving anything about the
+         * gate.
+         */
+        $this->travelTo(new DateTimeImmutable('2026-08-13T10:10:00+00:00'));
+
         $this->createTokenSubjectTables();
         TokenUser::query()->create(['id' => 7, 'name' => 'ada']);
 
@@ -122,34 +131,67 @@ final class TokenGateResponseTest extends TestCase
 
     #[Test]
     #[\PHPUnit\Framework\Attributes\DataProvider('indistinguishableCases')]
-    public function the_four_indistinguishable_cases_are_byte_identical(string $case): void
+    public function the_indistinguishable_cases_are_byte_identical(string $case): void
     {
         /*
-         * Invalid, expired, revoked and unrecorded all render the same bytes.
-         * Anything that separated them would tell a caller holding a bad token
-         * WHICH kind of bad it was — that a token exists but is expired, or that
-         * a subject is real but not the bearer — which is exactly the oracle
-         * §5 flattens.
+         * Every rejection Vouch itself produces renders the same bytes.
+         * Separating them would tell a caller whether a subject exists, whether
+         * a record exists, or what actor class it holds — the oracle §5 flattens.
+         *
+         * NOTE what is NOT here. An earlier draft included invalid, expired and
+         * revoked tokens. Sanctum returns no principal for those, so no issuer
+         * claims the request, §2 requires it to pass through, and producing
+         * invalid_token would take the header sniffing §2 forbids. They are the
+         * host auth layer's to answer: Vouch gates assurance, not
+         * authentication. §5 is amended to match.
          */
         $token = $this->prepareCase($case);
 
         $response = $this->withToken($token)->getJson('/gated');
 
-        $response->assertStatus(401);
-        self::assertSame('Bearer error="invalid_token"', $response->headers->get('WWW-Authenticate'));
-        self::assertSame('', $response->getContent(), 'No detail may travel in the body.');
-        self::assertSame('no-store', $response->headers->get('Cache-Control'));
-        self::assertSame('Authorization, Cookie', $response->headers->get('Vary'));
+        self::assertSame($this->canonicalRejection(), $this->responseTuple($response), "case: {$case}");
     }
 
     /** @return array<string, array{string}> */
     public static function indistinguishableCases(): array
     {
         return [
-            'unparseable token' => ['invalid'],
-            'expired token' => ['expired'],
-            'revoked token' => ['revoked'],
             'recorded by nobody' => ['unrecorded'],
+            'record names another subject' => ['subject-mismatch'],
+            'machine actor on a human route' => ['machine'],
+            'stored proof malformed' => ['malformed'],
+        ];
+    }
+
+    /**
+     * The complete observable response, so a case cannot drift in a header the
+     * per-case assertions forgot to name.
+     *
+     * @param  \Illuminate\Testing\TestResponse<\Illuminate\Http\JsonResponse>  $response
+     * @return array<string, mixed>
+     */
+    private function responseTuple(\Illuminate\Testing\TestResponse $response): array
+    {
+        return [
+            'status' => $response->getStatusCode(),
+            'www-authenticate' => $response->headers->all('WWW-Authenticate'),
+            'cache-control' => $response->headers->get('Cache-Control'),
+            'vary' => $response->headers->get('Vary'),
+            'body' => $response->getContent(),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function canonicalRejection(): array
+    {
+        return [
+            'status' => 401,
+            // A LIST, so exactly one header field is emitted. Two would let a
+            // client read either, and a normalized lookup hides the second.
+            'www-authenticate' => ['Bearer error="invalid_token"'],
+            'cache-control' => 'no-store',
+            'vary' => 'Authorization, Cookie',
+            'body' => '',
         ];
     }
 
@@ -158,28 +200,54 @@ final class TokenGateResponseTest extends TestCase
         $user = TokenUser::query()->findOrFail(7);
 
         return match ($case) {
-            'invalid' => 'not-a-real-token',
-            'expired' => (function () use ($user): string {
-                $new = $user->createToken('api');
-                app(TokenAssuranceRecord::class)->store('sanctum', stringValue($new->accessToken->getKey()),
-                    $this->subject(), null, ActorKind::Human, $this->proof());
-                $new->accessToken->forceFill(['expires_at' => now()->subDay()])->save();
-
-                return $new->plainTextToken;
-            })(),
-            'revoked' => (function () use ($user): string {
-                $new = $user->createToken('api');
-                app(TokenAssuranceRecord::class)->store('sanctum', stringValue($new->accessToken->getKey()),
-                    $this->subject(), null, ActorKind::Human, $this->proof());
-                $new->accessToken->delete();
-
-                return $new->plainTextToken;
-            })(),
-            // Minted directly through Sanctum, bypassing Vouch::issueToken —
+            // Minted straight through Sanctum, bypassing Vouch::issueToken —
             // the case the whole gate exists for.
             'unrecorded' => $user->createToken('api')->plainTextToken,
+            'subject-mismatch' => (function () use ($user): string {
+                $new = $user->createToken('api');
+                app(TokenAssuranceRecord::class)->store('sanctum', stringValue($new->accessToken->getKey()),
+                    SubjectKey::of((new TokenUser)->getMorphClass(), 8), null, ActorKind::Human, $this->proof());
+
+                return $new->plainTextToken;
+            })(),
+            'machine' => $this->machineTokenWithHumanProof(),
+            'malformed' => (function () use ($user): string {
+                $new = $user->createToken('api');
+                app(TokenAssuranceRecord::class)->store('sanctum', stringValue($new->accessToken->getKey()),
+                    $this->subject(), null, ActorKind::Human, $this->proof());
+                DB::table('auth_token_assurances')->update(['assurance_proof' => '"not an envelope"']);
+
+                return $new->plainTextToken;
+            })(),
             default => throw new \InvalidArgumentException("Unknown case {$case}."),
         };
+    }
+
+    /**
+     * A machine record that ALSO carries otherwise-sufficient human proof.
+     *
+     * The discriminator for actor ordering. A record with no factors renders
+     * invalid_token whether actor policy is selected first or human evidence is
+     * read and then flattened — so it proves nothing about the order. This row
+     * would satisfy the route on its human evidence alone, so an implementation
+     * that reads evidence before selecting actor class returns 200 or a
+     * challenge, and fails.
+     *
+     * Written directly, because TokenAssuranceRecord refuses to STORE this
+     * combination — which is correct, and is why the inconsistent row has to be
+     * forged to test the reader.
+     */
+    private function machineTokenWithHumanProof(): string
+    {
+        $user = TokenUser::query()->findOrFail(7);
+        $new = $user->createToken('api');
+
+        app(TokenAssuranceRecord::class)->store('sanctum', stringValue($new->accessToken->getKey()),
+            $this->subject(), null, ActorKind::Human, $this->proof());
+
+        DB::table('auth_token_assurances')->update(['actor_kind' => 'machine']);
+
+        return $new->plainTextToken;
     }
 
     #[Test]
@@ -194,9 +262,13 @@ final class TokenGateResponseTest extends TestCase
 
         $response = $this->withToken($token)->getJson('/gated');
 
-        $response->assertStatus(401);
-        self::assertSame($this->challengeLine('aal2', 900), $response->headers->get('WWW-Authenticate'));
-        self::assertSame('', $response->getContent());
+        self::assertSame([
+            'status' => 401,
+            'www-authenticate' => [$this->challengeLine('aal2', 900)],
+            'cache-control' => 'no-store',
+            'vary' => 'Authorization, Cookie',
+            'body' => '',
+        ], $this->responseTuple($response));
     }
 
     #[Test]
@@ -209,8 +281,13 @@ final class TokenGateResponseTest extends TestCase
 
         $response = $this->withToken($token)->getJson('/gated');
 
-        $response->assertStatus(401);
-        self::assertSame($this->challengeLine('aal2', 900), $response->headers->get('WWW-Authenticate'));
+        self::assertSame([
+            'status' => 401,
+            'www-authenticate' => [$this->challengeLine('aal2', 900)],
+            'cache-control' => 'no-store',
+            'vary' => 'Authorization, Cookie',
+            'body' => '',
+        ], $this->responseTuple($response));
     }
 
     #[Test]
@@ -225,11 +302,12 @@ final class TokenGateResponseTest extends TestCase
         $response = $this->withToken($this->recordedToken($this->proof(strong: false)))->getJson('/gated');
         $header = (string) $response->headers->get('WWW-Authenticate');
 
-        self::assertStringNotContainsString("\n", $header);
-        self::assertStringNotContainsString("\r", $header);
-        self::assertStringNotContainsString(",\t", $header);
-        // Ordinary single spaces after commas, not folded continuations.
-        self::assertSame(1, preg_match('/^Bearer error="[^"]+", error_description="[^"]+", acr_values="[^"]+", max_age="\d+"$/', $header));
+        // Literal equality, not a shape match. An earlier draft used [^"]+,
+        // which accepts tabs and other client-visible control characters inside
+        // a quoted value, and read a normalized header rather than asserting how
+        // many fields were emitted.
+        self::assertSame([$this->challengeLine('aal2', 900)], $response->headers->all('WWW-Authenticate'));
+        self::assertSame(0, preg_match('/[\x00-\x1F\x7F]/', $header), 'Control characters in the challenge.');
     }
 
     #[Test]
@@ -263,36 +341,4 @@ final class TokenGateResponseTest extends TestCase
         self::assertStringNotContainsString('max_age', $header);
     }
 
-    #[Test]
-    public function a_machine_token_is_refused_as_invalid_not_challenged(): void
-    {
-        /*
-         * Actor class is selected BEFORE the human-evidence reader, which
-         * correctly reports a machine record as unusable human evidence. A
-         * challenge here would invite a service to present a factor it does not
-         * have and cannot acquire.
-         */
-        $token = $this->recordedToken([], ActorKind::Machine);
-
-        $response = $this->withToken($token)->getJson('/gated');
-
-        $response->assertStatus(401);
-        self::assertSame('Bearer error="invalid_token"', $response->headers->get('WWW-Authenticate'));
-    }
-
-    #[Test]
-    public function a_subject_mismatch_is_invalid_rather_than_insufficient(): void
-    {
-        // The record names someone else. That is not a weak credential, so a
-        // step-up challenge would invite strengthening one that will never apply.
-        $user = TokenUser::query()->findOrFail(7);
-        $new = $user->createToken('api');
-        app(TokenAssuranceRecord::class)->store('sanctum', stringValue($new->accessToken->getKey()),
-            SubjectKey::of((new TokenUser)->getMorphClass(), 8), null, ActorKind::Human, $this->proof());
-
-        $response = $this->withToken($new->plainTextToken)->getJson('/gated');
-
-        $response->assertStatus(401);
-        self::assertSame('Bearer error="invalid_token"', $response->headers->get('WWW-Authenticate'));
-    }
 }
