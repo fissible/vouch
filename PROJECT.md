@@ -537,6 +537,51 @@ adapter. Inertia React/Vue deferred to v1.1.
 
 ## Session handoff notes
 
+**2026-08-30 — 2.4 Task 4 complete (PR #12 merged); Task 5 is next and needs two
+decisions before its tests can be frozen**
+
+Merged: the token gate. `RejectsUnrecordedTokens` installs into `web` and `api`,
+ships in `observe` mode, and renders RFC 9470 challenges only for insufficient
+level/recency. All CI green including mutation.
+
+Phase-4 review found three defects AFTER the suite was already green, two of them
+caused by my own fixtures — recorded here because the pattern is the lesson, not the
+bugs. A green suite proved nothing about behavior no test described:
+
+- `resolveForRequest` called `auth()->shouldUse('sanctum')`, moving the application
+  default guard on every request. Measured: `before=web after=sanctum`, then
+  `Auth::logout()` and `Auth::attempt()` threw `BadMethodCallException`. The gate
+  ships in the `web` group, so this would have broken session login and logout in
+  every Sanctum host. Cause: an `/abilities` fixture with no `auth:sanctum`.
+- `tenantId()` read `config('vouch.tenant')`, a key in no config file, invented by a
+  test. Deleted rather than documented: a scalar is a second tenancy source only
+  token enforcement consults, and a resolver deliberately returning `null` could
+  never override it.
+- The Sanctum-is-optional guard tested config presence, not driver availability.
+
+Also: a `mysql`/`pgsql`-only CI failure from `Auth::attempt()` querying a column the
+fixture lacks. SQLite hid it by treating an unknown double-quoted identifier as a
+string literal, so the query compared two literals and matched zero rows. When a
+test passes on sqlite alone, suspect the dialect before believing the assertion.
+
+**Next: Task 5 (credential and subject revocation protocol).** It is the largest
+task in 2.4 and carries four obligations, filed as issues and linked in the "2.4 —
+open issues" table above: #4 durable subject lock (blocks the rest), #5 revocation
+on credential mutation, #3 the retention sweep, #9 the machine-token boundary.
+
+Two things must be settled BEFORE any test is frozen, both found in review:
+
+1. **Not every credential write may revoke.** `TotpFactor` advances
+   `last_used_timestep` on the credential row on every successful verification. A
+   literal "all sixteen writers route through the facade and revoke" rule would make
+   every TOTP login revoke the user's own tokens. Mutations must be CLASSIFIED
+   (revoking vs. bookkeeping) before the facade is written.
+2. **`TokenIssuer::revoke(string $tokenKey): void` takes no connection.** It deletes
+   on the model's default connection, so driver revocation cannot enlist in the
+   credential mutation's transaction. Either the contract gains a connection or the
+   ordering guarantee has to be stated in terms of what can actually be promised.
+
+
 **2026-08-12 — Phase 1 closing work: killable mutant test landed, findings archived**
 
 The fix-wave re-review (`.superpowers/sdd/2026-08-11-vouch-kernel/final-fix-rereview.md`,
