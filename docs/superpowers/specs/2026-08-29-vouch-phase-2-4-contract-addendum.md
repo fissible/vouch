@@ -206,10 +206,39 @@ age. A legitimately long-lived token has an old anchor, so an age-based sweep de
 for LIVE tokens — and because §2's gate is default-deny, those tokens then stop working with
 no diagnosable cause. This is the obvious fix and it is wrong.
 
-The sound mechanism is an orphan sweep: only the issuer knows whether a token still exists,
-so `TokenIssuer` gains an existence check and the sweep reclaims records the issuer no longer
-recognises. Explicit revocation is handled separately by `forget()` on the revocation path.
-Both belong to Task 5, where revocation and the issuer contract are already open.
+The sound mechanism is an orphan sweep: only the issuer knows whether a token still exists.
+Explicit revocation is handled separately by `forget()` on the revocation path.
+
+**The existence check is an OPTIONAL capability, not a `TokenIssuer` method.** Settled
+2026-08-31. A `ReportsTokenExistence` contract that issuers MAY implement, exposing a batch
+`existingTokenKeys(list<string> $tokenKeys): list<string>` returning the exact existing
+subset. Adding it to `TokenIssuer` would force an issuer that cannot reliably answer to
+fabricate a result, and the fabrication that costs nothing to write — an empty array — reads
+as "every token is absent" and deletes every record the issuer owns. The capability makes
+the safety rule structural rather than remembered: the sweep can only reach issuers that
+implement it.
+
+The sweep's rules, all of which are contract:
+
+- **Only issuers implementing the capability are sweepable.** An issuer without it is
+  SKIPPED and reported. Absence of an issuer, or of the capability, is never evidence that a
+  token is absent.
+- **Capability errors fail closed for cleanup**: retain the records, report the issuer and
+  the error. A sweep that cannot ask must not delete.
+- **Existing-token results always win over cleanup.** Any key the issuer returns is retained.
+- **The sweep verifies returned keys belong to the requested issuer** and tolerates duplicate
+  keys deterministically. An issuer answering about keys it was not asked about must not
+  cause a record under another issuer to be reclaimed.
+- **Bounded batches, never one unbounded query.**
+- **The sweep runs outside authorization transactions.** It is maintenance, not revocation,
+  and it attempts no driver revocation of its own.
+
+It is folded into `vouch:prune` rather than given a second scheduled command, and this does
+not violate that command's "never the enforcement mechanism" charter: the sweep deletes only
+records whose token the issuer has already confirmed absent, so it cannot change the
+authorization outcome of any token that could still authenticate. `PruneResult` reports
+reclaimed, retained, unsupported, and errored counts, so a skipped issuer is visible rather
+than silent.
 
 ## 3d. The proof column is not the same guarantee on every engine
 
