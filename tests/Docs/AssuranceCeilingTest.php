@@ -129,39 +129,81 @@ it('warns at the surface that accepts the level', function (): void {
     ], readmeContents()))->toBeTrue();
 });
 
-it('does not offer aal3 in a copyable configuration example', function (): void {
+/**
+ * Fences that put `aal3` somewhere a reader can copy it into service.
+ *
+ * The rule is an ALLOWLIST, and that is the point. An earlier version flagged a
+ * fence only when `aal3` sat beside an accepting surface -- `assurance_requirements`,
+ * `vouch.assurance`, `->middleware(` -- which a two-fence composition walks
+ * straight past: one fence sets a host constant to 'aal3', the next feeds that
+ * constant into the alias, and neither fence contains both halves while together
+ * they configure a route nobody can reach.
+ *
+ * So `aal3` is permitted in exactly one shape: a fence DEFINING a vocabulary.
+ * That is the extension point the prose rules require explained, and showing it
+ * is the clearest way to explain it. Everywhere else the level is being
+ * consumed rather than defined, and consuming it is what breaks.
+ *
+ * Comments are stripped first, on the reasoning ReadmePositioningTest gives for
+ * routes: a commented line inside a fence is prose in a code font, it cannot be
+ * pasted into service, and showing the mistake beside its correction is a
+ * legitimate way to teach this particular footgun.
+ *
+ * @param  list<string>  $fences
+ * @return list<string>
+ */
+function fencesOfferingAal3(array $fences): array
+{
+    return array_values(array_filter($fences, static function (string $fence): bool {
+        $live = readmeUncommented($fence);
+
+        if (preg_match('/\baal3\b/', $live) !== 1) {
+            return false;
+        }
+
+        $definesVocabulary = preg_match('/implements\s+AssuranceVocabulary\b/', $live) === 1
+            || preg_match('/function\s+name\s*\(\s*AssuranceFacts/', $live) === 1;
+
+        return ! $definesVocabulary;
+    }));
+}
+
+it('does not offer aal3 anywhere a reader can copy it into service', function (): void {
+    expect(fencesOfferingAal3(readmeFences()))->toBe([]);
+});
+
+it('permits aal3 in a vocabulary definition, which is the way out', function (): void {
+    // The rule must not forbid the example that makes the ceiling survivable.
+    $definition = <<<'FENCE'
+    ```php
+    final class HardwareBoundVocabulary implements AssuranceVocabulary
+    {
+        public function name(AssuranceFacts $facts): string
+        {
+            return $facts->phishingResistant ? 'aal3' : 'aal2';
+        }
+    }
+    ```
+    FENCE;
+
+    expect(fencesOfferingAal3([$definition]))->toBe([]);
+});
+
+it('catches an aal3 configuration split across two fences', function (): void {
     /*
-     * The document must not contradict itself: a fenced ability map or route
-     * naming aal3 is what a reader copies, and it would be broken on arrival
-     * whatever the surrounding prose said.
-     *
-     * Scoped to CONFIGURATION rather than to every fence. A custom
-     * `AssuranceVocabulary` returning 'aal3' is the extension point this suite
-     * requires the prose to explain, and showing it is the clearest way to
-     * explain it -- banning aal3 from every fence would forbid the example that
-     * makes the ceiling survivable.
-     *
-     * Comments are stripped first, on the reasoning ReadmePositioningTest gives
-     * for routes: a commented line inside a fence is prose in a code font, it
-     * cannot be pasted into service, and showing the mistake beside the
-     * correction is a legitimate way to teach this particular footgun.
+     * The hole an accepting-surface rule leaves open. Neither fence names both
+     * the level and the surface, and together they configure a dead route.
      */
-    $offending = array_values(array_filter(
-        readmeFences(),
-        static function (string $fence): bool {
-            $live = readmeUncommented($fence);
+    $sets = "```php\nconst APPROVAL_ASSURANCE = 'aal3';\n```";
+    $uses = "```php\nRoute::post('/approve', ...)->middleware('vouch.assurance:' . APPROVAL_ASSURANCE);\n```";
 
-            if (preg_match('/\baal3\b/', $live) !== 1) {
-                return false;
-            }
+    expect(fencesOfferingAal3([$sets, $uses]))->toBe([$sets]);
+});
 
-            // The surfaces that ACCEPT a level, as opposed to one that DEFINES
-            // one. Only the first kind is broken by naming aal3.
-            return preg_match('/(assurance_requirements|vouch\.assurance|->middleware\(|\bmiddleware:)/', $live) === 1;
-        },
-    ));
+it('does not count a commented aal3 line as copyable', function (): void {
+    $teaching = "```php\n// 'invoices.approve' => 'aal3', // unreachable: the shipped vocabulary caps at aal2\n'invoices.approve' => 'aal2',\n```";
 
-    expect($offending)->toBe([]);
+    expect(fencesOfferingAal3([$teaching]))->toBe([]);
 });
 
 it('explains the morph map hazard as one coherent warning', function (): void {
