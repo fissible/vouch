@@ -34,6 +34,17 @@ final class UnreachableAal3RouteTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Set by the controller itself, so "never reaches the controller" is a
+     * claim about EXECUTION rather than about the body of the final response.
+     *
+     * assertDontSee() inspects only what came back. It cannot distinguish a
+     * controller that never ran from one that ran, had its side effect, and
+     * had its output replaced by a later middleware -- and the difference is
+     * the whole point of an enforcement test.
+     */
+    public static bool $controllerRan = false;
+
     /** @return list<class-string> */
     protected function getPackageProviders($app): array
     {
@@ -55,8 +66,13 @@ final class UnreachableAal3RouteTest extends TestCase
     {
         parent::setUp();
 
-        Route::middleware('web')->post('/gate/approve', fn (): string => 'controller reached')
-            ->middleware('can:invoices.approve');
+        self::$controllerRan = false;
+
+        Route::middleware('web')->post('/gate/approve', function (): string {
+            self::$controllerRan = true;
+
+            return 'controller reached';
+        })->middleware('can:invoices.approve');
     }
 
     private function signInAtTheCeiling(): void
@@ -87,7 +103,7 @@ final class UnreachableAal3RouteTest extends TestCase
         $response = $this->post('/gate/approve');
 
         $response->assertRedirect('/auth/step-up');
-        $response->assertDontSee('controller reached');
+        self::assertFalse(self::$controllerRan, 'The controller ran behind an unsatisfiable requirement.');
     }
 
     #[Test]
@@ -109,24 +125,30 @@ final class UnreachableAal3RouteTest extends TestCase
     }
 
     #[Test]
-    public function step_up_cannot_rescue_it_either(): void
+    public function re_proving_the_same_maximal_evidence_changes_nothing(): void
     {
         /*
-         * "Permanently" is the word the documentation uses, and this is the
-         * closest executable form of it: re-authenticating with everything the
-         * user has produces the same refusal, because the ceiling is a property
-         * of the vocabulary rather than of the evidence.
+         * The closest executable approach to the word "permanently", and
+         * deliberately named for what it does rather than what it suggests.
+         *
+         * This does NOT run a step-up lifecycle. It re-writes the strongest
+         * proof the shipped vocabulary can name and retries, establishing that
+         * fresh maximal evidence is still insufficient -- because the ceiling
+         * is a property of the vocabulary, not of the evidence's age or
+         * strength. A real step-up would end in the same place for the same
+         * reason, but that is an inference from this test, not something it
+         * measures.
          */
         $this->signInAtTheCeiling();
 
         $this->post('/gate/approve')->assertRedirect('/auth/step-up');
 
-        // A fresh, maximal proof written again changes nothing.
         AuthSession::query()->where('user_id', 7)->update([
             'assurance_proof' => sessionProof(7, 'aal2'),
             'weakest_satisfied_at' => now(),
         ]);
 
         $this->post('/gate/approve')->assertRedirect('/auth/step-up');
+        self::assertFalse(self::$controllerRan);
     }
 }
