@@ -286,8 +286,83 @@ function fencesOfferingAal3(array $fences): array
     ));
 }
 
+/**
+ * Copyable `aal3` OUTSIDE a fenced block: inline code spans and indented blocks.
+ *
+ * The fence rule scans fences, which is not the same as scanning what a reader
+ * can copy. An inline span reading `'invoices.approve' => 'aal3'`, or a
+ * four-space indented configuration line, is just as copyable and just as
+ * broken, and would ship beside otherwise-correct prose.
+ *
+ * The test is narrower here than inside a fence, and it has to be: the prose
+ * rules REQUIRE the document to name `aal3` in running text, almost always in
+ * an inline span. So a bare mention is permitted, and what is flagged is a
+ * mention sitting in something shaped like configuration — an accepting
+ * surface, or the fat arrow of an ability map.
+ *
+ * @return list<string>
+ */
+function copyableAal3OutsideFences(string $markdown): array
+{
+    // Fences are the other rule's business; remove them so a config line inside
+    // one is not reported twice under two different names.
+    $outside = (string) preg_replace('/(```|~~~).*?\1/s', '', $markdown);
+
+    $candidates = [];
+
+    if (preg_match_all('/`[^`\n]*`/', $outside, $spans) > 0) {
+        foreach ($spans[0] as $span) {
+            $candidates[] = $span;
+        }
+    }
+
+    foreach (explode("\n", $outside) as $line) {
+        if (preg_match('/^(?: {4,}|\t)\S/', $line) === 1) {
+            $candidates[] = $line;
+        }
+    }
+
+    return array_values(array_filter($candidates, static function (string $snippet): bool {
+        if (preg_match('/\baal3\b/', $snippet) !== 1) {
+            return false;
+        }
+
+        return preg_match('/(assurance_requirements|vouch\.assurance|=>|->middleware\()/', $snippet) === 1;
+    }));
+}
+
 it('does not offer aal3 anywhere a reader can copy it into service', function (): void {
-    expect(fencesOfferingAal3(readmeFences()))->toBe([]);
+    expect(fencesOfferingAal3(readmeFences()))->toBe([])
+        ->and(copyableAal3OutsideFences(readmeContents()))->toBe([]);
+});
+
+it('permits aal3 named in running prose', function (): void {
+    /*
+     * Required, not merely tolerated: four of the five prose rules cannot be
+     * satisfied without naming the level, and an inline span is how a document
+     * names an identifier. A guard that flagged every inline `aal3` would put
+     * this suite in contradiction with itself.
+     */
+    $prose = "A route requiring `aal3` is unreachable under the shipped vocabulary.";
+
+    expect(copyableAal3OutsideFences($prose))->toBe([]);
+});
+
+it('catches an inline span that configures aal3', function (): void {
+    $span = "Set `'invoices.approve' => 'aal3'` in the map.";
+
+    expect(copyableAal3OutsideFences($span))->toBe(["`'invoices.approve' => 'aal3'`"]);
+});
+
+it('catches an indented configuration block naming aal3', function (): void {
+    /*
+     * An indented block carries no language tag, so it cannot claim to be a
+     * vocabulary definition. A definition example belongs in a tagged php
+     * fence, where the allowance can be granted safely.
+     */
+    $indented = "Configure it:\n\n    'invoices.approve' => 'aal3',\n";
+
+    expect(copyableAal3OutsideFences($indented))->toBe(["    'invoices.approve' => 'aal3',"]);
 });
 
 it('permits aal3 inside a vocabulary definition, which is the way out', function (): void {
