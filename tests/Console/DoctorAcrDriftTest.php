@@ -248,14 +248,33 @@ it('shows drift to an operator who did not ask for json', function (): void {
     driftSession(1, 'aal2');
     app()->instance(AssuranceVocabulary::class, new CappingVocabulary());
 
+    driftToken('token-1', 'aal2');
+
     Artisan::call('vouch:doctor');
     $output = Artisan::output();
 
-    // The table name alone is not the diagnostic. The counts are what an
-    // operator acts on, so they have to survive the rendering.
-    expect($output)->toContain('auth_sessions')
-        ->and($output)->toContain('auth_token_assurances')
-        ->and(preg_match('/auth_sessions\D+1\D+1\D+0/', $output))->toBe(1);
+    /*
+     * The table name alone is not the diagnostic. The counts are what an
+     * operator acts on, so they have to survive the rendering -- for BOTH
+     * tables, since a renderer that formatted the first row and printed the
+     * second as a bare name would satisfy a name-only assertion.
+     */
+    expect(preg_match('/auth_sessions\D+1\D+1\D+0/', $output))->toBe(1)
+        ->and(preg_match('/auth_token_assurances\D+1\D+1\D+0/', $output))->toBe(1);
+});
+
+it('names an unreadable row in the default rendering', function (): void {
+    /*
+     * The addendum requires unreadable rows to be visible in text even though
+     * they do not raise the status. A renderer showing only drift would hide
+     * corruption behind the very rule that keeps intentional migrations quiet.
+     */
+    $session = driftSession(1, 'aal2');
+    DB::table('auth_sessions')->where('id', $session->id)->update(['assurance_proof' => '{"nope":true}']);
+
+    Artisan::call('vouch:doctor');
+
+    expect(preg_match('/auth_sessions\D+1\D+0\D+1/', Artisan::output()))->toBe(1);
 });
 
 it('separates an unreadable proof from a drifted one', function (): void {
@@ -278,14 +297,22 @@ it('separates an unreadable proof from a drifted one', function (): void {
         ->and(driftStatus($report))->toBe('pass');
 });
 
-it('counts every row when there are more than one batch of them', function (): void {
+it('iterates in batches rather than reading the table at once', function (): void {
     /*
-     * The sweep reads bounded batches rather than one unbounded query, so the
-     * counts must survive a batch boundary. Deliberately asserts the TOTAL and
-     * not the batch size: the boundary is an implementation choice, and pinning
-     * it here would freeze it.
+     * An earlier draft seeded 250 rows and asserted "more than one select".
+     * That established nothing: with the batch size unspecified, requiring two
+     * selects over 250 rows silently pins the batch below 250 while claiming
+     * not to, and correct totals are equally produced by one unbounded query.
+     *
+     * So the size is configuration -- vouch.doctor.drift_batch -- and the
+     * fixture exceeds a DELIBERATELY small one. 60 rows over a batch of 25 must
+     * take at least three passes, which no single-query implementation
+     * produces, and the expected count follows from the configured size rather
+     * than from a number chosen to make the assertion true.
      */
-    for ($userId = 1; $userId <= 250; $userId++) {
+    config(['vouch.doctor.drift_batch' => 25]);
+
+    for ($userId = 1; $userId <= 60; $userId++) {
         driftSession($userId, 'aal2');
     }
 
@@ -293,25 +320,73 @@ it('counts every row when there are more than one batch of them', function (): v
 
     $selects = [];
     DB::listen(static function (\Illuminate\Database\Events\QueryExecuted $query) use (&$selects): void {
-        if (str_contains($query->sql, 'auth_sessions') && str_starts_with(strtolower(ltrim($query->sql)), 'select')) {
-            $selects[] = $query->sql;
+        $sql = strtolower(ltrim($query->sql));
+        if (str_contains($sql, 'auth_sessions') && str_starts_with($sql, 'select')) {
+            $selects[] = $sql;
         }
     });
 
     $report = doctorReport();
 
     expect(driftFor($report, 'auth_sessions'))
-        ->toBe(['table' => 'auth_sessions', 'checked' => 250, 'drifted' => 250, 'unreadable' => 0]);
+        ->toBe(['table' => 'auth_sessions', 'checked' => 60, 'drifted' => 60, 'unreadable' => 0]);
 
+    // ceil(60 / 25) = 3 passes, plus the one that finds the batch empty.
+    expect(count($selects))->toBeGreaterThanOrEqual(3);
+
+    // Every read of the table is bounded. A conforming-looking implementation
+    // that batched politely and then swept the rest in one unbounded query
+    // would satisfy the count above and fail here.
+    expect(array_filter($selects, static fn (string $sql): bool => ! str_contains($sql, 'limit')))->toBe([]);
+});
+
+it('counts a human row with no projection as unreadable, not as clean', function (): void {
     /*
-     * Correct counts alone do not establish bounded reads -- a single unbounded
-     * query over 250 rows produces exactly the same totals. So the reads
-     * themselves are inspected: more than one select, and every one of them
-     * limited.
-     *
-     * The batch SIZE is deliberately not pinned. It is an operational choice,
-     * and freezing it here would make tuning it a test change.
+     * A readable proof beside a null acr is corruption: the writers always
+     * store both. It cannot be compared, so it is not drift -- but dropping it
+     * from every count would make it invisible, which is the one outcome the
+     * classification exists to prevent.
      */
-    expect(count($selects))->toBeGreaterThan(1);
-    expect(array_filter($selects, static fn (string $sql): bool => ! str_contains(strtolower($sql), 'limit')))->toBe([]);
+    $session = driftSession(1, 'aal2');
+    DB::table('auth_sessions')->where('id', $session->id)->update(['acr' => null]);
+
+    expect(driftFor(doctorReport(), 'auth_sessions'))
+        ->toBe(['table' => 'auth_sessions', 'checked' => 0, 'drifted' => 0, 'unreadable' => 1]);
+});
+
+it('does not let the machine exemption swallow a malformed machine row', function (): void {
+    /*
+     * A machine record in its contracted shape is excluded. A machine record
+     * carrying a human proof is not in that shape, and treating the actor kind
+     * alone as the exemption would hide it permanently.
+     */
+    DB::table('auth_token_assurances')->insert([
+        'issuer_key' => 'sanctum',
+        'token_key' => 'machine-malformed',
+        'subject_key' => configuredUserProvider() . ':1',
+        'tenant_id' => null,
+        'actor_kind' => 'machine',
+        'acr' => 'aal2',
+        'assurance_proof' => json_encode(sessionProof(1, 'aal2'), JSON_THROW_ON_ERROR),
+        'weakest_satisfied_at' => now(),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    expect(driftFor(doctorReport(), 'auth_token_assurances'))
+        ->toBe(['table' => 'auth_token_assurances', 'checked' => 0, 'drifted' => 0, 'unreadable' => 1]);
+});
+
+it('excludes a legacy session that never carried a proof', function (): void {
+    /*
+     * The pre-2.4 state SessionEvidence already reports as LegacyNoProof. It is
+     * a known-good row, not corruption, and counting it would put a permanent
+     * non-zero number in front of every operator who upgraded.
+     */
+    $session = driftSession(1, 'aal2');
+    DB::table('auth_sessions')->where('id', $session->id)
+        ->update(['assurance_proof' => null, 'acr' => null]);
+
+    expect(driftFor(doctorReport(), 'auth_sessions'))
+        ->toBe(['table' => 'auth_sessions', 'checked' => 0, 'drifted' => 0, 'unreadable' => 0]);
 });

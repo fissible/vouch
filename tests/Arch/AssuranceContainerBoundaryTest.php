@@ -132,7 +132,14 @@ it('never resolves the vocabulary out of the container in shipped code', functio
 
         $source = (string) file_get_contents($file);
 
-        if (preg_match('/(app|resolve)\s*\([^)]*AssuranceVocabulary::class/', $source) === 1) {
+        $ambient = [
+            // app(X::class), resolve(X::class)
+            '/(app|resolve)\s*\([^)]*AssuranceVocabulary::class/',
+            // app()->make(X::class), $container->make(X::class), Container::getInstance()->make(...)
+            '/->\s*(make|makeWith|get)\s*\([^)]*AssuranceVocabulary::class/',
+        ];
+
+        if (array_filter($ambient, static fn (string $p): bool => preg_match($p, $source) === 1) !== []) {
             $offenders[] = basename($file);
         }
     }

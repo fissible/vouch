@@ -561,10 +561,27 @@ them is true of an empty table. `status` is `drift` when any table reports a non
 own count and named in the text rendering, but does not set `status`, because the two have
 different causes and conflating them is what this section exists to prevent.
 
-`checked` counts rows that HAVE a projection to compare. A machine token record stores a
-null `acr` and a null proof by contract, so it is not checked, not drifted and not
-unreadable — counting it any of those ways would report a permanent fault on every
-correctly issued machine token.
+**What lands in which count.** Silent exclusion is the failure mode worth designing
+against: a row that is neither checked nor reported has been dropped, and corruption that
+drops out of every count is invisible.
+
+- `checked` — the row has a non-null `acr` AND a proof that deserializes. Revocation and
+  recovery grace are irrelevant here: whether a projection matches its proof is independent
+  of whether that session may currently authorize anything.
+- `drifted` — a subset of `checked` whose stored name differs from the fresh derivation.
+- `unreadable` — the row looks like it should carry a projection but cannot be compared:
+  the proof will not deserialize, or the proof is present while `acr` is null. One bucket
+  rather than three, because the remedy is the same: a human reads the row.
+- **Excluded entirely**, counted nowhere: a machine token record in its contracted shape
+  (machine actor, null `acr`, null proof), and a session with a null `assurance_proof`,
+  which is the legacy pre-2.4 state `SessionEvidence` already reports as `LegacyNoProof`.
+  Both are known-good states, and counting either would report a permanent fault.
+- A machine record NOT in that shape — a machine actor carrying a proof, or a non-null
+  `acr` — is `unreadable`. It violates the storage contract, and excluding it would let the
+  machine exemption swallow real corruption.
+
+A failure to read a table at all is not a drift outcome. It follows `vouch:doctor`'s
+existing catch-all, which reports the error and exits 2.
 
 The default (non-`--json`) rendering shows the same per-table counts. A diagnostic reachable
 only behind a flag is not one an operator will see.
@@ -572,9 +589,10 @@ only behind a flag is not one an operator will see.
 - Drift is **reported, not failed**: it does not increment `missing` and does not change
   the exit code. During an intentional vocabulary migration every historical row drifts,
   and a doctor that goes red on a correct migration trains operators to ignore it.
-- The check reads bounded batches rather than one unbounded query, and a row whose proof
-  cannot be deserialized is counted as unreadable rather than as drift — the two have
-  different causes and different remedies.
+- The check reads bounded batches rather than one unbounded query. The batch size is
+  `vouch.doctor.drift_batch`, defaulting to 500 — configurable because the right size
+  depends on fleet size and row width, and because a hard-coded constant makes the
+  iteration itself untestable without seeding a production-sized fixture.
 
 **Deferred, deliberately.** There is no vocabulary identifier or version stored alongside
 the projection, so the diagnostic cannot yet distinguish an intentional migration from

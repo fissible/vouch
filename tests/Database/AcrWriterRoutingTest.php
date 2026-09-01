@@ -32,9 +32,12 @@ uses(DatabaseMigrations::class);
  * OPPOSITE way. Every assertion below is a value NistAssuranceVocabulary cannot
  * produce for the evidence in question, which is what makes it falsifiable.
  *
- * The tests assert the stored OUTCOME, never the mechanism: SessionLifecycle
- * may legitimately reuse the acr AuthSuccess already carries rather than
- * deriving a second time, and both shapes satisfy these.
+ * These assert the stored OUTCOME rather than the mechanism, with ONE
+ * deliberate exception. Reusing the acr AuthSuccess already carries was
+ * considered and is now refused by the contract: that string names
+ * $success->facts, while the stored proof is built from $success->factors, and
+ * nothing enforces that the two describe the same evidence. The last test in
+ * this file is the one that forecloses it.
  */
 
 /** Bind the inverted vocabulary and discard anything already built with another. */
