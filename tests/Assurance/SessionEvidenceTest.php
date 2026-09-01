@@ -205,7 +205,7 @@ it('still writes acr, and still does not authorize from it', function (): void {
     $session = establishSession(proofSuccess());
 
     expect($session->acr)->toBe('aal1')
-        ->and(usableEvidence($session)->derivedAcr())->toBe('aal1');
+        ->and(nameOf(usableEvidence($session)))->toBe('aal1');
 });
 
 it('replaces the proof on rotation rather than accumulating rows', function (): void {
@@ -222,7 +222,7 @@ it('replaces the proof on rotation rather than accumulating rows', function (): 
 
     expect(AuthSession::query()->count())->toBe(1)
         ->and(usableEvidence($session)->factors)->toHaveCount(2)
-        ->and(usableEvidence($session)->derivedAcr())->toBe('aal2');
+        ->and(nameOf(usableEvidence($session)))->toBe('aal2');
 });
 
 it('fails the login closed when the proof cannot be serialized', function (): void {
@@ -351,7 +351,7 @@ it('refuses a session whose persisted acr disagrees with its factors', function 
     $session->refresh();
 
     expect($session->acr)->toBe('aal3')
-        ->and(usableEvidence($session)->derivedAcr())->toBe('aal1');
+        ->and(nameOf(usableEvidence($session)))->toBe('aal1');
 });
 
 it('yields no evidence for a revoked session', function (): void {
@@ -617,7 +617,7 @@ it('authorizes from the proof even when the stored level is LOWER', function ():
     $fresh = AuthSession::query()->findOrFail($session->id);
 
     expect($fresh->acr)->toBe('aal1')
-        ->and(usableEvidence($fresh)->derivedAcr())->toBe('aal2')
+        ->and(nameOf(usableEvidence($fresh)))->toBe('aal2')
         ->and(app(EvidenceComparator::class)->compare(
             SessionEvidence::read($fresh),
             AssuranceRequirement::from('aal2'),

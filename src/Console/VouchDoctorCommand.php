@@ -11,10 +11,11 @@ use Fissible\Vouch\Delivery\UnconfiguredCaptchaVerifier;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Notifications\OtpQueueDispatcher;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
+use Fissible\Vouch\Sessions\SessionAssuranceRecord;
 use Fissible\Vouch\Throttle\ThrottleConfiguration;
+use Fissible\Vouch\Tokens\TokenAssuranceRecord;
 use Fissible\Vouch\Delivery\UnconfiguredDeliveryEconomics;
 use Illuminate\Console\Command;
-use JsonException;
 use Throwable;
 
 /** Reports aggregate adoption prerequisites without inspecting any account. */
@@ -24,10 +25,12 @@ final class VouchDoctorCommand extends Command
 
     protected $description = 'Check Vouch adoption prerequisites.';
 
-    /** @throws JsonException */
+    /** @throws \JsonException */
     public function handle(
         OtpQueueDispatcher $dispatcher,
         ThrottleConfiguration $throttle,
+        SessionAssuranceRecord $sessionAssurances,
+        TokenAssuranceRecord $tokenAssurances,
     ): int {
         try {
             $totalIdentifiers = AuthIdentifier::query()->count();
@@ -56,7 +59,18 @@ final class VouchDoctorCommand extends Command
                 static fn (array $row): bool => $row['status'] === 'missing',
             ));
 
-            $report = ['missing' => $missing, 'prerequisites' => $rows];
+            $driftTables = [
+                $sessionAssurances->driftCounts($this->driftBatch()),
+                $tokenAssurances->driftCounts($this->driftBatch()),
+            ];
+            $report = [
+                'missing' => $missing,
+                'prerequisites' => $rows,
+                'acr_drift' => [
+                    'status' => array_any($driftTables, static fn (array $table): bool => $table['drifted'] > 0) ? 'drift' : 'pass',
+                    'tables' => $driftTables,
+                ],
+            ];
 
             if ($this->option('json') === true) {
                 $this->line(json_encode($report, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
@@ -70,6 +84,15 @@ final class VouchDoctorCommand extends Command
                             : '',
                     ],
                     $rows,
+                ));
+                $this->table(['Table', 'Checked', 'Drifted', 'Unreadable'], array_map(
+                    static fn (array $table): array => [
+                        $table['table'],
+                        $table['checked'],
+                        $table['drifted'],
+                        $table['unreadable'],
+                    ],
+                    $driftTables,
                 ));
             }
 
@@ -109,5 +132,10 @@ final class VouchDoctorCommand extends Command
         } catch (Throwable) {
             return 'missing';
         }
+    }
+
+    private function driftBatch(): int
+    {
+        return max(1, config()->integer('vouch.doctor.drift_batch', 500));
     }
 }

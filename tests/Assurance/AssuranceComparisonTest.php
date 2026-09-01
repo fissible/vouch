@@ -251,7 +251,7 @@ it('classes a tenant mismatch as invalid evidence, not as a weak level', functio
         evidenceFactor('totp', '2026-08-29T10:00:00+00:00', FactorStrength::Possession, 'cred-2'),
     ], 'acme');
 
-    expect($strong->derivedAcr())->toBe('aal2')
+    expect(nameOf($strong))->toBe('aal2')
         ->and(compareEvidence($strong, 'aal1', tenantId: 'other'))->toBe(AssuranceOutcome::InvalidEvidence);
 });
 
@@ -348,7 +348,7 @@ it('orders every derivable level against every requirement', function (): void {
 
     foreach ($derivable as $held => $factors) {
         $evidence = evidenceFor($factors);
-        expect($evidence->derivedAcr())->toBe($held);
+        expect(nameOf($evidence))->toBe($held);
 
         foreach ($order as $want => $wantIndex) {
             expect(compareEvidence($evidence, $want)->isSufficient())
@@ -367,7 +367,7 @@ it('cannot hold an unrecognised level, by construction', function (): void {
      * unknown, and that is refused at parse time.
      */
     expect(fn () => AssuranceRequirement::from('aal9'))->toThrow(InvalidArgumentException::class)
-        ->and(evidenceFor([evidenceFactor()])->derivedAcr())->toBeIn(['aal0', 'aal1', 'aal2', 'aal3']);
+        ->and(nameOf(evidenceFor([evidenceFactor()])))->toBeIn(['aal0', 'aal1', 'aal2', 'aal3']);
 });
 
 it('refuses a proof made only of recovery factors', function (): void {

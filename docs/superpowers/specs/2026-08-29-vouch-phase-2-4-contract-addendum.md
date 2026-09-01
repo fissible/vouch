@@ -482,3 +482,144 @@ policy never governed the login.
 from its indexed `tenant_id` column is refused rather than trusted. The two are written
 together and can only disagree through corruption or an out-of-band write; picking either
 one silently would make the disagreement invisible.
+
+
+## 3f. Vocabulary is injected, and `acr` is a projection (settled 2026-09-01, issue #10)
+
+`AssuranceEvidence::derivedAcr()` called `app(AssuranceVocabulary::class)`, so a readonly
+value object depended on ambient container state. Two consequences: the same evidence could
+derive different levels depending on when it was asked, and `toArray()`/`fromArray()` were
+pure while `derivedAcr()` was not.
+
+**`derivedAcr()` is deleted. Evidence exposes facts, not names.**
+
+    public function facts(): AssuranceFacts
+
+`AssuranceFacts` is already the derived domain value; naming it is the vocabulary's job and
+nothing else's. Services that need the name inject `AssuranceVocabulary` and write
+`$this->vocabulary->name($evidence->facts())`. This is ordinary constructor injection —
+`AuthFlow` already takes the vocabulary that way. A dedicated deriver service was
+considered and rejected: it adds indirection without solving anything injection does not.
+
+The five production call sites are `EvidenceComparator`, `RequireAbilityAssurance`,
+`SessionLifecycle`, `TokenAssuranceRecord` and `CredentialSelfService`. All five take the
+vocabulary by constructor injection. Resolving it from the container inside a service is
+the same defect one layer out, and is equally forbidden.
+
+**`SessionLifecycle` re-derives; it does not reuse `AuthSuccess::$acr`.** The alternative
+was considered: the flow already named a level with the host's vocabulary, so storing that
+string avoids a second derivation. It is refused because the two describe different things.
+`$success->acr` names `$success->facts`, while the row's `assurance_proof` is built from
+`$success->factors`, and nothing enforces that those agree. Reusing the string can therefore
+persist a projection for evidence other than the one stored beside it — reintroducing the
+column-disagrees-with-proof class of defect that Task 2a removed.
+
+**An architecture guard keeps it out.** The value object must not reach the container
+again — no `app()`, `resolve()`, `Container::`, or facade use anywhere in the assurance
+value objects. A guard test is the durable part of this change; the deletion alone would
+be re-introduced by the next person who needs a name where no vocabulary is in scope.
+
+### `acr` is a projection, never an authorization input
+
+The stored `acr` column on `auth_sessions` and `auth_token_assurances` is a historical and
+index projection of what the bound vocabulary called the evidence at write time. It is not
+authoritative and never has been — `EvidenceComparator` re-derives from the persisted
+factors on every decision. Removing the ambient lookup is the first point at which that
+divergence becomes visible, because a caller must now hold a vocabulary to derive one;
+"just read the stored column" becomes an obvious and wrong shortcut. So it is stated:
+
+- **Authorization always derives fresh** from the persisted factors plus the injected
+  vocabulary. No comparison path reads the stored column.
+- **The stored column is never rewritten** to match a newly bound vocabulary. It records
+  what was named then. A vocabulary that now caps at `aal1` leaves an old `aal2` row intact
+  while a fresh `aal2` requirement correctly fails.
+- **A mismatch is not malformed evidence.** The reader must not refuse an otherwise valid
+  record because its projection disagrees with the current vocabulary. This is
+  configuration or version drift, not corruption, and conflating the two would turn an
+  intentional policy migration into a fleet-wide authentication outage.
+
+### The drift diagnostic
+
+`vouch:doctor` reports rows whose stored `acr` differs from a fresh derivation under the
+currently bound vocabulary, per table, as counts — consistent with the command's existing
+"aggregate prerequisites without inspecting any account" boundary.
+
+The `--json` report gains one top-level key, alongside `missing` and `prerequisites`:
+
+    'acr_drift' => [
+        'status' => 'pass' | 'drift',
+        'tables' => [
+            ['table' => 'auth_sessions',          'checked' => int, 'drifted' => int, 'unreadable' => int],
+            ['table' => 'auth_token_assurances',  'checked' => int, 'drifted' => int, 'unreadable' => int],
+        ],
+    ]
+
+Both table rows are always present, exactly once each, in that order, whether or not the
+table holds anything — an omitted row and a zero row are different claims, and only one of
+them is true of an empty table. `status` is `drift` when any table reports a non-zero
+`drifted`, and `pass` otherwise. It tracks drift alone: an unreadable row is reported in its
+own count and named in the text rendering, but does not set `status`, because the two have
+different causes and conflating them is what this section exists to prevent.
+
+**What lands in which count.** Silent exclusion is the failure mode worth designing
+against: a row that is neither checked nor reported has been dropped, and corruption that
+drops out of every count is invisible.
+
+- `checked` — every row INSPECTED, meaning every row not excluded outright by the rule
+  below. It is the denominator: "we looked at 60 rows, 3 drifted, 1 was unreadable" is the
+  sentence an operator needs, and it only reads correctly if the two subsets sum into the
+  total rather than sitting beside it. Revocation and recovery grace do not affect
+  inspection: whether a projection matches its proof is independent of whether that session
+  may currently authorize anything.
+- `drifted` — a subset of `checked` whose stored name differs from the fresh derivation.
+- `unreadable` — a subset of `checked` that cannot be compared at all: the proof will not
+  deserialize, the proof is absent on a record whose actor should carry one, or the proof is
+  present while `acr` is null. One bucket rather than three, because the remedy is the
+  same: a human reads the row. So `drifted` and `unreadable` are disjoint, and both are
+  contained in `checked`.
+- **Excluded entirely**, counted nowhere — and this is the ONLY silent category, which is
+  why it is exhaustively enumerated: a machine token record in its contracted shape
+  (machine actor, null `acr`, null proof), and a session with a null `assurance_proof`
+  whatever its `acr` — the legacy pre-2.4 state `SessionEvidence` already reports as
+  `LegacyNoProof`, and such a row typically DOES retain a historical `acr`, so keying the
+  exclusion on the proof alone is deliberate. Both are known-good states, and counting
+  either would put a permanent non-zero number in front of every operator who upgraded.
+- A token record whose `actor_kind` is not a value of `ActorKind` is `unreadable`.
+  `actor_kind` is an unconstrained string column, so an unknown value is corruption; it must
+  not be compared as though it were human, nor excluded as though it were machine. This is
+  the same judgement `TokenAssuranceRecord::read()` already makes, where an unparseable
+  actor returns `ProofMalformed` before anything else is examined.
+- A machine record NOT in that shape — a machine actor carrying a proof, or a non-null
+  `acr` — is `unreadable`. It violates the storage contract, and excluding it would let the
+  machine exemption swallow real corruption. A HUMAN token record with a null proof is
+  likewise `unreadable`, not excluded: the human writer always stores one, so its absence is
+  corruption rather than a legacy shape.
+
+A failure to read a table at all is not a drift outcome. It follows `vouch:doctor`'s
+existing catch-all, which reports the error and exits 2.
+
+The default (non-`--json`) rendering shows the same per-table counts. A diagnostic reachable
+only behind a flag is not one an operator will see.
+
+- Drift is **reported, not failed**: it does not increment `missing` and does not change
+  the exit code. During an intentional vocabulary migration every historical row drifts,
+  and a doctor that goes red on a correct migration trains operators to ignore it.
+- EVERY query the scan issues against either table is bounded, with no exemption — a
+  common table expression and a subquery are forms of the same unbounded scan, and so is a
+  window function like `count(*) over ()` that returns every row while looking like an
+  aggregate. Exempting "aggregates" by inspecting SQL text is not a rule that can be
+  enforced, so there is no exemption to inspect. The counts are accumulated from the rows
+  the scan inspects; it does not need a separate `count` query, and must not issue one.
+  `chunkById()` and `lazyById()` satisfy this — both emit keyset queries carrying a
+  `LIMIT`. Bare `cursor()` does NOT: it streams one unbounded query, which is the shape
+  this rule exists to forbid.
+  The batch size is
+  `vouch.doctor.drift_batch`, defaulting to 500 — configurable because the right size
+  depends on fleet size and row width, and because a hard-coded constant makes the
+  iteration itself untestable without seeding a production-sized fixture.
+
+**Deferred, deliberately.** There is no vocabulary identifier or version stored alongside
+the projection, so the diagnostic cannot yet distinguish an intentional migration from
+corruption; it can only report that the projection and the current vocabulary disagree.
+Adding a vocabulary/version identifier is the follow-up that makes that distinction
+possible, and is out of scope here.

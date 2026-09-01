@@ -28,6 +28,11 @@ return [
         'revocation_retention_days' => (int) env('VOUCH_REVOCATION_RETENTION_DAYS', 30),
     ],
 
+    'doctor' => [
+        // Keyset scan size for the diagnostic projection-drift report.
+        'drift_batch' => (int) env('VOUCH_DOCTOR_DRIFT_BATCH', 500),
+    ],
+
     'step_up' => [
         /*
          * REQUIRED before any route uses vouch.assurance. No default: 2.3 ships

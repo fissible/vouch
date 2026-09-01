@@ -304,7 +304,7 @@ it('re-evaluates the acting session assurance after removing a factor', function
         'weakest_satisfied_at' => now(),
     ]);
 
-    expect(usableEvidence($acting)->derivedAcr())->toBe('aal2');
+    expect(nameOf(usableEvidence($acting)))->toBe('aal2');
 
     app(CredentialSelfService::class)->removeFactor($acting, $totp->id);
 
@@ -318,7 +318,7 @@ it('re-evaluates the acting session assurance after removing a factor', function
      * column beside it.
      */
     expect($reloaded->acr)->toBe('aal1')
-        ->and($evidence->derivedAcr())->toBe('aal1')
+        ->and(nameOf($evidence))->toBe('aal1')
         ->and(array_map(static fn ($f): string => $f->credentialId, $evidence->factors))
         ->not->toContain((string) $totp->id);
 });

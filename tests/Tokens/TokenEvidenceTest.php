@@ -107,7 +107,7 @@ final class TokenEvidenceTest extends TestCase
 
         self::assertNotNull($evidence);
         self::assertEquals($this->proof(), $evidence->factors);
-        self::assertSame('aal2', $evidence->derivedAcr());
+        self::assertSame('aal2', nameOf($evidence));
     }
 
     #[Test]
@@ -264,7 +264,7 @@ final class TokenEvidenceTest extends TestCase
 
         self::assertSame(1, DB::table('auth_token_assurances')->count());
         self::assertNotNull($evidence);
-        self::assertSame('aal1', $evidence->derivedAcr());
+        self::assertSame('aal1', nameOf($evidence));
     }
 
     #[Test]
@@ -431,8 +431,8 @@ final class TokenEvidenceTest extends TestCase
 
         self::assertNotNull($up);
         self::assertNotNull($down);
-        self::assertSame('aal2', $up->derivedAcr());
-        self::assertSame('aal2', $down->derivedAcr());
+        self::assertSame('aal2', nameOf($up));
+        self::assertSame('aal2', nameOf($down));
 
         /*
          * And the DECISION, not merely the derived value. An implementation can
@@ -496,7 +496,7 @@ final class TokenEvidenceTest extends TestCase
         $read = $this->record()->read(new ResolvedToken('sanctum', '42', $this->subject(), true));
 
         self::assertNotNull($read->evidence);
-        self::assertSame('aal2', $read->evidence->derivedAcr());
+        self::assertSame('aal2', nameOf($read->evidence));
         self::assertSame(
             AssuranceOutcome::Sufficient,
             app(EvidenceComparator::class)
