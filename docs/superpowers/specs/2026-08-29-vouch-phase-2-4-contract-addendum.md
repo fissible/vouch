@@ -584,6 +584,11 @@ drops out of every count is invisible.
   `LegacyNoProof`, and such a row typically DOES retain a historical `acr`, so keying the
   exclusion on the proof alone is deliberate. Both are known-good states, and counting
   either would put a permanent non-zero number in front of every operator who upgraded.
+- A token record whose `actor_kind` is not a value of `ActorKind` is `unreadable`.
+  `actor_kind` is an unconstrained string column, so an unknown value is corruption; it must
+  not be compared as though it were human, nor excluded as though it were machine. This is
+  the same judgement `TokenAssuranceRecord::read()` already makes, where an unparseable
+  actor returns `ProofMalformed` before anything else is examined.
 - A machine record NOT in that shape — a machine actor carrying a proof, or a non-null
   `acr` — is `unreadable`. It violates the storage contract, and excluding it would let the
   machine exemption swallow real corruption. A HUMAN token record with a null proof is
@@ -599,9 +604,12 @@ only behind a flag is not one an operator will see.
 - Drift is **reported, not failed**: it does not increment `missing` and does not change
   the exit code. During an intentional vocabulary migration every historical row drifts,
   and a doctor that goes red on a correct migration trains operators to ignore it.
-- Every read that FETCHES ROWS from either table is bounded — including one phrased as a
-  common table expression or a subquery, which is a form of the same unbounded scan. An
-  aggregate that returns a single row (a `count`) is not a row fetch and needs no bound.
+- EVERY query the scan issues against either table is bounded, with no exemption — a
+  common table expression and a subquery are forms of the same unbounded scan, and so is a
+  window function like `count(*) over ()` that returns every row while looking like an
+  aggregate. Exempting "aggregates" by inspecting SQL text is not a rule that can be
+  enforced, so there is no exemption to inspect. The counts are accumulated from the rows
+  the scan inspects; it does not need a separate `count` query, and must not issue one.
   The batch size is
   `vouch.doctor.drift_batch`, defaulting to 500 — configurable because the right size
   depends on fleet size and row width, and because a hard-coded constant makes the

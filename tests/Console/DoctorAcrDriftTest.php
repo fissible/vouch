@@ -88,10 +88,18 @@ function driftReadsAgainst(string $table, callable $run): array
     $run();
 
     /*
-     * An aggregate returning one row is not a row fetch and needs no bound. Row
-     * fetches are what must be limited, and what must be more numerous than one.
+     * No exemption, deliberately. An earlier draft excused any statement
+     * containing `count(`, on the theory that an aggregate returns one row and
+     * needs no bound. `select s.*, count(*) over () from auth_sessions s`
+     * returns every row and would have been excused; so would an unbounded
+     * outer fetch carrying a scalar count subquery. Classifying SQL by text is
+     * not a rule that can be enforced, so there is no classification.
+     *
+     * The scan does not need an aggregate: its counts come from the rows it
+     * inspects. So every statement it issues against these tables is bounded,
+     * and this returns all of them.
      */
-    return array_values(array_filter($seen, static fn (string $sql): bool => ! str_contains($sql, 'count(')));
+    return $seen;
 }
 
 /** @return array<string, mixed> */
@@ -365,9 +373,10 @@ it('iterates in batches rather than reading either table at once', function (): 
         expect(count($reads))->toBeGreaterThanOrEqual(3, "{$table} was not read in batches");
 
         /*
-         * Every row fetch bounded. This is the assertion aimed at the
-         * batch-politely-then-sweep-the-rest implementation, and at the CTE
-         * phrasing of the same thing -- neither carries a top-level limit.
+         * Every statement bounded. This is the assertion aimed at the
+         * batch-politely-then-sweep-the-rest implementation, at the CTE
+         * phrasing of the same thing, and at the window function that returns
+         * every row while reading as an aggregate. None carries a limit.
          */
         expect(array_filter($reads, static fn (string $sql): bool => ! str_contains($sql, 'limit')))
             ->toBe([], "{$table} had an unbounded row fetch");
@@ -436,6 +445,22 @@ it('excludes a legacy session that carries neither a proof nor a level', functio
 
     expect(driftFor(doctorReport(), 'auth_sessions'))
         ->toBe(['table' => 'auth_sessions', 'checked' => 0, 'drifted' => 0, 'unreadable' => 0]);
+});
+
+it('counts a token row with an unrecognised actor kind as unreadable', function (): void {
+    /*
+     * actor_kind is an unconstrained string column. An unknown value must not be
+     * compared as though it were human, nor excluded as though it were machine --
+     * either way a corrupt row reads as clean. TokenAssuranceRecord::read()
+     * already makes this judgement, returning ProofMalformed on an unparseable
+     * actor before it examines anything else.
+     */
+    driftToken('token-1', 'aal2');
+    DB::table('auth_token_assurances')->where('token_key', 'token-1')
+        ->update(['actor_kind' => 'other']);
+
+    expect(driftFor(doctorReport(), 'auth_token_assurances'))
+        ->toBe(['table' => 'auth_token_assurances', 'checked' => 1, 'drifted' => 0, 'unreadable' => 1]);
 });
 
 it('counts a human token row with no proof as unreadable', function (): void {
