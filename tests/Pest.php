@@ -220,3 +220,17 @@ function jsonBody(mixed $content): array
     /** @var array<string, mixed> $decoded */
     return $decoded;
 }
+
+/**
+ * Name evidence with the currently bound vocabulary.
+ *
+ * Issue #10 deleted AssuranceEvidence::derivedAcr(), which resolved the
+ * vocabulary out of the container from inside a value object. A TEST resolving
+ * it is a different thing: the test is the caller, and choosing a vocabulary is
+ * exactly the caller's job. This helper keeps that choice in one place so the
+ * suite states it once rather than at forty call sites.
+ */
+function nameOf(\Fissible\Vouch\Assurance\AssuranceEvidence $evidence): string
+{
+    return app(\Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class)->name($evidence->facts());
+}

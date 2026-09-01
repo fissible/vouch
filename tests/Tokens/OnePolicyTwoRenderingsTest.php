@@ -140,7 +140,7 @@ final class OnePolicyTwoRenderingsTest extends TestCase
         self::assertEquals($sessionEvidence->factors, $tokenEvidence->factors);
         self::assertTrue($sessionEvidence->subject->equals($tokenEvidence->subject));
         self::assertSame($sessionEvidence->tenantId, $tokenEvidence->tenantId);
-        self::assertSame($sessionEvidence->derivedAcr(), $tokenEvidence->derivedAcr());
+        self::assertSame(nameOf($sessionEvidence), nameOf($tokenEvidence));
         self::assertEquals($sessionEvidence->weakestSatisfiedAt(), $tokenEvidence->weakestSatisfiedAt());
     }
 

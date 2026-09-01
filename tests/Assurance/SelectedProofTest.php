@@ -132,7 +132,7 @@ it('persists exactly the factors a single-factor policy required', function (): 
     $evidence = usableEvidence(\Fissible\Vouch\Models\AuthSession::query()->firstOrFail());
 
     expect(array_map(static fn ($f): string => $f->factorId, $evidence->factors))->toBe(['password'])
-        ->and($evidence->derivedAcr())->toBe('aal1');
+        ->and(nameOf($evidence))->toBe('aal1');
 });
 
 it('persists both factors of an all_of policy, and no others', function (): void {
@@ -155,7 +155,7 @@ it('persists both factors of an all_of policy, and no others', function (): void
 
     expect(array_map(static fn ($f): string => $f->factorId, $evidence->factors))
         ->toEqualCanonicalizing(['password', 'totp'])
-        ->and($evidence->derivedAcr())->toBe('aal2');
+        ->and(nameOf($evidence))->toBe('aal2');
 });
 
 it('anchors the persisted column to the oldest factor the flow recorded', function (): void {
@@ -227,7 +227,7 @@ it('persists the same set the flow derived its acr from', function (): void {
 
     $session = \Fissible\Vouch\Models\AuthSession::query()->firstOrFail();
 
-    expect(usableEvidence($session)->derivedAcr())->toBe($result->success->acr)
+    expect(nameOf(usableEvidence($session)))->toBe($result->success->acr)
         ->and($session->acr)->toBe($result->success->acr)
         ->and(usableEvidence($session)->factors)->toEqual($result->success->factors);
 });
@@ -262,7 +262,7 @@ it('keeps a factor the policy did not need, on a real any_of login', function ()
         ->toEqualCanonicalizing(['password', 'totp'])
         ->and(array_map(static fn ($f): string => $f->factorId, $evidence->factors))
         ->toEqualCanonicalizing(['password', 'totp'])
-        ->and($evidence->derivedAcr())->toBe('aal2')
+        ->and(nameOf($evidence))->toBe('aal2')
         ->and($session->acr)->toBe('aal2')
         // amr, acr and the proof are three views of ONE set. Listing a method
         // in amr that the proof omits would make the two disagree about what
@@ -296,6 +296,6 @@ it('records a single-factor login as aal1', function (): void {
 
     expect(array_map(static fn ($f): string => $f->factorId, usableEvidence($session)->factors))
         ->toBe(['totp'])
-        ->and(usableEvidence($session)->derivedAcr())->toBe('aal1')
+        ->and(nameOf(usableEvidence($session)))->toBe('aal1')
         ->and($session->acr)->toBe('aal1');
 });

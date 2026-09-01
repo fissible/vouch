@@ -43,11 +43,16 @@ it('has no assurance level property for authorization to read', function (): voi
      * authorization input. The strongest available form of that rule is an
      * evidence value with no level field at all: there is nothing to trust.
      *
+     * Issue #10 strengthened this: the value object no longer names a level at
+     * all. It exposes the derived FACTS, and whoever holds a vocabulary names
+     * them. So the absent-field rule now extends to the method that used to
+     * reach into the container for one.
+     *
      * This is a structural assertion, and structural assertions are weak on
-     * their own -- it would still pass if derivedAcr() were cached and wrong.
-     * The behavioural half lives in AssuranceComparisonTest, which proves the
-     * comparator reaches the same verdict for a session whose PERSISTED acr
-     * claims something the factors do not support.
+     * their own. The behavioural half lives in AssuranceComparisonTest and
+     * AcrProjectionTest, which prove the comparator reaches the same verdict
+     * for a session whose PERSISTED acr claims something the factors do not
+     * support.
      */
     $evidence = evidenceFor([evidenceFactor()]);
 
@@ -55,7 +60,8 @@ it('has no assurance level property for authorization to read', function (): voi
 
     expect($shape->hasProperty('acr'))->toBeFalse()
         ->and($shape->hasProperty('level'))->toBeFalse()
-        ->and($shape->hasMethod('derivedAcr'))->toBeTrue();
+        ->and($shape->hasMethod('derivedAcr'))->toBeFalse()
+        ->and($shape->hasMethod('facts'))->toBeTrue();
 });
 
 it('derives its level from the factors, matching the kernel', function (): void {
@@ -67,8 +73,8 @@ it('derives its level from the factors, matching the kernel', function (): void 
         evidenceFactor('totp', '2026-08-29T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
     ]);
 
-    expect($single->derivedAcr())->toBe('aal1')
-        ->and($multi->derivedAcr())->toBe('aal2');
+    expect(nameOf($single))->toBe('aal1')
+        ->and(nameOf($multi))->toBe('aal2');
 });
 
 it('anchors recency to the OLDEST factor, never the newest', function (): void {
@@ -98,7 +104,7 @@ it('does not depend on the order the proof was assembled in', function (): void 
     ]);
 
     expect($reversed->weakestSatisfiedAt())->toEqual($ordered->weakestSatisfiedAt())
-        ->and($reversed->derivedAcr())->toBe($ordered->derivedAcr());
+        ->and(nameOf($reversed))->toBe(nameOf($ordered));
 });
 
 it('refuses to exist with an empty proof', function (): void {
@@ -124,7 +130,7 @@ it('round-trips a well-formed proof through its persisted form', function (): vo
 
     expect($restored->subject->render())->toBe($evidence->subject->render())
         ->and($restored->tenantId)->toBe('acme')
-        ->and($restored->derivedAcr())->toBe($evidence->derivedAcr())
+        ->and(nameOf($restored))->toBe(nameOf($evidence))
         ->and($restored->weakestSatisfiedAt())->toEqual($evidence->weakestSatisfiedAt())
         ->and(array_map(static fn (SatisfiedFactor $f): string => $f->factorId, $restored->factors))
         ->toBe(['password', 'totp']);

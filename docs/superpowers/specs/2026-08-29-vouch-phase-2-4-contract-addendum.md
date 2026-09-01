@@ -502,7 +502,17 @@ nothing else's. Services that need the name inject `AssuranceVocabulary` and wri
 considered and rejected: it adds indirection without solving anything injection does not.
 
 The five production call sites are `EvidenceComparator`, `RequireAbilityAssurance`,
-`SessionLifecycle`, `TokenAssuranceRecord` and `CredentialSelfService`.
+`SessionLifecycle`, `TokenAssuranceRecord` and `CredentialSelfService`. All five take the
+vocabulary by constructor injection. Resolving it from the container inside a service is
+the same defect one layer out, and is equally forbidden.
+
+**`SessionLifecycle` re-derives; it does not reuse `AuthSuccess::$acr`.** The alternative
+was considered: the flow already named a level with the host's vocabulary, so storing that
+string avoids a second derivation. It is refused because the two describe different things.
+`$success->acr` names `$success->facts`, while the row's `assurance_proof` is built from
+`$success->factors`, and nothing enforces that those agree. Reusing the string can therefore
+persist a projection for evidence other than the one stored beside it — reintroducing the
+column-disagrees-with-proof class of defect that Task 2a removed.
 
 **An architecture guard keeps it out.** The value object must not reach the container
 again — no `app()`, `resolve()`, `Container::`, or facade use anywhere in the assurance
@@ -533,6 +543,31 @@ divergence becomes visible, because a caller must now hold a vocabulary to deriv
 `vouch:doctor` reports rows whose stored `acr` differs from a fresh derivation under the
 currently bound vocabulary, per table, as counts — consistent with the command's existing
 "aggregate prerequisites without inspecting any account" boundary.
+
+The `--json` report gains one top-level key, alongside `missing` and `prerequisites`:
+
+    'acr_drift' => [
+        'status' => 'pass' | 'drift',
+        'tables' => [
+            ['table' => 'auth_sessions',          'checked' => int, 'drifted' => int, 'unreadable' => int],
+            ['table' => 'auth_token_assurances',  'checked' => int, 'drifted' => int, 'unreadable' => int],
+        ],
+    ]
+
+Both table rows are always present, exactly once each, in that order, whether or not the
+table holds anything — an omitted row and a zero row are different claims, and only one of
+them is true of an empty table. `status` is `drift` when any table reports a non-zero
+`drifted`, and `pass` otherwise. It tracks drift alone: an unreadable row is reported in its
+own count and named in the text rendering, but does not set `status`, because the two have
+different causes and conflating them is what this section exists to prevent.
+
+`checked` counts rows that HAVE a projection to compare. A machine token record stores a
+null `acr` and a null proof by contract, so it is not checked, not drifted and not
+unreadable — counting it any of those ways would report a permanent fault on every
+correctly issued machine token.
+
+The default (non-`--json`) rendering shows the same per-table counts. A diagnostic reachable
+only behind a flag is not one an operator will see.
 
 - Drift is **reported, not failed**: it does not increment `missing` and does not change
   the exit code. During an intentional vocabulary migration every historical row drifts,
