@@ -25,6 +25,7 @@ final readonly class AuthSuccess
         public AssuranceFacts $facts,
         public string $acr,
         public string $boundContext,
+        public ?string $tenantId,
     ) {}
 
     /**

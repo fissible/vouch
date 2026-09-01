@@ -46,7 +46,7 @@ final readonly class SessionLifecycle
             $model = self::configuredUserModel();
             $proof = new AssuranceEvidence(
                 SubjectKey::of((new $model)->getMorphClass(), $success->userId),
-                null,
+                $success->tenantId,
                 $success->factors,
             );
             // 2. Rotate in place. 2.1 ships this shape with a test that the row

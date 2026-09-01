@@ -355,7 +355,13 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(\Fissible\Vouch\Recovery\GraceGuard::class),
                 $app->make(\Illuminate\Contracts\Auth\StatefulGuard::class),
                 $app->make(\Illuminate\Contracts\Session\Session::class),
+                $app->make(\Fissible\Vouch\Sessions\SessionRebinder::class),
             ),
+        );
+
+        $this->app->singleton(
+            \Fissible\Vouch\Sessions\SessionRebinder::class,
+            \Fissible\Vouch\Sessions\DatabaseSessionRebinder::class,
         );
 
         $this->registerFactorDrivers();

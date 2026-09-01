@@ -410,6 +410,7 @@ final readonly class AuthFlow
                 facts: $facts,
                 acr: $this->vocabulary->name($facts),
                 boundContext: $request->boundContext,
+                tenantId: $attempt->tenant_id,
             ),
             $this->screens->challenge($this->defaultFactorFor($userId), $posture),
         );
