@@ -34,6 +34,10 @@ use Fissible\Vouch\Tokens\TokenAssuranceRecord;
 use Fissible\Vouch\Tokens\TokenGrant;
 use Fissible\Vouch\Vouch;
 use Fissible\Vouch\VouchServiceProvider;
+use Fissible\Vouch\Flow\Continuing;
+use Illuminate\Contracts\Session\Session as SessionContract;
+use RuntimeException;
+use Illuminate\Contracts\Auth\StatefulGuard;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\SanctumServiceProvider;
@@ -93,6 +97,50 @@ final class TenantProvenanceTest extends TestCase
         app(PasswordFactor::class)->enroll(7, ['password' => 'correct horse battery staple']);
     }
 
+
+    /**
+     * The narrowing these three helpers exist for is deliberate.
+     *
+     * auth()->guard() returns Guard, session()->driver() returns a manager's
+     * driver, and FlowResult is a MARKER interface — none of them promises what
+     * this file needs. Annotating the production types to suit a test would
+     * assert something false about every other implementation, so the test
+     * narrows instead and fails loudly if the assumption stops holding.
+     */
+    private static function webGuard(): StatefulGuard
+    {
+        $guard = auth()->guard('web');
+
+        if (! $guard instanceof StatefulGuard) {
+            throw new RuntimeException('The web guard is not stateful.');
+        }
+
+        return $guard;
+    }
+
+    private static function hostSession(): SessionContract
+    {
+        $session = session()->driver();
+
+        if (! $session instanceof SessionContract) {
+            throw new RuntimeException('The session driver is not a session.');
+        }
+
+        return $session;
+    }
+
+    /** @param array<string, mixed> $extra */
+    private static function beginFlow(string $binding, array $extra = []): string
+    {
+        $begun = app(AuthFlow::class)->advance(new FlowRequest(null, 'begin', $extra, $binding));
+
+        if (! $begun instanceof Continuing || $begun->handle === null) {
+            throw new RuntimeException('The flow did not begin with a continuing handle.');
+        }
+
+        return $begun->handle;
+    }
+
     private function subject(): SubjectKey
     {
         return SubjectKey::of((new TokenUser)->getMorphClass(), '7');
@@ -131,8 +179,7 @@ final class TenantProvenanceTest extends TestCase
         $binding = str_repeat('t', 64);
         // Including 'begin': tenant resolution happens THERE, so omitting it
         // would leave the only step that reads the tenant untested.
-        $begun = app(AuthFlow::class)->advance(new FlowRequest(null, 'begin', $this->extraFields, $binding));
-        $handle = stringValue($begun->handle);
+        $handle = self::beginFlow($binding, $this->extraFields);
 
         app(AuthFlow::class)->advance(new FlowRequest(
             $handle, 'submit', ['identifier' => 'ada@acme.example'] + $this->extraFields, $binding,
@@ -159,8 +206,8 @@ final class TenantProvenanceTest extends TestCase
             app(\Fissible\Vouch\Recovery\GraceGuard::class),
             // Constructed rather than resolved: the handler needs a
             // StatefulGuard, which the test container does not bind.
-            auth()->guard('web'),
-            session()->driver(),
+            self::webGuard(),
+            self::hostSession(),
             app(\Fissible\Vouch\Sessions\SessionRebinder::class),
         );
     }
@@ -497,8 +544,7 @@ final class TenantProvenanceTest extends TestCase
 
         session()->start();
         $binding = str_repeat('t', 64);
-        $begun = app(AuthFlow::class)->advance(new FlowRequest(null, 'begin', [], $binding));
-        $handle = stringValue($begun->handle);
+        $handle = self::beginFlow($binding);
         app(AuthFlow::class)->advance(new FlowRequest($handle, 'submit', ['identifier' => 'ada@acme.example'], $binding));
 
         // The request that stamped the attempt is over; the context moves on.

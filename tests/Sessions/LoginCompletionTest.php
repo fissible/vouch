@@ -22,6 +22,8 @@ use Fissible\Vouch\Tests\Support\Tokens\UsesSanctumSchema;
 use Fissible\Vouch\Tests\TestCase;
 use Fissible\Vouch\VouchServiceProvider;
 use Illuminate\Contracts\Auth\StatefulGuard;
+use Fissible\Vouch\Flow\Continuing;
+use Illuminate\Contracts\Session\Session as SessionContract;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Laravel\Sanctum\SanctumServiceProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -98,8 +100,8 @@ final class LoginCompletionTest extends TestCase
             app(GraceGuard::class),
             // Constructed rather than resolved: the handler needs a
             // StatefulGuard, which the test container does not bind.
-            $guard ?? auth()->guard('web'),
-            session()->driver(),
+            $guard ?? self::webGuard(),
+            self::hostSession(),
             $rebinder ?? app(SessionRebinder::class),
         );
     }
@@ -109,8 +111,7 @@ final class LoginCompletionTest extends TestCase
         session()->start();
 
         $binding = str_repeat('c', 64);
-        $begun = app(AuthFlow::class)->advance(new FlowRequest(null, 'begin', [], $binding));
-        $handle = stringValue($begun->handle);
+        $handle = self::beginFlow($binding);
 
         app(AuthFlow::class)->advance(new FlowRequest($handle, 'submit', ['identifier' => 'ada@acme.example'], $binding));
         $result = app(AuthFlow::class)->advance(
@@ -118,6 +119,50 @@ final class LoginCompletionTest extends TestCase
         );
 
         $this->handler($guard, $rebinder)->handle($result);
+    }
+
+
+    /**
+     * The narrowing these three helpers exist for is deliberate.
+     *
+     * auth()->guard() returns Guard, session()->driver() returns a manager's
+     * driver, and FlowResult is a MARKER interface — none of them promises what
+     * this file needs. Annotating the production types to suit a test would
+     * assert something false about every other implementation, so the test
+     * narrows instead and fails loudly if the assumption stops holding.
+     */
+    private static function webGuard(): StatefulGuard
+    {
+        $guard = auth()->guard('web');
+
+        if (! $guard instanceof StatefulGuard) {
+            throw new RuntimeException('The web guard is not stateful.');
+        }
+
+        return $guard;
+    }
+
+    private static function hostSession(): SessionContract
+    {
+        $session = session()->driver();
+
+        if (! $session instanceof SessionContract) {
+            throw new RuntimeException('The session driver is not a session.');
+        }
+
+        return $session;
+    }
+
+    /** @param array<string, mixed> $extra */
+    private static function beginFlow(string $binding, array $extra = []): string
+    {
+        $begun = app(AuthFlow::class)->advance(new FlowRequest(null, 'begin', $extra, $binding));
+
+        if (! $begun instanceof Continuing || $begun->handle === null) {
+            throw new RuntimeException('The flow did not begin with a continuing handle.');
+        }
+
+        return $begun->handle;
     }
 
     private function currentBinding(): string
@@ -224,7 +269,7 @@ final class LoginCompletionTest extends TestCase
          * authorize. That is the assertion below: whatever remains must not
          * match the session the caller is left holding.
          */
-        $guard = new FailingLoginGuard(auth()->guard('web'));
+        $guard = new FailingLoginGuard(self::webGuard());
 
         /*
          * The ordering discriminator. A handler that logged in BEFORE writing
@@ -282,10 +327,9 @@ final class LoginCompletionTest extends TestCase
          * implementation that called it before the login, or with an arbitrary
          * binding, would satisfy a double that merely threw.
          */
-        $observed = [];
-        $rebinder = new class($observed) implements SessionRebinder {
-            /** @param array<string, mixed> $observed */
-            public function __construct(private array &$observed) {}
+        $rebinder = new class implements SessionRebinder {
+            /** @var array<string, mixed> */
+            public array $observed = [];
 
             public function rebind(string $previousBinding, int $userId): void
             {
@@ -323,7 +367,7 @@ final class LoginCompletionTest extends TestCase
                 'migrated' => true,
                 'rowStillHasPrevious' => true,
             ],
-            $observed,
+            $rebinder->observed,
             'The rebind must run after a successful login, for this subject, with the '
             . 'binding the row actually still carries.',
         );
@@ -358,7 +402,23 @@ final class LoginCompletionTest extends TestCase
         ]);
 
         session()->start();
-        app(SessionRebinder::class)->rebind(str_repeat('5', 64), 7);
+
+        /*
+         * And it REFUSES rather than doing nothing. A rebinder that ignored an
+         * update count of zero would let the handler return authenticated with
+         * no record for the current session — the original bug, reached by a
+         * narrower path: a provisional row concurrently revoked or deleted
+         * between establish() and the rebind.
+         *
+         * Throwing is what puts the handler's existing compensation on the
+         * hook, so the user is logged out rather than left in that state.
+         */
+        try {
+            app(SessionRebinder::class)->rebind(str_repeat('5', 64), 7);
+            self::fail('Rebinding a revoked row must refuse rather than silently do nothing.');
+        } catch (Throwable) {
+            // The state assertions below are the contract.
+        }
 
         self::assertSame(str_repeat('5', 64), stringValue($revoked->refresh()->session_binding));
 
@@ -393,7 +453,13 @@ final class LoginCompletionTest extends TestCase
         ]);
 
         session()->start();
-        app(SessionRebinder::class)->rebind(str_repeat('4', 64), 7);
+
+        try {
+            app(SessionRebinder::class)->rebind(str_repeat('4', 64), 7);
+            self::fail('Rebinding another subject\'s row must refuse rather than silently do nothing.');
+        } catch (Throwable) {
+            // The state assertions below are the contract.
+        }
 
         self::assertSame(str_repeat('4', 64), stringValue($other->refresh()->session_binding));
         self::assertSame(1, AuthSession::query()->count());
@@ -411,7 +477,7 @@ final class LoginCompletionTest extends TestCase
          * the result would be a rebound row and an "authenticated" response
          * while the host remains a guest.
          */
-        $guard = new FailingLoginGuard(auth()->guard('web'), throw: false);
+        $guard = new FailingLoginGuard(self::webGuard(), throw: false);
 
         $threw = false;
 

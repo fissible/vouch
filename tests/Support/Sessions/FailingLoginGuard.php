@@ -60,11 +60,13 @@ final class FailingLoginGuard implements StatefulGuard
         $this->inner->logout();
     }
 
+    /** @param array<string, mixed> $credentials */
     public function attempt(array $credentials = [], $remember = false)
     {
         return $this->inner->attempt($credentials, $remember);
     }
 
+    /** @param array<string, mixed> $credentials */
     public function once(array $credentials = [])
     {
         return $this->inner->once($credentials);
@@ -105,6 +107,7 @@ final class FailingLoginGuard implements StatefulGuard
         return $this->inner->id();
     }
 
+    /** @param array<string, mixed> $credentials */
     public function validate(array $credentials = []): bool
     {
         return $this->inner->validate($credentials);
@@ -115,8 +118,10 @@ final class FailingLoginGuard implements StatefulGuard
         return $this->inner->hasUser();
     }
 
-    public function setUser(Authenticatable $user): void
+    public function setUser(Authenticatable $user): static
     {
         $this->inner->setUser($user);
+
+        return $this;
     }
 }
