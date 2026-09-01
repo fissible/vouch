@@ -304,7 +304,7 @@ final class TokenGateEnforcementTest extends TestCase
 
         app(\Fissible\Vouch\Sessions\SessionLifecycle::class)->establish(
             new \Fissible\Vouch\Flow\AuthSuccess(7, $factors,
-                \Fissible\Vouch\Kernel\Assurance\AssuranceFacts::fromFactors($factors), 'ignored', 'ignored'),
+                \Fissible\Vouch\Kernel\Assurance\AssuranceFacts::fromFactors($factors), 'ignored', 'ignored', null),
         );
 
         $issued = \Illuminate\Support\Facades\DB::transaction(

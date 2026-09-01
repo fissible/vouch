@@ -121,7 +121,7 @@ final class CredentialMutationContentionTest extends TestCase
             new DateTimeImmutable('2026-08-13T10:00:00+00:00'))];
 
         app(SessionLifecycle::class)->establish(
-            new AuthSuccess(7, $factors, AssuranceFacts::fromFactors($factors), 'ignored', 'ignored'),
+            new AuthSuccess(7, $factors, AssuranceFacts::fromFactors($factors), 'ignored', 'ignored', null),
         );
     }
 

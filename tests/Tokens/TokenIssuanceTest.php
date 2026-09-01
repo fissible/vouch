@@ -134,7 +134,7 @@ final class TokenIssuanceTest extends TestCase
         session()->start();
 
         app(SessionLifecycle::class)->establish(
-            new AuthSuccess($userId, $factors, AssuranceFacts::fromFactors($factors), 'ignored', 'ignored'),
+            new AuthSuccess($userId, $factors, AssuranceFacts::fromFactors($factors), 'ignored', 'ignored', null),
         );
 
         return AuthSession::query()->where('user_id', $userId)->firstOrFail();

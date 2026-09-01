@@ -50,7 +50,7 @@ it('destroys the regenerated session and fails closed when the record cannot be 
 
     try {
         app(SessionLifecycle::class)->establish(
-            new AuthSuccess(7, [$factor], AssuranceFacts::fromFactors([$factor]), 'aal1', 'ignored'),
+            new AuthSuccess(7, [$factor], AssuranceFacts::fromFactors([$factor]), 'aal1', 'ignored', null),
         );
         $this->fail('Expected SessionRotationFailed.');
     } catch (SessionRotationFailed) {

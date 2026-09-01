@@ -171,8 +171,8 @@ final class Vouch
             throw new IssuanceRefused('The token grant subject does not match the authenticated session.');
         }
 
-        if ($grant->tenantId !== null && $evidence->tenantId === null) {
-            throw new IssuanceRefused('Tenant-scoped issuance is unavailable without tenant session evidence.');
+        if ($evidence->tenantId !== $grant->tenantId) {
+            throw new IssuanceRefused('The token grant tenant does not match the authenticated session.');
         }
 
         $policy = AuthPolicy::query()->where('scope', 'token_issue')

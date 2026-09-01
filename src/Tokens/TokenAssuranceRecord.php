@@ -106,6 +106,9 @@ final readonly class TokenAssuranceRecord
         if (! $storedSubject->equals($token->subject) || ! $evidence->subject->equals($token->subject)) {
             return new EvidenceRead(null, AssuranceReason::SubjectMismatch);
         }
+        if ($evidence->tenantId !== $row->tenant_id) {
+            return new EvidenceRead(null, AssuranceReason::ProofMalformed);
+        }
 
         return new EvidenceRead($evidence, AssuranceReason::Sufficient);
     }

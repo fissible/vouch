@@ -59,13 +59,14 @@ it('derives the amr from the satisfied factors, in order', function (): void {
         facts: AssuranceFacts::fromFactors([flowSatisfiedFactor('password'), flowSatisfiedFactor('totp')]),
         acr: 'aal2',
         boundContext: 'binding',
+        tenantId: null,
     );
 
     expect($success->amr())->toBe(['password', 'totp']);
 });
 
 it('carries a screen on every variant, so serialization never inspects state', function (): void {
-    $success = new AuthSuccess(7, [flowSatisfiedFactor()], AssuranceFacts::fromFactors([flowSatisfiedFactor()]), 'aal1', 'b');
+    $success = new AuthSuccess(7, [flowSatisfiedFactor()], AssuranceFacts::fromFactors([flowSatisfiedFactor()]), 'aal1', 'b', null);
 
     expect((new Continuing(flowBlankScreen()))->screen)->toBeInstanceOf(ScreenSpec::class)
         ->and((new Authenticated($success, flowBlankScreen()))->screen)->toBeInstanceOf(ScreenSpec::class)

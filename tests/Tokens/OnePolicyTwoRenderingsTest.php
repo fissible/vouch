@@ -102,7 +102,7 @@ final class OnePolicyTwoRenderingsTest extends TestCase
         session()->start();
 
         app(SessionLifecycle::class)->establish(
-            new AuthSuccess(7, $factors, AssuranceFacts::fromFactors($factors), 'ignored', 'ignored'),
+            new AuthSuccess(7, $factors, AssuranceFacts::fromFactors($factors), 'ignored', 'ignored', null),
         );
 
         return AuthSession::query()->firstOrFail();
