@@ -112,6 +112,13 @@ it never grants permission. This means you can use the same map with plain
 Laravel Gates, Spatie permission middleware, or another authorization system
 that exposes ability names on routes.
 
+The shipped `NistAssuranceVocabulary` caps at `aal2`: `AssuranceFacts` carries
+no hardware-binding evidence from which it could derive `aal3`. An ability map
+or `vouch.assurance` requirement at `aal3` is therefore unreachable under the
+shipped vocabulary; it always refuses requests silently and permanently. A
+host should require `aal2` instead, or capture hardware binding and implement
+its own `AssuranceVocabulary` to derive and emit `aal3`.
+
 ## Enforcement boundary
 
 Vouch adds `vouch.ability` to the `web` and `api` middleware groups only. A
@@ -172,6 +179,13 @@ stop that method reaching the Gate, without an error. The report can expose
 that model seam, but it cannot detect `Bouncer::runBeforePolicies()` at all.
 That switch moves Bouncer's grant into its before slot, where it can bypass a
 later deny-only hook; keep the route middleware as the enforcement boundary.
+
+The morph map supplies the provider half of every persisted `SubjectKey`.
+Changing, renaming, removing, or registering a morph map after sessions or
+tokens exist changes what their stored provider means: signed-in users are
+refused and must re-authenticate, and issued tokens stop authorizing. Vouch
+does not migrate or rewrite the stored provider, so removing the changed map
+restores old records; plan a morph-map change like an application-key rotation.
 
 See [operations](docs/operations.md) for adoption and runtime operation, and
 the [authorization integration survey](docs/authorization-integration-survey.md)
