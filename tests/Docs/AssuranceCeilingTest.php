@@ -316,9 +316,24 @@ function copyableAal3OutsideFences(string $markdown): array
         }
     }
 
-    foreach (explode("\n", $outside) as $line) {
+    /*
+     * Contiguous indented lines are ONE block, not many. Split per line, an
+     * indented `assurance_requirements:` followed by `invoices.approve: aal3`
+     * passes every line individually while handing the reader a broken
+     * configuration to copy whole.
+     */
+    $block = [];
+
+    foreach (array_merge(explode("\n", $outside), ['']) as $line) {
         if (preg_match('/^(?: {4,}|\t)\S/', $line) === 1) {
-            $candidates[] = $line;
+            $block[] = $line;
+
+            continue;
+        }
+
+        if ($block !== []) {
+            $candidates[] = implode("\n", $block);
+            $block = [];
         }
     }
 
@@ -352,6 +367,17 @@ it('catches an inline span that configures aal3', function (): void {
     $span = "Set `'invoices.approve' => 'aal3'` in the map.";
 
     expect(copyableAal3OutsideFences($span))->toBe(["`'invoices.approve' => 'aal3'`"]);
+});
+
+it('catches an indented configuration split across lines', function (): void {
+    /*
+     * The evasion a per-line rule leaves open. Neither line names both the
+     * surface and the level; together they are a copyable broken map.
+     */
+    $indented = "Configure it:\n\n    assurance_requirements:\n      invoices.approve: aal3\n";
+
+    expect(copyableAal3OutsideFences($indented))
+        ->toBe(["    assurance_requirements:\n      invoices.approve: aal3"]);
 });
 
 it('catches an indented configuration block naming aal3', function (): void {
