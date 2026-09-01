@@ -122,14 +122,17 @@ final class MorphMapTokenIdentityTest extends TestCase
     }
 
     #[Test]
-    public function the_record_binds_again_once_the_map_is_removed(): void
+    public function the_same_record_binds_again_once_the_map_is_removed(): void
     {
         /*
-         * The other half of §3a, and the reason the refusal above is safe to
-         * ship: the stored provider is never rewritten, so removing the map
-         * restores the old records rather than stranding them. That is what
-         * makes a mistaken map change recoverable, and it is only true because
-         * nothing migrated.
+         * The other half of §3a, on ONE row and in sequence: store, observe the
+         * mismatch under the map, remove the map, read again.
+         *
+         * A separately stored record that binds after a map is added and
+         * removed proves less than it appears to -- it never demonstrates that
+         * the row which FAILED is the row that recovers. Recoverability is the
+         * claim that makes the refusal safe to ship, so it has to be measured
+         * on the record that was actually refused.
          */
         $model = TokenUser::class;
         $subject = SubjectKey::of((new $model)->getMorphClass(), 7);
@@ -144,13 +147,29 @@ final class MorphMapTokenIdentityTest extends TestCase
         );
 
         Relation::morphMap(['vouch_user' => $model], false);
-        Relation::morphMap([], false);
 
-        $read = app(TokenAssuranceRecord::class)->read(
+        try {
+            $whileMapped = app(TokenAssuranceRecord::class)->read(
+                new ResolvedToken('sanctum', 'token-1', SubjectKey::of((new $model)->getMorphClass(), 7), true),
+            );
+
+            self::assertSame(AssuranceReason::SubjectMismatch, $whileMapped->reason);
+        } finally {
+            Relation::morphMap([], false);
+        }
+
+        $afterRemoval = app(TokenAssuranceRecord::class)->read(
             new ResolvedToken('sanctum', 'token-1', SubjectKey::of((new $model)->getMorphClass(), 7), true),
         );
 
-        self::assertSame(AssuranceReason::Sufficient, $read->reason);
-        self::assertNotNull($read->evidence);
+        self::assertSame(AssuranceReason::Sufficient, $afterRemoval->reason);
+        self::assertNotNull($afterRemoval->evidence);
+
+        // Nothing was rewritten at any point. The record is intact; only its
+        // interpretation moved, which is the whole reason removal restores it.
+        self::assertSame(
+            $model . ':7',
+            stringValue(DB::table('auth_token_assurances')->where('token_key', 'token-1')->value('subject_key')),
+        );
     }
 }

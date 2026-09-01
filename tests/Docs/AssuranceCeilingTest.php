@@ -132,60 +132,114 @@ it('warns at the surface that accepts the level', function (): void {
 /**
  * The class bodies in a fence that implement AssuranceVocabulary, removed.
  *
- * Brace-matched rather than regex-bounded, because the allowance has to be
- * scoped to the DEFINITION and not to the whole fence: a fence can perfectly
- * well show a vocabulary class and, three lines below it, a live ability map
- * naming aal3. A fence-wide test permits that mixed fence and hands the reader
- * the broken half.
+ * Tokenised rather than pattern-matched, and the reason is a defect the regex
+ * version actually had: it counted `{` and `}` inside string literals, so a
+ * legitimate definition containing `return '}';` was rejected and a contrived
+ * snippet could push the removal past the end of the class. PHP's own lexer
+ * knows the difference between a brace and a character in a string, and there
+ * is no reason to re-derive that badly.
  *
- * Alias-aware for the same reason the rule exists at all. A README may import
- * the contract under a shorter name, or spell it fully qualified inline, and a
- * guard that only recognises the bare class name would reject legitimate
- * examples and so push the documentation toward worse code.
+ * Scoped to the DEFINITION, not the fence: a fence can perfectly well show a
+ * vocabulary class and, three lines below it, a live ability map naming aal3.
+ * A fence-wide allowance hands the reader the broken half.
+ *
+ * Fails CLOSED. A fence that is not PHP, or that cannot be tokenised into a
+ * bounded class body, is returned whole — so anything it names is judged, and
+ * the allowance is never granted by accident.
  */
 function readmeWithoutVocabularyDefinitions(string $fence): string
 {
     $live = readmeUncommented($fence);
+    $body = (string) preg_replace('/^(?:```|~~~)[^\n]*\n|(?:```|~~~)\s*$/', '', $live);
 
-    // `use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary as Vocabulary;`
-    $names = ['AssuranceVocabulary'];
-    if (preg_match_all('/use\s+[\w\\\\]*AssuranceVocabulary\s+as\s+(\w+)\s*;/', $live, $aliases) === 1) {
+    if (! str_contains($body, '<?php')) {
+        $body = "<?php\n" . $body;
+    }
+
+    $tokens = @token_get_all($body);
+
+    // Accepted spellings of the contract: the bare name, plus every alias the
+    // fence itself establishes. `preg_match_all` returns a COUNT -- an earlier
+    // version compared it to 1 and so ignored a second alias entirely.
+    $names = ['assurancevocabulary'];
+    if (preg_match_all('/use\s+[\w\\\\]*AssuranceVocabulary\s+as\s+(\w+)\s*;/', $body, $aliases) > 0) {
         foreach ($aliases[1] as $alias) {
-            $names[] = $alias;
+            $names[] = strtolower($alias);
         }
     }
-    $alternation = implode('|', array_map(static fn (string $n): string => preg_quote($n, '/'), $names));
 
-    // Optional namespace, so a fully qualified implements clause still counts.
-    $pattern = '/implements\s+[^{]*(?:\\\\)?(?:' . $alternation . ')\b[^{]*\{/';
+    $text = static fn (array|string $token): string => is_array($token) ? $token[1] : $token;
+    $isImplements = static fn (array|string $token): bool => is_array($token) && $token[0] === T_IMPLEMENTS;
 
-    while (preg_match($pattern, $live, $match, PREG_OFFSET_CAPTURE) === 1) {
-        $open = (int) $match[0][1] + strlen($match[0][0]) - 1;
+    $drop = [];
+    $count = count($tokens);
+
+    for ($i = 0; $i < $count; $i++) {
+        if (! $isImplements($tokens[$i])) {
+            continue;
+        }
+
+        // Collect the implemented names up to the opening brace.
+        $matched = false;
+        $open = null;
+
+        for ($j = $i + 1; $j < $count; $j++) {
+            $piece = $text($tokens[$j]);
+
+            if ($piece === '{') {
+                $open = $j;
+                break;
+            }
+
+            $segments = explode('\\', trim($piece));
+            $last = strtolower(trim((string) end($segments)));
+
+            if ($last !== '' && in_array($last, $names, true)) {
+                $matched = true;
+            }
+        }
+
+        if (! $matched || $open === null) {
+            continue;
+        }
+
         $depth = 0;
-        $close = null;
 
-        for ($i = $open, $len = strlen($live); $i < $len; $i++) {
-            if ($live[$i] === '{') {
+        for ($j = $open; $j < $count; $j++) {
+            $piece = $text($tokens[$j]);
+
+            if ($piece === '{') {
                 $depth++;
-            } elseif ($live[$i] === '}') {
+            } elseif ($piece === '}') {
                 $depth--;
+
                 if ($depth === 0) {
-                    $close = $i;
+                    foreach (range($open, $j) as $index) {
+                        $drop[$index] = true;
+                    }
+
+                    $i = $j;
                     break;
                 }
             }
         }
 
-        // An unbalanced snippet is not a definition we can bound, so refuse to
-        // grant it the allowance rather than silently swallowing the remainder.
-        if ($close === null) {
+        // An unbounded class body means the snippet cannot be trusted to say
+        // where the definition ends. Judge the whole fence rather than guess.
+        if ($depth !== 0) {
             return $live;
         }
-
-        $live = substr($live, 0, (int) $match[0][1]) . substr($live, $close + 1);
     }
 
-    return $live;
+    $kept = '';
+
+    foreach ($tokens as $index => $token) {
+        if (! isset($drop[$index])) {
+            $kept .= $text($token);
+        }
+    }
+
+    return $kept;
 }
 
 /**
@@ -247,6 +301,37 @@ it('catches a live aal3 consumer sharing a fence with a definition', function ()
     $mixed = "```php\nfinal class V implements AssuranceVocabulary\n{\n    public function name(\$facts): string\n    {\n        return 'aal3';\n    }\n}\n\n// config/vouch.php\n'assurance_requirements' => ['invoices.approve' => 'aal3'],\n```";
 
     expect(fencesOfferingAal3([$mixed]))->toBe([$mixed]);
+});
+
+it('permits a definition whose body contains a brace in a string', function (): void {
+    /*
+     * The defect that retired the regex matcher: it counted braces inside
+     * string literals, so this legitimate class looked unbalanced and the
+     * allowance was withheld from the one example that explains the way out.
+     */
+    $definition = "```php\nfinal class V implements AssuranceVocabulary\n{\n    public function name(\$facts): string\n    {\n        \$brace = '}';\n\n        return \$brace === '}' ? 'aal3' : 'aal2';\n    }\n}\n```";
+
+    expect(fencesOfferingAal3([$definition]))->toBe([]);
+});
+
+it('permits a definition when the fence establishes several aliases', function (): void {
+    // The count comparison was `=== 1`, so a second alias was ignored entirely
+    // and a definition written through it was judged as a consumer.
+    $definition = "```php\nuse Fissible\\Vouch\\Kernel\\Assurance\\AssuranceVocabulary as Vocabulary;\nuse Fissible\\Vouch\\Kernel\\Assurance\\AssuranceVocabulary as Contract;\n\nfinal class V implements Contract\n{\n    public function name(\$facts): string\n    {\n        return 'aal3';\n    }\n}\n```";
+
+    expect(fencesOfferingAal3([$definition]))->toBe([]);
+});
+
+it('judges a fence whose class body never closes', function (): void {
+    /*
+     * Fails closed. An unbounded body means the snippet cannot say where the
+     * definition ends, so the allowance is refused rather than guessed at --
+     * otherwise a truncated example becomes a way to smuggle a live level past
+     * the guard.
+     */
+    $truncated = "```php\nfinal class V implements AssuranceVocabulary\n{\n    public function name(\$facts): string\n    {\n        return 'aal3';\n```";
+
+    expect(fencesOfferingAal3([$truncated]))->toBe([$truncated]);
 });
 
 it('catches an aal3 configuration split across two fences', function (): void {
