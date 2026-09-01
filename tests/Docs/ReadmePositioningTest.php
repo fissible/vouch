@@ -23,22 +23,6 @@ use Illuminate\Support\Facades\Artisan;
  * wrong.
  */
 
-function readmePath(): string
-{
-    return dirname(__DIR__, 2) . '/README.md';
-}
-
-function readmeContents(): string
-{
-    $raw = @file_get_contents(readmePath());
-
-    if ($raw === false) {
-        throw new RuntimeException('README.md does not exist.');
-    }
-
-    return $raw;
-}
-
 /**
  * Everything before the first `##`.
  *
@@ -52,100 +36,24 @@ function readmeLead(): string
 }
 
 /**
- * Blocks of the document: each fenced code block whole, and prose split to the
- * smallest self-contained unit — a paragraph, or a SINGLE list item.
- *
- * Splitting lists per item matters. Treating a whole list as one block lets
- * five unrelated bullets satisfy a boundary between them, which is the token
- * stuffing these assertions exist to avoid. One bullet is the smallest thing
- * that can actually explain a condition and what to do about it.
+ * Blocks of the README. See docBlocks() in tests/Pest.php for the splitting
+ * rules and why they are what they are.
  *
  * @return list<string>
  */
 function readmeBlocks(string $markdown): array
 {
-    $blocks = [];
-
-    foreach (preg_split('/((?:```|~~~).*?(?:```|~~~))/s', $markdown, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [] as $chunk) {
-        if (preg_match('/^(?:```|~~~)/', trim($chunk)) === 1) {
-            $blocks[] = $chunk;
-
-            continue;
-        }
-
-        foreach (preg_split('/\n\s*\n/', $chunk) ?: [] as $paragraph) {
-            foreach (preg_split('/\n(?=\s*(?:[-*+]|\d+\.)\s)/', $paragraph) ?: [] as $item) {
-                if (trim($item) !== '') {
-                    $blocks[] = $item;
-                }
-            }
-        }
-    }
-
-    /*
-     * Re-join a list item with its own indented continuation. The blank-line
-     * split above cuts a bullet away from the paragraph that explains it, and
-     * the writer wrote one item — leaving them apart would fail an assertion
-     * the item genuinely satisfies, and the only way to pass would be to cram
-     * the explanation into one line. The tests are supposed to raise the floor,
-     * not flatten the prose.
-     */
-    $joined = [];
-
-    foreach ($blocks as $block) {
-        $last = $joined === [] ? null : $joined[count($joined) - 1];
-        $continues = $last !== null
-            && preg_match('/^\s+\S/', $block) === 1
-            && preg_match('/^\s*(?:[-*+]|\d+\.)\s/', $last) === 1;
-
-        if ($continues) {
-            $joined[count($joined) - 1] .= "\n\n" . $block;
-
-            continue;
-        }
-
-        $joined[] = $block;
-    }
-
-    return $joined;
+    return docBlocks($markdown);
 }
 
 /**
- * Is there ONE block matching all of these patterns?
- *
- * For needles where a bare substring would match incidentally — `ui` occurs
- * inside "require" and "build" — the caller supplies a real expression.
+ * Is there ONE README block matching all of these patterns?
  *
  * @param  list<string>  $patterns
  */
 function readmeExplainsTogetherMatching(array $patterns, ?string $within = null): bool
 {
-    foreach (readmeBlocks($within ?? readmeContents()) as $block) {
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $block) !== 1) {
-                continue 2;
-            }
-        }
-
-        return true;
-    }
-
-    return false;
-}
-
-/**
- * @return list<string>
- */
-function readmeFences(?string $within = null): array
-{
-    // Both fence styles GitHub renders. A tilde-fenced example is just as
-    // copyable, so leaving it out would put the recipe outside every scan.
-    preg_match_all('/(```|~~~).*?\1/s', $within ?? readmeContents(), $matches);
-
-    /** @var list<string> $fences */
-    $fences = $matches[0];
-
-    return $fences;
+    return docExplainsTogether($patterns, $within ?? readmeContents());
 }
 
 /**
@@ -171,21 +79,6 @@ function readmeComposerRequireArguments(?string $within = null): array
     $arguments = $matches[1];
 
     return $arguments;
-}
-
-/**
- * A fence with its comments removed.
- *
- * Everything that claims a document SHOWS something has to read live code
- * only. A commented example demonstrates nothing and cannot be pasted, and
- * both the route predicate and the ability-map extraction were separately
- * fooled by one before this was shared between them.
- */
-function readmeUncommented(string $fence): string
-{
-    $withoutBlocks = (string) preg_replace('~/\*.*?\*/~s', '', $fence);
-
-    return (string) preg_replace('~^\s*(?://|#).*$~m', '', $withoutBlocks);
 }
 
 /**

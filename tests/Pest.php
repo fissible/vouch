@@ -234,3 +234,146 @@ function nameOf(\Fissible\Vouch\Assurance\AssuranceEvidence $evidence): string
 {
     return app(\Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class)->name($evidence->facts());
 }
+
+
+/*
+ * Markdown block splitting, shared by every documentation suite.
+ *
+ * Lifted out of ReadmePositioningTest when a second suite needed it. Pest
+ * declares test-file functions into ONE global namespace, so a helper defined
+ * in a sibling file works only while the whole directory is loaded and dies
+ * the moment someone runs a single file -- which is exactly when a
+ * documentation assertion is most likely to be run on its own.
+ */
+/**
+ * Blocks of the document: each fenced code block whole, and prose split to the
+ * smallest self-contained unit — a paragraph, or a SINGLE list item.
+ *
+ * Splitting lists per item matters. Treating a whole list as one block lets
+ * five unrelated bullets satisfy a boundary between them, which is the token
+ * stuffing these assertions exist to avoid. One bullet is the smallest thing
+ * that can actually explain a condition and what to do about it.
+ *
+ * @return list<string>
+ */
+function docBlocks(string $markdown): array
+{
+    $blocks = [];
+
+    foreach (preg_split('/((?:```|~~~).*?(?:```|~~~))/s', $markdown, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [] as $chunk) {
+        if (preg_match('/^(?:```|~~~)/', trim($chunk)) === 1) {
+            $blocks[] = $chunk;
+
+            continue;
+        }
+
+        foreach (preg_split('/\n\s*\n/', $chunk) ?: [] as $paragraph) {
+            foreach (preg_split('/\n(?=\s*(?:[-*+]|\d+\.)\s)/', $paragraph) ?: [] as $item) {
+                if (trim($item) !== '') {
+                    $blocks[] = $item;
+                }
+            }
+        }
+    }
+
+    /*
+     * Re-join a list item with its own indented continuation. The blank-line
+     * split above cuts a bullet away from the paragraph that explains it, and
+     * the writer wrote one item — leaving them apart would fail an assertion
+     * the item genuinely satisfies, and the only way to pass would be to cram
+     * the explanation into one line. The tests are supposed to raise the floor,
+     * not flatten the prose.
+     */
+    $joined = [];
+
+    foreach ($blocks as $block) {
+        $last = $joined === [] ? null : $joined[count($joined) - 1];
+        $continues = $last !== null
+            && preg_match('/^\s+\S/', $block) === 1
+            && preg_match('/^\s*(?:[-*+]|\d+\.)\s/', $last) === 1;
+
+        if ($continues) {
+            $joined[count($joined) - 1] .= "\n\n" . $block;
+
+            continue;
+        }
+
+        $joined[] = $block;
+    }
+
+    return $joined;
+}
+
+/**
+ * Is there ONE block matching all of these patterns?
+ *
+ * For needles where a bare substring would match incidentally — `ui` occurs
+ * inside "require" and "build" — the caller supplies a real expression.
+ *
+ * @param  list<string>  $patterns
+ */
+function docExplainsTogether(array $patterns, string $markdown): bool
+{
+    foreach (docBlocks($markdown) as $block) {
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $block) !== 1) {
+                continue 2;
+            }
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+
+function readmePath(): string
+{
+    // One level from tests/, not two: this helper moved up out of tests/Docs/
+    // when a second documentation suite needed it.
+    return dirname(__DIR__) . '/README.md';
+}
+
+function readmeContents(): string
+{
+    $raw = @file_get_contents(readmePath());
+
+    if ($raw === false) {
+        throw new RuntimeException('README.md does not exist.');
+    }
+
+    return $raw;
+}
+
+/**
+ * @return list<string>
+ */
+function readmeFences(?string $within = null): array
+{
+    // Both fence styles GitHub renders. A tilde-fenced example is just as
+    // copyable, so leaving it out would put the recipe outside every scan.
+    preg_match_all('/(```|~~~).*?\1/s', $within ?? readmeContents(), $matches);
+
+    /** @var list<string> $fences */
+    $fences = $matches[0];
+
+    return $fences;
+}
+
+
+/**
+ * A fence with its comments removed.
+ *
+ * Everything that claims a document SHOWS something has to read live code
+ * only. A commented example demonstrates nothing and cannot be pasted, and
+ * both the route predicate and the ability-map extraction were separately
+ * fooled by one before this was shared between them.
+ */
+function readmeUncommented(string $fence): string
+{
+    $withoutBlocks = (string) preg_replace('~/\*.*?\*/~s', '', $fence);
+
+    return (string) preg_replace('~^\s*(?://|#).*$~m', '', $withoutBlocks);
+}
+
