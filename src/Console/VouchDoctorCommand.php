@@ -8,18 +8,14 @@ use Fissible\Vouch\Contracts\CaptchaVerifier;
 use Fissible\Vouch\Contracts\DeliveryEconomics;
 use Fissible\Vouch\Contracts\OtpDelivery;
 use Fissible\Vouch\Delivery\UnconfiguredCaptchaVerifier;
-use Fissible\Vouch\Assurance\AssuranceEvidence;
-use Fissible\Vouch\Assurance\MalformedEvidence;
-use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Notifications\OtpQueueDispatcher;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
+use Fissible\Vouch\Sessions\SessionAssuranceRecord;
 use Fissible\Vouch\Throttle\ThrottleConfiguration;
 use Fissible\Vouch\Tokens\TokenAssuranceRecord;
 use Fissible\Vouch\Delivery\UnconfiguredDeliveryEconomics;
 use Illuminate\Console\Command;
-use Illuminate\Database\ConnectionInterface;
-use JsonException;
 use Throwable;
 
 /** Reports aggregate adoption prerequisites without inspecting any account. */
@@ -29,12 +25,11 @@ final class VouchDoctorCommand extends Command
 
     protected $description = 'Check Vouch adoption prerequisites.';
 
-    /** @throws JsonException */
+    /** @throws \JsonException */
     public function handle(
         OtpQueueDispatcher $dispatcher,
         ThrottleConfiguration $throttle,
-        ConnectionInterface $connection,
-        AssuranceVocabulary $vocabulary,
+        SessionAssuranceRecord $sessionAssurances,
         TokenAssuranceRecord $tokenAssurances,
     ): int {
         try {
@@ -65,7 +60,7 @@ final class VouchDoctorCommand extends Command
             ));
 
             $driftTables = [
-                $this->scanSessions($connection, $vocabulary),
+                $sessionAssurances->driftCounts($this->driftBatch()),
                 $tokenAssurances->driftCounts($this->driftBatch()),
             ];
             $report = [
@@ -139,50 +134,8 @@ final class VouchDoctorCommand extends Command
         }
     }
 
-    /** @return array{table:string,checked:int,drifted:int,unreadable:int} */
-    private function scanSessions(ConnectionInterface $connection, AssuranceVocabulary $vocabulary): array
-    {
-        $counts = ['table' => 'auth_sessions', 'checked' => 0, 'drifted' => 0, 'unreadable' => 0];
-
-        foreach ($connection->table('auth_sessions')->orderBy('id')->lazyById($this->driftBatch(), 'id') as $row) {
-            if ($row->assurance_proof === null) {
-                continue;
-            }
-
-            $counts['checked']++;
-            $evidence = $this->evidence($row->assurance_proof);
-            if ($evidence === null || $row->acr === null) {
-                $counts['unreadable']++;
-
-                continue;
-            }
-            if ($row->acr !== $vocabulary->name($evidence->facts())) {
-                $counts['drifted']++;
-            }
-        }
-
-        return $counts;
-    }
-
     private function driftBatch(): int
     {
         return max(1, config()->integer('vouch.doctor.drift_batch', 500));
     }
-
-    private function evidence(mixed $proof): ?AssuranceEvidence
-    {
-        try {
-            if (is_string($proof)) {
-                $proof = json_decode($proof, true, 512, JSON_THROW_ON_ERROR);
-            }
-            if (! is_array($proof)) {
-                return null;
-            }
-
-            return AssuranceEvidence::fromArray($proof);
-        } catch (JsonException|MalformedEvidence) {
-            return null;
-        }
-    }
-
 }

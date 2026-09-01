@@ -138,7 +138,7 @@ final readonly class TokenAssuranceRecord
 
                 continue;
             }
-            $evidence = $this->evidenceFromProof($row->assurance_proof);
+            $evidence = AssuranceEvidence::fromProof($row->assurance_proof);
             if ($evidence === null) {
                 $counts['unreadable']++;
 
@@ -258,22 +258,6 @@ final readonly class TokenAssuranceRecord
     {
         if ($issuerKey === '' || $tokenKey === '') {
             throw new \InvalidArgumentException('Token assurance identity halves cannot be empty.');
-        }
-    }
-
-    private function evidenceFromProof(mixed $proof): ?AssuranceEvidence
-    {
-        try {
-            if (is_string($proof)) {
-                $proof = json_decode($proof, true, 512, JSON_THROW_ON_ERROR);
-            }
-            if (! is_array($proof)) {
-                return null;
-            }
-
-            return AssuranceEvidence::fromArray($proof);
-        } catch (\JsonException|MalformedEvidence) {
-            return null;
         }
     }
 

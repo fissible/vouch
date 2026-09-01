@@ -284,6 +284,17 @@ final class VouchServiceProvider extends ServiceProvider
             \Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class,
             \Fissible\Vouch\Kernel\Assurance\NistAssuranceVocabulary::class,
         );
+        $this->app->rebinding(
+            \Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class,
+            static function ($app): void {
+                // These services retain the vocabulary used at construction, so
+                // rebuild them when a host intentionally replaces the binding.
+                $app->forgetInstance(\Fissible\Vouch\Sessions\SessionAssuranceRecord::class);
+                $app->forgetInstance(\Fissible\Vouch\Tokens\TokenAssuranceRecord::class);
+                $app->forgetInstance(\Fissible\Vouch\Sessions\SessionLifecycle::class);
+                $app->forgetInstance(\Fissible\Vouch\SelfService\CredentialSelfService::class);
+            },
+        );
 
         $this->app->bind(
             \Fissible\Vouch\Assurance\EvidenceComparator::class,
@@ -295,6 +306,14 @@ final class VouchServiceProvider extends ServiceProvider
         $this->app->singleton(
             \Fissible\Vouch\Tokens\TokenAssuranceRecord::class,
             fn ($app): \Fissible\Vouch\Tokens\TokenAssuranceRecord => new \Fissible\Vouch\Tokens\TokenAssuranceRecord(
+                $app['db']->connection(),
+                $app->make(\Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class),
+            ),
+        );
+
+        $this->app->singleton(
+            \Fissible\Vouch\Sessions\SessionAssuranceRecord::class,
+            fn ($app): \Fissible\Vouch\Sessions\SessionAssuranceRecord => new \Fissible\Vouch\Sessions\SessionAssuranceRecord(
                 $app['db']->connection(),
                 $app->make(\Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class),
             ),

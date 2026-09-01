@@ -84,6 +84,23 @@ final readonly class AssuranceEvidence
         return new self($subject, $value['tenant_id'], $factors);
     }
 
+    // Strict assurance readers use fromArray() for refusal reasons; diagnostic drift counters use this tolerant decoder to count unreadable proofs.
+    public static function fromProof(mixed $proof): ?self
+    {
+        try {
+            if (is_string($proof)) {
+                $proof = json_decode($proof, true, 512, JSON_THROW_ON_ERROR);
+            }
+            if (! is_array($proof)) {
+                return null;
+            }
+
+            return self::fromArray($proof);
+        } catch (\JsonException|MalformedEvidence) {
+            return null;
+        }
+    }
+
     private static function factor(mixed $value): SatisfiedFactor
     {
         $keys = ['factor_id', 'credential_id', 'kind', 'strength', 'is_multi_factor', 'user_verified', 'phishing_resistant', 'authenticator_id', 'satisfied_at'];
