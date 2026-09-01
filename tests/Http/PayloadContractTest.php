@@ -88,7 +88,7 @@ it('adds returnTo only to the authenticated envelope, and never echoes it back u
      * pinned here is placement, not sanitisation.
      */
     $screen = contractScreen();
-    $success = new AuthSuccess(7, [], AssuranceFacts::fromFactors([]), 'aal1', str_repeat('f', 64));
+    $success = new AuthSuccess(7, [], AssuranceFacts::fromFactors([]), 'aal1', str_repeat('f', 64), null);
 
     $authenticated = contractSerializer()->toArray(new Authenticated($success, $screen), '/dashboard');
     $continuing = contractSerializer()->toArray(new Continuing($screen, 'h'), '/dashboard');

@@ -113,7 +113,7 @@ final class TokenIssuanceAtomicityTest extends TestCase
             FactorStrength::Knowledge, false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'))];
 
         app(SessionLifecycle::class)->establish(
-            new AuthSuccess(7, $factors, AssuranceFacts::fromFactors($factors), 'ignored', 'ignored'),
+            new AuthSuccess(7, $factors, AssuranceFacts::fromFactors($factors), 'ignored', 'ignored', null),
         );
 
         return AuthSession::query()->firstOrFail();
@@ -356,7 +356,7 @@ final class TokenIssuanceAtomicityTest extends TestCase
                 false, false, false, null, new DateTimeImmutable('2026-08-13T10:06:00+00:00')),
         ];
         app(SessionLifecycle::class)->establish(
-            new AuthSuccess(7, $factors, AssuranceFacts::fromFactors($factors), 'ignored', 'ignored'),
+            new AuthSuccess(7, $factors, AssuranceFacts::fromFactors($factors), 'ignored', 'ignored', null),
         );
 
         $recorder = $this->recordingLocks();

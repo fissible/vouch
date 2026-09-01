@@ -38,6 +38,7 @@ function lifecycleSuccess(int $userId = 7, string $acr = 'aal1'): AuthSuccess
         AssuranceFacts::fromFactors([lifecycleFactor()]),
         $acr,
         'ignored',
+        null,
     );
 }
 
@@ -84,6 +85,7 @@ it('rotates in place rather than adding a row', function (): void {
         AssuranceFacts::fromFactors($stronger),
         'aal2',
         'ignored',
+        null,
     ));
 
     expect(AuthSession::count())->toBe(1)

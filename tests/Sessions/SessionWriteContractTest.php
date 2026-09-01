@@ -33,7 +33,7 @@ function writeFactor(): SatisfiedFactor
 
 function writeSuccess(int $userId = 7, string $acr = 'aal1'): AuthSuccess
 {
-    return new AuthSuccess($userId, [writeFactor()], AssuranceFacts::fromFactors([writeFactor()]), $acr, 'ignored');
+    return new AuthSuccess($userId, [writeFactor()], AssuranceFacts::fromFactors([writeFactor()]), $acr, 'ignored', null);
 }
 
 it('never revives a revoked session row', function (): void {

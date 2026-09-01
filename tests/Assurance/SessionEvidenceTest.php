@@ -63,7 +63,7 @@ function proofSuccess(array $factors = [], int $userId = 7, ?string $acr = null)
     $factors = $factors === [] ? [proofFactor()] : $factors;
     $facts = AssuranceFacts::fromFactors($factors);
 
-    return new AuthSuccess($userId, $factors, $facts, $acr ?? 'aal1', 'ignored');
+    return new AuthSuccess($userId, $factors, $facts, $acr ?? 'aal1', 'ignored', null);
 }
 
 function establishSession(AuthSuccess $success): AuthSession
@@ -241,7 +241,7 @@ it('fails the login closed when the proof cannot be serialized', function (): vo
     session()->start();
     $before = session()->getId();
 
-    $empty = new AuthSuccess(7, [], AssuranceFacts::fromFactors([]), 'aal1', 'ignored');
+    $empty = new AuthSuccess(7, [], AssuranceFacts::fromFactors([]), 'aal1', 'ignored', null);
 
     expect(fn () => app(SessionLifecycle::class)->establish($empty))
         ->toThrow(SessionRotationFailed::class)
@@ -268,7 +268,7 @@ it('leaves the prior session untouched when a rotation fails', function (): void
     ]);
 
     try {
-        $lifecycle->establish(new AuthSuccess(7, [], AssuranceFacts::fromFactors([]), 'aal1', 'ignored'));
+        $lifecycle->establish(new AuthSuccess(7, [], AssuranceFacts::fromFactors([]), 'aal1', 'ignored', null));
     } catch (SessionRotationFailed) {
         // Expected; the assertion is about what the row looks like afterwards.
     }
