@@ -269,14 +269,32 @@ it('does not fail the command on drift', function (): void {
      * version movement, not a missing prerequisite: it must not increment
      * `missing` and must not change the exit code.
      */
-    driftSession(1, 'aal2');
+    /*
+     * Measured against this environment's own baseline rather than against
+     * zero. An earlier draft asserted missing === 0 and a Success exit, which
+     * says nothing about drift: the test environment leaves OtpDelivery and
+     * DeliveryEconomics unbound, so `missing` is already non-zero and the
+     * command already fails for reasons that predate this feature.
+     *
+     * What the contract actually promises is that drift CHANGES neither. So
+     * both are captured with a clean fleet, then re-measured with a drifted
+     * one.
+     */
+    driftSession(1, 'aal1', 'aal1');
+
+    $clean = doctorReport();
+    $cleanExit = Artisan::call('vouch:doctor');
+
+    expect(driftStatus($clean))->toBe('pass');
+
+    driftSession(2, 'aal2');
     app()->instance(AssuranceVocabulary::class, new CappingVocabulary());
 
-    $report = doctorReport();
+    $drifted = doctorReport();
 
-    expect(driftStatus($report))->toBe('drift')
-        ->and($report['missing'])->toBe(0)
-        ->and(Artisan::call('vouch:doctor'))->toBe(CommandExit::Success->value);
+    expect(driftStatus($drifted))->toBe('drift')
+        ->and($drifted['missing'])->toBe($clean['missing'])
+        ->and(Artisan::call('vouch:doctor'))->toBe($cleanExit);
 });
 
 it('shows drift to an operator who did not ask for json', function (): void {

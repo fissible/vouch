@@ -9,11 +9,12 @@ use Fissible\Vouch\Assurance\AssuranceReason;
 use Fissible\Vouch\Assurance\EvidenceRead;
 use Fissible\Vouch\Assurance\MalformedEvidence;
 use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
+use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary;
 use Illuminate\Database\ConnectionInterface;
 
 final readonly class TokenAssuranceRecord
 {
-    public function __construct(private ConnectionInterface $connection) {}
+    public function __construct(private ConnectionInterface $connection, private AssuranceVocabulary $vocabulary) {}
 
     /** @param list<SatisfiedFactor> $factors */
     public function store(string $issuerKey, string $tokenKey, SubjectKey $subject, ?string $tenantId, ActorKind $actor, array $factors, ?ConnectionInterface $connection = null): void
@@ -43,7 +44,7 @@ final readonly class TokenAssuranceRecord
                 'subject_key' => $subject->render(),
                 'tenant_id' => $tenantId,
                 'actor_kind' => $actor->value,
-                'acr' => $evidence?->derivedAcr(),
+                'acr' => $evidence === null ? null : $this->vocabulary->name($evidence->facts()),
                 'assurance_proof' => $evidence === null ? null : json_encode($evidence->toArray(), JSON_THROW_ON_ERROR),
                 'weakest_satisfied_at' => $evidence?->weakestSatisfiedAt(),
                 'created_at' => now(),
@@ -111,6 +112,44 @@ final readonly class TokenAssuranceRecord
         }
 
         return new EvidenceRead($evidence, AssuranceReason::Sufficient);
+    }
+
+    /** @return array{table:string,checked:int,drifted:int,unreadable:int} */
+    public function driftCounts(int $batch): array
+    {
+        $counts = ['table' => 'auth_token_assurances', 'checked' => 0, 'drifted' => 0, 'unreadable' => 0];
+
+        foreach ($this->connection->table('auth_token_assurances')->orderBy('id')->lazyById(max(1, $batch), 'id') as $row) {
+            try {
+                $actor = ActorKind::from($row->actor_kind);
+            } catch (\ValueError|\TypeError) {
+                $counts['checked']++;
+                $counts['unreadable']++;
+
+                continue;
+            }
+            if ($actor === ActorKind::Machine && $row->acr === null && $row->assurance_proof === null) {
+                continue;
+            }
+
+            $counts['checked']++;
+            if ($actor === ActorKind::Machine || $row->assurance_proof === null || $row->acr === null) {
+                $counts['unreadable']++;
+
+                continue;
+            }
+            $evidence = $this->evidenceFromProof($row->assurance_proof);
+            if ($evidence === null) {
+                $counts['unreadable']++;
+
+                continue;
+            }
+            if ($row->acr !== $this->vocabulary->name($evidence->facts())) {
+                $counts['drifted']++;
+            }
+        }
+
+        return $counts;
     }
 
     public function forget(string $issuerKey, string $tokenKey, ?ConnectionInterface $connection = null): void
@@ -219,6 +258,22 @@ final readonly class TokenAssuranceRecord
     {
         if ($issuerKey === '' || $tokenKey === '') {
             throw new \InvalidArgumentException('Token assurance identity halves cannot be empty.');
+        }
+    }
+
+    private function evidenceFromProof(mixed $proof): ?AssuranceEvidence
+    {
+        try {
+            if (is_string($proof)) {
+                $proof = json_decode($proof, true, 512, JSON_THROW_ON_ERROR);
+            }
+            if (! is_array($proof)) {
+                return null;
+            }
+
+            return AssuranceEvidence::fromArray($proof);
+        } catch (\JsonException|MalformedEvidence) {
+            return null;
         }
     }
 

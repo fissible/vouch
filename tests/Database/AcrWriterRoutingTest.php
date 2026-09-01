@@ -10,6 +10,7 @@ use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\SelfService\CredentialSelfService;
 use Fissible\Vouch\Sessions\SessionLifecycle;
+use Fissible\Vouch\Tests\Support\Assurance\GenerousVocabulary;
 use Fissible\Vouch\Tests\Support\Assurance\InvertedVocabulary;
 use Fissible\Vouch\Tokens\ActorKind;
 use Fissible\Vouch\Tokens\SubjectKey;
@@ -40,14 +41,20 @@ uses(DatabaseMigrations::class);
  * this file is the one that forecloses it.
  */
 
-/** Bind the inverted vocabulary and discard anything already built with another. */
-function bindInvertedVocabulary(): void
+/** Bind a vocabulary and discard anything already built with another. */
+function bindVocabulary(AssuranceVocabulary $vocabulary): void
 {
-    app()->instance(AssuranceVocabulary::class, new InvertedVocabulary());
+    app()->instance(AssuranceVocabulary::class, $vocabulary);
 
-    foreach ([SessionLifecycle::class, TokenAssuranceRecord::class, CredentialSelfService::class] as $service) {
+    foreach ([SessionLifecycle::class, TokenAssuranceRecord::class, CredentialSelfService::class,
+        \Fissible\Vouch\Assurance\EvidenceComparator::class] as $service) {
         app()->forgetInstance($service);
     }
+}
+
+function bindInvertedVocabulary(): void
+{
+    bindVocabulary(new InvertedVocabulary());
 }
 
 /** @return list<\Fissible\Vouch\Kernel\Factor\SatisfiedFactor> */
@@ -147,10 +154,14 @@ it('rewrites the self-service projection with the host vocabulary', function ():
      * The remaining writer, and the one with no alternative source of a name:
      * it builds fresh evidence after removing a factor and must name it.
      *
-     * Removing the TOTP factor leaves ONE credential, which Nist names aal1 and
-     * the host's vocabulary names aal2. The direction is deliberately opposite
-     * to the two tests above -- an implementation that hard-coded the string
-     * 'aal1' would otherwise pass all three.
+     * GenerousVocabulary rather than the inverted one, for a reason worth
+     * stating. Self-service gates its own operations at aal2 through the SAME
+     * comparator that now takes the bound vocabulary, so a fixture naming the
+     * acting session's two-credential proof aal1 refuses at the gate and never
+     * reaches the rewrite -- the test would measure the gate rather than the
+     * writer. This keeps the acting session sufficient while still departing
+     * from the shipped vocabulary where it counts: one credential remains after
+     * the removal, which Nist names aal1 and this names aal2.
      */
     acrRoutingUser();
     $totp = app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)
@@ -161,14 +172,15 @@ it('rewrites the self-service projection with the host vocabulary', function ():
         'user_id' => 1,
         'session_binding' => str_pad('routing-selfservice', 64, 'a'),
         'amr' => ['password', 'totp'],
-        'acr' => 'aal1',
+        'acr' => 'aal2',
         'assurance_proof' => sessionProofFrom(1, twoCredentialFactors((string) $password->id, (string) $totp->id)),
         'weakest_satisfied_at' => now(),
     ]);
 
-    bindInvertedVocabulary();
+    bindVocabulary(new GenerousVocabulary());
 
-    app(CredentialSelfService::class)->removeFactor($acting, $totp->id);
+    expect(app(CredentialSelfService::class)->removeFactor($acting, $totp->id))
+        ->toBe(\Fissible\Vouch\SelfService\SelfServiceOutcome::Completed);
 
     expect($acting->refresh()->acr)->toBe('aal2');
 });

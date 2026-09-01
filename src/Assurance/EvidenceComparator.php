@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Assurance;
 
+use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary;
 use Psr\Clock\ClockInterface;
 
 final readonly class EvidenceComparator
 {
+    public function __construct(private AssuranceVocabulary $vocabulary) {}
+
     public function compare(AssuranceEvidence|EvidenceRead|null $candidate, AssuranceRequirement $requirement, ClockInterface $clock, ?string $tenantId): AssuranceComparison
     {
         if ($candidate instanceof EvidenceRead) {
@@ -24,7 +27,7 @@ final readonly class EvidenceComparator
         }
         // Level precedes recency. Reversing them yields the wrong remediation
         // path for weak-and-stale evidence and changes the policy result.
-        if (AssuranceLevelComparator::strength($candidate->derivedAcr()) < AssuranceLevelComparator::strength($requirement->level)) {
+        if (AssuranceLevelComparator::strength($this->vocabulary->name($candidate->facts())) < AssuranceLevelComparator::strength($requirement->level)) {
             return new AssuranceComparison(AssuranceOutcome::InsufficientLevel, AssuranceReason::LevelTooWeak);
         }
         $age = $requirement->maxAgeSeconds();

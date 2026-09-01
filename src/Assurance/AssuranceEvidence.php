@@ -6,7 +6,6 @@ namespace Fissible\Vouch\Assurance;
 
 use DateTimeImmutable;
 use Fissible\Vouch\Kernel\Assurance\AssuranceFacts;
-use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary;
 use Fissible\Vouch\Kernel\Factor\FactorKind;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
@@ -28,9 +27,9 @@ final readonly class AssuranceEvidence
         }
     }
 
-    public function derivedAcr(): string
+    public function facts(): AssuranceFacts
     {
-        return app(AssuranceVocabulary::class)->name(AssuranceFacts::fromFactors($this->factors));
+        return AssuranceFacts::fromFactors($this->factors);
     }
 
     public function weakestSatisfiedAt(): DateTimeImmutable

@@ -6,6 +6,7 @@ namespace Fissible\Vouch\Sessions;
 
 use Fissible\Vouch\Flow\AuthSuccess;
 use Fissible\Vouch\Assurance\AssuranceEvidence;
+use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary;
 use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\Tokens\SubjectKey;
 use Illuminate\Contracts\Session\Session;
@@ -28,6 +29,7 @@ final readonly class SessionLifecycle
     public function __construct(
         private Session $session,
         private ClockInterface $clock,
+        private AssuranceVocabulary $vocabulary,
     ) {}
 
     /**
@@ -57,7 +59,7 @@ final readonly class SessionLifecycle
                 [
                     'session_binding' => $binding,
                     'amr' => $success->amr(),
-                    'acr' => $proof->derivedAcr(),
+                    'acr' => $this->vocabulary->name($proof->facts()),
                     'assurance_proof' => $proof->toArray(),
                     'weakest_satisfied_at' => $proof->weakestSatisfiedAt(),
                     'recovery_grace_expires_at' => null,

@@ -107,8 +107,14 @@ final class VocabularyInjectionTest extends TestCase
          * the refactor. If derivedAcr() survives in any form, the ambient call
          * has somewhere to come back to.
          */
+        /*
+         * Reflection rather than method_exists(): once the method is gone,
+         * PHPStan resolves the literal call statically and reports the
+         * assertion as always false. The check has to stay opaque to static
+         * analysis to keep asserting anything at all.
+         */
         self::assertFalse(
-            method_exists(AssuranceEvidence::class, 'derivedAcr'),
+            (new \ReflectionClass(AssuranceEvidence::class))->hasMethod('derivedAcr'),
             'AssuranceEvidence::derivedAcr() must be deleted, not merely bypassed.',
         );
     }

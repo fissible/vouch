@@ -10,6 +10,7 @@ use Fissible\Vouch\Assurance\EvidenceComparator;
 use Fissible\Vouch\Authorization\AssuranceRequirements;
 use Fissible\Vouch\Authorization\RouteAbilityScanner;
 use Fissible\Vouch\Http\IntendedDestination;
+use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary;
 use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\Sessions\BindingDomain;
 use Fissible\Vouch\Sessions\SessionBinding;
@@ -23,7 +24,7 @@ use Symfony\Component\HttpFoundation\Response;
 /** Primary assurance enforcement, before an earlier authorization grant can short-circuit Gate. */
 final readonly class RequireAbilityAssurance
 {
-    public function __construct(private AssuranceRequirements $requirements, private RouteAbilityScanner $scanner, private EvidenceComparator $evidenceComparator, private \Psr\Clock\ClockInterface $clock) {}
+    public function __construct(private AssuranceRequirements $requirements, private RouteAbilityScanner $scanner, private EvidenceComparator $evidenceComparator, private \Psr\Clock\ClockInterface $clock, private AssuranceVocabulary $vocabulary) {}
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -45,7 +46,7 @@ final readonly class RequireAbilityAssurance
         if ($session instanceof AuthSession && $session->user_id === $identifier && $this->evidenceComparator->compare($read, AssuranceRequirement::from($required), $this->clock, null)->outcome->isSufficient()) {
             return $next($request);
         }
-        $held = $read->evidence?->derivedAcr();
+        $held = $read->evidence === null ? null : $this->vocabulary->name($read->evidence->facts());
         if ($request->expectsJson() || ! $request->hasSession()) {
             return new JsonResponse(['error' => 'insufficient_assurance', 'required' => $required, 'held' => $held], 403);
         }

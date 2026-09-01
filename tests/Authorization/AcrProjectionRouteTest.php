@@ -141,7 +141,15 @@ final class AcrProjectionRouteTest extends TestCase
         $this->signIn(storedAcr: 'aal2', proofLevel: 'aal2');
         $this->app?->instance(AssuranceVocabulary::class, new CappingVocabulary());
 
-        $response = $this->postJson('/gate/approve');
+        /*
+         * An Accept header on a normal post, NOT postJson(). Laravel's
+         * postJson() prepares cookies differently and drops the pinned session
+         * cookie, so the request arrives with a fresh session id, no Vouch row
+         * is found, and `held` is null for a reason that has nothing to do with
+         * vocabularies. The refusal still looks right, which is what makes the
+         * mistake worth naming here.
+         */
+        $response = $this->withHeaders(['Accept' => 'application/json'])->post('/gate/approve');
 
         $response->assertStatus(403);
         $response->assertJsonPath('held', 'aal1');

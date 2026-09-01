@@ -9,6 +9,7 @@ use Fissible\Vouch\Factors\FactorRegistry;
 use Fissible\Vouch\Assurance\AssuranceRequirement;
 use Fissible\Vouch\Assurance\EvidenceComparator;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
+use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary;
 use Fissible\Vouch\Kernel\Policy\AllOf;
 use Fissible\Vouch\Kernel\Policy\AnyOf;
 use Fissible\Vouch\Kernel\Policy\FactorRequirement;
@@ -41,6 +42,7 @@ final readonly class CredentialSelfService
         private \Psr\Clock\ClockInterface $clock,
         private SessionLifecycle $sessions,
         private DatabaseTime $databaseTime,
+        private AssuranceVocabulary $vocabulary,
     ) {}
 
     public function changePassword(AuthSession $session, string $password): SelfServiceOutcome
@@ -250,7 +252,7 @@ final readonly class CredentialSelfService
         );
 
         $authoritative->update([
-            'acr' => $rewritten->derivedAcr(),
+            'acr' => $this->vocabulary->name($rewritten->facts()),
             'assurance_proof' => $rewritten->toArray(),
             'weakest_satisfied_at' => $rewritten->weakestSatisfiedAt(),
         ]);

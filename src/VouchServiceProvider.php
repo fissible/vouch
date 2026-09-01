@@ -112,7 +112,7 @@ final class VouchServiceProvider extends ServiceProvider
             ),
         );
 
-        $this->app->bind(
+        $this->app->singleton(
             OtpOutboxDelivery::class,
             fn ($app): OtpOutboxDelivery => new OtpOutboxDelivery(
                 $app->make(OtpDelivery::class),
@@ -285,6 +285,32 @@ final class VouchServiceProvider extends ServiceProvider
             \Fissible\Vouch\Kernel\Assurance\NistAssuranceVocabulary::class,
         );
 
+        $this->app->bind(
+            \Fissible\Vouch\Assurance\EvidenceComparator::class,
+            fn ($app): \Fissible\Vouch\Assurance\EvidenceComparator => new \Fissible\Vouch\Assurance\EvidenceComparator(
+                $app->make(\Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class),
+            ),
+        );
+
+        $this->app->singleton(
+            \Fissible\Vouch\Tokens\TokenAssuranceRecord::class,
+            fn ($app): \Fissible\Vouch\Tokens\TokenAssuranceRecord => new \Fissible\Vouch\Tokens\TokenAssuranceRecord(
+                $app['db']->connection(),
+                $app->make(\Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class),
+            ),
+        );
+
+        $this->app->bind(
+            \Fissible\Vouch\Http\Middleware\RequireAbilityAssurance::class,
+            fn ($app): \Fissible\Vouch\Http\Middleware\RequireAbilityAssurance => new \Fissible\Vouch\Http\Middleware\RequireAbilityAssurance(
+                $app->make(AssuranceRequirements::class),
+                $app->make(RouteAbilityScanner::class),
+                $app->make(\Fissible\Vouch\Assurance\EvidenceComparator::class),
+                $app->make(ClockInterface::class),
+                $app->make(\Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class),
+            ),
+        );
+
         $this->app->singleton(
             \Fissible\Vouch\Flow\AuthFlow::class,
             fn ($app): \Fissible\Vouch\Flow\AuthFlow => new \Fissible\Vouch\Flow\AuthFlow(
@@ -312,6 +338,7 @@ final class VouchServiceProvider extends ServiceProvider
             fn ($app): \Fissible\Vouch\Sessions\SessionLifecycle => new \Fissible\Vouch\Sessions\SessionLifecycle(
                 $app->make(\Illuminate\Contracts\Session\Session::class),
                 $app->make(\Psr\Clock\ClockInterface::class),
+                $app->make(\Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class),
             ),
         );
 
