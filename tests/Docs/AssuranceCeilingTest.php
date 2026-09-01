@@ -67,15 +67,23 @@ it('says what a route configured for aal3 actually does', function (): void {
     /*
      * Naming the cap is not naming the consequence. A reader who learns the
      * vocabulary "caps at aal2" may still assume a higher requirement degrades,
-     * throws, or is ignored. It does none of those: it refuses every request,
-     * forever, silently. The configuration term is required alongside, because
-     * "aal3 is never emitted" is a fact about the vocabulary and says nothing
-     * about the route the host just wrote.
+     * throws, or is ignored. It does none of those, and all three properties
+     * are load-bearing:
+     *
+     * - it REFUSES rather than degrading, so the refusal term is required and
+     *   a bare "never" no longer satisfies it -- "aal3 is never emitted" is a
+     *   fact about the vocabulary that says nothing about request handling;
+     * - it does so SILENTLY, which is why nobody discovers this from a log;
+     * - and PERMANENTLY, so waiting or re-authenticating never helps.
+     *
+     * The configuration term ties all of it to the route the host just wrote.
      */
     expect(docExplainsTogether([
         '/\baal3\b/',
         '/\b(route|requirement|middleware|map|configur\w+)\b/i',
-        '/\b(unreachable|never|no one|nobody|always refuses?|fails? closed)\b/i',
+        '/\b(unreachable|fails? closed|always refuses?)\b/i',
+        '/\b(silent\w*|quietly|without (an )?error|no error|nothing in the log)\b/i',
+        '/\b(forever|permanent\w*|never)\b/i',
     ], readmeContents()))->toBeTrue();
 });
 
@@ -151,6 +159,10 @@ it('explains the morph map hazard as one coherent warning', function (): void {
      */
     expect(hostDocsExplainTogether([
         '/morph ?[mM]ap/',
+        // The trigger. Without it the block can describe the hazard without
+        // saying that CHANGING the map is what causes it, which leaves a
+        // reader unsure whether merely having one is dangerous.
+        '/\b(chang\w*|renam\w*|remov\w*|register\w*|add\w*)\b/i',
         '/(`?SubjectKey`?|provider|session|token)/i',
         '/\b(stored|persisted|written|existing)\b/i',
         '/\b(re-?authenticat\w*|stops? binding|no longer bind\w*|invalidat\w*)\b/i',
