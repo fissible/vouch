@@ -130,70 +130,126 @@ it('warns at the surface that accepts the level', function (): void {
 });
 
 /**
+ * The class bodies in a fence that implement AssuranceVocabulary, removed.
+ *
+ * Brace-matched rather than regex-bounded, because the allowance has to be
+ * scoped to the DEFINITION and not to the whole fence: a fence can perfectly
+ * well show a vocabulary class and, three lines below it, a live ability map
+ * naming aal3. A fence-wide test permits that mixed fence and hands the reader
+ * the broken half.
+ *
+ * Alias-aware for the same reason the rule exists at all. A README may import
+ * the contract under a shorter name, or spell it fully qualified inline, and a
+ * guard that only recognises the bare class name would reject legitimate
+ * examples and so push the documentation toward worse code.
+ */
+function readmeWithoutVocabularyDefinitions(string $fence): string
+{
+    $live = readmeUncommented($fence);
+
+    // `use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary as Vocabulary;`
+    $names = ['AssuranceVocabulary'];
+    if (preg_match_all('/use\s+[\w\\\\]*AssuranceVocabulary\s+as\s+(\w+)\s*;/', $live, $aliases) === 1) {
+        foreach ($aliases[1] as $alias) {
+            $names[] = $alias;
+        }
+    }
+    $alternation = implode('|', array_map(static fn (string $n): string => preg_quote($n, '/'), $names));
+
+    // Optional namespace, so a fully qualified implements clause still counts.
+    $pattern = '/implements\s+[^{]*(?:\\\\)?(?:' . $alternation . ')\b[^{]*\{/';
+
+    while (preg_match($pattern, $live, $match, PREG_OFFSET_CAPTURE) === 1) {
+        $open = (int) $match[0][1] + strlen($match[0][0]) - 1;
+        $depth = 0;
+        $close = null;
+
+        for ($i = $open, $len = strlen($live); $i < $len; $i++) {
+            if ($live[$i] === '{') {
+                $depth++;
+            } elseif ($live[$i] === '}') {
+                $depth--;
+                if ($depth === 0) {
+                    $close = $i;
+                    break;
+                }
+            }
+        }
+
+        // An unbalanced snippet is not a definition we can bound, so refuse to
+        // grant it the allowance rather than silently swallowing the remainder.
+        if ($close === null) {
+            return $live;
+        }
+
+        $live = substr($live, 0, (int) $match[0][1]) . substr($live, $close + 1);
+    }
+
+    return $live;
+}
+
+/**
  * Fences that put `aal3` somewhere a reader can copy it into service.
  *
- * The rule is an ALLOWLIST, and that is the point. An earlier version flagged a
- * fence only when `aal3` sat beside an accepting surface -- `assurance_requirements`,
- * `vouch.assurance`, `->middleware(` -- which a two-fence composition walks
- * straight past: one fence sets a host constant to 'aal3', the next feeds that
- * constant into the alias, and neither fence contains both halves while together
+ * An ALLOWLIST, scoped to the definition. An earlier version flagged a fence
+ * only when `aal3` sat beside an accepting surface, which a two-fence
+ * composition walks straight past: one fence sets a constant to 'aal3', the
+ * next feeds it into the alias, and neither contains both halves while together
  * they configure a route nobody can reach.
  *
- * So `aal3` is permitted in exactly one shape: a fence DEFINING a vocabulary.
- * That is the extension point the prose rules require explained, and showing it
- * is the clearest way to explain it. Everywhere else the level is being
- * consumed rather than defined, and consuming it is what breaks.
- *
- * Comments are stripped first, on the reasoning ReadmePositioningTest gives for
- * routes: a commented line inside a fence is prose in a code font, it cannot be
- * pasted into service, and showing the mistake beside its correction is a
- * legitimate way to teach this particular footgun.
+ * So `aal3` is permitted in exactly one place: inside a class implementing the
+ * vocabulary contract. That is the extension point the prose rules require
+ * explained, and showing it is the clearest way to explain it. Anywhere else --
+ * including elsewhere in the very same fence -- the level is being consumed
+ * rather than defined, and consuming it is what breaks.
  *
  * @param  list<string>  $fences
  * @return list<string>
  */
 function fencesOfferingAal3(array $fences): array
 {
-    return array_values(array_filter($fences, static function (string $fence): bool {
-        $live = readmeUncommented($fence);
-
-        if (preg_match('/\baal3\b/', $live) !== 1) {
-            return false;
-        }
-
-        $definesVocabulary = preg_match('/implements\s+AssuranceVocabulary\b/', $live) === 1
-            || preg_match('/function\s+name\s*\(\s*AssuranceFacts/', $live) === 1;
-
-        return ! $definesVocabulary;
-    }));
+    return array_values(array_filter(
+        $fences,
+        static fn (string $fence): bool => preg_match('/\baal3\b/', readmeWithoutVocabularyDefinitions($fence)) === 1,
+    ));
 }
 
 it('does not offer aal3 anywhere a reader can copy it into service', function (): void {
     expect(fencesOfferingAal3(readmeFences()))->toBe([]);
 });
 
-it('permits aal3 in a vocabulary definition, which is the way out', function (): void {
-    // The rule must not forbid the example that makes the ceiling survivable.
-    $definition = <<<'FENCE'
-    ```php
-    final class HardwareBoundVocabulary implements AssuranceVocabulary
-    {
-        public function name(AssuranceFacts $facts): string
-        {
-            return $facts->phishingResistant ? 'aal3' : 'aal2';
-        }
-    }
-    ```
-    FENCE;
+it('permits aal3 inside a vocabulary definition, which is the way out', function (): void {
+    $definition = "```php\nfinal class HardwareBoundVocabulary implements AssuranceVocabulary\n{\n    public function name(AssuranceFacts \$facts): string\n    {\n        return \$facts->phishingResistant ? 'aal3' : 'aal2';\n    }\n}\n```";
 
     expect(fencesOfferingAal3([$definition]))->toBe([]);
 });
 
-it('catches an aal3 configuration split across two fences', function (): void {
+it('permits a definition written with a fully qualified contract', function (): void {
+    // A compact snippet may skip the import. Rejecting it would push the
+    // documentation toward worse code to satisfy the guard.
+    $definition = "```php\nfinal class V implements \\Fissible\\Vouch\\Kernel\\Assurance\\AssuranceVocabulary\n{\n    public function name(\$facts): string\n    {\n        return 'aal3';\n    }\n}\n```";
+
+    expect(fencesOfferingAal3([$definition]))->toBe([]);
+});
+
+it('permits a definition written through an aliased import', function (): void {
+    $definition = "```php\nuse Fissible\\Vouch\\Kernel\\Assurance\\AssuranceVocabulary as Vocabulary;\n\nfinal class V implements Vocabulary\n{\n    public function name(\$facts): string\n    {\n        return 'aal3';\n    }\n}\n```";
+
+    expect(fencesOfferingAal3([$definition]))->toBe([]);
+});
+
+it('catches a live aal3 consumer sharing a fence with a definition', function (): void {
     /*
-     * The hole an accepting-surface rule leaves open. Neither fence names both
-     * the level and the surface, and together they configure a dead route.
+     * The evasion a fence-wide allowance leaves open: the definition is
+     * legitimate, and the ability map three lines below it is the broken half a
+     * reader copies.
      */
+    $mixed = "```php\nfinal class V implements AssuranceVocabulary\n{\n    public function name(\$facts): string\n    {\n        return 'aal3';\n    }\n}\n\n// config/vouch.php\n'assurance_requirements' => ['invoices.approve' => 'aal3'],\n```";
+
+    expect(fencesOfferingAal3([$mixed]))->toBe([$mixed]);
+});
+
+it('catches an aal3 configuration split across two fences', function (): void {
     $sets = "```php\nconst APPROVAL_ASSURANCE = 'aal3';\n```";
     $uses = "```php\nRoute::post('/approve', ...)->middleware('vouch.assurance:' . APPROVAL_ASSURANCE);\n```";
 
