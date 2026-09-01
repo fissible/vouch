@@ -143,14 +143,32 @@ it('warns at the surface that accepts the level', function (): void {
  * vocabulary class and, three lines below it, a live ability map naming aal3.
  * A fence-wide allowance hands the reader the broken half.
  *
- * Fails CLOSED. A fence that is not PHP, or that cannot be tokenised into a
- * bounded class body, is returned whole — so anything it names is judged, and
- * the allowance is never granted by accident.
+ * Fails CLOSED, and the language tag is part of that. An earlier version
+ * stripped the tag and prepended `<?php` before lexing, which handed the
+ * allowance to any fence at all: a ```yaml block containing something shaped
+ * like a class would tokenise as PHP and take the exemption with it. The
+ * allowance now requires the fence to CLAIM to be PHP. A fence that does not,
+ * or that cannot be tokenised into a bounded class body, is returned whole —
+ * so anything it names is judged.
  */
 function readmeWithoutVocabularyDefinitions(string $fence): string
 {
     $live = readmeUncommented($fence);
+
+    $language = '';
+    if (preg_match('/^(?:```|~~~)([^\n]*)/', ltrim($live), $tag) === 1) {
+        $language = strtolower(trim($tag[1]));
+    }
+
     $body = (string) preg_replace('/^(?:```|~~~)[^\n]*\n|(?:```|~~~)\s*$/', '', $live);
+
+    // An untagged fence counts only when it says `<?php` itself. Anything else
+    // is judged whole rather than lexed as a language it never claimed to be.
+    $isPhp = $language === 'php' || ($language === '' && str_contains($body, '<?php'));
+
+    if (! $isPhp) {
+        return $live;
+    }
 
     if (! str_contains($body, '<?php')) {
         $body = "<?php\n" . $body;
@@ -320,6 +338,18 @@ it('permits a definition when the fence establishes several aliases', function (
     $definition = "```php\nuse Fissible\\Vouch\\Kernel\\Assurance\\AssuranceVocabulary as Vocabulary;\nuse Fissible\\Vouch\\Kernel\\Assurance\\AssuranceVocabulary as Contract;\n\nfinal class V implements Contract\n{\n    public function name(\$facts): string\n    {\n        return 'aal3';\n    }\n}\n```";
 
     expect(fencesOfferingAal3([$definition]))->toBe([]);
+});
+
+it('judges a non-php fence that merely looks like a definition', function (): void {
+    /*
+     * The allowance is for PHP, and the fence has to say so. Stripping the
+     * language tag and lexing everything as PHP handed the exemption to any
+     * block whose text happened to parse -- which is the opposite of failing
+     * closed, and was true of this guard until it was measured.
+     */
+    $yaml = "```yaml\n# a config sketch, not a class\nvocabulary: V implements AssuranceVocabulary { name: 'aal3' }\nassurance_requirements:\n  invoices.approve: aal3\n```";
+
+    expect(fencesOfferingAal3([$yaml]))->toBe([$yaml]);
 });
 
 it('judges a fence whose class body never closes', function (): void {
