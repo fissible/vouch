@@ -413,12 +413,15 @@ final class LoginCompletionTest extends TestCase
          * Throwing is what puts the handler's existing compensation on the
          * hook, so the user is logged out rather than left in that state.
          */
+        $refused = false;
+
         try {
             app(SessionRebinder::class)->rebind(str_repeat('5', 64), 7);
-            self::fail('Rebinding a revoked row must refuse rather than silently do nothing.');
         } catch (Throwable) {
-            // The state assertions below are the contract.
+            $refused = true;
         }
+
+        self::assertTrue($refused, 'Rebinding a revoked row must refuse rather than silently do nothing.');
 
         self::assertSame(str_repeat('5', 64), stringValue($revoked->refresh()->session_binding));
 
@@ -454,12 +457,15 @@ final class LoginCompletionTest extends TestCase
 
         session()->start();
 
+        $refused = false;
+
         try {
             app(SessionRebinder::class)->rebind(str_repeat('4', 64), 7);
-            self::fail('Rebinding another subject\'s row must refuse rather than silently do nothing.');
         } catch (Throwable) {
-            // The state assertions below are the contract.
+            $refused = true;
         }
+
+        self::assertTrue($refused, "Rebinding another subject's row must refuse rather than silently do nothing.");
 
         self::assertSame(str_repeat('4', 64), stringValue($other->refresh()->session_binding));
         self::assertSame(1, AuthSession::query()->count());
