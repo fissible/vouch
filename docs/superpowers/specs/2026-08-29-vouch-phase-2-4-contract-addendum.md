@@ -482,3 +482,67 @@ policy never governed the login.
 from its indexed `tenant_id` column is refused rather than trusted. The two are written
 together and can only disagree through corruption or an out-of-band write; picking either
 one silently would make the disagreement invisible.
+
+
+## 3f. Vocabulary is injected, and `acr` is a projection (settled 2026-09-01, issue #10)
+
+`AssuranceEvidence::derivedAcr()` called `app(AssuranceVocabulary::class)`, so a readonly
+value object depended on ambient container state. Two consequences: the same evidence could
+derive different levels depending on when it was asked, and `toArray()`/`fromArray()` were
+pure while `derivedAcr()` was not.
+
+**`derivedAcr()` is deleted. Evidence exposes facts, not names.**
+
+    public function facts(): AssuranceFacts
+
+`AssuranceFacts` is already the derived domain value; naming it is the vocabulary's job and
+nothing else's. Services that need the name inject `AssuranceVocabulary` and write
+`$this->vocabulary->name($evidence->facts())`. This is ordinary constructor injection —
+`AuthFlow` already takes the vocabulary that way. A dedicated deriver service was
+considered and rejected: it adds indirection without solving anything injection does not.
+
+The five production call sites are `EvidenceComparator`, `RequireAbilityAssurance`,
+`SessionLifecycle`, `TokenAssuranceRecord` and `CredentialSelfService`.
+
+**An architecture guard keeps it out.** The value object must not reach the container
+again — no `app()`, `resolve()`, `Container::`, or facade use anywhere in the assurance
+value objects. A guard test is the durable part of this change; the deletion alone would
+be re-introduced by the next person who needs a name where no vocabulary is in scope.
+
+### `acr` is a projection, never an authorization input
+
+The stored `acr` column on `auth_sessions` and `auth_token_assurances` is a historical and
+index projection of what the bound vocabulary called the evidence at write time. It is not
+authoritative and never has been — `EvidenceComparator` re-derives from the persisted
+factors on every decision. Removing the ambient lookup is the first point at which that
+divergence becomes visible, because a caller must now hold a vocabulary to derive one;
+"just read the stored column" becomes an obvious and wrong shortcut. So it is stated:
+
+- **Authorization always derives fresh** from the persisted factors plus the injected
+  vocabulary. No comparison path reads the stored column.
+- **The stored column is never rewritten** to match a newly bound vocabulary. It records
+  what was named then. A vocabulary that now caps at `aal1` leaves an old `aal2` row intact
+  while a fresh `aal2` requirement correctly fails.
+- **A mismatch is not malformed evidence.** The reader must not refuse an otherwise valid
+  record because its projection disagrees with the current vocabulary. This is
+  configuration or version drift, not corruption, and conflating the two would turn an
+  intentional policy migration into a fleet-wide authentication outage.
+
+### The drift diagnostic
+
+`vouch:doctor` reports rows whose stored `acr` differs from a fresh derivation under the
+currently bound vocabulary, per table, as counts — consistent with the command's existing
+"aggregate prerequisites without inspecting any account" boundary.
+
+- Drift is **reported, not failed**: it does not increment `missing` and does not change
+  the exit code. During an intentional vocabulary migration every historical row drifts,
+  and a doctor that goes red on a correct migration trains operators to ignore it.
+- The check reads bounded batches rather than one unbounded query, and a row whose proof
+  cannot be deserialized is counted as unreadable rather than as drift — the two have
+  different causes and different remedies.
+
+**Deferred, deliberately.** There is no vocabulary identifier or version stored alongside
+the projection, so the diagnostic cannot yet distinguish an intentional migration from
+corruption; it can only report that the projection and the current vocabulary disagree.
+Adding a vocabulary/version identifier is the follow-up that makes that distinction
+possible, and is out of scope here.
