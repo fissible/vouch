@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Tests\Authorization;
 
+use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary;
 use Fissible\Vouch\Models\AuthSession;
+use Fissible\Vouch\Tests\Support\Assurance\Aal3CapableVocabulary;
 use Fissible\Vouch\Sessions\BindingDomain;
 use Fissible\Vouch\Sessions\SessionBinding;
 use Fissible\Vouch\Tests\Support\Authorization\Models\PermissionedProbeUser;
@@ -131,13 +133,16 @@ final class UnreachableAal3RouteTest extends TestCase
          * The closest executable approach to the word "permanently", and
          * deliberately named for what it does rather than what it suggests.
          *
-         * This does NOT run a step-up lifecycle. It re-writes the strongest
-         * proof the shipped vocabulary can name and retries, establishing that
-         * fresh maximal evidence is still insufficient -- because the ceiling
-         * is a property of the vocabulary, not of the evidence's age or
-         * strength. A real step-up would end in the same place for the same
-         * reason, but that is an inference from this test, not something it
-         * measures.
+         * This does NOT run a step-up lifecycle, and it does NOT establish
+         * anything about FRESHNESS: the rewritten proof carries the same fixed
+         * factor timestamps, and this route sets no max-age, so recency could
+         * not change the outcome even if it moved.
+         *
+         * What it establishes is narrower and still worth holding: re-writing
+         * identical maximal evidence produces an identical refusal, because
+         * the ceiling belongs to the vocabulary rather than to the evidence.
+         * A real step-up ends in the same place for the same reason, but that
+         * is an inference from this test, not something it measures.
          */
         $this->signInAtTheCeiling();
 
@@ -150,5 +155,30 @@ final class UnreachableAal3RouteTest extends TestCase
 
         $this->post('/gate/approve')->assertRedirect('/auth/step-up');
         self::assertFalse(self::$controllerRan);
+    }
+
+    #[Test]
+    public function a_host_vocabulary_that_derives_aal3_does_reach_the_controller(): void
+    {
+        /*
+         * The other half of the documented claim, and the half that makes the
+         * first half honest. Everything above establishes that aal3 is
+         * unreachable; on its own that reads as "Vouch cannot do aal3", which
+         * is the false universal the documentation rules exist to prevent.
+         *
+         * The escape hatch has to be LIVE, not merely described. Same route,
+         * same session, same requirement -- only the bound vocabulary differs,
+         * and the request now reaches the controller. If this ever fails, the
+         * README's extension point has become fiction and the ceiling really
+         * is a product limit.
+         */
+        $this->signInAtTheCeiling();
+
+        $this->app?->instance(AssuranceVocabulary::class, new Aal3CapableVocabulary());
+
+        $response = $this->post('/gate/approve');
+
+        $response->assertOk();
+        self::assertTrue(self::$controllerRan, 'A vocabulary emitting aal3 did not satisfy an aal3 route.');
     }
 }

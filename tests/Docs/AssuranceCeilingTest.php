@@ -129,21 +129,36 @@ it('warns at the surface that accepts the level', function (): void {
     ], readmeContents()))->toBeTrue();
 });
 
-it('does not offer aal3 in a copyable example', function (): void {
+it('does not offer aal3 in a copyable configuration example', function (): void {
     /*
      * The document must not contradict itself: a fenced ability map or route
      * naming aal3 is what a reader copies, and it would be broken on arrival
      * whatever the surrounding prose said.
      *
-     * Comments are stripped first, on the same reasoning ReadmePositioningTest
-     * gives for routes. A commented line inside a fence -- `// 'x' => 'aal3',
-     * // unreachable` -- is prose in a code font. It cannot be pasted into
-     * service, and showing the mistake beside the correction is a legitimate
-     * way to teach this particular footgun.
+     * Scoped to CONFIGURATION rather than to every fence. A custom
+     * `AssuranceVocabulary` returning 'aal3' is the extension point this suite
+     * requires the prose to explain, and showing it is the clearest way to
+     * explain it -- banning aal3 from every fence would forbid the example that
+     * makes the ceiling survivable.
+     *
+     * Comments are stripped first, on the reasoning ReadmePositioningTest gives
+     * for routes: a commented line inside a fence is prose in a code font, it
+     * cannot be pasted into service, and showing the mistake beside the
+     * correction is a legitimate way to teach this particular footgun.
      */
     $offending = array_values(array_filter(
         readmeFences(),
-        static fn (string $fence): bool => preg_match('/\baal3\b/', readmeUncommented($fence)) === 1,
+        static function (string $fence): bool {
+            $live = readmeUncommented($fence);
+
+            if (preg_match('/\baal3\b/', $live) !== 1) {
+                return false;
+            }
+
+            // The surfaces that ACCEPT a level, as opposed to one that DEFINES
+            // one. Only the first kind is broken by naming aal3.
+            return preg_match('/(assurance_requirements|vouch\.assurance|->middleware\(|\bmiddleware:)/', $live) === 1;
+        },
     ));
 
     expect($offending)->toBe([]);
