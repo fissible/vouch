@@ -6,10 +6,43 @@ fresh session with no prior context.
 **Design spec:** [`docs/superpowers/specs/2026-08-11-vouch-design.md`](docs/superpowers/specs/2026-08-11-vouch-design.md)
 
 **Status:** Phase 1 (`Vouch\Kernel`) complete 2026-08-12. Phase 2 decomposed into six
-sub-projects; **2.1 (persistence foundation) complete 2026-08-12**. Next: plan 2.2,
-factor drivers.
+sub-projects; 2.1, 2.2, 2.3, 2.3b and 2.3d are complete. **2.4 (token gate) is the
+current sub-project**: implementation Tasks 0-5b are shipped, Tasks 6-7 are open.
 
-### Current handoff — 2026-08-26
+### Current handoff — 2026-08-31
+
+**2.4 implementation is shipped; the phase is not closed.** The plan
+([`docs/superpowers/plans/2026-08-29-vouch-phase-2-4-token-gate.md`](docs/superpowers/plans/2026-08-29-vouch-phase-2-4-token-gate.md))
+has eight tasks. Tasks 0, 1, 2a, 2, 3, 4, 5a and 5b are DONE. Two remain:
+
+- **Task 6** — `vouch:audit-tokens` (reporting by default, opt-in `--strict`) plus the
+  host-facing upgrade documentation: Sanctum dependency boundary, drop-and-recreate
+  warning, token-scoped default-deny, machine-token actor model, RFC response split.
+  Not started; `src/Console/` has no such command.
+- **Task 7** — matrix verification and release record: retained three-engine evidence,
+  affected-chunk mutation comparison, the explicit SQLite lock-probe boundary statement,
+  and the changelog/roadmap/release-checklist update.
+
+Merged since the 2.3d handoff below: PR #12 (Task 4, token-scoped enforcement and
+RFC 9470 responses), #13 (OTP redispatch boundary test), #18 (Task 5a, durable subject
+lock and token-assurance retention), #20 (Task 5b, assurance-bound revocation on
+credential mutation), #22 (tenant propagation, #6, plus the stale-session-binding fix,
+#21).
+
+**Suite:** 1,944 passing / 3 skipped on SQLite; 1,945 / 2 on PostgreSQL 16;
+1,944 / 3 on MySQL 8. PHPStan level 9 clean. Both mutation legs pass.
+
+**Next work is the 2.4 open-issue queue**, in the dependency order under
+"2.4 — open issues" below. #4, #3, #5 and #6 are closed by Tasks 5a/5b and PR #22.
+Remaining: **#10** (remove ambient vocabulary resolution), then **#7** and **#8**
+(vocabulary documentation and the underivable-requirement diagnostic), with **#11**
+(mutation rebaseline) pinned last. **#9** (machine-token issuance boundary) is a design
+decision still outstanding; nothing authorizes a machine token today.
+
+Unscheduled and open: #14, #15, #16, #17 (retention gaps surfaced by the retention
+manifest guard) and #19 (credential ids documented as opaque strings, stored as bigint).
+
+### Handoff — 2026-08-26, 2.3d complete
 
 **2.3d is COMPLETE.** All seven tasks shipped: identifier verification
 (`1224349`), credential recovery (`ff70efd`), first-credential enrollment
@@ -291,7 +324,7 @@ Design: [`docs/superpowers/specs/2026-08-12-vouch-phase-2-1-persistence-design.m
 | 2.3b | Authentication throttling (§7.4) plus the corrective email/SMS OTP production-issuance hook — submitted-identifier/IP/tenant/global limits, backoff, lockout, challenge-attempt caps, challenge-issuance volume caps, posture-safe retry disclosure | **Implemented; mutation reconciliation evidence recorded** |
 | 2.3c | OTP delivery economics (§7.4) — SMS country/spend/daily limits and CAPTCHA contract | **Substantially implemented; cross-engine lock ruling, 46 mutation gaps, and final exit criteria remain** |
 | 2.3d | Account lifecycle (Fortify parity) — identifier verification, credential recovery, first-credential enrollment, credential self-service, ability→assurance requirements | **Complete** |
-| 2.4 | Token gate — `Vouch::issueToken`, issuer-qualified identity, default-deny, revocation, **plus `RequireAssurance` non-interactive (RFC 9470)** | **Planned**; ready to implement |
+| 2.4 | Token gate — `Vouch::issueToken`, issuer-qualified identity, default-deny, revocation, **plus `RequireAssurance` non-interactive (RFC 9470)** | **In progress.** Implementation Tasks 0-5b shipped; Task 6 (audit command + host docs) and Task 7 (matrix verification + release record) open |
 | 2.4b | Audit sinks — activitylog/attest/null drivers, §7.6 redaction pass, event taxonomy | Not planned; split from 2.4 |
 | post-2.4 | Remember-me — device-bound persistent login, rotation, reuse/theft detection | Not planned |
 | post-2.4 | Impersonation — two-principal sessions, actor-derived assurance, capability matrix, audited | Not planned; gated on 2.4's audit sink |
