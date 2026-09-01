@@ -610,6 +610,9 @@ only behind a flag is not one an operator will see.
   aggregate. Exempting "aggregates" by inspecting SQL text is not a rule that can be
   enforced, so there is no exemption to inspect. The counts are accumulated from the rows
   the scan inspects; it does not need a separate `count` query, and must not issue one.
+  `chunkById()` and `lazyById()` satisfy this — both emit keyset queries carrying a
+  `LIMIT`. Bare `cursor()` does NOT: it streams one unbounded query, which is the shape
+  this rule exists to forbid.
   The batch size is
   `vouch.doctor.drift_batch`, defaulting to 500 — configurable because the right size
   depends on fleet size and row width, and because a hard-coded constant makes the
