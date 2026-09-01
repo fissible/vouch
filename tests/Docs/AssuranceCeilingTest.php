@@ -84,6 +84,14 @@ it('says what a route configured for aal3 actually does', function (): void {
         '/\b(unreachable|fails? closed|always refuses?)\b/i',
         '/\b(silent\w*|quietly|without (an )?error|no error|nothing in the log)\b/i',
         '/\b(forever|permanent\w*|never)\b/i',
+        /*
+         * Scope, in the same block. Unscoped, this rule blesses the false
+         * universal -- "an aal3 route is permanently unreachable" -- which
+         * contradicts the extension point the next rule requires. It is
+         * unreachable UNDER THE SHIPPED VOCABULARY, and a reader who takes the
+         * stronger reading will not go looking for the way out.
+         */
+        '/(`?NistAssuranceVocabulary`?|\bshipped\b|\bdefault\b)/i',
     ], readmeContents()))->toBeTrue();
 });
 
@@ -159,10 +167,15 @@ it('explains the morph map hazard as one coherent warning', function (): void {
      */
     expect(hostDocsExplainTogether([
         '/morph ?[mM]ap/',
-        // The trigger. Without it the block can describe the hazard without
-        // saying that CHANGING the map is what causes it, which leaves a
-        // reader unsure whether merely having one is dangerous.
-        '/\b(chang\w*|renam\w*|remov\w*|register\w*|add\w*)\b/i',
+        /*
+         * The trigger, bound to the map itself rather than merely present in
+         * the same block. Without it a block can describe the hazard without
+         * saying that CHANGING the map causes it, leaving a reader unsure
+         * whether merely having one is dangerous; without the ADJACENCY an
+         * unrelated "add" or "register" elsewhere in the paragraph satisfies
+         * it and proves no causality at all.
+         */
+        '/((chang|renam|remov|register|add)\w*[^.]{0,40}morph ?map|morph ?map[^.]{0,40}(chang|renam|remov|register|add)\w*)/i',
         '/(`?SubjectKey`?|provider|session|token)/i',
         '/\b(stored|persisted|written|existing)\b/i',
         '/\b(re-?authenticat\w*|stops? binding|no longer bind\w*|invalidat\w*)\b/i',
