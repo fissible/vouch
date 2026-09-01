@@ -63,6 +63,37 @@ function driftToken(string $tokenKey, string $storedAcr, string $derives = 'aal2
     ]);
 }
 
+
+/**
+ * Every query this command issues against one table, in order.
+ *
+ * Deliberately NOT filtered to statements beginning with `select`: an unbounded
+ * read phrased as a common table expression starts with `with`, and filtering it
+ * out would let exactly the scan this test exists to forbid slip past.
+ *
+ * @return list<string>
+ */
+function driftReadsAgainst(string $table, callable $run): array
+{
+    $seen = [];
+
+    DB::listen(static function (\Illuminate\Database\Events\QueryExecuted $query) use (&$seen, $table): void {
+        $sql = strtolower(ltrim($query->sql));
+
+        if (str_contains($sql, $table)) {
+            $seen[] = $sql;
+        }
+    });
+
+    $run();
+
+    /*
+     * An aggregate returning one row is not a row fetch and needs no bound. Row
+     * fetches are what must be limited, and what must be more numerous than one.
+     */
+    return array_values(array_filter($seen, static fn (string $sql): bool => ! str_contains($sql, 'count(')));
+}
+
 /** @return array<string, mixed> */
 function doctorReport(): array
 {
@@ -297,7 +328,7 @@ it('separates an unreadable proof from a drifted one', function (): void {
         ->and(driftStatus($report))->toBe('pass');
 });
 
-it('iterates in batches rather than reading the table at once', function (): void {
+it('iterates in batches rather than reading either table at once', function (): void {
     /*
      * An earlier draft seeded 250 rows and asserted "more than one select".
      * That established nothing: with the batch size unspecified, requiring two
@@ -305,39 +336,42 @@ it('iterates in batches rather than reading the table at once', function (): voi
      * not to, and correct totals are equally produced by one unbounded query.
      *
      * So the size is configuration -- vouch.doctor.drift_batch -- and the
-     * fixture exceeds a DELIBERATELY small one. 60 rows over a batch of 25 must
-     * take at least three passes, which no single-query implementation
-     * produces, and the expected count follows from the configured size rather
-     * than from a number chosen to make the assertion true.
+     * fixture exceeds a deliberately small one. 60 rows over a batch of 25 must
+     * take at least three passes, a number that follows from the configured
+     * size rather than from one chosen to make the assertion true.
+     *
+     * Both tables, because proving it of the first says nothing about the
+     * second, and an implementation that iterated sessions politely while
+     * loading every token record at once is the likelier of the two mistakes.
      */
     config(['vouch.doctor.drift_batch' => 25]);
 
     for ($userId = 1; $userId <= 60; $userId++) {
         driftSession($userId, 'aal2');
+        driftToken('token-' . $userId, 'aal2');
     }
 
     app()->instance(AssuranceVocabulary::class, new CappingVocabulary());
 
-    $selects = [];
-    DB::listen(static function (\Illuminate\Database\Events\QueryExecuted $query) use (&$selects): void {
-        $sql = strtolower(ltrim($query->sql));
-        if (str_contains($sql, 'auth_sessions') && str_starts_with($sql, 'select')) {
-            $selects[] = $sql;
-        }
+    $sessionReads = [];
+    $tokenReads = driftReadsAgainst('auth_token_assurances', function () use (&$sessionReads): void {
+        $sessionReads = driftReadsAgainst('auth_sessions', static function (): void {
+            doctorReport();
+        });
     });
 
-    $report = doctorReport();
+    foreach (['auth_sessions' => $sessionReads, 'auth_token_assurances' => $tokenReads] as $table => $reads) {
+        // ceil(60 / 25) = 3 passes at minimum.
+        expect(count($reads))->toBeGreaterThanOrEqual(3, "{$table} was not read in batches");
 
-    expect(driftFor($report, 'auth_sessions'))
-        ->toBe(['table' => 'auth_sessions', 'checked' => 60, 'drifted' => 60, 'unreadable' => 0]);
-
-    // ceil(60 / 25) = 3 passes, plus the one that finds the batch empty.
-    expect(count($selects))->toBeGreaterThanOrEqual(3);
-
-    // Every read of the table is bounded. A conforming-looking implementation
-    // that batched politely and then swept the rest in one unbounded query
-    // would satisfy the count above and fail here.
-    expect(array_filter($selects, static fn (string $sql): bool => ! str_contains($sql, 'limit')))->toBe([]);
+        /*
+         * Every row fetch bounded. This is the assertion aimed at the
+         * batch-politely-then-sweep-the-rest implementation, and at the CTE
+         * phrasing of the same thing -- neither carries a top-level limit.
+         */
+        expect(array_filter($reads, static fn (string $sql): bool => ! str_contains($sql, 'limit')))
+            ->toBe([], "{$table} had an unbounded row fetch");
+    }
 });
 
 it('counts a human row with no projection as unreadable, not as clean', function (): void {
@@ -351,7 +385,7 @@ it('counts a human row with no projection as unreadable, not as clean', function
     DB::table('auth_sessions')->where('id', $session->id)->update(['acr' => null]);
 
     expect(driftFor(doctorReport(), 'auth_sessions'))
-        ->toBe(['table' => 'auth_sessions', 'checked' => 0, 'drifted' => 0, 'unreadable' => 1]);
+        ->toBe(['table' => 'auth_sessions', 'checked' => 1, 'drifted' => 0, 'unreadable' => 1]);
 });
 
 it('does not let the machine exemption swallow a malformed machine row', function (): void {
@@ -374,7 +408,7 @@ it('does not let the machine exemption swallow a malformed machine row', functio
     ]);
 
     expect(driftFor(doctorReport(), 'auth_token_assurances'))
-        ->toBe(['table' => 'auth_token_assurances', 'checked' => 0, 'drifted' => 0, 'unreadable' => 1]);
+        ->toBe(['table' => 'auth_token_assurances', 'checked' => 1, 'drifted' => 0, 'unreadable' => 1]);
 });
 
 it('excludes a legacy session that never carried a proof', function (): void {
@@ -382,11 +416,40 @@ it('excludes a legacy session that never carried a proof', function (): void {
      * The pre-2.4 state SessionEvidence already reports as LegacyNoProof. It is
      * a known-good row, not corruption, and counting it would put a permanent
      * non-zero number in front of every operator who upgraded.
+     *
+     * The acr is deliberately RETAINED here, because that is the realistic
+     * legacy shape: rows written before 2.4 stored a level and no proof. The
+     * exclusion keys on the absent proof alone, so an implementation keying on
+     * "both null" would report every upgraded fleet as corrupt.
      */
+    $session = driftSession(1, 'aal2');
+    DB::table('auth_sessions')->where('id', $session->id)->update(['assurance_proof' => null]);
+
+    expect(driftFor(doctorReport(), 'auth_sessions'))
+        ->toBe(['table' => 'auth_sessions', 'checked' => 0, 'drifted' => 0, 'unreadable' => 0]);
+});
+
+it('excludes a legacy session that carries neither a proof nor a level', function (): void {
     $session = driftSession(1, 'aal2');
     DB::table('auth_sessions')->where('id', $session->id)
         ->update(['assurance_proof' => null, 'acr' => null]);
 
     expect(driftFor(doctorReport(), 'auth_sessions'))
         ->toBe(['table' => 'auth_sessions', 'checked' => 0, 'drifted' => 0, 'unreadable' => 0]);
+});
+
+it('counts a human token row with no proof as unreadable', function (): void {
+    /*
+     * The mirror of the machine exemption, and it does NOT get the legacy
+     * treatment sessions do. TokenAssuranceRecord always writes a proof for a
+     * human record, so its absence is corruption rather than an older shape --
+     * and there is no pre-2.4 token row to be lenient about, because the table
+     * had no consumer before 2.4.
+     */
+    driftToken('token-1', 'aal2');
+    DB::table('auth_token_assurances')->where('token_key', 'token-1')
+        ->update(['assurance_proof' => null]);
+
+    expect(driftFor(doctorReport(), 'auth_token_assurances'))
+        ->toBe(['table' => 'auth_token_assurances', 'checked' => 1, 'drifted' => 0, 'unreadable' => 1]);
 });

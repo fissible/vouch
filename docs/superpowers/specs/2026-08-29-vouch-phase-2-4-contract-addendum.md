@@ -565,20 +565,30 @@ different causes and conflating them is what this section exists to prevent.
 against: a row that is neither checked nor reported has been dropped, and corruption that
 drops out of every count is invisible.
 
-- `checked` — the row has a non-null `acr` AND a proof that deserializes. Revocation and
-  recovery grace are irrelevant here: whether a projection matches its proof is independent
-  of whether that session may currently authorize anything.
+- `checked` — every row INSPECTED, meaning every row not excluded outright by the rule
+  below. It is the denominator: "we looked at 60 rows, 3 drifted, 1 was unreadable" is the
+  sentence an operator needs, and it only reads correctly if the two subsets sum into the
+  total rather than sitting beside it. Revocation and recovery grace do not affect
+  inspection: whether a projection matches its proof is independent of whether that session
+  may currently authorize anything.
 - `drifted` — a subset of `checked` whose stored name differs from the fresh derivation.
-- `unreadable` — the row looks like it should carry a projection but cannot be compared:
-  the proof will not deserialize, or the proof is present while `acr` is null. One bucket
-  rather than three, because the remedy is the same: a human reads the row.
-- **Excluded entirely**, counted nowhere: a machine token record in its contracted shape
-  (machine actor, null `acr`, null proof), and a session with a null `assurance_proof`,
-  which is the legacy pre-2.4 state `SessionEvidence` already reports as `LegacyNoProof`.
-  Both are known-good states, and counting either would report a permanent fault.
+- `unreadable` — a subset of `checked` that cannot be compared at all: the proof will not
+  deserialize, the proof is absent on a record whose actor should carry one, or the proof is
+  present while `acr` is null. One bucket rather than three, because the remedy is the
+  same: a human reads the row. So `drifted` and `unreadable` are disjoint, and both are
+  contained in `checked`.
+- **Excluded entirely**, counted nowhere — and this is the ONLY silent category, which is
+  why it is exhaustively enumerated: a machine token record in its contracted shape
+  (machine actor, null `acr`, null proof), and a session with a null `assurance_proof`
+  whatever its `acr` — the legacy pre-2.4 state `SessionEvidence` already reports as
+  `LegacyNoProof`, and such a row typically DOES retain a historical `acr`, so keying the
+  exclusion on the proof alone is deliberate. Both are known-good states, and counting
+  either would put a permanent non-zero number in front of every operator who upgraded.
 - A machine record NOT in that shape — a machine actor carrying a proof, or a non-null
   `acr` — is `unreadable`. It violates the storage contract, and excluding it would let the
-  machine exemption swallow real corruption.
+  machine exemption swallow real corruption. A HUMAN token record with a null proof is
+  likewise `unreadable`, not excluded: the human writer always stores one, so its absence is
+  corruption rather than a legacy shape.
 
 A failure to read a table at all is not a drift outcome. It follows `vouch:doctor`'s
 existing catch-all, which reports the error and exits 2.
@@ -589,7 +599,10 @@ only behind a flag is not one an operator will see.
 - Drift is **reported, not failed**: it does not increment `missing` and does not change
   the exit code. During an intentional vocabulary migration every historical row drifts,
   and a doctor that goes red on a correct migration trains operators to ignore it.
-- The check reads bounded batches rather than one unbounded query. The batch size is
+- Every read that FETCHES ROWS from either table is bounded — including one phrased as a
+  common table expression or a subquery, which is a form of the same unbounded scan. An
+  aggregate that returns a single row (a `count`) is not a row fetch and needs no bound.
+  The batch size is
   `vouch.doctor.drift_batch`, defaulting to 500 — configurable because the right size
   depends on fleet size and row width, and because a hard-coded constant makes the
   iteration itself untestable without seeding a production-sized fixture.
