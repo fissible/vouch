@@ -623,3 +623,94 @@ the projection, so the diagnostic cannot yet distinguish an intentional migratio
 corruption; it can only report that the projection and the current vocabulary disagree.
 Adding a vocabulary/version identifier is the follow-up that makes that distinction
 possible, and is out of scope here.
+
+
+## 3g. Underivable assurance requirements (settled 2026-09-02, issue #8)
+
+§3f documented that `NistAssuranceVocabulary` caps at `aal2`. Documentation relies on
+someone reading it, and the failure it describes is silent: a route configured for a level
+no vocabulary emits refuses every request forever. `vouch:assurance-map` already reports
+configured requirements and is the right place to say that one of them cannot be satisfied.
+
+**The command must ask the CONFIGURED vocabulary**, not assume the shipped one. A host that
+captures hardware binding may legitimately emit `aal3`, so a warning keyed on the NIST
+ceiling would be wrong exactly where it matters most.
+
+### Two sources, and only one of them is authority
+
+`AssuranceVocabulary` exposes only `name(AssuranceFacts): string`, which answers what a
+level IS called, never what levels exist.
+
+- **Declared, and authoritative.** An optional `ReportsReachableLevels` capability —
+  `reachableLevels(): list<string>` — on the same pattern as §3c's `ReportsTokenExistence`.
+  A vocabulary implementing it states its own range and nothing else can know better.
+  `NistAssuranceVocabulary` implements it, returning `aal0`, `aal1`, `aal2`, so the footgun
+  §3f documents is caught out of the box with no host action.
+
+  The declaration is VALIDATED: every entry must be a canonical level
+  (`AssuranceLevelComparator::ORDER`). A declaration naming something outside the ladder is
+  a contract error, reported as such — a vocabulary cannot usefully declare a level no
+  requirement can name.
+
+- **Probed, and advisory only.** `AssuranceFacts` is a small closed shape — a credential
+  count, a `FactorStrength`, two booleans, a timestamp — so the command can construct a
+  bounded grid and collect every name emitted. This yields a LOWER BOUND and nothing more: a
+  vocabulary branching on a credential count outside the grid, or on the timestamp, emits
+  levels the probe never sees.
+
+  **The probe may report that a level was OBSERVED. It may never report that one is
+  unreachable.** That sentence is the design. A false "unreachable" tells an operator to
+  change a configuration that is correct, which is worse than saying nothing.
+
+  The probe calls host-supplied code. It is bounded, and it is treated as read-only from
+  Vouch's perspective: it constructs value objects and reads names, and nothing about
+  running it may depend on or alter application state.
+
+  Its coverage is MARGINAL, not combinatorial: each field is varied in both directions, but
+  not every conjunction of them is built. A vocabulary keyed to an unvisited conjunction
+  reports `undetermined`. That is a limit of any bounded probe rather than a defect in this
+  one, and it is the reason the probe is advisory — `undetermined` names exactly the case it
+  cannot settle, and a host needing a definite answer declares.
+
+### Verdicts
+
+| Verdict | Meaning |
+| --- | --- |
+| `declared` | The vocabulary declares the level. Authoritative: it is derivable. |
+| `undeclared` | The vocabulary declares its range and the level is NOT in it. Authoritative: it is not derivable. |
+| `observed` | No declaration, but the probe emitted the level. Advisory evidence that it is derivable. |
+| `undetermined` | No declaration, and the probe never emitted it. Nothing is known — NOT a finding of unreachability. |
+
+**`--strict` fails on `undeclared` and on `undetermined`.** The second is the user's ruling
+and it is the right one: `--strict` means prove it, and an undetermined answer is the
+absence of proof rather than evidence of safety. Failing there pushes a host toward
+declaring, which is the only thing that can actually settle the question. It never fails on
+`observed`.
+
+### Discrepancies are reported, never resolved
+
+The probe still runs when a declaration exists, because the two disagreeing is information:
+
+- **Declared but not observed** — the declaration stands; the probe's grid simply did not
+  reach it. Reported as incomplete probe coverage, not as a fault.
+
+  This report covers EVERY declared level the probe did not emit, not only the ones some
+  requirement happens to name. The field describes the reach of the grid, and a grid that
+  cannot reach `aal0` is equally worth knowing about whether or not a route asks for it —
+  scoping it to configured requirements would make the same probe look complete or
+  incomplete depending on unrelated configuration.
+- **Observed but not declared** — the vocabulary emitted a level it says it cannot. That is
+  a contract error in host code and is reported loudly: silently taking either side would
+  hide a real defect, and this is the one case where the probe outranks the declaration
+  because it holds a counter-example.
+
+### What this does NOT change
+
+Runtime authorization is untouched. An underivable requirement still fails closed at the
+route: the requirement is never downgraded, and an inability to derive `aal3` is never
+treated as satisfaction. This is a diagnostic about configuration, and a diagnostic that
+altered enforcement would be a far worse defect than the one it reports.
+
+Boot refusal was considered and rejected. One unreachable ability would break unrelated
+routes and make the diagnostic command itself unusable — the failure would arrive in
+production rather than in CI, which is where a configuration diagnostic belongs.

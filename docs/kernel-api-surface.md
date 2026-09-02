@@ -15,6 +15,9 @@ Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary (interface)
 Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::name()
 Fissible\Vouch\Kernel\Assurance\NistAssuranceVocabulary (class)
 Fissible\Vouch\Kernel\Assurance\NistAssuranceVocabulary::name()
+Fissible\Vouch\Kernel\Assurance\NistAssuranceVocabulary::reachableLevels()
+Fissible\Vouch\Kernel\Assurance\ReportsReachableLevels (interface)
+Fissible\Vouch\Kernel\Assurance\ReportsReachableLevels::reachableLevels()
 Fissible\Vouch\Kernel\Attempt\AttemptState (enum)
 Fissible\Vouch\Kernel\Attempt\AttemptState::$name
 Fissible\Vouch\Kernel\Attempt\AttemptState::$value
