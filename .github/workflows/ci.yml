@@ -68,9 +68,21 @@ jobs:
   # tight enough to still mean something: raising one cap to 40 would have
   # bought the same headroom while making the guard correspondingly weaker, and
   # this job's cost grows with the suite every phase.
+  #
+  # 2026-09-01: `covered` was cancelled at 25m15s against that 25-minute cap,
+  # on a pull request changing no source at all. The cost grew because COVERAGE
+  # grew -- the phase's new tests exercise AssuranceFacts and
+  # NistAssuranceVocabulary, so more Kernel mutants fall inside --covered-only.
+  # That is the gate doing its job, not waste, and the reasoning above still
+  # holds: the cap is not simply raised to 40.
+  #
+  # Install is cached instead, as the `test` job already does, which removes the
+  # ~3m measured above rather than widening the window around it. The cap moves
+  # to 30 for headroom, since a job finishing fifteen seconds past the wall is
+  # a flake generator whichever direction it is wrong in.
   mutation:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     strategy:
       fail-fast: false
@@ -86,6 +98,15 @@ jobs:
           php-version: '8.4'
           extensions: json, mbstring
           coverage: pcov
+
+      - name: Cache composer deps
+        uses: actions/cache@v5
+        with:
+          path: vendor
+          # Same key shape as the test job, including patches/: vendor carries
+          # an applied patch, so a changed patch with an unchanged composer.json
+          # would otherwise restore a stale, unpatched plugin.
+          key: composer-mutation-8.4-${{ hashFiles('composer.json', 'patches/**') }}
 
       - name: Install
         run: composer install --prefer-dist --no-progress
