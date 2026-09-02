@@ -18,4 +18,13 @@ final class QuietFile
         // Also createToken( in a comment, and below in a string.
         return 'call createToken( to mint a token';
     }
+
+    public function documentation(): string
+    {
+        // A heredoc is a string too. A scanner reading raw text rather than
+        // tokens reports this file three times over.
+        return <<<'DOC'
+        Call createToken( on the user model to mint a token.
+        DOC;
+    }
 }

@@ -13,14 +13,29 @@ final class DynamicIssuer
         return $user->{$method}('api');
     }
 
-    /** @param class-string<User> $class */
+    /**
+     * A variable class calling an ISSUANCE-named method.
+     *
+     * The bar is "may be an issuance call", not "is dynamic": an earlier
+     * version of this fixture called an unrelated method, which would have
+     * pressured the scanner into flagging every variable-class call in a host
+     * codebase and burying the findings that matter.
+     *
+     * @param class-string<StaticIssuer> $class
+     */
     public function dynamicClass(string $class): mixed
     {
-        return $class::find(1);
+        return $class::createToken('api');
     }
 
     public function indirect(User $user): mixed
     {
         return call_user_func([$user, 'createToken'], 'api');
+    }
+
+    /** A relative of call_user_func, and just as opaque. */
+    public function indirectArray(User $user): mixed
+    {
+        return call_user_func_array([$user, 'createToken'], ['api']);
     }
 }

@@ -762,10 +762,20 @@ hosts run rarely.
 ### Unknown seams
 
 A seam is unknown when the lexer sees a construct that *may* be an issuance call and cannot
-say: a dynamic method name (`->{$method}(`), a call through a variable class
-(`$class::mint()`), `call_user_func` and its relatives, or a route whose middleware entry is
-a variable rather than a literal. These are reported with the reason they could not be
-resolved. They are never silently dropped, and never counted as clean.
+say: a dynamic method name (`->{$method}(`), a call to an issuance-named method through a
+variable class (`$class::createToken(`), or `call_user_func` and its relatives naming one.
+These are reported with the reason they could not be resolved. They are never silently
+dropped, and never counted as clean.
+
+The bar is "may be an issuance call", not "is dynamic". A variable-class call to an
+unrelated method is ordinary code; flagging every one of them would bury the findings that
+matter under noise the host cannot act on.
+
+Unknown seams belong to the SOURCE half only. Enforcement coverage is read from the live
+router, where middleware groups are already expanded and every entry is a concrete string —
+there is no unresolved middleware to report, because registration resolved it. An earlier
+draft of this section listed variable middleware and route macros as unknown seams, which
+cannot arise once the router is the source of truth.
 
 ### The allowlist requires a reason and an owner
 
@@ -788,5 +798,7 @@ the shape of the codebase to the next reader, and removing it is the cheapest po
 ### `--strict`
 
 Fails on an unallowlisted issuance site, on any unknown seam — including an unscannable
-configured path — on a malformed allowlist entry, and on a stale one. The default run reports all of the same and exits zero, so
+configured path — on a malformed allowlist entry, and on a stale one. The failure exit code
+is `CommandExit::Failure`, as every other Vouch command uses; the value is ratified here so
+a test asserting it is pinning a decision rather than an accident. The default run reports all of the same and exits zero, so
 adopting the command never breaks a host that has not opted in.
