@@ -325,6 +325,25 @@ it('observes a level that depends on there being no satisfied factor at all', fu
     expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('observed');
 });
 
+it('observes a level that depends on there BEING a satisfied factor', function (): void {
+    /*
+     * The other direction of the fifth field, and the last polarity in the
+     * grid. A probe that set weakestSatisfiedAt to null on every shape it built
+     * would pass the empty-shape fixture above while a vocabulary requiring a
+     * real timestamp stayed unobserved -- both directions have to be
+     * constructed before the field counts as covered.
+     */
+    app()->instance(AssuranceVocabulary::class, new class implements AssuranceVocabulary
+    {
+        public function name(AssuranceFacts $facts): string
+        {
+            return $facts->weakestSatisfiedAt !== null ? 'aal3' : 'aal1';
+        }
+    });
+
+    expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('observed');
+});
+
 it('reports undetermined rather than unreachable when nothing can settle it', function (): void {
     /*
      * THE test. No declaration, and a vocabulary the probe can watch as long as
