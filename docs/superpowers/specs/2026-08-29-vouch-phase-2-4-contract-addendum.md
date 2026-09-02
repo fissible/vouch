@@ -687,6 +687,12 @@ The probe still runs when a declaration exists, because the two disagreeing is i
 
 - **Declared but not observed** — the declaration stands; the probe's grid simply did not
   reach it. Reported as incomplete probe coverage, not as a fault.
+
+  This report covers EVERY declared level the probe did not emit, not only the ones some
+  requirement happens to name. The field describes the reach of the grid, and a grid that
+  cannot reach `aal0` is equally worth knowing about whether or not a route asks for it —
+  scoping it to configured requirements would make the same probe look complete or
+  incomplete depending on unrelated configuration.
 - **Observed but not declared** — the vocabulary emitted a level it says it cannot. That is
   a contract error in host code and is reported loudly: silently taking either side would
   hide a real defect, and this is the one case where the probe outranks the declaration

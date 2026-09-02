@@ -222,6 +222,42 @@ it('observes a level that depends on a multi-factor credential', function (): vo
     expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('observed');
 });
 
+it('observes a level reached only when phishing resistance is ABSENT', function (): void {
+    /*
+     * Negative polarity, and the reason it is needed: with only the positive
+     * fixtures above, a single facts value carrying two credentials, phishing
+     * resistance and a multi-factor credential satisfies every one of them. A
+     * probe is not a grid until each dimension actually moves in both
+     * directions, and this fixture is unreachable unless it does.
+     */
+    app()->instance(AssuranceVocabulary::class, new class implements AssuranceVocabulary
+    {
+        public function name(AssuranceFacts $facts): string
+        {
+            return ! $facts->allPhishingResistant && $facts->distinctCredentialCount > 0
+                ? 'aal3'
+                : 'aal1';
+        }
+    });
+
+    expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('observed');
+});
+
+it('observes a level reached only when NO credential is multi-factor', function (): void {
+    // The other boolean, in the other direction, for the same reason.
+    app()->instance(AssuranceVocabulary::class, new class implements AssuranceVocabulary
+    {
+        public function name(AssuranceFacts $facts): string
+        {
+            return ! $facts->hasMultiFactorCredential && $facts->distinctCredentialCount > 0
+                ? 'aal3'
+                : 'aal1';
+        }
+    });
+
+    expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('observed');
+});
+
 it('reports undetermined rather than unreachable when nothing can settle it', function (): void {
     /*
      * THE test. No declaration, and a vocabulary the probe can watch as long as
@@ -349,7 +385,15 @@ it('still probes when a declaration exists, and reports incomplete coverage', fu
 
     expect(derivabilityOf($report, 'invoices.approve'))->toBe('declared')
         ->and($vocabulary->calls)->toBeGreaterThan(0)
-        ->and(vocabularyReport($report)['unobserved_declared'] ?? null)->toBe(['aal3'])
+        /*
+         * The EXACT list, and it names aal0 as well as aal3. The rule below
+         * emits only aal1, so both are declared-but-unobserved -- and asserting
+         * just aal3 would pass equally on a report that silently scoped this
+         * field to configured requirements. §3g scopes it to the declaration,
+         * because the field describes the reach of the grid rather than the
+         * state of one route.
+         */
+        ->and(vocabularyReport($report)['unobserved_declared'] ?? null)->toBe(['aal0', 'aal2', 'aal3'])
         ->and(Artisan::call('vouch:assurance-map', ['--strict' => true]))->toBe(0);
 });
 
@@ -369,12 +413,10 @@ it('does not list a declared level the probe did observe as unobserved', functio
     );
     app()->instance(AssuranceVocabulary::class, $vocabulary);
 
-    $unobserved = vocabularyReport(assuranceMapReport())['unobserved_declared'] ?? null;
-
-    expect($unobserved)->toBeArray()
-        ->and($unobserved)->not->toContain('aal1')
-        ->and($unobserved)->not->toContain('aal2')
-        ->and($unobserved)->toContain('aal3');
+    // aal1 and aal2 are emitted; aal0 and aal3 are not. Exact, so a report
+    // that listed every declared level regardless cannot pass.
+    expect(vocabularyReport(assuranceMapReport())['unobserved_declared'] ?? null)
+        ->toBe(['aal0', 'aal3']);
 });
 
 it('probes within a stated budget', function (): void {
