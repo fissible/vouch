@@ -295,10 +295,14 @@ it('observes a level that depends on the strongest factor', function (FactorStre
 
     expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('observed');
 })->with([
-    FactorStrength::Knowledge,
-    FactorStrength::PossessionWeak,
-    FactorStrength::Possession,
-    FactorStrength::PossessionStrong,
+    // Each row is an ARRAY of arguments, not a bare value. A flat list happens
+    // to run, but it does not match Pest's declared signature and PHPStan says
+    // so at level 9 -- caught only once the implementation existed to analyse
+    // the file against.
+    [FactorStrength::Knowledge],
+    [FactorStrength::PossessionWeak],
+    [FactorStrength::Possession],
+    [FactorStrength::PossessionStrong],
 ]);
 
 it('observes a level that depends on exactly one credential', function (): void {

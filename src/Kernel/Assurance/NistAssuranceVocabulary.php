@@ -19,8 +19,14 @@ namespace Fissible\Vouch\Kernel\Assurance;
  *
  * @see https://pages.nist.gov/800-63-4/sp800-63b/aal/
  */
-final class NistAssuranceVocabulary implements AssuranceVocabulary
+final class NistAssuranceVocabulary implements AssuranceVocabulary, ReportsReachableLevels
 {
+    /** @return list<string> */
+    public function reachableLevels(): array
+    {
+        return ['aal0', 'aal1', 'aal2'];
+    }
+
     public function name(AssuranceFacts $facts): string
     {
         if ($facts->distinctCredentialCount === 0) {
