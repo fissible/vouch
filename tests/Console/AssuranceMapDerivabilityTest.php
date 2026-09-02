@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Fissible\Vouch\Kernel\Assurance\AssuranceFacts;
 use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary;
 use Fissible\Vouch\Kernel\Assurance\NistAssuranceVocabulary;
+use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Kernel\Assurance\ReportsReachableLevels;
 use Fissible\Vouch\Tests\Support\Assurance\DeclaringVocabulary;
 use Fissible\Vouch\Tests\Support\Assurance\ProbeCountingVocabulary;
@@ -252,6 +253,60 @@ it('observes a level reached only when NO credential is multi-factor', function 
             return ! $facts->hasMultiFactorCredential && $facts->distinctCredentialCount > 0
                 ? 'aal3'
                 : 'aal1';
+        }
+    });
+
+    expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('observed');
+});
+
+it('observes a level that depends on the strongest factor', function (): void {
+    /*
+     * The third dimension. §3g defines the grid over all five AssuranceFacts
+     * fields, and the fixtures above only force three of them to move -- a
+     * probe varying the count and both booleans while pinning strength to one
+     * value passes every one of them.
+     */
+    app()->instance(AssuranceVocabulary::class, new class implements AssuranceVocabulary
+    {
+        public function name(AssuranceFacts $facts): string
+        {
+            return $facts->strongest === FactorStrength::PossessionStrong ? 'aal3' : 'aal1';
+        }
+    });
+
+    expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('observed');
+});
+
+it('observes a level that depends on exactly one credential', function (): void {
+    /*
+     * Every count-dependent fixture so far triggers at two or more, so a probe
+     * constructing only 0 and 2 satisfies them. A threshold at exactly one is
+     * an ordinary rule -- single-factor is a real level -- and it is invisible
+     * to a grid that skips the value.
+     */
+    app()->instance(AssuranceVocabulary::class, new class implements AssuranceVocabulary
+    {
+        public function name(AssuranceFacts $facts): string
+        {
+            return $facts->distinctCredentialCount === 1 ? 'aal3' : 'aal1';
+        }
+    });
+
+    expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('observed');
+});
+
+it('observes a level that depends on there being no satisfied factor at all', function (): void {
+    /*
+     * The fifth field. weakestSatisfiedAt is null exactly when nothing eligible
+     * was satisfied, so this is the empty shape -- the one a grid built by
+     * looping over "some credentials" never constructs. AssuranceFacts models
+     * it deliberately; a probe that cannot reach it is not covering the type.
+     */
+    app()->instance(AssuranceVocabulary::class, new class implements AssuranceVocabulary
+    {
+        public function name(AssuranceFacts $facts): string
+        {
+            return $facts->weakestSatisfiedAt === null ? 'aal3' : 'aal1';
         }
     });
 
