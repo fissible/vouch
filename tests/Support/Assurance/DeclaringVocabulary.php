@@ -27,8 +27,13 @@ final class DeclaringVocabulary implements AssuranceVocabulary, ReportsReachable
         private readonly mixed $rule,
     ) {}
 
+    /** How many times the probe asked. A declaration must not stop it running. */
+    public int $calls = 0;
+
     public function name(AssuranceFacts $facts): string
     {
+        $this->calls++;
+
         return ($this->rule)($facts);
     }
 

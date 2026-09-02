@@ -75,14 +75,74 @@ beforeEach(function (): void {
     config(['vouch.declared_abilities' => ['invoices.approve']]);
 });
 
-it('ships a shipped vocabulary that declares its own range', function (): void {
+/**
+ * The vocabulary section of the report, or fail loudly.
+ *
+ * @param  array<string, mixed>  $report
+ * @return array<string, mixed>
+ */
+function vocabularyReport(array $report): array
+{
+    $section = $report['vocabulary'] ?? null;
+
+    if (! is_array($section)) {
+        throw new RuntimeException('vouch:assurance-map reported no vocabulary section.');
+    }
+
+    /** @var array<string, mixed> $section */
+    return $section;
+}
+
+/** A vocabulary with no declaration that never emits the level under test. */
+function silentVocabulary(): AssuranceVocabulary
+{
     /*
-     * The out-of-the-box case, and the reason this issue is worth doing at all:
-     * a host that configures aal3 against the default vocabulary is told so
-     * without opting into anything.
+     * Never emits aal3 under ANY facts, which is what makes it usable for
+     * classification. An earlier draft used a vocabulary whose aal3 branch
+     * needed 97 credentials, quietly assuming the grid stayed smaller than
+     * that -- a legitimate implementation probing further would have turned
+     * the verdict into `observed` and the test green for the wrong reason.
      */
-    expect(new NistAssuranceVocabulary())->toBeInstanceOf(ReportsReachableLevels::class)
-        ->and((new NistAssuranceVocabulary())->reachableLevels())->toBe(['aal0', 'aal1', 'aal2']);
+    return new class implements AssuranceVocabulary
+    {
+        public function name(AssuranceFacts $facts): string
+        {
+            return $facts->distinctCredentialCount >= 2 ? 'aal2' : 'aal1';
+        }
+    };
+}
+
+it('reports the shipped vocabulary as unable to derive aal3, through the command', function (): void {
+    /*
+     * The out-of-the-box case, driven through the COMMAND against the default
+     * container binding. Asserting that NistAssuranceVocabulary implements the
+     * capability proves only that the class does; the command could ignore the
+     * capability entirely and that assertion would still pass.
+     */
+    expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('undeclared');
+});
+
+it('classifies every level on the ladder, not only the one that motivated this', function (): void {
+    /*
+     * An implementation hard-coded around aal3 satisfies every other test in
+     * this file. Four requirements at once, across the whole canonical ladder,
+     * against a declaration covering three of them.
+     */
+    config(['vouch.assurance_requirements' => [
+        'a.zero' => 'aal0',
+        'a.one' => 'aal1',
+        'a.two' => 'aal2',
+        'a.three' => 'aal3',
+    ]]);
+    config(['vouch.declared_abilities' => ['a.zero', 'a.one', 'a.two', 'a.three']]);
+    app()->instance(AssuranceVocabulary::class, declaringVocabulary(['aal0', 'aal1', 'aal2']));
+
+    $report = assuranceMapReport();
+
+    expect(derivabilityOf($report, 'a.zero'))->toBe('declared')
+        ->and(derivabilityOf($report, 'a.one'))->toBe('declared')
+        ->and(derivabilityOf($report, 'a.two'))->toBe('declared')
+        ->and(derivabilityOf($report, 'a.three'))->toBe('undeclared');
 });
 
 it('reports an authoritative absence when the vocabulary declares its range', function (): void {
@@ -103,8 +163,8 @@ it('reports declared when the level is in the range', function (): void {
 it('reports observed, not declared, when only the probe saw the level', function (): void {
     /*
      * A vocabulary with no declaration that plainly does emit aal3. The probe
-     * holds positive evidence, so the command may say so -- this is the one
-     * direction a probe is allowed to speak in.
+     * holds positive evidence, so the command may say so -- the one direction
+     * a probe is allowed to speak in.
      */
     app()->instance(AssuranceVocabulary::class, new class implements AssuranceVocabulary
     {
@@ -119,28 +179,31 @@ it('reports observed, not declared, when only the probe saw the level', function
 
 it('reports undetermined rather than unreachable when nothing can settle it', function (): void {
     /*
-     * THE test. An undeclared vocabulary whose aal3 branch the grid does not
-     * reach. The command knows nothing, and saying "unreachable" here would be
-     * a false report against a configuration that may well work -- the probe's
-     * grid is a guess about how a host writes its rules, not a proof.
+     * THE test. No declaration, and a vocabulary the probe can watch as long as
+     * it likes without ever seeing aal3. The command knows nothing, and saying
+     * "unreachable" would be a false report -- the vocabulary might branch on
+     * facts no grid constructs, and the command cannot tell that apart from
+     * this.
      */
-    app()->instance(AssuranceVocabulary::class, new class implements AssuranceVocabulary
-    {
-        public function name(AssuranceFacts $facts): string
-        {
-            // Reachable, but only far outside any bounded grid.
-            return $facts->distinctCredentialCount >= 97 ? 'aal3' : 'aal1';
-        }
-    });
+    app()->instance(AssuranceVocabulary::class, silentVocabulary());
 
     expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('undetermined');
 });
 
-it('warns and still exits zero by default', function (): void {
+it('names the verdict in the default rendering, not merely the level', function (): void {
+    /*
+     * An earlier version asserted the output contained "aal3", which the table
+     * already prints as the configured level -- it passed with no derivability
+     * logic at all. The rendering has to carry the FINDING.
+     */
     app()->instance(AssuranceVocabulary::class, declaringVocabulary(['aal0', 'aal1', 'aal2']));
 
-    expect(Artisan::call('vouch:assurance-map'))->toBe(0)
-        ->and(Artisan::output())->toContain('aal3');
+    expect(Artisan::call('vouch:assurance-map'))->toBe(0);
+
+    $output = Artisan::output();
+
+    expect($output)->toContain('invoices.approve')
+        ->and($output)->toContain('undeclared');
 });
 
 it('fails under strict when the vocabulary declares the level unreachable', function (): void {
@@ -152,17 +215,11 @@ it('fails under strict when the vocabulary declares the level unreachable', func
 it('fails under strict when nothing could settle the question', function (): void {
     /*
      * Strict means prove it. An undetermined answer is the ABSENCE of proof,
-     * not evidence of safety, and treating it as a pass would let the gate
-     * report success on precisely the configurations it cannot vouch for. The
-     * remedy available to the host is to declare.
+     * not evidence of safety, and treating it as a pass would report success on
+     * precisely the configurations the command cannot vouch for. The remedy
+     * available to the host is to declare.
      */
-    app()->instance(AssuranceVocabulary::class, new class implements AssuranceVocabulary
-    {
-        public function name(AssuranceFacts $facts): string
-        {
-            return $facts->distinctCredentialCount >= 97 ? 'aal3' : 'aal1';
-        }
-    });
+    app()->instance(AssuranceVocabulary::class, silentVocabulary());
 
     expect(Artisan::call('vouch:assurance-map', ['--strict' => true]))->toBe(1);
 });
@@ -173,8 +230,8 @@ it('does not fail under strict on probe evidence alone', function (): void {
      * configuration the command just watched work.
      *
      * This passes BEFORE the feature exists, because a command with no
-     * derivability logic fails nothing -- it is a non-regression guard rather
-     * than RED evidence, and its value is that it fails if the implementation
+     * derivability logic fails nothing -- a non-regression guard rather than
+     * RED evidence, and its value is that it fails if the implementation
      * reaches for strictness it was not asked for.
      */
     app()->instance(AssuranceVocabulary::class, new class implements AssuranceVocabulary
@@ -190,25 +247,30 @@ it('does not fail under strict on probe evidence alone', function (): void {
 
 it('refuses a declaration naming a level outside the ladder', function (): void {
     /*
-     * A vocabulary cannot usefully declare a level no requirement can name:
-     * AssuranceRequirement only accepts the canonical ladder. Accepting it
-     * silently would let a typo -- 'aal2 ' or 'AAL2' -- read as a range that
-     * covers nothing.
+     * The requirement here is aal1, which the declaration DOES contain, so the
+     * only thing strict can be failing on is the invalid entry. An earlier
+     * version required aal3 and proved nothing: strict failed because aal3 was
+     * undeclared, while `high` was merely echoed into the output.
      */
+    config(['vouch.assurance_requirements' => ['invoices.approve' => 'aal1']]);
     app()->instance(AssuranceVocabulary::class, declaringVocabulary(['aal0', 'aal1', 'high']));
 
     $report = assuranceMapReport();
 
-    expect(json_encode($report['vocabulary'] ?? null))->toContain('high')
+    expect(derivabilityOf($report, 'invoices.approve'))->toBe('declared')
+        ->and(json_encode(vocabularyReport($report)['errors'] ?? null))->toContain('high')
         ->and(Artisan::call('vouch:assurance-map', ['--strict' => true]))->toBe(1);
 });
 
 it('reports a probe that contradicts a declaration', function (): void {
     /*
      * The one case where the probe outranks the declaration, because it holds a
-     * counter-example: the vocabulary emitted a level it says it cannot. That
-     * is a defect in host code, and silently taking either side hides it.
+     * counter-example: the vocabulary emitted a level it says it cannot.
+     *
+     * Same isolation as above -- the requirement is aal1 and IS declared, so
+     * strict cannot be failing for any other reason.
      */
+    config(['vouch.assurance_requirements' => ['invoices.approve' => 'aal1']]);
     app()->instance(AssuranceVocabulary::class, declaringVocabulary(
         ['aal0', 'aal1'],
         static fn (AssuranceFacts $facts): string => $facts->distinctCredentialCount >= 2 ? 'aal2' : 'aal1',
@@ -216,33 +278,47 @@ it('reports a probe that contradicts a declaration', function (): void {
 
     $report = assuranceMapReport();
 
-    expect(json_encode($report['vocabulary'] ?? null))->toContain('aal2')
+    expect(derivabilityOf($report, 'invoices.approve'))->toBe('declared')
+        ->and(json_encode(vocabularyReport($report)['errors'] ?? null))->toContain('aal2')
         ->and(Artisan::call('vouch:assurance-map', ['--strict' => true]))->toBe(1);
 });
 
-it('does not treat incomplete probe coverage as a fault', function (): void {
+it('still probes when a declaration exists, and reports incomplete coverage', function (): void {
     /*
-     * The opposite direction, and NOT symmetrical with the one above. A
-     * declared level the grid never reached says something about the grid, not
-     * about the vocabulary -- the declaration is authoritative and stands.
+     * Not symmetrical with the contradiction above. A declared level the grid
+     * never reached says something about the GRID, not the vocabulary, so the
+     * declaration stands and strict passes.
+     *
+     * But the probe must still RUN: an implementation that skipped probing
+     * whenever a declaration exists would return `declared` and satisfy every
+     * other assertion here while never being able to find the contradiction the
+     * previous test depends on. The call count is what proves it ran.
      */
-    app()->instance(AssuranceVocabulary::class, declaringVocabulary(
+    $vocabulary = declaringVocabulary(
         ['aal0', 'aal1', 'aal2', 'aal3'],
         static fn (AssuranceFacts $facts): string => $facts->distinctCredentialCount >= 97 ? 'aal3' : 'aal1',
-    ));
+    );
+    app()->instance(AssuranceVocabulary::class, $vocabulary);
 
-    expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('declared')
+    $report = assuranceMapReport();
+
+    expect(derivabilityOf($report, 'invoices.approve'))->toBe('declared')
+        ->and($vocabulary->calls)->toBeGreaterThan(0)
+        ->and(json_encode(vocabularyReport($report)['unobserved_declared'] ?? null))->toContain('aal3')
         ->and(Artisan::call('vouch:assurance-map', ['--strict' => true]))->toBe(0);
 });
 
-it('probes a bounded number of times', function (): void {
+it('probes within a stated budget', function (): void {
     /*
-     * The probe calls HOST code. An unbounded grid would be a denial of service
-     * a host inflicts on itself by running a diagnostic, and the bound is what
-     * makes the advisory verdict affordable enough to run by default.
+     * The probe calls HOST code, so its cost is a budget rather than an
+     * implementation detail: a diagnostic that ran an unknown implementation an
+     * unbounded number of times would be a denial of service a host inflicts on
+     * itself by running it.
      *
-     * The cap is deliberately loose: what matters is that a bound EXISTS, not
-     * its exact value, which is an implementation choice this should not pin.
+     * This pins 2000 calls as that budget. It cannot prove a UNIFORM bound --
+     * it measures one execution -- and it is not trying to. It is the accepted
+     * operational ceiling, and an implementation that exceeds it here has
+     * chosen a grid that needs justifying.
      */
     $vocabulary = new ProbeCountingVocabulary();
     app()->instance(AssuranceVocabulary::class, $vocabulary);
