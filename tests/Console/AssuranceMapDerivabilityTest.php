@@ -259,23 +259,35 @@ it('observes a level reached only when NO credential is multi-factor', function 
     expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('observed');
 });
 
-it('observes a level that depends on the strongest factor', function (): void {
+it('observes a level that depends on the strongest factor', function (FactorStrength $strength): void {
     /*
-     * The third dimension. §3g defines the grid over all five AssuranceFacts
-     * fields, and the fixtures above only force three of them to move -- a
-     * probe varying the count and both booleans while pinning strength to one
-     * value passes every one of them.
+     * FactorStrength is an enum, not a boolean, so forcing ONE case proves
+     * only that one is constructed -- a probe visiting Recovery and
+     * PossessionStrong satisfied the single-case version of this test while a
+     * vocabulary keyed on Knowledge or Possession stayed unobserved.
+     *
+     * Recovery is excluded deliberately rather than overlooked:
+     * AssuranceFacts::fromFactors filters recovery factors out, so `strongest`
+     * is Recovery exactly when nothing eligible was satisfied. That shape is
+     * the empty one, and it has its own test below.
      */
-    app()->instance(AssuranceVocabulary::class, new class implements AssuranceVocabulary
+    app()->instance(AssuranceVocabulary::class, new class($strength) implements AssuranceVocabulary
     {
+        public function __construct(private readonly FactorStrength $target) {}
+
         public function name(AssuranceFacts $facts): string
         {
-            return $facts->strongest === FactorStrength::PossessionStrong ? 'aal3' : 'aal1';
+            return $facts->strongest === $this->target ? 'aal3' : 'aal1';
         }
     });
 
     expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('observed');
-});
+})->with([
+    FactorStrength::Knowledge,
+    FactorStrength::PossessionWeak,
+    FactorStrength::Possession,
+    FactorStrength::PossessionStrong,
+]);
 
 it('observes a level that depends on exactly one credential', function (): void {
     /*
