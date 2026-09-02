@@ -31,6 +31,35 @@ it('produces identical output for known and unknown identifiers under strict pos
     expect($unknown)->toEqual($known);
 });
 
+it('shapes a screen that carries no retry policy at all', function (): void {
+    /*
+     * strictRetry() reads `$retry?->retryAfter`, and every other fixture in
+     * this file supplies a policy -- so nothing here has ever entered that
+     * method with null, and the null-safe operator was never load-bearing in
+     * any Kernel test. An integration test elsewhere in the suite does reach
+     * it, which is exactly how the gap stayed invisible: the mutation gate drew
+     * its covering tests from the whole suite, so a Kernel guard was being held
+     * up by an HTTP test.
+     *
+     * A screen with no retry state is ordinary, not exotic: the first request
+     * of an attempt has nothing to report yet.
+     */
+    $shaped = (new ErrorShaper())->shape(
+        new ScreenSpec(
+            step: AuthStep::Identify,
+            offeredFactors: [],
+            fields: [new FieldSpec('identifier', 'email', 'username', maxLength: null)],
+            challengePayload: null,
+            errors: [],
+            retry: null,
+        ),
+        Outcome::IdentifierUnknown,
+        EnumerationPosture::Strict,
+    );
+
+    expect($shaped->retry)->toBeNull();
+});
+
 it('withholds retry state under strict posture', function (): void {
     $shaped = (new ErrorShaper())->shape(
         identifyScreen(),

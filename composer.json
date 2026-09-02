@@ -62,15 +62,15 @@
             "@mutate:msi",
             "@mutate:covered"
         ],
-        "mutate:msi": "pest --mutate --class=\"Fissible\\Vouch\\Kernel\" --min=80",
-        "mutate:covered": "pest --mutate --class=\"Fissible\\Vouch\\Kernel\" --covered-only --min=95",
+        "mutate:msi": "pest --mutate --class=\"Fissible\\Vouch\\Kernel\" --min=80 tests/Kernel",
+        "mutate:covered": "pest --mutate --class=\"Fissible\\Vouch\\Kernel\" --covered-only --min=95 tests/Kernel",
         "mutate:phase2": "pest --mutate --class=\"Fissible\\\\Vouch\" --ignore=\"Kernel\"",
         "mutate:phase2:covered": "pest --mutate --class=\"Fissible\\\\Vouch\" --ignore=\"Kernel\" --covered-only"
     },
     "scripts-descriptions": {
         "mutate": "Mutation testing over Fissible\\Vouch\\Kernel. Two runs: overall MSI >= 80 (detects untested classes), covered-code MSI >= 95 (primary quality gate).",
-        "mutate:msi": "Mutation score over every mutation, including ones on uncovered lines.",
-        "mutate:covered": "Mutation score over covered mutations only, ignoring lines the test suite never executes.",
+        "mutate:msi": "Mutation score over every mutation, including ones on uncovered lines. Killed by tests/Kernel only: the Kernel is framework-free and its mutants must die to framework-free tests.",
+        "mutate:covered": "Mutation score over covered mutations only, ignoring lines the test suite never executes. Killed by tests/Kernel only, as mutate:msi.",
         "mutate:phase2": "Mutation score over Phase 2 code (Fissible\\Vouch excluding Kernel), all mutations. Scope and exclusions were fixed BEFORE the first run; narrowing them later to improve the score is forbidden.",
         "mutate:phase2:covered": "Mutation score over Phase 2 code, covered mutations only. Never the sole gate -- the full pass runs alongside it."
     },

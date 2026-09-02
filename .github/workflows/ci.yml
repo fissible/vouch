@@ -65,24 +65,36 @@ jobs:
   # not quality.
   #
   # The two gates are independent, so they parallelize. That keeps each timeout
-  # tight enough to still mean something: raising one cap to 40 would have
-  # bought the same headroom while making the guard correspondingly weaker, and
-  # this job's cost grows with the suite every phase.
+  # tight enough to still mean something.
   #
-  # 2026-09-01: `covered` was cancelled at 25m15s against that 25-minute cap,
-  # on a pull request changing no source at all. The cost grew because COVERAGE
-  # grew -- the phase's new tests exercise AssuranceFacts and
-  # NistAssuranceVocabulary, so more Kernel mutants fall inside --covered-only.
-  # That is the gate doing its job, not waste, and the reasoning above still
-  # holds: the cap is not simply raised to 40.
+  # 2026-09-02: both gates now run against tests/Kernel rather than the whole
+  # suite, which took `msi` from 15m55s to 33s locally -- roughly 22x, with an
+  # IDENTICAL result: 5 untested, 25 uncovered, 206 tested, 87.29%.
   #
-  # Install is cached instead, as the `test` job already does, which removes the
-  # ~3m measured above rather than widening the window around it. The cap moves
-  # to 30 for headroom, since a job finishing fifteen seconds past the wall is
-  # a flake generator whichever direction it is wrong in.
+  # The cost was never the mutant count. It is 236 either way. `--class=Kernel`
+  # scoped the mutated SOURCE and nothing scoped the covering TESTS, so Pest
+  # drew them from all 2,014 tests -- and Kernel classes like AssuranceFacts and
+  # FactorStrength are touched by nearly every session, token and route test,
+  # each of which boots Testbench and migrates. A mutant a sub-millisecond unit
+  # test could kill was instead re-running a slice of the slowest integration
+  # tests, 236 times over.
+  #
+  # Scoping is also the more honest gate. The Kernel is framework-free by
+  # design, so its mutants should die to framework-free tests; one previously
+  # survived tests/Kernel and was being held up by an HTTP test
+  # (ErrorShaper's null-safe retry guard, now covered directly). Anything else
+  # that starts depending on an integration test to stay green is a Kernel
+  # coverage gap, and this gate should say so rather than hide it.
+  #
+  # Install is cached, as the `test` job does. --parallel was considered and is
+  # unnecessary: it would have bought 2-3x on a 4-core runner against a problem
+  # that scoping removed entirely.
   mutation:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Back down from the 30 this needed while the gate was re-running the whole
+    # suite per mutant. A cap only guards anything while it is close to the real
+    # cost.
+    timeout-minutes: 15
 
     strategy:
       fail-fast: false
