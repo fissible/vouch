@@ -16,6 +16,13 @@ use Illuminate\Support\Facades\Artisan;
  * §3f documented the aal2 ceiling; documentation relies on someone reading it,
  * and the failure it describes is silent. This makes the command say it.
  *
+ * Scope: this file covers the DIAGNOSTIC only. That an underivable requirement
+ * still fails closed at the route -- and that a host vocabulary which derives
+ * the level satisfies it -- is proven in
+ * tests/Authorization/UnreachableAal3RouteTest.php, and is not re-asserted
+ * here. §3g's rule that runtime authorization is untouched by this feature
+ * rests on that file, not on this one.
+ *
  * The whole design is that the two sources of truth carry DIFFERENT authority.
  * A declaration is the vocabulary stating its own range and nothing can know
  * better. A probe constructs a bounded grid of facts and reports what it saw --
