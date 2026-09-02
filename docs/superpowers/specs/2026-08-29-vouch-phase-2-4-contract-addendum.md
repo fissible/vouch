@@ -798,7 +798,14 @@ the shape of the codebase to the next reader, and removing it is the cheapest po
 ### `--strict`
 
 Fails on an unallowlisted issuance site, on any unknown seam — including an unscannable
-configured path — on a malformed allowlist entry, and on a stale one. The failure exit code
+configured path — on a malformed allowlist entry, and on a stale one.
+
+**An uncovered route is NOT a strict failure.** Most routes should not carry the token gate,
+and the command has no way to know which ones ought to: that judgement needs the host's
+intent, which nothing in the report contains. Coverage is reported so a host can look, and
+failing on it would make `--strict` unusable for every application that has a public
+endpoint. This is the one finding the command surfaces without ever blocking on it, and the
+distinction is deliberate — everything else it fails on is something it can prove is wrong. The failure exit code
 is `CommandExit::Failure`, as every other Vouch command uses; the value is ratified here so
 a test asserting it is pinning a decision rather than an accident. The default run reports all of the same and exits zero, so
 adopting the command never breaks a host that has not opted in.

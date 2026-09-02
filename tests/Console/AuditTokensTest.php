@@ -273,18 +273,25 @@ it('reports an unreadable path rather than skipping it', function (): void {
     config(['vouch.audit.paths' => [$locked]]);
 
     try {
-        $seams = auditSection(auditReport(), 'unknown_seams');
+        $named = array_values(array_filter(
+            auditSection(auditReport(), 'unknown_seams'),
+            static fn (array $row): bool => str_contains(stringValue($row['identifier'] ?? null), 'locked'),
+        ));
 
-        expect($seams)->not->toBe([])
-            ->and(stringValue($seams[0]['reason'] ?? null))->not->toBe('');
+        // The seam must NAME the path it could not read. Any fabricated seam
+        // with a non-empty reason satisfied the previous form.
+        expect($named)->not->toBe([])
+            ->and(stringValue($named[0]['reason'] ?? null))->not->toBe('');
     } finally {
         chmod($locked, 0o755);
         @rmdir($locked);
         @rmdir($base);
     }
 })->skip(
-    // root reads anything, so the fixture cannot be made unreadable there.
-    static fn (): bool => function_exists('posix_geteuid') && posix_geteuid() === 0,
+    // NOT a static closure: Pest binds the predicate to the test instance and
+    // a static one throws "Cannot bind an instance to a static closure" -- the
+    // test then errors on the harness rather than running at all.
+    fn (): bool => function_exists('posix_geteuid') && posix_geteuid() === 0,
     'runs as root, where an unreadable directory cannot be constructed',
 );
 
@@ -410,6 +417,50 @@ it('reports and exits zero by default', function (): void {
      */
     expect(Artisan::call('vouch:audit-tokens'))->toBe(CommandExit::Success->value)
         ->and(Artisan::output())->toContain('DirectIssuer');
+});
+
+it('does not fail under strict on an uncovered route', function (): void {
+    /*
+     * The one finding surfaced without ever blocking on it. Most routes should
+     * not carry the token gate, and the command cannot know which ought to --
+     * that judgement needs the host's intent, which nothing in the report
+     * holds. Failing here would make --strict unusable for any application
+     * with a public endpoint.
+     */
+    config(['vouch.audit.paths' => [auditFixturePath('app/AllowlistedIssuer.php')]]);
+    config(['vouch.audit.allowlist' => [
+        'Vendor\Probe\AllowlistedIssuer::mint' => [
+            'rationale' => 'Service tokens minted after an out-of-band review.',
+            'owner' => 'platform-team',
+        ],
+    ]]);
+
+    Route::middleware('api')->post('/wide-open', fn (): string => 'ok');
+
+    $report = auditReport();
+    $uris = array_map(
+        static fn (array $row): string => stringValue($row['uri'] ?? null),
+        auditSection($report, 'uncovered_routes'),
+    );
+
+    expect($uris)->toContain('wide-open')
+        ->and(auditBlockingFindings($report))->toBe([])
+        ->and(Artisan::call('vouch:audit-tokens', ['--strict' => true]))->toBe(CommandExit::Success->value);
+});
+
+it('exits the same way in json mode as in the human rendering', function (): void {
+    /*
+     * auditReport() discards the exit code, so every other test in this file is
+     * blind to it: --json could return failure by default while the table
+     * rendering returns zero, and nothing here would notice.
+     */
+    expect(Artisan::call('vouch:audit-tokens', ['--json' => true]))->toBe(CommandExit::Success->value)
+        ->and(Artisan::call('vouch:audit-tokens'))->toBe(CommandExit::Success->value);
+
+    config(['vouch.audit.paths' => [auditFixturePath('app/DirectIssuer.php')]]);
+
+    expect(Artisan::call('vouch:audit-tokens', ['--json' => true, '--strict' => true]))->toBe(CommandExit::Failure->value)
+        ->and(Artisan::call('vouch:audit-tokens', ['--strict' => true]))->toBe(CommandExit::Failure->value);
 });
 
 it('fails under strict on an unallowlisted site alone', function (): void {
