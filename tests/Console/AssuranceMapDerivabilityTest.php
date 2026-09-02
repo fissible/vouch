@@ -184,6 +184,44 @@ it('reports observed, not declared, when only the probe saw the level', function
     expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('observed');
 });
 
+it('observes a level that depends on a fact other than the credential count', function (): void {
+    /*
+     * Every other positive fixture in this file branches on
+     * distinctCredentialCount, so a degenerate "probe" that constructed ONE
+     * facts value with two credentials would satisfy the observed,
+     * contradiction, call-count and budget tests alike while never exercising
+     * the closed shape §3g relies on.
+     *
+     * This one keys on phishing resistance instead. A probe that does not vary
+     * that dimension reports undetermined and fails here.
+     */
+    app()->instance(AssuranceVocabulary::class, new class implements AssuranceVocabulary
+    {
+        public function name(AssuranceFacts $facts): string
+        {
+            return $facts->allPhishingResistant && $facts->distinctCredentialCount > 0
+                ? 'aal3'
+                : 'aal1';
+        }
+    });
+
+    expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('observed');
+});
+
+it('observes a level that depends on a multi-factor credential', function (): void {
+    // A second dimension, for the same reason: two independent fields have to
+    // move before a grid can be called one.
+    app()->instance(AssuranceVocabulary::class, new class implements AssuranceVocabulary
+    {
+        public function name(AssuranceFacts $facts): string
+        {
+            return $facts->hasMultiFactorCredential ? 'aal3' : 'aal1';
+        }
+    });
+
+    expect(derivabilityOf(assuranceMapReport(), 'invoices.approve'))->toBe('observed');
+});
+
 it('reports undetermined rather than unreachable when nothing can settle it', function (): void {
     /*
      * THE test. No declaration, and a vocabulary the probe can watch as long as
@@ -311,8 +349,32 @@ it('still probes when a declaration exists, and reports incomplete coverage', fu
 
     expect(derivabilityOf($report, 'invoices.approve'))->toBe('declared')
         ->and($vocabulary->calls)->toBeGreaterThan(0)
-        ->and(json_encode(vocabularyReport($report)['unobserved_declared'] ?? null))->toContain('aal3')
+        ->and(vocabularyReport($report)['unobserved_declared'] ?? null)->toBe(['aal3'])
         ->and(Artisan::call('vouch:assurance-map', ['--strict' => true]))->toBe(0);
+});
+
+it('does not list a declared level the probe did observe as unobserved', function (): void {
+    /*
+     * The exclusion half. The previous test only asks that the unreached level
+     * APPEARS, which a report listing every declared level regardless would
+     * also satisfy -- and that report would tell an operator their grid missed
+     * things it plainly saw.
+     *
+     * aal1 and aal2 are both emitted by the rule below; only aal3 is out of
+     * reach.
+     */
+    $vocabulary = declaringVocabulary(
+        ['aal0', 'aal1', 'aal2', 'aal3'],
+        static fn (AssuranceFacts $facts): string => $facts->distinctCredentialCount >= 2 ? 'aal2' : 'aal1',
+    );
+    app()->instance(AssuranceVocabulary::class, $vocabulary);
+
+    $unobserved = vocabularyReport(assuranceMapReport())['unobserved_declared'] ?? null;
+
+    expect($unobserved)->toBeArray()
+        ->and($unobserved)->not->toContain('aal1')
+        ->and($unobserved)->not->toContain('aal2')
+        ->and($unobserved)->toContain('aal3');
 });
 
 it('probes within a stated budget', function (): void {
@@ -322,7 +384,7 @@ it('probes within a stated budget', function (): void {
      * unbounded number of times would be a denial of service a host inflicts on
      * itself by running it.
      *
-     * This pins 2000 calls as that budget. It cannot prove a UNIFORM bound --
+     * This pins 2000 calls as that budget, inclusive. It cannot prove a UNIFORM bound --
      * it measures one execution -- and it is not trying to. It is the accepted
      * operational ceiling, and an implementation that exceeds it here has
      * chosen a grid that needs justifying.
@@ -333,5 +395,5 @@ it('probes within a stated budget', function (): void {
     assuranceMapReport();
 
     expect($vocabulary->calls)->toBeGreaterThan(0)
-        ->and($vocabulary->calls)->toBeLessThan(2000);
+        ->and($vocabulary->calls)->toBeLessThanOrEqual(2000);
 });
