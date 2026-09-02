@@ -138,7 +138,14 @@ it('finds issuance in a route file, not only in a class', function (): void {
      */
     config(['vouch.audit.paths' => [auditFixturePath('routes')]]);
 
-    expect(auditSection(auditReport(), 'issuance_sites'))->not->toBe([]);
+    $files = array_map(
+        static fn (array $row): string => stringValue($row['file'] ?? null),
+        auditSection(auditReport(), 'issuance_sites'),
+    );
+
+    // The specific file, not merely "a finding": a scanner reporting some
+    // unrelated site would satisfy a non-empty check.
+    expect(implode("\n", $files))->toContain('routes/api.php');
 });
 
 it('does not report a mention of the call in a comment, a string or a heredoc', function (): void {
@@ -243,7 +250,10 @@ it('reports a configured path that escapes the base through a symlink', function
             static fn (array $row): bool => str_contains(stringValue($row['identifier'] ?? null), 'link'),
         ));
 
-        expect($escaped)->not->toBe([]);
+        expect($escaped)->not->toBe([])
+            // "Named with its reason" is the guarantee; a generic seam with an
+            // empty reason satisfies the count and tells a host nothing.
+            ->and(stringValue($escaped[0]['reason'] ?? null))->not->toBe('');
     } finally {
         @unlink($root . '/link');
         @unlink($outside . '/Hidden.php');
@@ -263,7 +273,10 @@ it('reports an unreadable path rather than skipping it', function (): void {
     config(['vouch.audit.paths' => [$locked]]);
 
     try {
-        expect(auditSection(auditReport(), 'unknown_seams'))->not->toBe([]);
+        $seams = auditSection(auditReport(), 'unknown_seams');
+
+        expect($seams)->not->toBe([])
+            ->and(stringValue($seams[0]['reason'] ?? null))->not->toBe('');
     } finally {
         chmod($locked, 0o755);
         @rmdir($locked);
@@ -301,9 +314,11 @@ it('records a review date when one is supplied', function (): void {
 
     $report = auditReport();
 
+    // The exact field on the exact row. An encoded-blob check passes on any
+    // unrelated occurrence of the date anywhere in the report.
     expect(auditSection($report, 'allowlist_problems'))->toBe([])
-        ->and(json_encode(auditRow($report, 'issuance_sites', 'Vendor\Probe\AllowlistedIssuer::mint')))
-        ->toContain('2026-09-02');
+        ->and(stringValue(auditRow($report, 'issuance_sites', 'Vendor\Probe\AllowlistedIssuer::mint')['reviewed'] ?? null))
+        ->toBe('2026-09-02');
 });
 
 it('refuses an allowlist entry with no rationale, and keeps reporting its seam', function (): void {
@@ -424,13 +439,25 @@ it('fails under strict on an unknown seam alone', function (): void {
         ->and(Artisan::call('vouch:audit-tokens', ['--strict' => true]))->toBe(CommandExit::Failure->value);
 });
 
-it('fails under strict on a malformed allowlist entry alone', function (): void {
+it('fails under strict on a malformed allowlist entry, with both blockers named', function (): void {
+    /*
+     * This one CANNOT be isolated, and pretending otherwise would be the
+     * mistake. A malformed entry deliberately fails to silence its seam, so
+     * two blockers exist by design: the entry and the site it did not cover.
+     * Both are asserted, so the failure is pinned to a state rather than to a
+     * count.
+     */
     config(['vouch.audit.paths' => [auditFixturePath('app/AllowlistedIssuer.php')]]);
     config(['vouch.audit.allowlist' => [
         'Vendor\Probe\AllowlistedIssuer::mint' => ['rationale' => 'no owner given'],
     ]]);
 
-    expect(auditSection(auditReport(), 'unknown_seams'))->toBe([])
+    $report = auditReport();
+
+    expect(auditSection($report, 'unknown_seams'))->toBe([])
+        ->and(auditRow($report, 'allowlist_problems', 'Vendor\Probe\AllowlistedIssuer::mint'))->not->toBeNull()
+        ->and(stringValue(auditRow($report, 'issuance_sites', 'Vendor\Probe\AllowlistedIssuer::mint')['status'] ?? null))
+        ->toBe('reported')
         ->and(Artisan::call('vouch:audit-tokens', ['--strict' => true]))->toBe(CommandExit::Failure->value);
 });
 
@@ -446,7 +473,16 @@ it('fails under strict on a stale allowlist entry alone', function (): void {
 
     $report = auditReport();
 
+    /*
+     * The stale entry is the ONLY blocker: the live exemption must still be
+     * honoured. Without that assertion an implementation could ignore staleness
+     * entirely, report the valid site instead, and still fail strict -- passing
+     * this test for the opposite reason.
+     */
     expect(auditSection($report, 'unknown_seams'))->toBe([])
+        ->and(auditRow($report, 'allowlist_problems', 'Vendor\Probe\Deleted::mint'))->not->toBeNull()
+        ->and(stringValue(auditRow($report, 'issuance_sites', 'Vendor\Probe\AllowlistedIssuer::mint')['status'] ?? null))
+        ->toBe('allowlisted')
         ->and(Artisan::call('vouch:audit-tokens', ['--strict' => true]))->toBe(CommandExit::Failure->value);
 });
 
@@ -454,8 +490,18 @@ it('fails under strict on an unscannable path alone', function (): void {
     config(['vouch.audit.paths' => [auditFixturePath('does-not-exist')]]);
 
     $report = auditReport();
+    $unscannable = array_values(array_filter(
+        auditSection($report, 'unknown_seams'),
+        static fn (array $row): bool => str_contains(stringValue($row['identifier'] ?? null), 'does-not-exist'),
+    ));
 
-    expect(auditSection($report, 'issuance_sites'))->toBe([])
+    /*
+     * The POSITIVE blocker, asserted before the exit code. Proving only that
+     * the other sections are empty leaves a command that fails strict
+     * unconditionally passing this test.
+     */
+    expect($unscannable)->not->toBe([])
+        ->and(auditSection($report, 'issuance_sites'))->toBe([])
         ->and(auditSection($report, 'allowlist_problems'))->toBe([])
         ->and(Artisan::call('vouch:audit-tokens', ['--strict' => true]))->toBe(CommandExit::Failure->value);
 });
