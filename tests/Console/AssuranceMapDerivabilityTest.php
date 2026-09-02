@@ -17,6 +17,18 @@ use Illuminate\Support\Facades\Artisan;
  * §3f documented the aal2 ceiling; documentation relies on someone reading it,
  * and the failure it describes is silent. This makes the command say it.
  *
+ * RESIDUAL LIMIT, recorded rather than chased. The fixtures below force each
+ * AssuranceFacts field in both directions, which is marginal coverage: a probe
+ * can visit every individual value and still omit a CONJUNCTION of them, and a
+ * vocabulary keyed to that conjunction would report `undetermined`. Forcing
+ * every conjunction of a five-field type is a combinatorial grid, and the cost
+ * of building it lands on host code the probe calls.
+ *
+ * This is a limit of any bounded probe, not a defect in this one, and §3g is
+ * written around it: the probe is advisory, it may report a level OBSERVED and
+ * may never report one unreachable, and `undetermined` exists precisely to name
+ * the case it cannot settle. A host that needs a definite answer declares.
+ *
  * Scope: this file covers the DIAGNOSTIC only. That an underivable requirement
  * still fails closed at the route -- and that a host vocabulary which derives
  * the level satisfies it -- is proven in

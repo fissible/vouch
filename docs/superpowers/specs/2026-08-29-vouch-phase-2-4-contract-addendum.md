@@ -666,6 +666,12 @@ level IS called, never what levels exist.
   Vouch's perspective: it constructs value objects and reads names, and nothing about
   running it may depend on or alter application state.
 
+  Its coverage is MARGINAL, not combinatorial: each field is varied in both directions, but
+  not every conjunction of them is built. A vocabulary keyed to an unvisited conjunction
+  reports `undetermined`. That is a limit of any bounded probe rather than a defect in this
+  one, and it is the reason the probe is advisory — `undetermined` names exactly the case it
+  cannot settle, and a host needing a definite answer declares.
+
 ### Verdicts
 
 | Verdict | Meaning |
