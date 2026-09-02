@@ -118,7 +118,7 @@ function auditBlockingFindings(array $report): array
 
     sort($blocking);
 
-    return array_values($blocking);
+    return $blocking;
 }
 
 it('names every direct issuance site it can resolve', function (): void {
