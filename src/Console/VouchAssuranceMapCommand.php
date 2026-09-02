@@ -10,7 +10,9 @@ use Fissible\Vouch\Http\Middleware\RequireAbilityAssurance;
 use Fissible\Vouch\Kernel\Assurance\AssuranceFacts;
 use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary;
 use Fissible\Vouch\Kernel\Assurance\ReportsReachableLevels;
+use Fissible\Vouch\Kernel\Factor\FactorKind;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
+use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
 use DateTimeImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Routing\Router;
@@ -146,8 +148,8 @@ final class VouchAssuranceMapCommand extends Command
         $unobservedDeclared = $declared === null
             ? []
             : array_values(array_filter(
-                AssuranceLevelComparator::ORDER,
-                static fn (string $level): bool => in_array($level, $declared, true) && ! in_array($level, $observed, true),
+                $declared,
+                static fn (string $level): bool => ! in_array($level, $observed, true),
             ));
 
         return [
@@ -170,11 +172,24 @@ final class VouchAssuranceMapCommand extends Command
             }
         }
 
-        usort(
-            $observed,
-            static fn (string $left, string $right): int => (AssuranceLevelComparator::isKnown($left) ? AssuranceLevelComparator::strength($left) : PHP_INT_MAX)
-                <=> (AssuranceLevelComparator::isKnown($right) ? AssuranceLevelComparator::strength($right) : PHP_INT_MAX),
-        );
+        usort($observed, static function (string $left, string $right): int {
+            $leftKnown = AssuranceLevelComparator::isKnown($left);
+            $rightKnown = AssuranceLevelComparator::isKnown($right);
+
+            if ($leftKnown && $rightKnown) {
+                return AssuranceLevelComparator::strength($left) <=> AssuranceLevelComparator::strength($right);
+            }
+
+            if ($leftKnown) {
+                return -1;
+            }
+
+            if ($rightKnown) {
+                return 1;
+            }
+
+            return $left <=> $right;
+        });
 
         return $observed;
     }
@@ -183,25 +198,51 @@ final class VouchAssuranceMapCommand extends Command
     private function probeFacts(): array
     {
         $timestamp = new DateTimeImmutable('@0');
-        $facts = [];
+        $facts = [AssuranceFacts::fromFactors([])];
 
-        foreach ([0, 1, 2] as $count) {
-            $facts[] = new AssuranceFacts($count, FactorStrength::Knowledge, true, true, $timestamp);
+        foreach ([1, 2] as $count) {
+            $facts[] = AssuranceFacts::fromFactors(array_map(
+                fn (int $index): SatisfiedFactor => $this->probeFactor("credential-{$index}", FactorStrength::Knowledge, true, true, $timestamp),
+                range(1, $count),
+            ));
         }
         foreach ([false, true] as $resistant) {
-            $facts[] = new AssuranceFacts(1, FactorStrength::Knowledge, $resistant, true, $timestamp);
+            $facts[] = AssuranceFacts::fromFactors([
+                $this->probeFactor('credential-1', FactorStrength::Knowledge, $resistant, true, $timestamp),
+            ]);
         }
         foreach ([false, true] as $multiFactor) {
-            $facts[] = new AssuranceFacts(1, FactorStrength::Knowledge, true, $multiFactor, $timestamp);
+            $facts[] = AssuranceFacts::fromFactors([
+                $this->probeFactor('credential-1', FactorStrength::Knowledge, true, $multiFactor, $timestamp),
+            ]);
         }
         foreach ([FactorStrength::Knowledge, FactorStrength::PossessionWeak, FactorStrength::Possession, FactorStrength::PossessionStrong] as $strongest) {
-            $facts[] = new AssuranceFacts(1, $strongest, true, true, $timestamp);
-        }
-        foreach ([null, $timestamp] as $weakestSatisfiedAt) {
-            $facts[] = new AssuranceFacts(1, FactorStrength::Knowledge, true, true, $weakestSatisfiedAt);
+            $facts[] = AssuranceFacts::fromFactors([
+                $this->probeFactor('credential-1', $strongest, true, true, $timestamp),
+            ]);
         }
 
         return $facts;
+    }
+
+    private function probeFactor(
+        string $credentialId,
+        FactorStrength $strength,
+        bool $phishingResistant,
+        bool $isMultiFactor,
+        DateTimeImmutable $satisfiedAt,
+    ): SatisfiedFactor {
+        return new SatisfiedFactor(
+            factorId: "probe-{$credentialId}",
+            credentialId: $credentialId,
+            kind: FactorKind::Knowledge,
+            strength: $strength,
+            isMultiFactor: $isMultiFactor,
+            userVerified: $isMultiFactor,
+            phishingResistant: $phishingResistant,
+            authenticatorId: null,
+            satisfiedAt: $satisfiedAt,
+        );
     }
 
     /**
