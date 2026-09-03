@@ -9,6 +9,7 @@ use Fissible\Vouch\Authorization\AssuranceGateHook;
 use Fissible\Vouch\Authorization\AssuranceRequirements;
 use Fissible\Vouch\Authorization\RouteAbilityScanner;
 use Fissible\Vouch\Console\VouchAssuranceMapCommand;
+use Fissible\Vouch\Console\VouchAuditTokensCommand;
 use Fissible\Vouch\Console\VouchDispatchOtpOutboxCommand;
 use Fissible\Vouch\Console\VouchDoctorCommand;
 use Fissible\Vouch\Console\VouchPruneCommand;
@@ -621,6 +622,7 @@ final class VouchServiceProvider extends ServiceProvider
                 VouchSmsIdentifierAuditCommand::class,
                 VouchDoctorCommand::class,
                 VouchAssuranceMapCommand::class,
+                VouchAuditTokensCommand::class,
             ]);
         }
     }

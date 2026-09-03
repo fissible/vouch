@@ -76,6 +76,16 @@ return [
         'mode' => env('VOUCH_TOKEN_GATE_MODE', 'observe'),
     ],
 
+    /*
+     * Deliberately explicit: autoload roots do not describe the whole issuance
+     * surface, especially route closures. The audit reports every root it did
+     * open and names paths it could not inspect rather than silently skipping.
+     */
+    'audit' => [
+        'paths' => ['app', 'routes'],
+        'allowlist' => [],
+    ],
+
     'routes' => [
         'prefix' => env('VOUCH_ROUTE_PREFIX', 'vouch'),
 

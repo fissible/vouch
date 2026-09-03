@@ -714,3 +714,104 @@ altered enforcement would be a far worse defect than the one it reports.
 Boot refusal was considered and rejected. One unreachable ability would break unrelated
 routes and make the diagnostic command itself unusable — the failure would arrive in
 production rather than in CI, which is where a configuration diagnostic belongs.
+
+
+## 3h. The token audit command (settled 2026-09-02, Task 6)
+
+§6.2 named a live MFA bypass: an endpoint that mints a token on a password alone is worth
+as much as the panel it unlocks, and sluice called `createToken()` directly in two places.
+Task 4 closed the enforcement half. `vouch:audit-tokens` closes the *visibility* half — it
+tells a host where tokens are still minted outside Vouch, and where the gate does not reach.
+
+### It reports; it does not prove
+
+§10.6 already settled the posture: the command reports by default and `--strict` is opt-in,
+because an "unknown seam" is a call site or route group the static pass could not resolve,
+and `--strict` failing on those makes it noisy by design. That noise is the honest signal
+that static analysis cannot prove runtime routing.
+
+The scanner is `token_get_all()`, PHP's own lexer, and adds no dependency. It resolves what
+a lexer can resolve and NAMES what it cannot, which is the same contract in miniature: a
+finding the command cannot classify must appear as an unknown seam rather than be dropped.
+An AST would resolve more, at the cost of a production dependency on a package whose
+requirements are otherwise four libraries plus Illuminate — refused for a diagnostic most
+hosts run rarely.
+
+### Two halves, gathered differently
+
+- **Issuance sites** come from scanning source, because a `createToken()` call is only
+  visible in the file that makes it. Paths are `vouch.audit.paths`, defaulting to `app` and
+  `routes`. Configured explicitly rather than derived from the host's autoload roots: those
+  roots are not the issuance surface — they can omit `routes/`, `config/` and bootstrap code
+  while pulling in vendor or generated code. An explicit list makes the audit boundary
+  visible and reproducible, and the report NAMES the roots it scanned so a reader can tell a
+  clean result from an empty one.
+
+  The lexer skips comments and string contents. A `createToken(` inside a docblock or a
+  heredoc is prose, not a call site.
+
+  **A configured path that cannot be scanned is an unknown seam, not a skip.** Missing,
+  unreadable, or resolving outside the base path through a symlink — each is reported by
+  name with its reason. Silently skipping an unreadable directory would let the command
+  report a clean audit of code it never opened, which is the one outcome this command exists
+  to prevent.
+- **Enforcement coverage** comes from the LIVE ROUTER, not from source. Routes are
+  registered by the time the command runs, so their middleware can be enumerated exactly.
+  Deriving them from source would reintroduce guesswork the framework has already resolved.
+
+### Unknown seams
+
+A seam is unknown when the lexer sees a construct that *may* be an issuance call and cannot
+say: a dynamic method name (`->{$method}(`), a call to an issuance-named method through a
+variable class (`$class::createToken(`), or `call_user_func` and its relatives naming one.
+These are reported with the reason they could not be resolved. They are never silently
+dropped, and never counted as clean.
+
+The bar is "may be an issuance call", not "is dynamic". A variable-class call to an
+unrelated method is ordinary code; flagging every one of them would bury the findings that
+matter under noise the host cannot act on.
+
+Unknown seams belong to the SOURCE half only. Enforcement coverage is read from the live
+router, where middleware groups are already expanded and every entry is a concrete string —
+there is no unresolved middleware to report, because registration resolved it. An earlier
+draft of this section listed variable middleware and route macros as unknown seams, which
+cannot arise once the router is the source of truth.
+
+### The allowlist requires a reason and an owner
+
+`vouch.audit.allowlist` maps a stable seam identifier to `rationale` and `owner`. Both are
+required: an entry missing either does NOT silence its seam and is itself reported as
+malformed. An allowlist is a record of a decision someone made, and an entry nobody will
+admit to is worth less than no entry at all.
+
+An optional `reviewed` field records when the decision was last looked at. It is reported
+where present and its absence is not a finding — the required fields are the ones without
+which the entry means nothing.
+
+An inline source comment is deliberately NOT a suppression mechanism. A comment is copied
+without thought, carries no owner, and cannot be reviewed centrally; the whole value of the
+allowlist is that it is one list somebody can read in full.
+
+An entry matching nothing is reported as stale. It silences nothing, but it misrepresents
+the shape of the codebase to the next reader, and removing it is the cheapest possible fix.
+
+### `--strict`
+
+Fails on an unallowlisted issuance site, on any unknown seam — including an unscannable
+configured path — on a malformed allowlist entry, and on a stale one.
+
+**Coverage is reported exhaustively**, including routes the package itself registers and
+routes belonging to the host's other packages. Filtering to what "matters" would make the
+command decide relevance, which is the judgement it is least equipped to make and the one a
+blind spot would hide. Completeness is affordable here precisely because coverage never
+blocks: the list can be long without becoming a gate.
+
+**An uncovered route is NOT a strict failure.** Most routes should not carry the token gate,
+and the command has no way to know which ones ought to: that judgement needs the host's
+intent, which nothing in the report contains. Coverage is reported so a host can look, and
+failing on it would make `--strict` unusable for every application that has a public
+endpoint. This is the one finding the command surfaces without ever blocking on it, and the
+distinction is deliberate — everything else it fails on is something it can prove is wrong. The failure exit code
+is `CommandExit::Failure`, as every other Vouch command uses; the value is ratified here so
+a test asserting it is pinning a decision rather than an accident. The default run reports all of the same and exits zero, so
+adopting the command never breaks a host that has not opted in.
