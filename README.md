@@ -161,6 +161,25 @@ tokens through `Vouch::issueToken`, then set
 are `observe` and `enforce`; a typo in `VOUCH_TOKEN_GATE_MODE` throws a loud
 configuration error instead of silently disarming the gate.
 
+The Sanctum boundary is intentional: Vouch writes assurance only for tokens
+issued through `Vouch::issueToken`; a direct Sanctum `createToken()` bypasses
+that ceremony and is default-denied once enforcement is armed. Existing tokens
+cannot safely be inferred or backfilled—revoke or drop and recreate them through
+the Vouch issuer after the observe log identifies them. A machine token is not a
+low-assurance human token: it is recorded as a machine actor and only satisfies
+routes whose policy permits that actor class. Human assurance failures use the
+RFC 9470 insufficient-user-authentication response; unknown, malformed, and
+machine-on-human-route tokens intentionally collapse to RFC 6750 `invalid_token`
+so the wire response does not reveal which record exists.
+
+Run `php artisan vouch:audit-tokens` after adopting the issuer. It scans the
+explicit `vouch.audit.paths` surface (default `app` and `routes`) with PHP's
+lexer, reports direct issuance and named unresolved seams, and reads coverage
+from the live router. `--strict` is deliberately noisy and opt-in: it fails on
+an unallowlisted site, unresolved source seam, or malformed/stale allowlist, but
+never an uncovered route because only the host knows which routes should gate
+tokens. Allowlist entries require a rationale and accountable owner.
+
 ## Strict maps
 
 Set `vouch.assurance_strict` only after listing the host's intentional ability

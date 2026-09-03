@@ -800,6 +800,12 @@ the shape of the codebase to the next reader, and removing it is the cheapest po
 Fails on an unallowlisted issuance site, on any unknown seam — including an unscannable
 configured path — on a malformed allowlist entry, and on a stale one.
 
+**Coverage is reported exhaustively**, including routes the package itself registers and
+routes belonging to the host's other packages. Filtering to what "matters" would make the
+command decide relevance, which is the judgement it is least equipped to make and the one a
+blind spot would hide. Completeness is affordable here precisely because coverage never
+blocks: the list can be long without becoming a gate.
+
 **An uncovered route is NOT a strict failure.** Most routes should not carry the token gate,
 and the command has no way to know which ones ought to: that judgement needs the host's
 intent, which nothing in the report contains. Coverage is reported so a host can look, and

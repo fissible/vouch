@@ -84,6 +84,32 @@ The report deliberately accepts no subject filter. It cannot look up an identifi
 IP, tenant, digest, or arbitrary candidate and emits no per-bucket row. Subject-level
 operability waits for Phase 2.4's redacted, auditable path.
 
+## Token issuance audit
+
+Run `php artisan vouch:audit-tokens` after introducing Vouch token issuance and
+again when a host changes authentication or route composition. It has two
+different evidence sources: PHP's built-in lexer scans the configured
+`vouch.audit.paths` roots (default `app`, `routes`) for direct `createToken()`
+calls, while the live router supplies already-expanded middleware coverage. The
+command names dynamic issuance-shaped calls and paths it cannot read instead of
+claiming a clean scan it could not perform. Use `--json` for automation.
+
+The default is report-only. `--strict` is intentionally noisy and therefore is
+not a default CI gate: it fails on unallowlisted direct sites, unknown source
+seams, and malformed or stale allowlist entries, but never on uncovered routes.
+Coverage alone cannot say that an endpoint ought to accept bearer tokens. An
+allowlist is an owned decision, not a mute button: every entry needs both a
+`rationale` and `owner`, with an optional `reviewed` date.
+
+Sanctum tokens issued outside `Vouch::issueToken` have no assurance evidence.
+Observe mode identifies them without stopping traffic; when preparing enforce
+mode, drop and recreate those tokens through the Vouch issuer rather than trying
+to backfill a human proof that was never recorded. The token gate is scoped to a
+token actor, so cookie-authenticated traffic follows session assurance instead.
+Machine tokens are explicitly recorded as machine actors, and bearer refusal
+uses RFC 9470 only when a human token needs stronger proof; opaque invalid or
+machine-on-human-route cases remain RFC 6750 `invalid_token`.
+
 ## Authentication-throttle posture
 
 Throttle keys are HMAC digests derived from `APP_KEY`. Rotating that key deliberately
