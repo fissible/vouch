@@ -24,10 +24,18 @@ final class CapturingFactor implements Factor
 {
     public ?EnrollmentResult $captured = null;
 
-    /** @param callable():void|null $onEnroll Runs before the inner enrollment. */
+    /**
+     * @param  callable():void|null  $onEnroll       Runs BEFORE the inner enrollment.
+     * @param  callable():void|null  $onEnrolled     Runs AFTER it, with material already minted.
+     *
+     * The two are different failures and a test should say which it means: one
+     * is an enrollment that never happened, the other is an operation that
+     * fails once secrets exist and must not hand them back anyway.
+     */
     public function __construct(
         private readonly Factor $inner,
         private readonly mixed $onEnroll = null,
+        private readonly mixed $onEnrolled = null,
     ) {}
 
     public function id(): string
@@ -67,7 +75,13 @@ final class CapturingFactor implements Factor
             ($this->onEnroll)();
         }
 
-        return $this->captured = $this->inner->enroll($userId, $data);
+        $this->captured = $this->inner->enroll($userId, $data);
+
+        if ($this->onEnrolled !== null) {
+            ($this->onEnrolled)();
+        }
+
+        return $this->captured;
     }
 
     public function verify(VerificationRequest $request): FactorResult

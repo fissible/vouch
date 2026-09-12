@@ -544,9 +544,11 @@ it('returns a result with no secrets when authorization refuses', function (): v
 
 it('returns no secrets when enrollment itself fails', function (): void {
     /*
-     * The mutation-failure path, distinct from an authorization refusal: the
-     * driver throws midway, so a partially minted set must not be handed back
-     * as though it were usable.
+     * An enrollment that never happens, distinct from an authorization
+     * refusal. Named precisely: the driver throws BEFORE minting anything, so
+     * this is not the after-mint case -- that one has its own test below,
+     * because they fail in different places and only one of them has secrets
+     * in hand at the moment it fails.
      */
     secretsUser();
     $session = secretsSession();
@@ -589,4 +591,114 @@ it('hands back the driver\'s own secret instances, not copies of them', function
 
     expect($capturing->captured)->not->toBeNull()
         ->and($result->secrets)->toBe($capturing->captured->secrets);
+});
+
+it('returns no secrets when the operation fails after minting them', function (): void {
+    /*
+     * The other failure, and the dangerous one: material EXISTS by the time
+     * things go wrong. An implementation that captured the enrollment result
+     * before the failure and returned it anyway would hand a user codes that
+     * may or may not be persisted.
+     */
+    secretsUser();
+    $session = secretsSession();
+
+    $registry = new FactorRegistry();
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class));
+    $registry->register(new CapturingFactor(
+        app(RecoveryCodeFactor::class),
+        onEnrolled: static fn () => throw new RuntimeException('failed after minting'),
+    ));
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn () => $registry);
+
+    $result = app(CredentialSelfService::class)->regenerateRecoveryCodes($session);
+
+    expect($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and($result->outcome)->toBe(SelfServiceOutcome::Refused)
+        ->and($result->secrets)->toBe([]);
+});
+
+it('forwards every secret, and the driver\'s own instances, when a factor is added', function (): void {
+    /*
+     * Both of round 3's gaps in one test, because they are the same gap seen
+     * twice.
+     *
+     * TOTP returns ONE secret, so every addFactor test so far passes against an
+     * implementation that returns `$enrollment->secrets[0]`. Recovery codes
+     * return ten, which is what makes truncation visible.
+     *
+     * And identity was only ever checked through regenerateRecoveryCodes, so
+     * addFactor could reveal, log and rewrap while its returned values still
+     * authenticated and its result still rendered safely.
+     */
+    secretsUser();
+    $session = secretsSession();
+
+    $capturing = new CapturingFactor(app(RecoveryCodeFactor::class));
+    $registry = new FactorRegistry();
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class));
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class));
+    $registry->register($capturing);
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn () => $registry);
+
+    $result = app(CredentialSelfService::class)->addFactor($session->refresh(), 'recovery_code', []);
+
+    expect($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and($capturing->captured)->not->toBeNull()
+        ->and(count($capturing->captured->secrets))->toBeGreaterThan(1)
+        ->and($result->secrets)->toBe($capturing->captured->secrets);
+
+    // Still revealable, so the service did not read them on the way through.
+    expect(revealAll($result->secrets))->toHaveCount(count($capturing->captured->secrets));
+});
+
+it('forwards every secret when a factor is replaced', function (): void {
+    // The replacing branch takes a different path through mutateCredentials,
+    // so covering one branch says nothing about the other.
+    secretsUser();
+    $session = secretsSession();
+
+    $capturing = new CapturingFactor(app(RecoveryCodeFactor::class));
+    $registry = new FactorRegistry();
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class));
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class));
+    $registry->register($capturing);
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn () => $registry);
+
+    $result = app(CredentialSelfService::class)
+        ->addFactor($session->refresh(), 'recovery_code', ['replace' => true]);
+
+    expect($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and($capturing->captured)->not->toBeNull()
+        ->and(count($capturing->captured->secrets))->toBeGreaterThan(1)
+        ->and($result->secrets)->toBe($capturing->captured->secrets);
+});
+
+it('returns a typed, secretless result from every refusal path', function (): void {
+    /*
+     * The refusal tests elsewhere inspect only ->outcome, so those paths could
+     * return any outcome-bearing object, or a result carrying secrets, and pass.
+     * This covers the identifier and removal refusals those tests reach.
+     */
+    secretsUser();
+    $weak = AuthSession::create([
+        'user_id' => 1,
+        'session_binding' => str_pad('weak-every-path', 64, 'g'),
+        'amr' => ['password'],
+        'acr' => 'aal1',
+        'assurance_proof' => sessionProof(1, 'aal1'),
+        'weakest_satisfied_at' => now(),
+    ]);
+
+    $service = app(CredentialSelfService::class);
+
+    foreach ([
+        $service->addIdentifier($weak, 'email', 'grace@acme.example'),
+        $service->removeFactor($weak, 1),
+        $service->addFactor($weak, 'recovery_code', ['replace' => true]),
+    ] as $result) {
+        expect($result)->toBeInstanceOf(SelfServiceResult::class)
+            ->and($result->outcome)->not->toBe(SelfServiceOutcome::Completed)
+            ->and($result->secrets)->toBe([]);
+    }
 });
