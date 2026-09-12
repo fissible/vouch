@@ -9,12 +9,12 @@ use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\Sessions\BindingDomain;
 use Fissible\Vouch\Sessions\RevokedReason;
 use Fissible\Vouch\Sessions\SessionBinding;
+use Fissible\Vouch\Tests\Support\Http\SessionlessProbeRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 use Illuminate\Session\ArraySessionHandler;
 use Illuminate\Session\Store;
-use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 
 uses(RefreshDatabase::class);
@@ -96,40 +96,13 @@ function anonymousAssuranceRequest(string $uri = '/admin/settings?tab=security')
 }
 
 /**
- * A request with NO session, whose session accessors announce every touch.
- *
- * `hasSession() === false` describes the SETUP, not the behaviour -- it passes
- * whether or not the middleware reached for session state. This subclass throws
- * a marker the test can recognise, so "did not touch the session" becomes an
- * observation rather than an assumption.
+ * A request with NO session, which records every attempt to reach for one.
  *
  * @param  int|null  $principalId  null for the guest case.
  */
-function sessionlessAssuranceRequest(?int $principalId = 7): Request
+function sessionlessAssuranceRequest(?int $principalId = 7): SessionlessProbeRequest
 {
-    $request = new class('/admin/settings') extends Request
-    {
-        public function __construct(string $uri)
-        {
-            parent::__construct();
-            $this->initialize([], [], [], [], [], ['REQUEST_URI' => $uri, 'REQUEST_METHOD' => 'GET']);
-        }
-
-        public function session(): never
-        {
-            throw new SessionTouched();
-        }
-
-        public function getSession(): never
-        {
-            throw new SessionTouched();
-        }
-
-        public function hasSession(bool $skipIfUninitialized = false): bool
-        {
-            return false;
-        }
-    };
+    $request = SessionlessProbeRequest::for();
 
     if ($principalId !== null) {
         $request->setUserResolver(static fn (): Authenticatable => assurancePrincipal($principalId));
@@ -138,8 +111,22 @@ function sessionlessAssuranceRequest(?int $principalId = 7): Request
     return $request;
 }
 
-/** Marker for a session touch the middleware should never make. */
-final class SessionTouched extends RuntimeException {}
+/**
+ * Count resolutions of the CONTAINER session store.
+ *
+ * A sessionless refusal could remember its destination through
+ * `app('session.store')` rather than `$request->session()`, and no request-level
+ * probe would see it. This counts the resolution itself, so the fallback is
+ * visible whether or not anything is written.
+ */
+function countingContainerSession(int &$resolutions): void
+{
+    app()->bind('session.store', static function () use (&$resolutions): Store {
+        $resolutions++;
+
+        return new Store('container-probe', new ArraySessionHandler(120), 'container-probe');
+    });
+}
 
 /** A $next that records whether the protected handler was reached. */
 function countingNext(int &$calls): Closure
@@ -324,10 +311,23 @@ it('refuses a request with no session without reaching for one', function (): vo
      */
     assuranceRow('aal2');
     $calls = 0;
+    $containerResolutions = 0;
+    countingContainerSession($containerResolutions);
 
-    expectRefusal(assuranceMiddleware()->handle(sessionlessAssuranceRequest(), countingNext($calls), 'aal2'));
+    $request = sessionlessAssuranceRequest();
 
-    expect($calls)->toBe(0);
+    expectRefusal(assuranceMiddleware()->handle($request, countingNext($calls), 'aal2'));
+
+    /*
+     * The COUNT, not the exception. The marker extends RuntimeException, so an
+     * implementation that tried the session, caught the throwable and returned
+     * the right redirect would be indistinguishable from one that never
+     * touched it. The counter is recorded before the throw and survives being
+     * caught.
+     */
+    expect($request->sessionTouches)->toBe(0)
+        ->and($containerResolutions)->toBe(0)
+        ->and($calls)->toBe(0);
 });
 
 it('refuses a guest with no session, which is both branches at once', function (): void {
@@ -338,8 +338,30 @@ it('refuses a guest with no session, which is both branches at once', function (
      */
     assuranceRow('aal2');
     $calls = 0;
+    $containerResolutions = 0;
+    countingContainerSession($containerResolutions);
 
-    expectRefusal(assuranceMiddleware()->handle(sessionlessAssuranceRequest(null), countingNext($calls), 'aal2'));
+    $request = sessionlessAssuranceRequest(null);
+
+    expectRefusal(assuranceMiddleware()->handle($request, countingNext($calls), 'aal2'));
+
+    expect($request->sessionTouches)->toBe(0)
+        ->and($containerResolutions)->toBe(0)
+        ->and($calls)->toBe(0);
+});
+
+it('does not accept a record from a different session of the same principal', function (): void {
+    /*
+     * A fix that looked the record up by PRINCIPAL rather than by binding would
+     * satisfy every other test here: the principal matches, the evidence is
+     * strong, and the refusal cases all vary the principal. This varies the
+     * BINDING instead -- the same user, a different session -- which is the
+     * decoy that tells the two lookups apart.
+     */
+    assuranceRow('aal2', ['session_binding' => SessionBinding::for('a-different-session-of-the-same-user', BindingDomain::Session)]);
+    $calls = 0;
+
+    expectRefusal(assuranceMiddleware()->handle(assuranceRequest(), countingNext($calls), 'aal2'));
 
     expect($calls)->toBe(0);
 });
