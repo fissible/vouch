@@ -595,10 +595,12 @@ it('hands back the driver\'s own secret instances, not copies of them', function
 
 it('returns no secrets when the operation fails after minting them', function (): void {
     /*
-     * The other failure, and the dangerous one: material EXISTS by the time
-     * things go wrong. An implementation that captured the enrollment result
-     * before the failure and returned it anyway would hand a user codes that
-     * may or may not be persisted.
+     * The other failure: material EXISTS by the time things go wrong. The
+     * driver has minted and the throw happens before enroll() RETURNS, so the
+     * service never receives the result -- which means this covers a failure
+     * with secrets in existence, NOT one after the service has captured them.
+     * The latter needs a seam inside the service and is recorded as a gap
+     * rather than claimed here.
      */
     secretsUser();
     $session = secretsSession();
@@ -672,13 +674,25 @@ it('forwards every secret when a factor is replaced', function (): void {
         ->and($capturing->captured)->not->toBeNull()
         ->and(count($capturing->captured->secrets))->toBeGreaterThan(1)
         ->and($result->secrets)->toBe($capturing->captured->secrets);
+
+    /*
+     * Identity alone is not enough here. A replacement path could reveal the
+     * codes -- logging them on the way -- and return those SAME wrappers, now
+     * spent. They would still be the driver's instances and still pass every
+     * assertion above, while the user receives ten objects that throw when
+     * read. Revealing them here is the proof they are unspent.
+     */
+    expect(revealAll($result->secrets))->toHaveCount(count($capturing->captured->secrets));
 });
 
-it('returns a typed, secretless result from every refusal path', function (): void {
+it('returns a typed, secretless result from an authorization refusal', function (): void {
     /*
-     * The refusal tests elsewhere inspect only ->outcome, so those paths could
-     * return any outcome-bearing object, or a result carrying secrets, and pass.
-     * This covers the identifier and removal refusals those tests reach.
+     * Named for what it covers: weak-session AUTHORIZATION refusal across three
+     * more methods. Not every downstream refusal -- policy and driver refusals
+     * reach the same return but by other paths, and this does not exercise
+     * them. The refusal tests elsewhere inspect only ->outcome, so those paths
+     * could return any outcome-bearing object, or a result carrying secrets,
+     * and pass.
      */
     secretsUser();
     $weak = AuthSession::create([
