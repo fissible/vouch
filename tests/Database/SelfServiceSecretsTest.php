@@ -15,6 +15,8 @@ use Fissible\Vouch\Secrets\OneTimeSecret;
 use Fissible\Vouch\SelfService\CredentialSelfService;
 use Fissible\Vouch\SelfService\SelfServiceOutcome;
 use Fissible\Vouch\SelfService\SelfServiceResult;
+use Fissible\Vouch\Factors\FactorRegistry;
+use Fissible\Vouch\Tests\Support\CapturingFactor;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 
 uses(DatabaseMigrations::class);
@@ -64,8 +66,12 @@ function secretsSession(int $userId = 1, string $second = 'totp'): AuthSession
         app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)
             ->enroll($userId, ['label' => 'ada@acme.example']);
     } else {
-        app(\Fissible\Vouch\Factors\Drivers\EmailOtpFactor::class)
-            ->enroll($userId, ['value' => 'ada@acme.example']);
+        app(EmailOtpFactor::class)->enroll($userId, [
+            // identifier_id, not value: the driver requires an integer id of an
+            // existing verified identifier and throws otherwise, which would
+            // have failed this fixture before it reached self-service at all.
+            'identifier_id' => (int) AuthIdentifier::query()->where('user_id', $userId)->firstOrFail()->id,
+        ]);
     }
 
     $password = AuthCredential::query()->where('user_id', $userId)->where('type', 'password')->firstOrFail();
@@ -94,6 +100,80 @@ function secretsSession(int $userId = 1, string $second = 'totp'): AuthSession
 function revealAll(array $secrets): array
 {
     return array_map(static fn (OneTimeSecret $secret): string => $secret->reveal(), $secrets);
+}
+
+/**
+ * Every returned code authenticates, and between them they account for every
+ * stored credential -- no omissions, no duplicates.
+ *
+ * @param  list<string>  $codes
+ * @return list<string>  the credential ids the codes matched
+ */
+function verifyEveryCode(array $codes): array
+{
+    $matched = [];
+
+    foreach ($codes as $code) {
+        $verified = app(RecoveryCodeFactor::class)->verify(new VerificationRequest(
+            attempt: secretsAttempt(),
+            input: ['code' => $code],
+        ));
+
+        expect($verified->isSatisfied())->toBeTrue("a returned code did not authenticate: {$code}");
+
+        $matched[] = (string) ($verified->mutations[0]->credentialId ?? '');
+    }
+
+    return $matched;
+}
+
+/**
+ * @param  list<string>  $matched
+ */
+function assertCoversEveryPersistedCode(array $matched, int $userId = 1): void
+{
+    $persisted = array_map('strval', AuthCredential::query()
+        ->where('user_id', $userId)->where('type', 'recovery_code')->whereNull('disabled_at')
+        ->pluck('id')->all());
+
+    sort($matched);
+    sort($persisted);
+
+    /*
+     * BOTH sides cast to string. DisableCredential carries an integer id while
+     * the column plucks as int too, but the two have differed by type across
+     * engines, and toBe() is strict -- [1,2] against ["1","2"] fails identity
+     * and would reject a correct implementation.
+     */
+    expect($persisted)->not->toBe([])
+        ->and($matched)->toBe($persisted);
+}
+
+/**
+ * The returned provisioning URI drives the credential that was persisted.
+ *
+ * Derives a live code from the URI's own seed and verifies it, which is the
+ * only check that distinguishes the right material from a well-formed string.
+ */
+function assertProvisionsTheStoredCredential(string $uri, int $userId = 1): void
+{
+    expect($uri)->toContain('otpauth://');
+
+    parse_str((string) parse_url($uri, PHP_URL_QUERY), $query);
+    $seed = is_string($query['secret'] ?? null) ? $query['secret'] : '';
+
+    expect($seed)->not->toBe('');
+
+    $credential = AuthCredential::query()
+        ->where('user_id', $userId)->where('type', 'totp')->whereNull('disabled_at')->firstOrFail();
+
+    $verified = app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)->verify(new VerificationRequest(
+        attempt: secretsAttempt($userId),
+        input: ['code' => \OTPHP\TOTP::createFromSecret($seed)->now()],
+        credential: $credential,
+    ));
+
+    expect($verified->isSatisfied())->toBeTrue('the returned provisioning material does not drive the stored credential');
 }
 
 function secretsAttempt(int $userId = 1): AuthAttempt
@@ -137,31 +217,13 @@ it('hands back a code that actually authenticates', function (): void {
      * each verification is independent and the matched credential ids can be
      * collected.
      */
-    $matched = [];
-
-    foreach ($codes as $code) {
-        $verified = app(RecoveryCodeFactor::class)->verify(new VerificationRequest(
-            attempt: secretsAttempt(),
-            input: ['code' => $code],
-        ));
-
-        expect($verified->isSatisfied())->toBeTrue("a returned code did not authenticate: {$code}");
-
-        $matched[] = $verified->mutations[0]->credentialId ?? null;
-    }
+    $matched = verifyEveryCode($codes);
 
     /*
      * And each code matched a DIFFERENT stored credential. Without this, a set
      * of ten copies of one working code passes everything above.
      */
-    $persisted = AuthCredential::query()
-        ->where('user_id', 1)->where('type', 'recovery_code')->whereNull('disabled_at')
-        ->pluck('id')->map(static fn ($id): string => (string) $id)->all();
-
-    sort($matched);
-    sort($persisted);
-
-    expect($matched)->toBe($persisted);
+    assertCoversEveryPersistedCode($matched);
 });
 
 it('returns every minted code exactly once', function (): void {
@@ -218,14 +280,12 @@ it('replaces the old set rather than adding to it', function (): void {
         expect($verified->isSatisfied())->toBeFalse("a superseded code still authenticates: {$stale}");
     }
 
-    // And the replacements do work, so this is supersession rather than
-    // destruction.
-    $verified = app(RecoveryCodeFactor::class)->verify(new VerificationRequest(
-        attempt: secretsAttempt(),
-        input: ['code' => $replacements[0]],
-    ));
-
-    expect($verified->isSatisfied())->toBeTrue();
+    /*
+     * And the replacements ALL work and account for the whole stored set -- an
+     * implementation that returned every code on first enrollment but truncated
+     * on replacement would otherwise escape here.
+     */
+    assertCoversEveryPersistedCode(verifyEveryCode($replacements));
 });
 
 it('returns the provisioning material when a factor is added', function (): void {
@@ -244,13 +304,14 @@ it('returns the provisioning material when a factor is added', function (): void
         ->and($result->outcome)->toBe(SelfServiceOutcome::Completed)
         ->and($result->secrets)->not->toBe([]);
 
-    // The material belongs to the credential that was just persisted, and is
-    // the provisioning URI rather than some other string.
-    $credential = AuthCredential::query()->where('user_id', 1)->where('type', 'totp')->firstOrFail();
-    $uri = revealAll($result->secrets)[0];
+    /*
+     * Exactly one secret, and it provisions the credential that was just
+     * persisted. "Contains otpauth://" accepts an unrelated seed or two
+     * wrappers around one URI, neither of which a user could set up with.
+     */
+    expect($result->secrets)->toHaveCount(1);
 
-    expect($uri)->toContain('otpauth://')
-        ->and($credential->disabled_at)->toBeNull();
+    assertProvisionsTheStoredCredential(revealAll($result->secrets)[0]);
 });
 
 it('returns the provisioning material when a factor is replaced', function (): void {
@@ -262,8 +323,11 @@ it('returns the provisioning material when a factor is replaced', function (): v
     $result = app(CredentialSelfService::class)
         ->addFactor($session->refresh(), 'totp', ['label' => 'ada@acme.example', 'replace' => true]);
 
-    expect($result->outcome)->toBe(SelfServiceOutcome::Completed)
-        ->and(revealAll($result->secrets)[0] ?? '')->toContain('otpauth://');
+    expect($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and($result->outcome)->toBe(SelfServiceOutcome::Completed)
+        ->and($result->secrets)->toHaveCount(1);
+
+    assertProvisionsTheStoredCredential(revealAll($result->secrets)[0]);
 });
 
 it('returns no secrets from operations that mint none', function (): void {
@@ -293,7 +357,9 @@ it('returns no secrets from a successful removal', function (): void {
     // most likely to grow one later.
     secretsUser();
     $session = secretsSession();
-    app(\Fissible\Vouch\Factors\Drivers\EmailOtpFactor::class)->enroll(1, ['value' => 'ada@acme.example']);
+    app(EmailOtpFactor::class)->enroll(1, [
+        'identifier_id' => (int) AuthIdentifier::query()->where('user_id', 1)->firstOrFail()->id,
+    ]);
 
     $totp = AuthCredential::query()->where('user_id', 1)->where('type', 'totp')->firstOrFail();
 
@@ -418,12 +484,109 @@ it('returns usable codes to a recovery-grace session', function (): void {
 
     $codes = revealAll($result->secrets);
 
-    expect($codes)->not->toBe([]);
+    expect($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and($codes)->not->toBe([]);
 
-    $verified = app(RecoveryCodeFactor::class)->verify(new VerificationRequest(
-        attempt: secretsAttempt(),
-        input: ['code' => $codes[0]],
+    // The same completeness check as the ordinary path: truncation during
+    // grace is exactly as harmful and would otherwise go unnoticed.
+    assertCoversEveryPersistedCode(verifyEveryCode($codes));
+});
+
+it('returns a result, never a bare outcome, from every method', function (): void {
+    /*
+     * §3k makes the shape uniform, and property access alone would accept any
+     * object that happens to expose ->outcome. Asserting the named type across
+     * all five is what makes "uniform" a contract rather than a coincidence.
+     */
+    secretsUser();
+    $session = secretsSession(second: 'email_otp');
+    $service = app(CredentialSelfService::class);
+
+    $totp = $service->addFactor($session->refresh(), 'totp', ['label' => 'ada@acme.example']);
+    $credential = AuthCredential::query()->where('user_id', 1)->where('type', 'totp')->firstOrFail();
+
+    foreach ([
+        $service->changePassword($session->refresh(), 'a-new-password'),
+        $service->addIdentifier($session->refresh(), 'email', 'grace@acme.example'),
+        $service->regenerateRecoveryCodes($session->refresh()),
+        $totp,
+        $service->removeFactor($session->refresh(), $credential->id),
+    ] as $result) {
+        expect($result)->toBeInstanceOf(SelfServiceResult::class);
+    }
+});
+
+it('returns a result with no secrets when authorization refuses', function (): void {
+    // A refusal is still a result. Returning a bare enum on the failure path
+    // would make every caller branch on type before reading an outcome.
+    secretsUser();
+    $weak = AuthSession::create([
+        'user_id' => 1,
+        'session_binding' => str_pad('weak-typed', 64, 'f'),
+        'amr' => ['password'],
+        'acr' => 'aal1',
+        'assurance_proof' => sessionProof(1, 'aal1'),
+        'weakest_satisfied_at' => now(),
+    ]);
+
+    $service = app(CredentialSelfService::class);
+
+    foreach ([
+        $service->regenerateRecoveryCodes($weak),
+        $service->addFactor($weak, 'totp', ['label' => 'x']),
+        $service->changePassword($weak, 'another-password'),
+    ] as $result) {
+        expect($result)->toBeInstanceOf(SelfServiceResult::class)
+            ->and($result->outcome)->not->toBe(SelfServiceOutcome::Completed)
+            ->and($result->secrets)->toBe([]);
+    }
+});
+
+it('returns no secrets when enrollment itself fails', function (): void {
+    /*
+     * The mutation-failure path, distinct from an authorization refusal: the
+     * driver throws midway, so a partially minted set must not be handed back
+     * as though it were usable.
+     */
+    secretsUser();
+    $session = secretsSession();
+
+    $registry = new FactorRegistry();
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class));
+    $registry->register(new CapturingFactor(
+        app(RecoveryCodeFactor::class),
+        onEnroll: static fn () => throw new RuntimeException('enrollment exploded'),
     ));
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn () => $registry);
 
-    expect($verified->isSatisfied())->toBeTrue();
+    $result = app(CredentialSelfService::class)->regenerateRecoveryCodes($session);
+
+    expect($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and($result->outcome)->toBe(SelfServiceOutcome::Refused)
+        ->and($result->secrets)->toBe([]);
+});
+
+it('hands back the driver\'s own secret instances, not copies of them', function (): void {
+    /*
+     * The containment gap the rendering tests cannot see. A service that
+     * revealed each secret, logged it, and wrapped the value in a fresh
+     * OneTimeSecret would satisfy every assertion about the rendered result --
+     * while having already leaked the plaintext on the way through.
+     *
+     * Identity is the only thing that distinguishes forwarding from
+     * revealing-and-rewrapping.
+     */
+    secretsUser();
+    $session = secretsSession();
+
+    $capturing = new CapturingFactor(app(RecoveryCodeFactor::class));
+    $registry = new FactorRegistry();
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class));
+    $registry->register($capturing);
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn () => $registry);
+
+    $result = app(CredentialSelfService::class)->regenerateRecoveryCodes($session);
+
+    expect($capturing->captured)->not->toBeNull()
+        ->and($result->secrets)->toBe($capturing->captured->secrets);
 });
