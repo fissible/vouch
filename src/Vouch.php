@@ -46,7 +46,12 @@ final class Vouch
      * The caller owns the transaction and must not disclose plaintext before it
      * commits.
      *
+     * PostgreSQL REPEATABLE READ can fail during lock acquisition with a
+     * serialization error. It propagates so the caller can roll back and, if
+     * appropriate, retry its whole transaction.
+     *
      * @throws IssuanceRefused
+     * @throws \Illuminate\Database\QueryException
      */
     public static function issueToken(TokenGrant $grant, ?ConnectionInterface $connection = null): IssuedToken
     {
@@ -108,9 +113,15 @@ final class Vouch
             throw new IssuanceRefused('The session proof changed while token issuance was acquiring locks.');
         }
 
+        // Use a current locking read, not the caller's consistent-read snapshot.
+        // A disable serialized first has already withdrawn assurance and will not
+        // do so again: a stale read would mint a durable assured token citing a
+        // dead credential, with no remaining withdrawal to invalidate its assurance.
+        // These exact IDs are already exclusively locked, so no new lock order is introduced.
         foreach ($credentialIds as $credentialId) {
             if ($connection->table((new AuthCredential())->getTable())
-                ->where('id', $credentialId)->whereNull('disabled_at')->doesntExist()) {
+                ->where('id', $credentialId)->whereNull('disabled_at')
+                ->lockForUpdate()->first(['id']) === null) {
                 throw new IssuanceRefused('A credential in the session proof is no longer live.');
             }
         }
