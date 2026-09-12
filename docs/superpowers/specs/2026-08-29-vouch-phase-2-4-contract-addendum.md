@@ -815,3 +815,43 @@ distinction is deliberate — everything else it fails on is something it can pr
 is `CommandExit::Failure`, as every other Vouch command uses; the value is ratified here so
 a test asserting it is pinning a decision rather than an accident. The default run reports all of the same and exits zero, so
 adopting the command never breaks a host that has not opted in.
+
+
+## 3j. A session record is not authorization evidence (settled 2026-09-12, issue #34)
+
+Scope note: this settles a 2.3 middleware surface rather than a 2.4 one. It is recorded here
+because this document is where settled decisions live.
+
+`RequireAbilityAssurance` checked that the session record belonged to the request's principal
+(`$session->user_id === $identifier`). `RequireAssurance` did not — it looked the record up by
+binding and evaluated its evidence alone.
+
+**Both paths now require all three, and refuse unless every one holds:**
+
+1. an authenticated request principal;
+2. a Vouch session record;
+3. matching principal identity.
+
+A record on its own is not evidence that the requirement is satisfied. Without condition 1 a
+stale or partially logged-out host session still satisfies an assurance requirement after the
+host guard has stopped authenticating that user — the record outlives the authentication it
+was written for, and nothing else in the request re-establishes who is asking.
+
+**`RequireAbilityAssurance` loses its null-principal pass-through.** It is installed into the
+whole `web` and `api` groups, so this changes behaviour for every route carrying a mapped
+ability: an anonymous visitor is now refused by the assurance gate rather than passed along to
+the authorization middleware. A route with no mapped requirement is unaffected — the
+`$required === null` short-circuit still runs first, and it must, or the gate would refuse
+traffic it has no opinion about.
+
+### A missing session is a refusal, never a 500
+
+`RequireAssurance` read `$request->session()->getId()` with no guard, so attaching
+`vouch.assurance:` to a route outside the session middleware threw. A gate that errors instead
+of refusing is not fail-closed; it is merely broken in a direction nobody chose.
+
+The guard alone is insufficient. The refusal path writes the intended destination through
+`$request->session()` and throws for the same reason, so **the refusal must be session-safe**:
+where no session exists it returns the configured refusal response without touching session
+state and without remembering a destination. There is nowhere to remember it to, and nothing
+later would read it.
