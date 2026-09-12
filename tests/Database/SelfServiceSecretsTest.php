@@ -298,6 +298,13 @@ it('returns the provisioning material when a factor is added', function (): void
     secretsUser();
     $session = secretsSession(second: 'email_otp');
 
+    $capturing = new CapturingFactor(app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class));
+    $registry = new FactorRegistry();
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class));
+    $registry->register(app(EmailOtpFactor::class));
+    $registry->register($capturing);
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn () => $registry);
+
     $result = app(CredentialSelfService::class)->addFactor($session->refresh(), 'totp', ['label' => 'ada@acme.example']);
 
     expect($result)->toBeInstanceOf(SelfServiceResult::class)
@@ -305,11 +312,16 @@ it('returns the provisioning material when a factor is added', function (): void
         ->and($result->secrets)->not->toBe([]);
 
     /*
-     * Exactly one secret, and it provisions the credential that was just
-     * persisted. "Contains otpauth://" accepts an unrelated seed or two
-     * wrappers around one URI, neither of which a user could set up with.
+     * Exactly one secret, and it is the DRIVER'S OWN instance. A working value
+     * is not enough: an implementation could reveal the URI, log it, and return
+     * a fresh wrapper around the same string -- which still provisions the
+     * credential and still renders safely, while the secret has already leaked.
+     * Identity is what rules that out, and single-secret TOTP needs it as much
+     * as the ten-secret recovery path.
      */
-    expect($result->secrets)->toHaveCount(1);
+    expect($result->secrets)->toHaveCount(1)
+        ->and($capturing->captured)->not->toBeNull()
+        ->and($result->secrets)->toBe($capturing->captured->secrets);
 
     assertProvisionsTheStoredCredential(revealAll($result->secrets)[0]);
 });
@@ -320,12 +332,21 @@ it('returns the provisioning material when a factor is replaced', function (): v
     secretsUser();
     $session = secretsSession();
 
+    $capturing = new CapturingFactor(app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class));
+    $registry = new FactorRegistry();
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class));
+    $registry->register($capturing);
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn () => $registry);
+
     $result = app(CredentialSelfService::class)
         ->addFactor($session->refresh(), 'totp', ['label' => 'ada@acme.example', 'replace' => true]);
 
+    // Identity on this branch too -- reveal-log-rewrap is available to both.
     expect($result)->toBeInstanceOf(SelfServiceResult::class)
         ->and($result->outcome)->toBe(SelfServiceOutcome::Completed)
-        ->and($result->secrets)->toHaveCount(1);
+        ->and($result->secrets)->toHaveCount(1)
+        ->and($capturing->captured)->not->toBeNull()
+        ->and($result->secrets)->toBe($capturing->captured->secrets);
 
     assertProvisionsTheStoredCredential(revealAll($result->secrets)[0]);
 });
@@ -492,6 +513,34 @@ it('returns usable codes to a recovery-grace session', function (): void {
     assertCoversEveryPersistedCode(verifyEveryCode($codes));
 });
 
+it('hands a grace session the provisioning material for its replacement factor', function (): void {
+    /*
+     * Grace is a separate authorization path, so an implementation could
+     * forward secrets everywhere else and return none here -- leaving a user
+     * who has already lost a factor with a credential they cannot enroll and
+     * no way to recover it. Existing grace coverage asserts the outcome and the
+     * persisted row, neither of which notices an empty list.
+     */
+    secretsUser();
+    $grace = AuthSession::create([
+        'user_id' => 1,
+        'session_binding' => str_pad('grace-addfactor', 64, 'e'),
+        'amr' => ['recovery_code'],
+        'acr' => null,
+        'assurance_proof' => null,
+        'weakest_satisfied_at' => null,
+        'recovery_grace_expires_at' => now()->addMinutes(10),
+    ]);
+
+    $result = app(CredentialSelfService::class)->addFactor($grace, 'totp', ['label' => 'ada@acme.example']);
+
+    expect($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and($result->outcome)->toBe(SelfServiceOutcome::Completed)
+        ->and($result->secrets)->toHaveCount(1);
+
+    assertProvisionsTheStoredCredential(revealAll($result->secrets)[0]);
+});
+
 it('returns a result, never a bare outcome, from every method', function (): void {
     /*
      * §3k makes the shape uniform, and property access alone would accept any
@@ -645,7 +694,14 @@ it('forwards every secret, and the driver\'s own instances, when a factor is add
 
     $result = app(CredentialSelfService::class)->addFactor($session->refresh(), 'recovery_code', []);
 
+    /*
+     * Completed is load-bearing, not decoration. Without it an implementation
+     * could return Refused CARRYING the secrets and satisfy every other
+     * assertion here, which is precisely the "failed operations return no
+     * secrets" rule inverted.
+     */
     expect($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and($result->outcome)->toBe(SelfServiceOutcome::Completed)
         ->and($capturing->captured)->not->toBeNull()
         ->and(count($capturing->captured->secrets))->toBeGreaterThan(1)
         ->and($result->secrets)->toBe($capturing->captured->secrets);
@@ -671,6 +727,7 @@ it('forwards every secret when a factor is replaced', function (): void {
         ->addFactor($session->refresh(), 'recovery_code', ['replace' => true]);
 
     expect($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and($result->outcome)->toBe(SelfServiceOutcome::Completed)
         ->and($capturing->captured)->not->toBeNull()
         ->and(count($capturing->captured->secrets))->toBeGreaterThan(1)
         ->and($result->secrets)->toBe($capturing->captured->secrets);
