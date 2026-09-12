@@ -884,3 +884,45 @@ routeable renderer of its own.
 
 Recorded so a future adapter resolves it deliberately, rather than someone discovering it as
 a support question and softening the refusal to make it go away.
+
+## 3k. Self-service returns the secrets it mints (settled 2026-09-12, issue #32)
+
+Scope note: a 2.3d surface, recorded here because this document is where settled decisions
+live.
+
+`CredentialSelfService::regenerateRecoveryCodes()` called `recovery_code->enroll()` and
+discarded its return, reporting only `SelfServiceOutcome::Completed`. That return is the ONLY
+copy of the plaintext: `RecoveryCodeFactor::enroll()` disables every live recovery credential
+first and then returns `OneTimeSecret`s for the replacements, which are hashed at rest.
+
+So the operation destroyed a user's working recovery set and replaced it with codes nobody
+could ever read. A recovery-grace session can reach that path, which is the case where
+recovery codes matter most. `addFactor()` discards the same return in both its branches; for
+TOTP that value carries the provisioning URI, so the user cannot complete setup.
+
+**Every self-service method returns a `SelfServiceResult`**, carrying the outcome and a
+possibly-empty `list<OneTimeSecret>`. Uniform rather than only on the two methods that mint
+secrets today: two return conventions in one class is a thing every reader must learn and
+every future method must choose between, and a method that starts producing secrets later
+would otherwise need a signature change to say so.
+
+A caller-supplied sink was considered and refused. It inverts control for no gain here, and a
+caller that simply omits the closure loses the secrets again — reintroducing the exact defect,
+silently, at every new call site.
+
+### The rules, stated so they can be tested
+
+- A method that mints nothing returns `secrets = []`. Always, not "usually".
+- `addFactor()` and `regenerateRecoveryCodes()` return each newly generated secret EXACTLY
+  once — every secret minted appears, and none appears twice. A partial list is worse than
+  none: the user stores what they were given and discovers the gap when they need it.
+- A failed or refused operation returns no secrets. There is nothing to reveal, and an empty
+  list says so without the caller having to test the outcome first.
+- The returned secrets are the ones that WORK. The point of the fix is not that a list is
+  non-empty; it is that the codes a user is handed authenticate against what was persisted.
+- Secrets are never logged, implicitly serialized, or persisted in plaintext. They stay
+  `OneTimeSecret` end to end, so the read-once containment already built for them applies
+  unchanged and the result object adds no second place the plaintext lives — including through
+  `var_export()`, `json_encode()` and `serialize()` on the result itself.
+- Callers must handle them explicitly. That is the whole reason the value is returned rather
+  than pushed into a sink the caller can forget.
