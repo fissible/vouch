@@ -50,12 +50,19 @@ final class RequireAssurance
 
     public function handle(Request $request, Closure $next, string $required, ?string $maxAge = null): Response
     {
-        $session = AuthSession::query()
-            ->where('session_binding', SessionBinding::for($request->session()->getId(), BindingDomain::Session))
-            ->first();
+        $user = $request->user();
+        $session = null;
+        if ($user !== null && $request->hasSession()) {
+            $session = AuthSession::query()
+                ->where('session_binding', SessionBinding::for($request->session()->getId(), BindingDomain::Session))
+                ->first();
+        }
 
         $requirement = AssuranceRequirement::from($maxAge === null ? $required : ['level' => $required, 'max_age' => $maxAge]);
-        if ($this->evidenceComparator->compare(SessionEvidence::read($session), $requirement, $this->clock, null)->outcome->isSufficient()) {
+        if ($user !== null
+            && $session !== null
+            && $session->user_id === $user->getAuthIdentifier()
+            && $this->evidenceComparator->compare(SessionEvidence::read($session), $requirement, $this->clock, null)->outcome->isSufficient()) {
             return $next($request);
         }
 
@@ -86,7 +93,11 @@ final class RequireAssurance
          * The value is the URI the user was actually refused, never a client
          * parameter: a return_to input is an open-redirect primitive.
          */
-        (new IntendedDestination($request->session()))->remember($request->getRequestUri());
+        // vouch.assurance: can run outside session middleware; without a session,
+        // there is nowhere to remember a destination and nothing to read it later.
+        if ($request->hasSession()) {
+            (new IntendedDestination($request->session()))->remember($request->getRequestUri());
+        }
 
         return new RedirectResponse($presentation);
     }

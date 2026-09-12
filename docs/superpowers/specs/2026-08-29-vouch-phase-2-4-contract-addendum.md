@@ -815,3 +815,72 @@ distinction is deliberate — everything else it fails on is something it can pr
 is `CommandExit::Failure`, as every other Vouch command uses; the value is ratified here so
 a test asserting it is pinning a decision rather than an accident. The default run reports all of the same and exits zero, so
 adopting the command never breaks a host that has not opted in.
+
+
+## 3j. A session record is not authorization evidence (settled 2026-09-12, issue #34)
+
+Scope note: this settles a 2.3 middleware surface rather than a 2.4 one. It is recorded here
+because this document is where settled decisions live.
+
+`RequireAbilityAssurance` checked that the session record belonged to the request's principal
+(`$session->user_id === $identifier`). `RequireAssurance` did not — it looked the record up by
+binding and evaluated its evidence alone.
+
+**`RequireAssurance` now requires all three, and refuses unless every one holds:**
+
+1. an authenticated request principal;
+2. a Vouch session record;
+3. matching principal identity.
+
+A record on its own is not evidence that the requirement is satisfied. Without condition 1 a
+stale or partially logged-out host session still satisfies an assurance requirement after the
+host guard has stopped authenticating that user — the record outlives the authentication it
+was written for, and nothing else in the request re-establishes who is asking.
+
+The reason this matters HERE specifically: `vouch.assurance:` is attached directly to a route,
+and nothing obliges a host to put an authorization check behind it. The gate may be the only
+thing standing there.
+
+**`RequireAbilityAssurance` keeps its guest pass-through, deliberately.** Making the two
+middleware identical was considered and refused. It already enforces condition 3
+(`$session->user_id === $identifier`), so the stale-record mismatch is covered; only the
+null-principal case differs, and there the asymmetry is correct rather than an oversight:
+
+- it runs in the `web`/`api` GROUP, before route middleware — including `auth` — so a guest
+  has not yet reached the thing that redirects them to login;
+- refusing would replace that login redirect with a step-up redirect a guest cannot act on,
+  stranding them;
+- its requirement exists only because the route carries a mapped ability, and the
+  authorization middleware behind it denies unauthenticated users anyway. The pass-through is
+  therefore not a bypass — the authorization check remains the boundary.
+
+`RequireAssurance` has no such middleware behind it by construction, which is the whole
+difference.
+
+### A missing session is a refusal, never a 500
+
+`RequireAssurance` read `$request->session()->getId()` with no guard, so attaching
+`vouch.assurance:` to a route outside the session middleware threw. A gate that errors instead
+of refusing is not fail-closed; it is merely broken in a direction nobody chose.
+
+The guard alone is insufficient. The refusal path writes the intended destination through
+`$request->session()` and throws for the same reason, so **the refusal must be session-safe**:
+where no session exists it returns the configured refusal response without touching session
+state and without remembering a destination. There is nowhere to remember it to, and nothing
+later would read it.
+
+### Recorded wrinkle: refusing a guest sends them somewhere they cannot act
+
+A request with no principal is now refused, and the refusal is the configured step-up
+redirect — which a guest cannot act on, because they must sign in before stepping up is
+meaningful.
+
+Refusing is still correct: `vouch.assurance:` is attached directly and nothing is obliged to
+stand behind it, so passing a guest through would be the bypass this section closes. What is
+unresolved is the SHAPE of the refusal, not the decision to refuse. Distinguishing "you must
+authenticate" from "you must strengthen an existing authentication" is presentation, and
+belongs to the step-up adapter Phase 3 supplies rather than to a middleware that ships no
+routeable renderer of its own.
+
+Recorded so a future adapter resolves it deliberately, rather than someone discovering it as
+a support question and softening the refusal to make it go away.

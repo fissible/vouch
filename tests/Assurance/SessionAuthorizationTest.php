@@ -37,6 +37,47 @@ beforeEach(function (): void {
     config(['vouch.step_up.presentation_url' => '/auth/step-up']);
 });
 
+/** The principal establishSession() authenticates these tests as. */
+function enforcedPrincipal(int $id = 7): object
+{
+    return new class($id) implements \Illuminate\Contracts\Auth\Authenticatable
+    {
+        public function __construct(private readonly int $id) {}
+
+        public function getAuthIdentifierName(): string
+        {
+            return 'id';
+        }
+
+        public function getAuthIdentifier(): int
+        {
+            return $this->id;
+        }
+
+        public function getAuthPasswordName(): string
+        {
+            return 'password';
+        }
+
+        public function getAuthPassword(): string
+        {
+            return '';
+        }
+
+        public function getRememberToken(): string
+        {
+            return '';
+        }
+
+        public function setRememberToken($value): void {}
+
+        public function getRememberTokenName(): string
+        {
+            return 'remember_token';
+        }
+    };
+}
+
 function enforcedRequest(string $uri = '/admin/settings'): Request
 {
     /*
@@ -51,6 +92,14 @@ function enforcedRequest(string $uri = '/admin/settings'): Request
      */
     $request = Request::create($uri);
     $request->setLaravelSession(sessionStore());
+
+    /*
+     * A principal matching the established session. §3j requires the record to
+     * belong to the request's principal, so without this the POSITIVE cases
+     * here would refuse -- and the refusal cases would start passing for a
+     * reason that has nothing to do with the evidence they exist to test.
+     */
+    $request->setUserResolver(static fn (): object => enforcedPrincipal());
 
     return $request;
 }
