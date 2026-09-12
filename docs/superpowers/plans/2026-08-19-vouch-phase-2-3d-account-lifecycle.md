@@ -273,6 +273,23 @@ removing or replacing a factor revokes other sessions under the ordering contrac
 and re-evaluates the current session's assurance; a new identifier starts
 unverified.
 
+All five methods return `SelfServiceResult` (settled in the
+[contract addendum, section 3k](../specs/2026-08-29-vouch-phase-2-4-contract-addendum.md#3k-self-service-returns-the-secrets-it-mints-settled-2026-09-12-issue-32)):
+
+```php
+changePassword(AuthSession $session, string $password): SelfServiceResult
+addFactor(AuthSession $session, string $factorId, array $data): SelfServiceResult
+regenerateRecoveryCodes(AuthSession $session): SelfServiceResult
+addIdentifier(AuthSession $session, string $type, string $value): SelfServiceResult
+removeFactor(AuthSession $session, int $credentialId): SelfServiceResult
+```
+
+Read the enum from `$result->outcome`. `$result->secrets` is always a
+`list<OneTimeSecret>`, empty when nothing was minted or the operation was refused.
+Factor addition, replacement, and recovery-code regeneration forward every
+driver-owned secret instance without revealing or rewrapping it. The caller
+reveals each once into the response; there is no callback, session, or event sink.
+
 ## Task 5a: Authorization integration survey — S
 
 **Verification before design.** An earlier draft asserted that a central

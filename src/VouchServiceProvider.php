@@ -364,6 +364,8 @@ final class VouchServiceProvider extends ServiceProvider
 
         // Leave construction to the container so hosts can contextually supply
         // a registry for this operation; FactorRegistry itself is write-once.
+        // One-time material belongs to each returned SelfServiceResult, never
+        // to this shared service or a container-bound delivery sink.
         $this->app->singleton(\Fissible\Vouch\SelfService\CredentialSelfService::class);
 
         $this->app->singleton(

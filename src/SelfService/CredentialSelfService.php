@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\SelfService;
 
-use Fissible\Vouch\Contracts\Factor;
 use Fissible\Vouch\Factors\FactorRegistry;
 use Fissible\Vouch\Assurance\AssuranceRequirement;
 use Fissible\Vouch\Assurance\EvidenceComparator;
@@ -19,6 +18,7 @@ use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Models\AuthPolicy;
 use Fissible\Vouch\Models\AuthSession;
+use Fissible\Vouch\Secrets\OneTimeSecret;
 use Fissible\Vouch\Sessions\RevokedReason;
 use Fissible\Vouch\Sessions\SessionLifecycle;
 use Fissible\Vouch\Sessions\SessionEvidence;
@@ -45,14 +45,14 @@ final readonly class CredentialSelfService
         private AssuranceVocabulary $vocabulary,
     ) {}
 
-    public function changePassword(AuthSession $session, string $password): SelfServiceOutcome
+    public function changePassword(AuthSession $session, string $password): SelfServiceResult
     {
         $authoritative = $this->authorize($session, false);
         if ($authoritative instanceof SelfServiceOutcome) {
-            return $authoritative;
+            return new SelfServiceResult($authoritative);
         }
 
-        return $this->mutateCredentials($authoritative, RevokedReason::PasswordChanged, function () use ($authoritative, $password): void {
+        return $this->mutateCredentials($authoritative, RevokedReason::PasswordChanged, function () use ($authoritative, $password): array {
             app(\Fissible\Vouch\Credentials\CredentialMutation::class)->subjectWide(
                 SubjectKey::forConfiguredUser($authoritative->user_id),
                 function () use ($authoritative, $password): void {
@@ -62,63 +62,65 @@ final readonly class CredentialSelfService
                     ]);
                 },
             );
+
+            return [];
         });
     }
 
     /** @param array<string, mixed> $data */
-    public function addFactor(AuthSession $session, string $factorId, array $data): SelfServiceOutcome
+    public function addFactor(AuthSession $session, string $factorId, array $data): SelfServiceResult
     {
         // Grace can restore an authenticator, but cannot use this generic API
         // to change the password or mint a new set of recovery credentials.
         $authoritative = $this->authorize($session, ! in_array($factorId, ['password', 'recovery_code'], true));
         if ($authoritative instanceof SelfServiceOutcome) {
-            return $authoritative;
+            return new SelfServiceResult($authoritative);
         }
 
         try {
             $factor = $this->factors->get($factorId);
         } catch (Throwable) {
-            return SelfServiceOutcome::Refused;
+            return new SelfServiceResult(SelfServiceOutcome::Refused);
         }
 
         $replaces = ($data['replace'] ?? false) === true;
 
         if (! $replaces) {
             try {
-                $factor->enroll($authoritative->user_id, $data);
+                $enrollment = $factor->enroll($authoritative->user_id, $data);
             } catch (Throwable) {
-                return SelfServiceOutcome::Refused;
+                return new SelfServiceResult(SelfServiceOutcome::Refused);
             }
 
-            return SelfServiceOutcome::Completed;
+            return new SelfServiceResult(SelfServiceOutcome::Completed, $enrollment->secrets);
         }
 
-        return $this->mutateCredentials($authoritative, RevokedReason::CredentialChanged, function () use ($factor, $authoritative, $data): void {
-            $factor->enroll($authoritative->user_id, $data);
+        return $this->mutateCredentials($authoritative, RevokedReason::CredentialChanged, function () use ($factor, $authoritative, $data): array {
+            return $factor->enroll($authoritative->user_id, $data)->secrets;
         });
     }
 
-    public function regenerateRecoveryCodes(AuthSession $session): SelfServiceOutcome
+    public function regenerateRecoveryCodes(AuthSession $session): SelfServiceResult
     {
         $authoritative = $this->authorize($session, true);
         if ($authoritative instanceof SelfServiceOutcome) {
-            return $authoritative;
+            return new SelfServiceResult($authoritative);
         }
 
         try {
-            $this->factors->get('recovery_code')->enroll($authoritative->user_id, []);
+            $enrollment = $this->factors->get('recovery_code')->enroll($authoritative->user_id, []);
         } catch (Throwable) {
-            return SelfServiceOutcome::Refused;
+            return new SelfServiceResult(SelfServiceOutcome::Refused);
         }
 
-        return SelfServiceOutcome::Completed;
+        return new SelfServiceResult(SelfServiceOutcome::Completed, $enrollment->secrets);
     }
 
-    public function addIdentifier(AuthSession $session, string $type, string $value): SelfServiceOutcome
+    public function addIdentifier(AuthSession $session, string $type, string $value): SelfServiceResult
     {
         $authoritative = $this->authorize($session, false);
         if ($authoritative instanceof SelfServiceOutcome) {
-            return $authoritative;
+            return new SelfServiceResult($authoritative);
         }
 
         try {
@@ -130,17 +132,17 @@ final readonly class CredentialSelfService
                 'is_primary' => false,
             ]);
         } catch (Throwable) {
-            return SelfServiceOutcome::Refused;
+            return new SelfServiceResult(SelfServiceOutcome::Refused);
         }
 
-        return SelfServiceOutcome::Completed;
+        return new SelfServiceResult(SelfServiceOutcome::Completed);
     }
 
-    public function removeFactor(AuthSession $session, int $credentialId): SelfServiceOutcome
+    public function removeFactor(AuthSession $session, int $credentialId): SelfServiceResult
     {
         $authoritative = $this->authorize($session, false);
         if ($authoritative instanceof SelfServiceOutcome) {
-            return $authoritative;
+            return new SelfServiceResult($authoritative);
         }
 
         // Deliberately after session classification: both absence and another
@@ -152,21 +154,23 @@ final readonly class CredentialSelfService
             ->first();
 
         if (! $credential instanceof AuthCredential) {
-            return SelfServiceOutcome::Refused;
+            return new SelfServiceResult(SelfServiceOutcome::Refused);
         }
 
         if ($this->wouldBreakLoginPolicy($authoritative->user_id, $credential)) {
-            return SelfServiceOutcome::RequiredByPolicy;
+            return new SelfServiceResult(SelfServiceOutcome::RequiredByPolicy);
         }
 
         try {
             $factor = $this->factors->get($credential->type);
         } catch (Throwable) {
-            return SelfServiceOutcome::Refused;
+            return new SelfServiceResult(SelfServiceOutcome::Refused);
         }
 
-        return $this->mutateCredentials($authoritative, RevokedReason::CredentialChanged, function () use ($factor, $credential): void {
+        return $this->mutateCredentials($authoritative, RevokedReason::CredentialChanged, function () use ($factor, $credential): array {
             $factor->revoke($credential);
+
+            return [];
         }, $credential->id);
     }
 
@@ -193,24 +197,24 @@ final readonly class CredentialSelfService
             : SelfServiceOutcome::StepUpRequired;
     }
 
-    /** @param callable(): void $mutation */
-    private function mutateCredentials(AuthSession $session, RevokedReason $reason, callable $mutation, ?int $removedCredentialId = null): SelfServiceOutcome
+    /** @param callable(): list<OneTimeSecret> $mutation */
+    private function mutateCredentials(AuthSession $session, RevokedReason $reason, callable $mutation, ?int $removedCredentialId = null): SelfServiceResult
     {
         // Do not wrap these writes together: the first commit must survive a
         // failed credential mutation, and is externally observable by design.
         $this->sessions->revokeSiblings($session->user_id, $session->session_binding, $reason);
 
         try {
-            $mutation();
+            $secrets = $mutation();
         } catch (Throwable $throwable) {
             report($throwable);
-            return SelfServiceOutcome::Refused;
+            return new SelfServiceResult(SelfServiceOutcome::Refused);
         }
 
         $this->sessions->revokeSiblings($session->user_id, $session->session_binding, $reason);
         $this->removeCredentialFromEvidence($session, $removedCredentialId);
 
-        return SelfServiceOutcome::Completed;
+        return new SelfServiceResult(SelfServiceOutcome::Completed, $secrets);
     }
 
     private function removeCredentialFromEvidence(AuthSession $session, ?int $credentialId): void

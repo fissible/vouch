@@ -906,6 +906,18 @@ secrets today: two return conventions in one class is a thing every reader must 
 every future method must choose between, and a method that starts producing secrets later
 would otherwise need a signature change to say so.
 
+`SelfServiceResult` is final and readonly, with public `SelfServiceOutcome $outcome`
+and `list<OneTimeSecret> $secrets`, defaulting to `[]`, following `EnrollmentResult`.
+The outcome enum remains unchanged; callers read it through `$result->outcome`.
+
+```php
+changePassword(AuthSession $session, string $password): SelfServiceResult
+addFactor(AuthSession $session, string $factorId, array $data): SelfServiceResult
+regenerateRecoveryCodes(AuthSession $session): SelfServiceResult
+addIdentifier(AuthSession $session, string $type, string $value): SelfServiceResult
+removeFactor(AuthSession $session, int $credentialId): SelfServiceResult
+```
+
 A caller-supplied sink was considered and refused. It inverts control for no gain here, and a
 caller that simply omits the closure loses the secrets again — reintroducing the exact defect,
 silently, at every new call site.
@@ -920,6 +932,8 @@ silently, at every new call site.
   list says so without the caller having to test the outcome first.
 - The returned secrets are the ones that WORK. The point of the fix is not that a list is
   non-empty; it is that the codes a user is handed authenticate against what was persisted.
+- Forward the driver's own `OneTimeSecret` instances, still unspent. Revealing and
+  rewrapping spends the original and exposes plaintext inside the service.
 - Secrets are never logged, implicitly serialized, or persisted in plaintext. They stay
   `OneTimeSecret` end to end, so the read-once containment already built for them applies
   unchanged and the result object adds no second place the plaintext lives — including through
