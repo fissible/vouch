@@ -231,6 +231,22 @@ final class CredentialLivenessSnapshotTest extends TestCase
                 (int) DB::table('auth_policies')->where('scope', 'caller-sentinel')->count(),
                 'Issuance replaced the caller transaction, which would give it a fresh snapshot and hide the defect.',
             );
+
+            /*
+             * Caller-visible is not enough on its own. An implementation that
+             * COMMITTED the caller's work and opened a fresh transaction would
+             * satisfy every assertion above -- it refuses, writes no token
+             * rows, and the sentinel survives because it was committed. The
+             * sentinel must therefore still be INVISIBLE to an outside
+             * connection, which is only true while the caller's original
+             * transaction is open and unfinished.
+             */
+            $outside = $this->independentPdo();
+            $probe = $outside->prepare('select count(*) from auth_policies where scope = ?');
+            $probe->execute(['caller-sentinel']);
+
+            self::assertSame(0, (int) $probe->fetchColumn(), 'Issuance committed the caller transaction, which would give the recheck a fresh snapshot.');
+            self::assertSame(1, DB::transactionLevel(), 'The caller transaction is not the one it opened.');
         } finally {
             DB::rollBack();
 
@@ -259,6 +275,17 @@ final class CredentialLivenessSnapshotTest extends TestCase
             name: 'api',
             abilities: ['orders:read'],
         );
+
+        /*
+         * The same isolation level the negative runs under. Without this, a
+         * MySQL defaulting to READ COMMITTED would let an implementation that
+         * refuses EVERY repeatable-read issuance satisfy both tests at once:
+         * the negative would pass for the wrong reason and this one would never
+         * exercise the level the negative cares about.
+         */
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('set transaction isolation level repeatable read');
+        }
 
         DB::beginTransaction();
 
