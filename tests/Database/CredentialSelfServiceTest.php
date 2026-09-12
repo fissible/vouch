@@ -129,7 +129,7 @@ it('lets a grace session enroll a replacement second factor', function (): void 
     // Replacing the factor they lost is the purpose of grace. Asserting only
     // the outcome would let a no-op Completed pass.
     expect(app(CredentialSelfService::class)
-        ->addFactor($grace, 'totp', ['label' => 'ada@acme.example']))
+        ->addFactor($grace, 'totp', ['label' => 'ada@acme.example'])->outcome)
         ->toBe(SelfServiceOutcome::Completed)
         ->and(AuthCredential::query()->where('user_id', 1)->where('type', 'totp')
             ->whereNull('disabled_at')->exists())->toBeTrue();
@@ -453,7 +453,7 @@ it('commits sibling revocation before disabling the factor', function (): void {
      * cannot tell the two arrangements apart.
      */
     expect($intercepted->observed)->toBeTrue()
-        ->and($outcome)->toBe(SelfServiceOutcome::Refused)
+        ->and($outcome->outcome)->toBe(SelfServiceOutcome::Refused)
         ->and($sibling->refresh()->revoked_at)->not->toBeNull()
         ->and(AuthCredential::query()->whereKey($totp->id)->whereNull('disabled_at')->exists())->toBeTrue();
 });
