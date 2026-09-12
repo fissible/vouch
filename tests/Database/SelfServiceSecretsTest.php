@@ -132,9 +132,10 @@ function verifyEveryCode(array $codes): array
  */
 function assertCoversEveryPersistedCode(array $matched, int $userId = 1): void
 {
-    $persisted = array_map('strval', AuthCredential::query()
+    $persisted = AuthCredential::query()
         ->where('user_id', $userId)->where('type', 'recovery_code')->whereNull('disabled_at')
-        ->pluck('id')->all());
+        ->get()->map(static fn (AuthCredential $credential): string => (string) $credential->id)
+        ->all();
 
     sort($matched);
     sort($persisted);
@@ -162,7 +163,11 @@ function assertProvisionsTheStoredCredential(string $uri, int $userId = 1): void
     parse_str((string) parse_url($uri, PHP_URL_QUERY), $query);
     $seed = is_string($query['secret'] ?? null) ? $query['secret'] : '';
 
-    expect($seed)->not->toBe('');
+    // A guard rather than an expectation: the seed has to be non-empty before
+    // it can drive a TOTP at all, and the failure reads the same either way.
+    if ($seed === '') {
+        throw new RuntimeException('the returned provisioning URI carries no secret');
+    }
 
     $credential = AuthCredential::query()
         ->where('user_id', $userId)->where('type', 'totp')->whereNull('disabled_at')->firstOrFail();
@@ -321,7 +326,7 @@ it('returns the provisioning material when a factor is added', function (): void
      */
     expect($result->secrets)->toHaveCount(1)
         ->and($capturing->captured)->not->toBeNull()
-        ->and($result->secrets)->toBe($capturing->captured->secrets);
+        ->and($result->secrets)->toBe($capturing->enrollment()->secrets);
 
     assertProvisionsTheStoredCredential(revealAll($result->secrets)[0]);
 });
@@ -346,7 +351,7 @@ it('returns the provisioning material when a factor is replaced', function (): v
         ->and($result->outcome)->toBe(SelfServiceOutcome::Completed)
         ->and($result->secrets)->toHaveCount(1)
         ->and($capturing->captured)->not->toBeNull()
-        ->and($result->secrets)->toBe($capturing->captured->secrets);
+        ->and($result->secrets)->toBe($capturing->enrollment()->secrets);
 
     assertProvisionsTheStoredCredential(revealAll($result->secrets)[0]);
 });
@@ -639,7 +644,7 @@ it('hands back the driver\'s own secret instances, not copies of them', function
     $result = app(CredentialSelfService::class)->regenerateRecoveryCodes($session);
 
     expect($capturing->captured)->not->toBeNull()
-        ->and($result->secrets)->toBe($capturing->captured->secrets);
+        ->and($result->secrets)->toBe($capturing->enrollment()->secrets);
 });
 
 it('returns no secrets when the operation fails after minting them', function (): void {
@@ -703,11 +708,11 @@ it('forwards every secret, and the driver\'s own instances, when a factor is add
     expect($result)->toBeInstanceOf(SelfServiceResult::class)
         ->and($result->outcome)->toBe(SelfServiceOutcome::Completed)
         ->and($capturing->captured)->not->toBeNull()
-        ->and(count($capturing->captured->secrets))->toBeGreaterThan(1)
-        ->and($result->secrets)->toBe($capturing->captured->secrets);
+        ->and(count($capturing->enrollment()->secrets))->toBeGreaterThan(1)
+        ->and($result->secrets)->toBe($capturing->enrollment()->secrets);
 
     // Still revealable, so the service did not read them on the way through.
-    expect(revealAll($result->secrets))->toHaveCount(count($capturing->captured->secrets));
+    expect(revealAll($result->secrets))->toHaveCount(count($capturing->enrollment()->secrets));
 });
 
 it('forwards every secret when a factor is replaced', function (): void {
@@ -729,8 +734,8 @@ it('forwards every secret when a factor is replaced', function (): void {
     expect($result)->toBeInstanceOf(SelfServiceResult::class)
         ->and($result->outcome)->toBe(SelfServiceOutcome::Completed)
         ->and($capturing->captured)->not->toBeNull()
-        ->and(count($capturing->captured->secrets))->toBeGreaterThan(1)
-        ->and($result->secrets)->toBe($capturing->captured->secrets);
+        ->and(count($capturing->enrollment()->secrets))->toBeGreaterThan(1)
+        ->and($result->secrets)->toBe($capturing->enrollment()->secrets);
 
     /*
      * Identity alone is not enough here. A replacement path could reveal the
@@ -739,7 +744,7 @@ it('forwards every secret when a factor is replaced', function (): void {
      * assertion above, while the user receives ten objects that throw when
      * read. Revealing them here is the proof they are unspent.
      */
-    expect(revealAll($result->secrets))->toHaveCount(count($capturing->captured->secrets));
+    expect(revealAll($result->secrets))->toHaveCount(count($capturing->enrollment()->secrets));
 });
 
 it('returns a typed, secretless result from an authorization refusal', function (): void {

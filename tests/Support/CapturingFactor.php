@@ -38,6 +38,19 @@ final class CapturingFactor implements Factor
         private readonly mixed $onEnrolled = null,
     ) {}
 
+    /**
+     * The enrollment the inner driver produced.
+     *
+     * Reading the nullable property directly pushes the "was it ever enrolled?"
+     * question to every call site, where a missed null reads as "no secrets"
+     * rather than "the double was never invoked" -- the two findings a test
+     * here most needs to tell apart.
+     */
+    public function enrollment(): EnrollmentResult
+    {
+        return $this->captured ?? throw new \RuntimeException('The factor was never enrolled.');
+    }
+
     public function id(): string
     {
         return $this->inner->id();
