@@ -126,6 +126,21 @@ function countingContainerSession(int &$resolutions): void
 
         return new Store('container-probe', new ArraySessionHandler(120), 'container-probe');
     });
+
+    /*
+     * The MANAGER too. `session()->driver()` returns the same store without
+     * ever resolving `session.store`, so watching that binding alone leaves a
+     * working fallback invisible -- verified, not assumed: a refusal built on
+     * `IntendedDestination(session()->driver())` remembers the path with the
+     * store counter still reading zero.
+     */
+    $manager = app('session');
+
+    app()->bind('session', static function () use (&$resolutions, $manager): mixed {
+        $resolutions++;
+
+        return $manager;
+    });
 }
 
 /** A $next that records whether the protected handler was reached. */
