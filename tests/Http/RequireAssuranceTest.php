@@ -14,6 +14,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 use Illuminate\Session\ArraySessionHandler;
 use Illuminate\Session\Store;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 
 uses(RefreshDatabase::class);
@@ -94,13 +95,67 @@ function anonymousAssuranceRequest(string $uri = '/admin/settings?tab=security')
     return assuranceRequest($uri, null);
 }
 
-/** A request with a principal and NO session at all. */
-function sessionlessAssuranceRequest(): Request
+/**
+ * A request with NO session, whose session accessors announce every touch.
+ *
+ * `hasSession() === false` describes the SETUP, not the behaviour -- it passes
+ * whether or not the middleware reached for session state. This subclass throws
+ * a marker the test can recognise, so "did not touch the session" becomes an
+ * observation rather than an assumption.
+ *
+ * @param  int|null  $principalId  null for the guest case.
+ */
+function sessionlessAssuranceRequest(?int $principalId = 7): Request
 {
-    $request = Request::create('/admin/settings');
-    $request->setUserResolver(static fn (): Authenticatable => assurancePrincipal(7));
+    $request = new class('/admin/settings') extends Request
+    {
+        public function __construct(string $uri)
+        {
+            parent::__construct();
+            $this->initialize([], [], [], [], [], ['REQUEST_URI' => $uri, 'REQUEST_METHOD' => 'GET']);
+        }
+
+        public function session(): never
+        {
+            throw new SessionTouched();
+        }
+
+        public function getSession(): never
+        {
+            throw new SessionTouched();
+        }
+
+        public function hasSession(bool $skipIfUninitialized = false): bool
+        {
+            return false;
+        }
+    };
+
+    if ($principalId !== null) {
+        $request->setUserResolver(static fn (): Authenticatable => assurancePrincipal($principalId));
+    }
 
     return $request;
+}
+
+/** Marker for a session touch the middleware should never make. */
+final class SessionTouched extends RuntimeException {}
+
+/** A $next that records whether the protected handler was reached. */
+function countingNext(int &$calls): Closure
+{
+    return static function (Request $request) use (&$calls): Response {
+        $calls++;
+
+        return new Response('reached');
+    };
+}
+
+/** The refusal this middleware is configured to produce. */
+function expectRefusal(Response $response): void
+{
+    expect($response->getStatusCode())->toBe(302)
+        ->and($response->headers->get('Location'))->toBe('/auth/step-up');
 }
 
 /**
@@ -215,62 +270,76 @@ it('refuses when no principal is authenticated', function (): void {
     /*
      * A record is not evidence of who is asking. Without a principal a stale or
      * partially logged-out host session still satisfies the requirement after
-     * the host guard stopped authenticating that user -- the record outlives
-     * the authentication it was written for.
+     * the host guard stopped authenticating that user.
+     *
+     * The refused RESPONSE is asserted, not its class: this middleware returns
+     * Symfony's RedirectResponse, so an Illuminate\Http\RedirectResponse check
+     * would stay red against a correct fix. A class check would also accept a
+     * redirect to the wrong place.
      */
     assuranceRow('aal2');
+    $calls = 0;
 
-    expect(assuranceMiddleware()->handle(anonymousAssuranceRequest(), reached(), 'aal2'))
-        ->toBeInstanceOf(\Illuminate\Http\RedirectResponse::class);
+    expectRefusal(assuranceMiddleware()->handle(anonymousAssuranceRequest(), countingNext($calls), 'aal2'));
+
+    // The boundary held. A middleware that called $next, discarded its response
+    // and then redirected would satisfy the assertion above.
+    expect($calls)->toBe(0);
 });
 
 it('refuses when the record belongs to a different principal', function (): void {
     // The record is strong enough; it is simply not this user's.
     assuranceRow('aal2');
+    $calls = 0;
 
-    $request = assuranceRequest(principalId: 8);
+    expectRefusal(assuranceMiddleware()->handle(assuranceRequest(principalId: 8), countingNext($calls), 'aal2'));
 
-    expect(assuranceMiddleware()->handle($request, reached(), 'aal2'))
-        ->toBeInstanceOf(\Illuminate\Http\RedirectResponse::class);
+    expect($calls)->toBe(0);
 });
 
 it('evaluates assurance normally when principal and record agree', function (): void {
     /*
-     * The paired positive. Without it, a middleware changed to refuse
-     * everything satisfies both tests above and breaks every gated route.
+     * Kept despite overlapping the sufficient-session test above, because it is
+     * the case this change is ABOUT: the two other tests say when the principal
+     * check refuses, and this one says the check does not refuse everything.
      */
     assuranceRow('aal2');
+    $calls = 0;
 
-    expect(assuranceMiddleware()->handle(assuranceRequest(), reached(), 'aal2')->getContent())
-        ->toBe('reached');
+    expect(assuranceMiddleware()->handle(assuranceRequest(), countingNext($calls), 'aal2')->getContent())
+        ->toBe('reached')
+        ->and($calls)->toBe(1);
 });
 
-it('refuses without throwing when the request carries no session', function (): void {
+it('refuses a request with no session without reaching for one', function (): void {
     /*
      * A route can attach vouch.assurance outside the session middleware. Today
      * that throws on ->session()->getId(), and a gate that errors instead of
-     * refusing is not fail-closed -- it is broken in a direction nobody chose.
+     * refusing is not fail-closed.
+     *
+     * Guarding the READ alone is not enough: the refusal path writes an
+     * intended destination through $request->session() and throws for the same
+     * reason. The marker exception makes that observable -- if it escapes, the
+     * middleware reached for a session it was told did not exist.
      */
     assuranceRow('aal2');
+    $calls = 0;
 
-    $response = assuranceMiddleware()->handle(sessionlessAssuranceRequest(), reached(), 'aal2');
+    expectRefusal(assuranceMiddleware()->handle(sessionlessAssuranceRequest(), countingNext($calls), 'aal2'));
 
-    expect($response)->toBeInstanceOf(\Illuminate\Http\RedirectResponse::class)
-        ->and($response->getStatusCode())->toBeLessThan(500);
+    expect($calls)->toBe(0);
 });
 
-it('does not try to remember a destination when there is no session to remember it in', function (): void {
+it('refuses a guest with no session, which is both branches at once', function (): void {
     /*
-     * Guarding the READ is not enough: the refusal path writes the intended
-     * destination through $request->session() and throws for exactly the same
-     * reason. There is nowhere to remember it to and nothing that would later
-     * read it.
+     * The combined case. An implementation that refused guests EARLY, before
+     * the session guard, could still touch session state on that branch -- the
+     * authenticated sessionless test would never reach it.
      */
     assuranceRow('aal2');
+    $calls = 0;
 
-    $request = sessionlessAssuranceRequest();
+    expectRefusal(assuranceMiddleware()->handle(sessionlessAssuranceRequest(null), countingNext($calls), 'aal2'));
 
-    assuranceMiddleware()->handle($request, reached(), 'aal2');
-
-    expect($request->hasSession())->toBeFalse();
+    expect($calls)->toBe(0);
 });
