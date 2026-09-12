@@ -826,7 +826,7 @@ because this document is where settled decisions live.
 (`$session->user_id === $identifier`). `RequireAssurance` did not — it looked the record up by
 binding and evaluated its evidence alone.
 
-**Both paths now require all three, and refuse unless every one holds:**
+**`RequireAssurance` now requires all three, and refuses unless every one holds:**
 
 1. an authenticated request principal;
 2. a Vouch session record;
@@ -837,12 +837,25 @@ stale or partially logged-out host session still satisfies an assurance requirem
 host guard has stopped authenticating that user — the record outlives the authentication it
 was written for, and nothing else in the request re-establishes who is asking.
 
-**`RequireAbilityAssurance` loses its null-principal pass-through.** It is installed into the
-whole `web` and `api` groups, so this changes behaviour for every route carrying a mapped
-ability: an anonymous visitor is now refused by the assurance gate rather than passed along to
-the authorization middleware. A route with no mapped requirement is unaffected — the
-`$required === null` short-circuit still runs first, and it must, or the gate would refuse
-traffic it has no opinion about.
+The reason this matters HERE specifically: `vouch.assurance:` is attached directly to a route,
+and nothing obliges a host to put an authorization check behind it. The gate may be the only
+thing standing there.
+
+**`RequireAbilityAssurance` keeps its guest pass-through, deliberately.** Making the two
+middleware identical was considered and refused. It already enforces condition 3
+(`$session->user_id === $identifier`), so the stale-record mismatch is covered; only the
+null-principal case differs, and there the asymmetry is correct rather than an oversight:
+
+- it runs in the `web`/`api` GROUP, before route middleware — including `auth` — so a guest
+  has not yet reached the thing that redirects them to login;
+- refusing would replace that login redirect with a step-up redirect a guest cannot act on,
+  stranding them;
+- its requirement exists only because the route carries a mapped ability, and the
+  authorization middleware behind it denies unauthenticated users anyway. The pass-through is
+  therefore not a bypass — the authorization check remains the boundary.
+
+`RequireAssurance` has no such middleware behind it by construction, which is the whole
+difference.
 
 ### A missing session is a refusal, never a 500
 
