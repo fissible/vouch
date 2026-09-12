@@ -868,3 +868,19 @@ The guard alone is insufficient. The refusal path writes the intended destinatio
 where no session exists it returns the configured refusal response without touching session
 state and without remembering a destination. There is nowhere to remember it to, and nothing
 later would read it.
+
+### Recorded wrinkle: refusing a guest sends them somewhere they cannot act
+
+A request with no principal is now refused, and the refusal is the configured step-up
+redirect — which a guest cannot act on, because they must sign in before stepping up is
+meaningful.
+
+Refusing is still correct: `vouch.assurance:` is attached directly and nothing is obliged to
+stand behind it, so passing a guest through would be the bypass this section closes. What is
+unresolved is the SHAPE of the refusal, not the decision to refuse. Distinguishing "you must
+authenticate" from "you must strengthen an existing authentication" is presentation, and
+belongs to the step-up adapter Phase 3 supplies rather than to a middleware that ships no
+routeable renderer of its own.
+
+Recorded so a future adapter resolves it deliberately, rather than someone discovering it as
+a support question and softening the refusal to make it go away.
