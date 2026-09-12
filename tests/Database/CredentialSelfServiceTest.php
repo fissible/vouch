@@ -116,7 +116,7 @@ it('lets a grace session regenerate recovery codes', function (): void {
      * A user who spent their last code must be able to get more. Refusing this
      * is the deadlock the separate axis exists to prevent.
      */
-    expect(app(CredentialSelfService::class)->regenerateRecoveryCodes($grace))
+    expect(app(CredentialSelfService::class)->regenerateRecoveryCodes($grace)->outcome)
         ->toBe(SelfServiceOutcome::Completed)
         ->and(AuthCredential::query()->where('user_id', 1)
             ->where('type', 'recovery_code')->whereNull('disabled_at')->exists())->toBeTrue();
@@ -148,7 +148,7 @@ it('refuses a password change from a grace session', function (): void {
      * permission, so telling the user to step up sends them at a remedy that
      * does not exist. The two outcomes are different instructions.
      */
-    expect(app(CredentialSelfService::class)->changePassword($grace, 'new-password'))
+    expect(app(CredentialSelfService::class)->changePassword($grace, 'new-password')->outcome)
         ->toBe(SelfServiceOutcome::RecoveryRestricted)
         ->and(Hash::check('old-password', currentPassword()))->toBeTrue();
 });
@@ -160,7 +160,7 @@ it('refuses factor removal from a grace session', function (): void {
     $grace = graceSession();
 
     // Destructive, and it reduces future recovery options.
-    expect(app(CredentialSelfService::class)->removeFactor($grace, $totp->id))
+    expect(app(CredentialSelfService::class)->removeFactor($grace, $totp->id)->outcome)
         ->toBe(SelfServiceOutcome::RecoveryRestricted)
         ->and(AuthCredential::query()->whereKey($totp->id)->whereNull('disabled_at')->exists())
         ->toBeTrue();
@@ -174,7 +174,7 @@ it('refuses adding an identifier from a grace session', function (): void {
      * Adding a delivery target during recovery is an account-takeover
      * primitive: it turns a recovered session into a permanent foothold.
      */
-    expect(app(CredentialSelfService::class)->addIdentifier($grace, 'email', 'attacker@evil.test'))
+    expect(app(CredentialSelfService::class)->addIdentifier($grace, 'email', 'attacker@evil.test')->outcome)
         ->toBe(SelfServiceOutcome::RecoveryRestricted)
         ->and(AuthIdentifier::query()->where('value', 'attacker@evil.test')->exists())->toBeFalse();
 });
@@ -192,14 +192,14 @@ it('refuses every operation from a session that has not stepped up', function ()
      * Each refusal is paired with the state it must NOT have changed. Without
      * that, an implementation could mutate and then return StepUpRequired.
      */
-    expect($service->changePassword($single, 'new-password'))->toBe(SelfServiceOutcome::StepUpRequired)
+    expect($service->changePassword($single, 'new-password')->outcome)->toBe(SelfServiceOutcome::StepUpRequired)
         ->and(Hash::check('old-password', currentPassword()))->toBeTrue()
-        ->and($service->removeFactor($single, $totp->id))->toBe(SelfServiceOutcome::StepUpRequired)
+        ->and($service->removeFactor($single, $totp->id)->outcome)->toBe(SelfServiceOutcome::StepUpRequired)
         ->and(AuthCredential::query()->whereKey($totp->id)->whereNull('disabled_at')->exists())->toBeTrue()
-        ->and($service->addIdentifier($single, 'email', 'second@acme.example'))->toBe(SelfServiceOutcome::StepUpRequired)
+        ->and($service->addIdentifier($single, 'email', 'second@acme.example')->outcome)->toBe(SelfServiceOutcome::StepUpRequired)
         ->and(AuthIdentifier::query()->where('value', 'second@acme.example')->exists())->toBeFalse()
-        ->and($service->addFactor($single, 'totp', ['label' => 'x']))->toBe(SelfServiceOutcome::StepUpRequired)
-        ->and($service->regenerateRecoveryCodes($single))->toBe(SelfServiceOutcome::StepUpRequired)
+        ->and($service->addFactor($single, 'totp', ['label' => 'x'])->outcome)->toBe(SelfServiceOutcome::StepUpRequired)
+        ->and($service->regenerateRecoveryCodes($single)->outcome)->toBe(SelfServiceOutcome::StepUpRequired)
         ->and(AuthCredential::query()->where('user_id', 1)->where('type', 'recovery_code')->exists())->toBeFalse();
 });
 
@@ -215,14 +215,14 @@ it('permits every operation from a stepped-up session', function (): void {
     $added = $service->addFactor($stepped, 'totp', ['label' => 'ada@acme.example']);
     $credential = AuthCredential::query()->where('user_id', 1)->where('type', 'totp')->firstOrFail();
 
-    expect($service->changePassword($stepped, 'new-password'))->toBe(SelfServiceOutcome::Completed)
+    expect($service->changePassword($stepped, 'new-password')->outcome)->toBe(SelfServiceOutcome::Completed)
         ->and(Hash::check('new-password', currentPassword()))->toBeTrue()
-        ->and($added)->toBe(SelfServiceOutcome::Completed)
-        ->and($service->regenerateRecoveryCodes($stepped))->toBe(SelfServiceOutcome::Completed)
+        ->and($added->outcome)->toBe(SelfServiceOutcome::Completed)
+        ->and($service->regenerateRecoveryCodes($stepped)->outcome)->toBe(SelfServiceOutcome::Completed)
         ->and(AuthCredential::query()->where('user_id', 1)->where('type', 'recovery_code')
             ->whereNull('disabled_at')->exists())->toBeTrue()
-        ->and($service->addIdentifier($stepped, 'email', 'second@acme.example'))->toBe(SelfServiceOutcome::Completed)
-        ->and($service->removeFactor($stepped, $credential->id))->toBe(SelfServiceOutcome::Completed)
+        ->and($service->addIdentifier($stepped, 'email', 'second@acme.example')->outcome)->toBe(SelfServiceOutcome::Completed)
+        ->and($service->removeFactor($stepped, $credential->id)->outcome)->toBe(SelfServiceOutcome::Completed)
         ->and(AuthCredential::query()->whereKey($credential->id)->whereNull('disabled_at')->exists())->toBeFalse();
 });
 
@@ -244,7 +244,7 @@ it('refuses to remove a factor the policy requires', function (): void {
      * Refused, not silently allowed: leaving a user unable to satisfy their own
      * policy is a lockout the package created.
      */
-    expect(app(CredentialSelfService::class)->removeFactor(steppedUpSession(), $totp->id))
+    expect(app(CredentialSelfService::class)->removeFactor(steppedUpSession(), $totp->id)->outcome)
         ->toBe(SelfServiceOutcome::RequiredByPolicy)
         ->and(AuthCredential::query()->whereKey($totp->id)->whereNull('disabled_at')->exists())
         ->toBeTrue();
@@ -345,7 +345,7 @@ it('refuses to remove another user\'s credential', function (): void {
      * assurance but not ownership would let any stepped-up user strip factors
      * from any other.
      */
-    expect(app(CredentialSelfService::class)->removeFactor(steppedUpSession(1), $bobsTotp->id))
+    expect(app(CredentialSelfService::class)->removeFactor(steppedUpSession(1), $bobsTotp->id)->outcome)
         ->toBe(SelfServiceOutcome::Refused)
         ->and(AuthCredential::query()->whereKey($bobsTotp->id)->whereNull('disabled_at')->exists())
         ->toBeTrue();
@@ -356,7 +356,7 @@ it('refuses any operation from a revoked session', function (): void {
     $revoked = steppedUpSession();
     $revoked->update(['revoked_at' => now(), 'revoked_reason' => RevokedReason::Logout->value]);
 
-    expect(app(CredentialSelfService::class)->changePassword($revoked, 'new-password'))
+    expect(app(CredentialSelfService::class)->changePassword($revoked, 'new-password')->outcome)
         ->toBe(SelfServiceOutcome::Refused)
         ->and(Hash::check('old-password', currentPassword()))->toBeTrue();
 });
@@ -378,7 +378,7 @@ it('refuses a grace capability that has already lapsed', function (): void {
     DB::table('auth_sessions')->where('id', $grace->id)
         ->update(['recovery_grace_expires_at' => '2000-01-01 00:00:00']);
 
-    expect(app(CredentialSelfService::class)->regenerateRecoveryCodes($grace->refresh()))
+    expect(app(CredentialSelfService::class)->regenerateRecoveryCodes($grace->refresh())->outcome)
         ->toBe(SelfServiceOutcome::Refused)
         ->and(AuthCredential::query()->where('user_id', 1)->where('type', 'recovery_code')->exists())
         ->toBeFalse();
@@ -400,7 +400,7 @@ it('permits removing a factor the policy does not require', function (): void {
      * The paired case for the policy refusal. Without it, an implementation
      * that simply always refuses totp removal passes that test.
      */
-    expect(app(CredentialSelfService::class)->removeFactor(steppedUpSession(), $totp->id))
+    expect(app(CredentialSelfService::class)->removeFactor(steppedUpSession(), $totp->id)->outcome)
         ->toBe(SelfServiceOutcome::Completed)
         ->and(AuthCredential::query()->whereKey($totp->id)->whereNull('disabled_at')->exists())
         ->toBeFalse();
@@ -415,7 +415,7 @@ it('refuses an absent credential exactly as it refuses another user\'s', functio
      * credential ids are real. Ownership is only meaningful after session
      * validity and assurance have already been classified.
      */
-    expect(app(CredentialSelfService::class)->removeFactor(steppedUpSession(), 999_999))
+    expect(app(CredentialSelfService::class)->removeFactor(steppedUpSession(), 999_999)->outcome)
         ->toBe(SelfServiceOutcome::Refused);
 });
 

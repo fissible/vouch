@@ -179,7 +179,7 @@ it('rewrites the self-service projection with the host vocabulary', function ():
 
     bindVocabulary(new GenerousVocabulary());
 
-    expect(app(CredentialSelfService::class)->removeFactor($acting, $totp->id))
+    expect(app(CredentialSelfService::class)->removeFactor($acting, $totp->id)->outcome)
         ->toBe(\Fissible\Vouch\SelfService\SelfServiceOutcome::Completed);
 
     expect($acting->refresh()->acr)->toBe('aal2');
