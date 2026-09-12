@@ -135,17 +135,26 @@ final class CredentialLivenessSnapshotTest extends TestCase
     }
 
     #[Test]
-    public function issuance_refuses_a_credential_disabled_while_it_held_the_lock(): void
+    public function issuance_refuses_a_credential_disabled_after_the_callers_snapshot(): void
     {
         /*
-         * Skipped rather than run vacuously. On PostgreSQL's READ COMMITTED and
-         * on SQLite each statement already sees the latest committed row, so
-         * the recheck behaves correctly there BEFORE any fix — a green run on
-         * those engines would say nothing about this defect, and reporting it
-         * as covered would be worse than reporting it as skipped.
+         * Named for what this actually exercises. The competing disable commits
+         * BEFORE issueToken() is called, so there is no lock wait here and no
+         * credential-mutation facade runs: what is reproduced is the stale
+         * snapshot a committed disable leaves behind. The assurance withdrawal
+         * having already run is the production consequence being modelled, not
+         * something this test observes.
+         *
+         * Skipped off MySQL rather than run vacuously. PostgreSQL's READ
+         * COMMITTED takes a fresh snapshot per statement, so the recheck is
+         * already correct there; under PostgreSQL REPEATABLE READ the existing
+         * credential lock acquisition would raise a serialization failure
+         * instead, which is a different outcome needing its own assertion.
+         * SQLite is skipped because this exact schedule is not constructible
+         * there, not because its statements refresh a snapshot -- they do not.
          */
         if (DB::getDriverName() !== 'mysql') {
-            self::markTestSkipped('REPEATABLE READ is where a snapshot can hide a committed disable; run this against MySQL.');
+            self::markTestSkipped('This schedule needs MySQL REPEATABLE READ; other engines reach the same guarantee by other means.');
         }
 
         $totp = $this->establishSession();
@@ -155,21 +164,46 @@ final class CredentialLivenessSnapshotTest extends TestCase
             abilities: ['orders:read'],
         );
 
+        /*
+         * PIN THE ISOLATION LEVEL. Checking the driver name does not establish
+         * REPEATABLE READ -- a MySQL configured for READ COMMITTED would let
+         * broken code pass this test, and the premise would be silently false.
+         */
+        DB::statement('set transaction isolation level repeatable read');
         DB::beginTransaction();
 
         try {
-            /*
-             * The statement that fixes the snapshot. A host doing any read
-             * before issuing gets this for free, which is why the defect is
-             * reachable at all rather than theoretical.
-             */
+            // The statement that fixes the snapshot. A host doing any read
+            // before issuing gets this for free, which is why the defect is
+            // reachable rather than theoretical.
             DB::table('auth_credentials')->where('user_id', 7)->count();
 
-            // Another request disables the credential and COMMITS, exactly as a
-            // credential mutation does, while this transaction is still open.
+            // Caller-owned data, to prove issuance did not roll the caller's
+            // transaction back and start a new one. Transaction depth cannot
+            // show that: rollback followed by begin restores the same depth.
+            DB::table('auth_policies')->insert([
+                'tenant_id' => null,
+                'scope' => 'caller-sentinel',
+                'document' => json_encode(['all_of' => ['password']], JSON_THROW_ON_ERROR),
+                'posture' => 'friendly',
+            ]);
+
             $pdo = $this->independentPdo();
-            $pdo->prepare('update auth_credentials set disabled_at = now() where id = ?')
-                ->execute([$totp->id]);
+            $statement = $pdo->prepare('update auth_credentials set disabled_at = now() where id = ? and disabled_at is null');
+            $statement->execute([$totp->id]);
+
+            self::assertSame(1, $statement->rowCount(), 'The competing disable did not affect the credential under test.');
+
+            /*
+             * The precondition, asserted rather than assumed: the caller's
+             * transaction must still see this credential as live. If it does
+             * not, the snapshot is not stale and the test proves nothing about
+             * the defect.
+             */
+            self::assertNull(
+                DB::table('auth_credentials')->where('id', $totp->id)->value('disabled_at'),
+                'The caller already sees the disable, so this run does not exercise a stale snapshot.',
+            );
 
             $refusal = null;
 
@@ -182,7 +216,20 @@ final class CredentialLivenessSnapshotTest extends TestCase
             self::assertInstanceOf(
                 IssuanceRefused::class,
                 $refusal,
-                'Issuance minted an assured token citing a credential that was already disabled and whose assurance withdrawal had already run.',
+                'Issuance accepted a credential that was already disabled and committed.',
+            );
+
+            // Nothing was written before the refusal. A mint-then-throw
+            // implementation would otherwise hide behind the cleanup rollback.
+            self::assertSame(0, (int) DB::table('personal_access_tokens')->count());
+            self::assertSame(0, (int) DB::table('auth_token_assurances')->count());
+            self::assertSame(0, (int) DB::table('auth_token_credentials')->count());
+
+            // And the caller's transaction is the one it opened.
+            self::assertSame(
+                1,
+                (int) DB::table('auth_policies')->where('scope', 'caller-sentinel')->count(),
+                'Issuance replaced the caller transaction, which would give it a fresh snapshot and hide the defect.',
             );
         } finally {
             DB::rollBack();
@@ -196,14 +243,16 @@ final class CredentialLivenessSnapshotTest extends TestCase
     public function issuance_still_succeeds_when_no_credential_was_disabled(): void
     {
         /*
-         * The paired positive. A recheck changed to refuse unconditionally —
-         * or one that read with a lock and deadlocked — would satisfy the test
-         * above and break every ordinary issuance.
+         * The paired positive, and it runs on EVERY engine: the negative is
+         * MySQL-only because the defect is only observable there, but the fix
+         * has to be correct everywhere, and this is the test that says so.
+         *
+         * It excludes a recheck changed to refuse unconditionally. It does not
+         * exclude a deadlocking one -- an earlier comment claimed it did, which
+         * was wrong: a raw deadlock exception fails the negative's
+         * assertInstanceOf outright rather than satisfying it. Lock ordering
+         * and contention have their own coverage elsewhere.
          */
-        if (DB::getDriverName() !== 'mysql') {
-            self::markTestSkipped('Paired with the snapshot test, which is MySQL-only.');
-        }
-
         $this->establishSession();
         $grant = new TokenGrant(
             subject: SubjectKey::of((new TokenUser())->getMorphClass(), 7),
