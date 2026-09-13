@@ -273,6 +273,15 @@ function raceGuesses(array $codes): array
         $reports[] = (string) file_get_contents($directory . "/output-{$index}");
     }
 
+    /*
+     * Restore the parent's connection, since this function is what closed it.
+     * A caller that races more than once -- or simply reads the result through
+     * the schema builder -- otherwise works through a dead handle, and
+     * PostgreSQL surfaces that as getPdo() returning null rather than
+     * reconnecting the way the other drivers do here.
+     */
+    DB::reconnect();
+
     return $reports;
 }
 
