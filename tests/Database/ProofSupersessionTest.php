@@ -752,3 +752,60 @@ it('restores the previous verification code when issuance fails after supersedin
 
     expect(redeemVerification($first))->toBe(IdentifierVerificationOutcome::Verified);
 });
+
+it('leaves a live recovery code alone when a verification is issued', function (): void {
+    /*
+     * The other direction of ceremony isolation, and it is not symmetry for its
+     * own sake: the existing test issues a recovery and checks the verification
+     * survived, so an implementation that retires recovery proofs while issuing
+     * a VERIFICATION passes it untouched.
+     *
+     * That direction is the more dangerous one. Anyone able to trigger a
+     * verification for an address could cancel the reset code its owner is
+     * holding, turning a routine ceremony into a denial of recovery.
+     */
+    supersessionAccount('ada@acme.example', 1);
+
+    $recovery = nextRecoveryCode('ada@acme.example');
+    nextVerificationCode('ada@acme.example');
+
+    expect(app(CredentialRecovery::class)->redeem(supersessionRecoveryFor('ada@acme.example'), $recovery, 'host-a'))
+        ->toBe(CredentialRecoveryOutcome::GraceOpened)
+        ->and(supersessionGraceIsOpen('host-a'))->toBeTrue();
+});
+
+it('leaves a decoy verification ceremony in the same row states as a real one', function (): void {
+    /*
+     * The decoy parity check the recovery ceremony already has. Skipping
+     * supersession for verification decoys would mean a second request does an
+     * UPDATE for addresses that exist and none for those that do not, which is
+     * the enumeration signal decoys exist to remove -- and verification is
+     * where an attacker can probe addresses without holding anything.
+     *
+     * State parity only, as on the recovery side: this says nothing about work
+     * or latency, which is the shape the threat actually takes.
+     */
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => 'grace@acme.example', 'verified_at' => null]);
+    supersessionBindDelivery();
+
+    app(IdentifierVerifier::class)->request(supersessionVerificationFor('grace@acme.example'));
+    app(IdentifierVerifier::class)->request(supersessionVerificationFor('grace@acme.example'));
+
+    $real = [
+        'total' => DB::table('auth_identifier_verifications')->where('is_decoy', false)->count(),
+        'superseded' => DB::table('auth_identifier_verifications')->where('is_decoy', false)->whereNotNull('superseded_at')->count(),
+    ];
+
+    app(IdentifierVerifier::class)->request(supersessionVerificationFor('nobody@acme.example'));
+    app(IdentifierVerifier::class)->request(supersessionVerificationFor('nobody@acme.example'));
+
+    $decoy = [
+        'total' => DB::table('auth_identifier_verifications')->where('is_decoy', true)->count(),
+        'superseded' => DB::table('auth_identifier_verifications')->where('is_decoy', true)->whereNotNull('superseded_at')->count(),
+    ];
+
+    // Non-zero, or two empty tallies would match and prove nothing.
+    expect($real['total'])->toBe(2)
+        ->and($real['superseded'])->toBe(1)
+        ->and($decoy)->toBe($real);
+});

@@ -48,6 +48,41 @@ function contendedRecoveryRequest(): CredentialRecoveryRequest
     );
 }
 
+/**
+ * How a losing writer reported itself: 'returned', 'contention|...', 'error|...'.
+ *
+ * Shared by both contention tests. Classifying in one place is what stops the
+ * interleave from quietly accepting a child that died of a missing table --
+ * measured, that passed twenty runs per ceremony while proving nothing.
+ */
+function classifyIssuanceFailure(\Illuminate\Database\Connection $connection, Throwable $exception): string
+{
+    $driverCode = $exception instanceof QueryException ? ($exception->errorInfo[1] ?? null) : null;
+
+    /*
+     * Deadlock siblings are accepted although LockContention excludes them: it
+     * answers "is this safe to retry", while this asks the weaker "was this
+     * contention rather than a bug".
+     */
+    $contention = $exception instanceof QueryException
+        && (app(LockContention::class)->isVerified($connection, $exception)
+            || in_array($driverCode, [6, 1213], true)
+            || $exception->getCode() === '40001'
+            || $exception->getCode() === '40P01');
+
+    return ($contention ? 'contention|' : 'error|') . $exception::class . '|' . var_export($driverCode, true);
+}
+
+/** A loser must either return normally or lose to the database, never crash. */
+function expectCleanLoss(string $report): void
+{
+    if (str_starts_with($report, 'contention|')) {
+        return;
+    }
+
+    expect($report)->toBe('returned', "a racing writer did not lose cleanly: {$report}");
+}
+
 function contendedVerificationRequest(): \Fissible\Vouch\Verification\IdentifierVerificationRequest
 {
     return new \Fissible\Vouch\Verification\IdentifierVerificationRequest(
@@ -203,20 +238,7 @@ function raceRecoveryIssuance(int $count): array
                  * than a bug", and a loser that deadlocks has still lost a race
                  * rather than crashed.
                  */
-                $driverCode = $exception instanceof QueryException
-                    ? ($exception->errorInfo[1] ?? null)
-                    : null;
-
-                $contention = $exception instanceof QueryException
-                    && (app(LockContention::class)->isVerified($connection, $exception)
-                        || in_array($driverCode, [6, 1213], true)
-                        || $exception->getCode() === '40001'
-                        || $exception->getCode() === '40P01');
-
-                file_put_contents(
-                    $output,
-                    ($contention ? 'contention|' : 'error|') . $exception::class . '|' . var_export($driverCode, true),
-                );
+                file_put_contents($output, classifyIssuanceFailure($connection, $exception));
                 exit(1);
             }
         }
@@ -301,13 +323,10 @@ it('leaves exactly one live proof when issuances genuinely race', function (): v
              * error -- so a throw has to carry a driver SQLSTATE rather than
              * merely being some exception class with "Exception" in the name.
              */
-            if (str_starts_with($report, 'contention|')) {
-                continue;
-            }
-
-            // Anything else is a bug wearing a race's clothes, and naming it is
-            // the difference between a useful failure and a mystery.
-            expect($report)->toBe('returned', "a racing child did not lose cleanly: {$report}");
+            // Anything other than a clean loss is a bug wearing a race's
+            // clothes, and naming it is the difference between a useful
+            // failure and a mystery.
+            expectCleanLoss($report);
         }
 
         // Someone won, or "one live proof" would be satisfied by a race in
@@ -346,22 +365,22 @@ it('leaves exactly one live proof across repeated rapid issuance', function (): 
 
 it('leaves exactly one live proof when a second writer starts mid-issuance', function (string $ceremony): void {
     /*
-     * The deterministic companion to the barrier race above.
+     * A sharper companion to the barrier race, though still not a proof.
      *
-     * A barrier makes two processes start together; it cannot make them OVERLAP
-     * at the one operation that matters, which is why that test detects a
-     * non-serializing implementation most of the time rather than always. Here
-     * the second writer is released from inside the first one's own insert, so
-     * the overlap is arranged rather than hoped for: the child begins while the
-     * parent is already inside its issuance, past whatever read it does.
+     * The second writer is released from inside the first one's insert, so it
+     * starts while the parent is already mid-issuance rather than merely at the
+     * same moment. Measured, that caught a supersede-in-autocommit
+     * implementation in twenty runs out of twenty, per ceremony, while both
+     * candidate correct shapes passed twenty out of twenty.
      *
-     * An implementation that supersedes in autocommit and only then inserts
-     * transactionally ends this with two live proofs every time. One that holds
-     * a lock across both -- or that refuses rather than racing -- ends with one.
+     * It is NOT deterministic, and saying so matters more than the number
+     * looks: the 120ms pause does not establish that the child reached its
+     * issuance, and delaying the child a further 250ms after release let that
+     * same mutant pass both ceremonies. What the pause buys is a likely
+     * overlap, not a guaranteed one.
      *
-     * Still SQLite-shaped, and it proves nothing about MySQL or PostgreSQL
-     * ordering beyond what the matrix legs run. It is a discriminating probe,
-     * not a proof of serializability.
+     * SQLite-shaped as well: it says nothing about MySQL or PostgreSQL
+     * scheduling beyond what the matrix legs happen to exercise.
      */
     contendedAccount();
     app()->instance(OtpDelivery::class, new ArrayOtpDelivery());
@@ -386,8 +405,9 @@ it('leaves exactly one live proof when a second writer starts mid-issuance', fun
     }
 
     if ($pid === 0) {
+        $connection = DB::connection();
+
         try {
-            $connection = DB::connection();
             $connection->getPdo();
 
             if ($connection->getDriverName() === 'sqlite') {
@@ -408,7 +428,7 @@ it('leaves exactly one live proof when a second writer starts mid-issuance', fun
             file_put_contents($report, 'returned');
             exit(0);
         } catch (Throwable $exception) {
-            file_put_contents($report, $exception::class);
+            file_put_contents($report, classifyIssuanceFailure($connection, $exception));
             exit(1);
         }
     }
@@ -443,6 +463,10 @@ it('leaves exactly one live proof when a second writer starts mid-issuance', fun
     // never released the child at all.
     expect($released)->toBeTrue()
         ->and(is_file($report))->toBeTrue();
+
+    // And the child lost cleanly rather than dying of something unrelated,
+    // which otherwise reads as a successfully serialized race.
+    expectCleanLoss((string) file_get_contents($report));
 
     expect(stillRedeemableCount($ceremony))->toBe(1)
         ->and(DB::table($table)->whereNull('superseded_at')->count())->toBe(1);
