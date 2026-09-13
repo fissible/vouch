@@ -13,7 +13,6 @@ use Fissible\Vouch\Throttle\ThrottleKey;
 use Fissible\Vouch\Support\DatabaseTime;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\Hash;
-use Psr\Clock\ClockInterface;
 
 /** Identifier-control ceremony: never creates a login attempt or session. */
 final readonly class IdentifierVerifier
@@ -24,7 +23,6 @@ final readonly class IdentifierVerifier
         private IdentifierVerificationOutbox $outbox,
         private Connection $connection,
         private DatabaseTime $time,
-        private ClockInterface $clock,
         private int $ttlSeconds,
         private RandomSource $random,
     ) {
@@ -79,7 +77,11 @@ final readonly class IdentifierVerifier
                 ->where('identifier_type', $request->type)
                 ->where('identifier_value', $request->submittedIdentifier)
                 ->whereNull('consumed_at')
-                ->where('expires_at', '>', $this->clock->now())
+                /*
+                 * The outbox writes this deadline in database time; PHP clock skew
+                 * must not change the verification window.
+                 */
+                ->where('expires_at', '>', $this->time->now())
                 ->latest('id')
                 ->lockForUpdate()
                 ->first();

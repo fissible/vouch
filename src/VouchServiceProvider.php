@@ -227,7 +227,6 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(IdentifierVerificationOutbox::class),
                 $app['db']->connection(),
                 $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
-                $app->make(ClockInterface::class),
                 config()->integer('vouch.verification.ttl_seconds'),
                 $app->make(RandomSource::class),
             ),

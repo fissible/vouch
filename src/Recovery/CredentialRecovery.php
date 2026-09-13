@@ -16,7 +16,6 @@ use Fissible\Vouch\Support\DatabaseTime;
 use Illuminate\Database\Connection;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Support\Facades\Hash;
-use Psr\Clock\ClockInterface;
 use Throwable;
 
 final readonly class CredentialRecovery
@@ -27,7 +26,6 @@ final readonly class CredentialRecovery
         private Factor $password,
         private Connection $connection,
         private DatabaseTime $time,
-        private ClockInterface $clock,
         private RandomSource $random,
         private Repository $config,
         private SessionLifecycle $sessions,
@@ -62,7 +60,11 @@ final readonly class CredentialRecovery
                 ->where('identifier_type', $request->type)
                 ->where('identifier_value', $request->submittedIdentifier)
                 ->whereNull('consumed_at')
-                ->where('expires_at', '>', $this->clock->now())
+                /*
+                 * The outbox writes this deadline in database time; PHP clock skew
+                 * must not change the recovery window.
+                 */
+                ->where('expires_at', '>', $this->time->now())
                 ->latest('id')
                 ->lockForUpdate()
                 ->first();
