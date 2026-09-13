@@ -1286,7 +1286,14 @@ it('shares one redemption backoff bucket between the two ceremonies, for now', f
 
     $code = issuedVerificationProofCode('ada@acme.example');
 
-    foreach (range(1, attemptLimit()) as $nth) {
+    /*
+     * Comfortably past the backoff threshold rather than exactly on it. The
+     * burn limit and the backoff threshold are different settings that happen
+     * to share a value, and landing on the boundary made this pass on SQLite
+     * and fail on MySQL -- a brittleness that says nothing about the coupling
+     * it exists to pin.
+     */
+    foreach (range(1, attemptLimit() * 3) as $nth) {
         app(IdentifierVerifier::class)->redeem(
             accountingVerificationFor('ada@acme.example'),
             distinctWrongCode($code, $nth),
