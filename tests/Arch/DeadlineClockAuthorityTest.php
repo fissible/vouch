@@ -36,6 +36,9 @@ use PHPUnit\Framework\Attributes\Test;
  *     A later name in `#[Foo, date(...)]` would need bracket tracking and is not
  *     attempted: that direction is a false positive rather than an escape, and
  *     no such code exists here.
+ *   - it covers the native date classes through `new X` and `X::method()`,
+ *     which are the two ways to OBTAIN time from them. A type hint or an
+ *     `instanceof` naming one is not reported, because neither reads a clock.
  *   - it says nothing about WHICH authority is used, only that no native clock
  *     is read. Using the injected PSR clock for a deadline comparison is the
  *     original defect and remains a behavioural question, covered where the
@@ -154,14 +157,35 @@ final class DeadlineClockAuthorityTest extends TestCase
                 continue;
             }
 
-            /*
-             * A qualified call belongs to somebody's injected authority rather
-             * than being a native read, so `$this->time->date(...)` and its
-             * nullsafe form are not findings. A declaration is not a call, and
-             * `function &date()` puts a reference token in between. An attribute
-             * name is not a call either.
-             */
             $previous = $tokens[$index - 1] ?? null;
+
+            /*
+             * A STATIC call on a native date class is a clock read in the other
+             * syntax: `\DateTimeImmutable::createFromFormat('', '')` returns
+             * machine time as surely as `new DateTimeImmutable('now')` does, and
+             * skipping every `::` let it through. The rule is the same one the
+             * constructor check enforces -- these files do not touch the native
+             * date classes -- so ask what the `::` is qualified BY rather than
+             * skipping on sight.
+             */
+            if (is_array($previous) && $previous[0] === T_DOUBLE_COLON) {
+                $owner = $tokens[$index - 2] ?? null;
+                $ownerName = is_array($owner) ? $owner[1] : '';
+
+                if (in_array(strtolower(ltrim($ownerName, '\\')), self::NATIVE_CLOCK_CLASSES, true)) {
+                    $found[] = $ownerName . '::' . $token[1] . '()';
+                }
+
+                continue;
+            }
+
+            /*
+             * Any other qualified call belongs to somebody's injected authority
+             * rather than being a native read, so `$this->time->date(...)` and
+             * its nullsafe form are not findings. A declaration is not a call,
+             * and `function &date()` puts a reference token in between. An
+             * attribute name is not a call either.
+             */
 
             // Compare the TEXT: PHP 8.4 emits a by-reference declaration's `&`
             // as T_AMPERSAND_NOT_FOLLOWED_BY_VAR_OR_VARARG rather than the bare
@@ -171,7 +195,7 @@ final class DeadlineClockAuthorityTest extends TestCase
 
             $qualified = is_array($previous) && in_array(
                 $previous[0],
-                [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR, T_DOUBLE_COLON, T_FUNCTION, T_ATTRIBUTE],
+                [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR, T_FUNCTION, T_ATTRIBUTE],
                 true,
             );
 
