@@ -119,29 +119,48 @@ it('keeps a revocation that lands while grace is opening', function (): void {
         $parent->statement('PRAGMA busy_timeout = 5000');
     }
 
+    /*
+     * Released AFTER grace's first statement against auth_sessions completes,
+     * through the query log rather than beforeExecuting -- and both halves of
+     * that matter.
+     *
+     * beforeExecuting fires BEFORE the statement runs, so the revoker committed
+     * during the pause and grace's read then saw it. The stale read never
+     * happened and a non-locking implementation passed.
+     *
+     * And releasing on a SELECT specifically required the implementation to
+     * issue one. A conditional upsert whose ON CONFLICT clause refuses revoked
+     * or foreign-subject rows is correct and reads nothing, so it never
+     * released the writer at all and failed a race it had already won. Keying
+     * on the first auth_sessions statement of any shape covers both.
+     *
+     * What each shape then does:
+     *   - unlocked read, PHP check, write -> the revocation commits in the gap
+     *     and the write clears it. The row ends live, which fails below.
+     *   - locking read inside a transaction -> the revoker BLOCKS here instead
+     *     and lands after grace commits. The row ends revoked.
+     *   - conditional upsert -> grace has already written; the revoker then
+     *     revokes the row it finds. The row ends revoked.
+     */
     $released = false;
 
-    /*
-     * Released on grace's READ, not on any statement it makes.
-     *
-     * The window this test exists for is between reading the row and writing
-     * to it: an implementation that reads without a lock, checks revoked_at in
-     * PHP and then writes will overwrite a revocation that committed in
-     * between. Firing on a later statement would let the read happen after the
-     * revocation and prove nothing.
-     *
-     * A locking read inside a transaction closes the same window from the
-     * other side: the revoking writer blocks here instead, and lands after
-     * grace commits -- so the row ends revoked either way, which is the
-     * invariant below.
-     */
-    $parent->beforeExecuting(function (string $query) use ($release, &$released): void {
-        if (! $released && str_contains(strtolower($query), 'select') && str_contains($query, 'auth_sessions')) {
-            $released = true;
-            touch($release);
+    DB::listen(function ($query) use ($release, $report, &$released): void {
+        if ($released || ! str_contains($query->sql, 'auth_sessions')) {
+            return;
+        }
 
-            // Long enough for the revoking writer to reach the database.
-            usleep(150_000);
+        $released = true;
+        touch($release);
+
+        /*
+         * Wait for the writer, but only briefly. A locking implementation
+         * blocks it until grace commits, so insisting on its report would
+         * deadlock the very implementation this test is meant to accept.
+         */
+        $deadline = microtime(true) + 0.3;
+
+        while (! is_file($report) && microtime(true) < $deadline) {
+            usleep(1_000);
         }
     });
 
