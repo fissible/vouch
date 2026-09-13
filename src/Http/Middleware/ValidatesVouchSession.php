@@ -8,6 +8,7 @@ use Closure;
 use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\Sessions\BindingDomain;
 use Fissible\Vouch\Sessions\SessionBinding;
+use Fissible\Vouch\Sessions\SessionLifecycle;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -19,9 +20,9 @@ use Symfony\Component\HttpFoundation\Response;
  * change" a mechanism rather than a documented promise. One indexed lookup per
  * request is the correct price for that.
  *
- * A request with no vouch record passes through untouched: vouch does not own
- * every session, and refusing what it has no record of would break the host's
- * own authentication.
+ * An ownership marker keeps a missing row from turning an established session
+ * into an unmanaged host session. Unmarked sessions still pass unless revoked:
+ * vouch does not own every session, and recovery grace is also unmarked.
  *
  * Grace-bound sessions are handled by GraceGuard on vouch's own grace routes,
  * not here. They are never authenticated in the first place, so there is
@@ -40,11 +41,10 @@ final class ValidatesVouchSession
             ->where('session_binding', SessionBinding::for($request->session()->getId(), BindingDomain::Session))
             ->first();
 
-        if (! $record instanceof AuthSession) {
-            return $next($request);
-        }
-
-        if ($record->revoked_at !== null) {
+        if (($request->session()->exists(SessionLifecycle::OWNERSHIP_MARKER)
+                && (! $record instanceof AuthSession
+                    || $request->session()->get(SessionLifecycle::OWNERSHIP_MARKER) !== $record->id))
+            || ($record instanceof AuthSession && $record->revoked_at !== null)) {
             $request->session()->invalidate();
 
             return redirect()->to('/');

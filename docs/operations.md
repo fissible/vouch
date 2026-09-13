@@ -1,5 +1,26 @@
 # Vouch operations
 
+## Upgrading to per-session records (#30)
+
+Deploy this upgrade with host traffic paused. Publish and run the new
+`2026_09_13_000002_revoke_legacy_auth_sessions.php` migration, flush all existing
+host sessions using the host session backend's invalidation procedure, and
+restart long-running application workers before resuming traffic. Users must
+sign in again.
+
+The migration revokes existing live Vouch rows and preserves their bindings so
+`ValidatesVouchSession` refuses surviving unmarked sessions. It does not alter the
+schema or restore revoked sessions on rollback. The host session flush is also
+required: the old per-user upsert may already have rebound a device's row away.
+That device has neither an ownership marker nor a matching row and cannot be
+distinguished from a host session Vouch never established.
+
+New logins persist one row per session and an ownership marker that remains
+valid through the host guard's session rotation. Re-authentication supersedes
+only that device's previous row. Keep `ValidatesVouchSession` on authenticated
+host routes so missing, mismatched, or revoked records destroy owned sessions.
+Live unmarked recovery-grace sessions continue to pass this middleware.
+
 ## Login adoption prerequisites
 
 An unverified identifier is invisible to login by design. Its refusal is deliberately
