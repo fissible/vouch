@@ -11,6 +11,7 @@ use Fissible\Vouch\Recovery\CredentialRecoveryRequest;
 use Fissible\Vouch\Recovery\RecoveryProofOutboxDelivery;
 use Fissible\Vouch\Tests\Support\ArrayOtpDelivery;
 use Fissible\Vouch\Tests\Support\PermittingDeliveryEconomics;
+use Fissible\Vouch\Tests\Support\ProofStateObserver;
 use Fissible\Vouch\Verification\IdentifierVerificationOutcome;
 use Fissible\Vouch\Verification\IdentifierVerificationRequest;
 use Fissible\Vouch\Verification\IdentifierVerifier;
@@ -453,15 +454,14 @@ it('accounts a decoy ceremony exactly as it accounts a real one', function (): v
 
 /* ---- throttling in front of redemption ---------------------------------- */
 
-it('throttles repeated recovery redemption rather than only counting it', function (): void {
+it('does not increment recovery attempts after burning', function (): void {
     /*
-     * Burning bounds what a guesser GAINS; throttling bounds what they can
-     * SPEND. Without the second, an attacker who knows an address can burn its
-     * codes as fast as they can send requests -- turning the brute-force
-     * defence into a way to deny someone their own recovery.
+     * Named for what it checks. Burning alone satisfies this, so it says
+     * nothing about a throttle being in front of redemption -- the test below
+     * covers that, by acting while the proof still has budget.
      *
-     * The assertion is deliberately about the boundary rather than a mechanism:
-     * guessing far past the burn limit must stop reaching the proof at all.
+     * It still earns its place: a burned proof must stop absorbing writes, or
+     * the counter climbs forever on a row nobody can use.
      */
     accountingAccount();
     $code = issuedRecoveryProofCode();
@@ -471,8 +471,6 @@ it('throttles repeated recovery redemption rather than only counting it', functi
         app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), wrongCode($code), 'host-a');
     }
 
-    // Counting stops at the limit: a burned proof takes no further attempts,
-    // whatever else is or is not in front of it.
     expect(proofAccounting('auth_recovery_proofs', $proof)['attempts'])->toBe(attemptLimit());
 });
 
@@ -494,4 +492,266 @@ it('limits recovery issuance the way verification already does', function (): vo
 
     // Refusal is silent, matching IdentifierVerifier: the count is the evidence.
     expect(DB::table('auth_recovery_proofs')->count())->toBeLessThanOrEqual($limit);
+});
+
+/**
+ * Drive the shared recovery throttle into backoff for this identifier.
+ *
+ * Through the real store rather than by writing rows, so the precondition is
+ * established the way production establishes it. Returns once the store itself
+ * reports backoff, which is the only trustworthy signal that the setup worked.
+ */
+function backOffRecovery(string $value = 'ada@acme.example'): void
+{
+    $store = app(\Fissible\Vouch\Contracts\AuthThrottleStore::class);
+    $subject = app(\Fissible\Vouch\Throttle\ThrottleKey::class)->recovery($value, null);
+
+    foreach (range(1, 40) as $ignored) {
+        if ($store->recordRecoveryFailure($subject)->decision === \Fissible\Vouch\Throttle\ThrottleDecision::BackedOff) {
+            return;
+        }
+    }
+
+    throw new RuntimeException('The recovery throttle never backed off, so this premise was never established.');
+}
+
+function recoveryIsBackedOff(string $value = 'ada@acme.example'): bool
+{
+    return app(\Fissible\Vouch\Contracts\AuthThrottleStore::class)->preflightShared(
+        app(\Fissible\Vouch\Throttle\ThrottleKey::class)->recovery($value, null),
+    )->decision === \Fissible\Vouch\Throttle\ThrottleDecision::BackedOff;
+}
+
+it('refuses recovery redemption while backed off, without spending the proof', function (): void {
+    /*
+     * The throttle in front, tested while the proof STILL HAS BUDGET -- which
+     * is the only window where "throttled" and "burned and therefore inert"
+     * look different from outside.
+     *
+     * Burning bounds what a guesser gains. Throttling bounds what they can
+     * spend, and without it an attacker who knows an address can burn its codes
+     * as fast as they can send guesses, turning the brute-force defence into a
+     * way to deny someone their own recovery.
+     *
+     * A backed-off submission must leave no trace: no attempt counted, nothing
+     * consumed, no grace opened. Counting it would let a throttled attacker
+     * burn the proof anyway, one refused request at a time.
+     */
+    accountingAccount();
+    $code = issuedRecoveryProofCode();
+    $proof = soleProofId('auth_recovery_proofs');
+
+    backOffRecovery();
+    expect(recoveryIsBackedOff())->toBeTrue();
+
+    $before = proofAccounting('auth_recovery_proofs', $proof);
+
+    expect(app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), wrongCode($code), 'host-a'))
+        ->toBe(CredentialRecoveryOutcome::Refused)
+        ->and(app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), $code, 'host-b'))
+        ->toBe(CredentialRecoveryOutcome::Refused);
+
+    $after = proofAccounting('auth_recovery_proofs', $proof);
+
+    expect($after)->toBe($before)
+        ->and($after['consumed'])->toBeFalse()
+        ->and(app(\Fissible\Vouch\Recovery\GraceGuard::class)->activeFor('host-b'))->toBeNull();
+});
+
+it('redeems once the recovery backoff lapses', function (): void {
+    /*
+     * The other half, and the reason the test above is not simply "refuse
+     * everything". Backoff has to END: an implementation that refuses forever
+     * once throttled would pass the first test and lock users out permanently.
+     */
+    accountingAccount();
+    $code = issuedRecoveryProofCode();
+
+    backOffRecovery();
+    expect(app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), $code, 'host-a'))
+        ->toBe(CredentialRecoveryOutcome::Refused);
+
+    /*
+     * Clear the throttle's own state without touching the proof, which stays
+     * unexpired. The tables are named rather than guessed at, and the store is
+     * asked afterwards whether the backoff really lifted -- clearing the wrong
+     * ones would otherwise leave this test asserting against a still-throttled
+     * identifier and passing for the wrong reason.
+     */
+    foreach (['auth_throttle_counters', 'auth_throttle_locks', 'auth_throttle_tuples'] as $table) {
+        DB::table($table)->delete();
+    }
+
+    expect(recoveryIsBackedOff())->toBeFalse();
+
+    expect(app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), $code, 'host-b'))
+        ->toBe(CredentialRecoveryOutcome::GraceOpened);
+});
+
+it('burns a recovery proof in the same write that reaches the limit', function (): void {
+    /*
+     * Final state cannot tell one statement from two. An implementation that
+     * increments, returns to PHP, then updates burned_at passes every
+     * end-state assertion in this file while leaving a window in which the row
+     * reads attempts == limit and burned_at IS NULL -- and in that window
+     * another guess still counts.
+     *
+     * So the row is observed BETWEEN statements rather than after them. The
+     * hook fires before each query, which is exactly the seam a second
+     * statement would have to pass through.
+     */
+    accountingAccount();
+    $code = issuedRecoveryProofCode();
+    $proof = soleProofId('auth_recovery_proofs');
+
+    // Fail with the same clear message as every other reading here when the
+    // accounting columns are absent. Without this the observer simply records
+    // nothing and the test reports "no samples", which describes the fixture
+    // rather than the missing implementation.
+    proofAccounting('auth_recovery_proofs', $proof);
+
+    $observer = new ProofStateObserver('auth_recovery_proofs', $proof);
+    DB::connection()->beforeExecuting(function () use ($observer): void {
+        $observer->observe();
+    });
+
+    foreach (range(1, attemptLimit()) as $ignored) {
+        app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), wrongCode($code), 'host-a');
+    }
+
+    // The observer actually observed, or the absence below proves nothing.
+    expect($observer->seen)->not->toBe([]);
+
+    expect($observer->atLimitUnburned(attemptLimit()))
+        ->toBe([], 'the row was readable at the limit while still unburned');
+});
+
+it('counts a replacement recovery proof independently of the burned one', function (): void {
+    /*
+     * A counter keyed on the identifier rather than on the proof passes the
+     * fresh-budget test: the replacement starts at zero because the old row is
+     * where the count lives. It shows itself on the NEXT wrong guess, which
+     * jumps straight to the limit and burns a code the user just received.
+     *
+     * So the replacement's progression is asserted step by step rather than
+     * only at its start.
+     */
+    accountingAccount();
+    $first = issuedRecoveryProofCode();
+
+    foreach (range(1, attemptLimit()) as $ignored) {
+        app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), wrongCode($first), 'host-a');
+    }
+
+    $second = issuedRecoveryProofCode();
+    $replacement = (int) stringValue(DB::table('auth_recovery_proofs')->orderByDesc('id')->value('id'));
+
+    app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), wrongCode($second), 'host-b');
+
+    $state = proofAccounting('auth_recovery_proofs', $replacement);
+
+    expect($state['attempts'])->toBe(1)
+        ->and($state['burned'])->toBeFalse();
+
+    // And it still redeems, which an identifier-keyed counter would have denied.
+    expect(app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), $second, 'host-c'))
+        ->toBe(CredentialRecoveryOutcome::GraceOpened);
+});
+
+it('refuses a burned recovery proof that is demonstrably unexpired', function (): void {
+    /*
+     * "Burned" must not be satisfied by "expired". The refusal test elsewhere
+     * describes an unexpired proof but never re-establishes that premise after
+     * the burn, so an implementation that simply expired the row would pass it.
+     *
+     * Here the deadline is pushed well into the future on the DATABASE clock
+     * AFTER burning, so expiry cannot be what does the refusing.
+     */
+    accountingAccount();
+    $code = issuedRecoveryProofCode();
+    $proof = soleProofId('auth_recovery_proofs');
+
+    foreach (range(1, attemptLimit()) as $ignored) {
+        app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), wrongCode($code), 'host-a');
+    }
+
+    shiftDeadlineOnDatabaseClock('auth_recovery_proofs', $proof, 3600);
+
+    $live = DB::table('auth_recovery_proofs')->where('id', $proof)
+        ->whereRaw('expires_at > CURRENT_TIMESTAMP')->exists();
+
+    expect($live)->toBeTrue()
+        ->and(proofAccounting('auth_recovery_proofs', $proof)['burned'])->toBeTrue();
+
+    expect(app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), $code, 'host-b'))
+        ->toBe(CredentialRecoveryOutcome::Refused);
+});
+
+it('preserves a terminal recovery timestamp against later submissions', function (): void {
+    /*
+     * Exclusivity alone can be satisfied dishonestly: clearing burned_at while
+     * setting consumed_at leaves exactly one stamp and falsifies the record.
+     * A terminal row is finished, so its stamp and its count must not move
+     * however many codes are thrown at it afterwards.
+     */
+    accountingAccount();
+    $code = issuedRecoveryProofCode();
+    $proof = soleProofId('auth_recovery_proofs');
+
+    foreach (range(1, attemptLimit()) as $ignored) {
+        app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), wrongCode($code), 'host-a');
+    }
+
+    $before = requiredRow(DB::table('auth_recovery_proofs')->where('id', $proof)->first());
+
+    app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), wrongCode($code), 'host-b');
+    app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), $code, 'host-c');
+
+    $after = requiredRow(DB::table('auth_recovery_proofs')->where('id', $proof)->first());
+
+    expect($after->burned_at)->toBe($before->burned_at)
+        ->and($after->consumed_at)->toBe($before->consumed_at)
+        ->and($after->superseded_at)->toBe($before->superseded_at)
+        ->and((int) stringValue($after->attempts))->toBe((int) stringValue($before->attempts));
+
+    assertTerminalStatesAreExclusive();
+});
+
+it('preserves the failure count through a successful recovery redemption', function (): void {
+    // The count is evidence, not scratch space: a success must not erase the
+    // misses that preceded it, or the record cannot show a guessing attempt
+    // that happened to end in the holder arriving first.
+    accountingAccount();
+    $code = issuedRecoveryProofCode();
+    $proof = soleProofId('auth_recovery_proofs');
+
+    foreach (range(1, attemptLimit() - 1) as $ignored) {
+        app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), wrongCode($code), 'host-a');
+    }
+
+    expect(app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), $code, 'host-b'))
+        ->toBe(CredentialRecoveryOutcome::GraceOpened);
+
+    $state = proofAccounting('auth_recovery_proofs', $proof);
+
+    expect($state['attempts'])->toBe(attemptLimit() - 1)
+        ->and($state['consumed'])->toBeTrue()
+        ->and($state['burned'])->toBeFalse();
+});
+
+it('keeps guess budgets separate for two identifiers', function (): void {
+    // A counter shared across unrelated proofs would let one address's guessing
+    // burn another's code -- reachable by anyone who knows both addresses.
+    accountingAccount('ada@acme.example', 1);
+    accountingAccount('bob@acme.example', 2);
+
+    $ada = issuedRecoveryProofCode('ada@acme.example');
+    $bob = issuedRecoveryProofCode('bob@acme.example');
+
+    foreach (range(1, attemptLimit()) as $ignored) {
+        app(CredentialRecovery::class)->redeem(accountingRecoveryFor('ada@acme.example'), wrongCode($ada), 'host-a');
+    }
+
+    expect(app(CredentialRecovery::class)->redeem(accountingRecoveryFor('bob@acme.example'), $bob, 'host-b'))
+        ->toBe(CredentialRecoveryOutcome::GraceOpened);
 });
