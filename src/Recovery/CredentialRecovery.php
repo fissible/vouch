@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Recovery;
 
+use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Contracts\Factor;
 use Fissible\Vouch\Contracts\RandomSource;
 use Fissible\Vouch\Models\AuthCredential;
@@ -13,6 +14,10 @@ use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\Sessions\RevokedReason;
 use Fissible\Vouch\Sessions\SessionLifecycle;
 use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Throttle\IssuancePermission;
+use Fissible\Vouch\Throttle\ProofAttemptStore;
+use Fissible\Vouch\Throttle\ThrottleDecision;
+use Fissible\Vouch\Throttle\ThrottleKey;
 use Illuminate\Database\Connection;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Support\Facades\Hash;
@@ -29,11 +34,23 @@ final readonly class CredentialRecovery
         private RandomSource $random,
         private Repository $config,
         private SessionLifecycle $sessions,
+        private AuthThrottleStore $throttles,
+        private ThrottleKey $keys,
+        private ProofAttemptStore $attempts,
     ) {}
 
     public function request(CredentialRecoveryRequest $request): void
     {
         $this->outbox->assertReady();
+
+        if ($this->throttles->permitIssuance(
+            $this->keys->ceremony(
+                $request->submittedIdentifier,
+                $request->tenantId === null ? null : (string) $request->tenantId,
+            ),
+        ) === IssuancePermission::Refused) {
+            return;
+        }
 
         $identifier = AuthIdentifier::query()
             ->where('type', $request->type)
@@ -55,12 +72,24 @@ final readonly class CredentialRecovery
             return CredentialRecoveryOutcome::Refused;
         }
 
-        return $this->connection->transaction(function () use ($request, $code, $hostSessionId): CredentialRecoveryOutcome {
+        $subject = $this->keys->recovery(
+            $request->submittedIdentifier,
+            $request->tenantId === null ? null : (string) $request->tenantId,
+        );
+
+        // Backoff must precede proof accounting, or refused traffic could still
+        // burn the user's code and deny recovery without spending throttle budget.
+        if ($this->throttles->preflightShared($subject)->decision === ThrottleDecision::BackedOff) {
+            return CredentialRecoveryOutcome::Refused;
+        }
+
+        $outcome = $this->connection->transaction(function () use ($request, $code, $hostSessionId): CredentialRecoveryOutcome {
             $proof = AuthRecoveryProof::query()
                 ->where('identifier_type', $request->type)
                 ->where('identifier_value', $request->submittedIdentifier)
                 ->whereNull('superseded_at')
                 ->whereNull('consumed_at')
+                ->whereNull('burned_at')
                 /*
                  * The outbox writes this deadline in database time; PHP clock skew
                  * must not change the recovery window.
@@ -70,7 +99,13 @@ final readonly class CredentialRecovery
                 ->lockForUpdate()
                 ->first();
 
-            if (! $proof instanceof AuthRecoveryProof || ! Hash::check($code, $proof->code_hash) || $proof->is_decoy) {
+            if (! $proof instanceof AuthRecoveryProof) {
+                return CredentialRecoveryOutcome::Refused;
+            }
+
+            if (! Hash::check($code, $proof->code_hash) || $proof->is_decoy) {
+                $this->attempts->recordFailure($proof);
+
                 return CredentialRecoveryOutcome::Refused;
             }
 
@@ -82,18 +117,30 @@ final readonly class CredentialRecovery
                 ->first();
 
             if (! $identifier instanceof AuthIdentifier) {
+                $this->attempts->recordFailure($proof);
+
                 return CredentialRecoveryOutcome::Refused;
             }
 
             AuthRecoveryProof::query()
                 ->whereKey($proof->id)
                 ->whereNull('consumed_at')
+                ->whereNull('superseded_at')
+                ->whereNull('burned_at')
                 ->update(['consumed_at' => $this->time->now()]);
 
             $this->grace->start($hostSessionId, $identifier->user_id);
 
             return CredentialRecoveryOutcome::GraceOpened;
         });
+
+        // Commit proof evidence before recording advisory backoff state, keeping
+        // throttle counter locks out of the proof/identifier lock sequence.
+        if ($outcome === CredentialRecoveryOutcome::Refused) {
+            $this->throttles->recordRecoveryFailure($subject);
+        }
+
+        return $outcome;
     }
 
     public function reset(string $hostSessionId, string $password): CredentialRecoveryOutcome

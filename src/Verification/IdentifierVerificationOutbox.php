@@ -46,12 +46,14 @@ final readonly class IdentifierVerificationOutbox
             ];
             (new DatabaseRowLock($this->connection))->ensureAndLock('auth_proof_issuance_locks', $scope, $scope);
 
-            // Consumption is evidence of redemption; replacement must not invent it.
+            // Preserve the recorded terminal cause: replacement must not relabel
+            // either a redeemed proof or an exhausted guessing budget.
             AuthIdentifierVerification::query()
                 ->where('identifier_type', $request->type)
                 ->where('identifier_value', $request->submittedIdentifier)
                 ->whereNull('superseded_at')
                 ->whereNull('consumed_at')
+                ->whereNull('burned_at')
                 ->update(['superseded_at' => $this->time->now()]);
 
             $expiresAt = $this->time->deadline($ttlSeconds);

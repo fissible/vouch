@@ -229,6 +229,7 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
                 config()->integer('vouch.verification.ttl_seconds'),
                 $app->make(RandomSource::class),
+                $app->make(\Fissible\Vouch\Throttle\ProofAttemptStore::class),
             ),
         );
 

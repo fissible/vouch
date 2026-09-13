@@ -13,6 +13,8 @@ use Illuminate\Support\Carbon;
  * @property string $identifier_value
  * @property string $code_hash
  * @property bool $is_decoy
+ * @property int $attempts
+ * @property Carbon|null $burned_at
  * @property Carbon $expires_at
  * @property Carbon|null $consumed_at
  * @property Carbon|null $superseded_at
@@ -27,6 +29,6 @@ final class AuthIdentifierVerification extends Model
 
     protected function casts(): array
     {
-        return ['is_decoy' => 'boolean', 'expires_at' => 'datetime', 'consumed_at' => 'datetime', 'superseded_at' => 'datetime'];
+        return ['is_decoy' => 'boolean', 'attempts' => 'integer', 'burned_at' => 'datetime', 'expires_at' => 'datetime', 'consumed_at' => 'datetime', 'superseded_at' => 'datetime'];
     }
 }
