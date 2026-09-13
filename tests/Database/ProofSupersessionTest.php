@@ -433,9 +433,22 @@ it('supersedes proofs that were already live before it, not just the previous on
 
     $newest = nextRecoveryCode();
 
+    /*
+     * Immediately, before anything is consumed. Refusing the old codes while
+     * the newest is still unconsumed only shows that the newest sorts first --
+     * an implementation retiring one predecessor passes that. One live proof
+     * here is the claim that the whole inherited stack is actually dead.
+     */
+    expect(liveProofCount('auth_recovery_proofs'))->toBe(1);
+
+    expect(redeemRecovery($newest, 'host-c'))->toBe(CredentialRecoveryOutcome::GraceOpened);
+
+    // And again with the newest spent, which is when a merely-preferred
+    // ordering hands the stack back.
     expect(redeemRecovery('111111', 'host-a'))->toBe(CredentialRecoveryOutcome::Refused)
         ->and(redeemRecovery('222222', 'host-b'))->toBe(CredentialRecoveryOutcome::Refused)
-        ->and(redeemRecovery($newest, 'host-c'))->toBe(CredentialRecoveryOutcome::GraceOpened);
+        ->and(supersessionGraceIsOpen('host-a'))->toBeFalse()
+        ->and(supersessionGraceIsOpen('host-b'))->toBeFalse();
 });
 
 it('keeps a superseded recovery code dead after the newer one expires', function (): void {
@@ -584,4 +597,54 @@ it('supersedes only the identifier the new verification was issued for', functio
     nextVerificationCode('other@acme.example');
 
     expect(redeemVerification($grace))->toBe(IdentifierVerificationOutcome::Verified);
+});
+
+it('keeps a superseded verification code dead once the newer proof row is gone', function (): void {
+    /*
+     * The recovery half of this escape is covered above; verification needs its
+     * own, because the two ceremonies are separate implementations and a marker
+     * written but never consulted looks identical in both until the newer row
+     * disappears.
+     */
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => 'grace@acme.example', 'verified_at' => null]);
+
+    $first = nextVerificationCode();
+    $second = nextVerificationCode();
+
+    expect(redeemVerification($second))->toBe(IdentifierVerificationOutcome::Verified);
+
+    DB::table('auth_identifier_verifications')->whereNotNull('consumed_at')->delete();
+
+    // Cleared so a second verification would be visible rather than masked by
+    // the first: otherwise "already verified" and "verified again" look alike.
+    AuthIdentifier::query()->where('value', 'grace@acme.example')->update(['verified_at' => null]);
+
+    expect(redeemVerification($first))->toBe(IdentifierVerificationOutcome::Refused)
+        ->and(AuthIdentifier::query()->where('value', 'grace@acme.example')->value('verified_at'))->toBeNull();
+});
+
+it('supersedes verification proofs that were already live before it', function (): void {
+    // The migration case for the other ceremony: rows that shipped live and
+    // unsuperseded must not survive the first issuance after deployment.
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => 'grace@acme.example', 'verified_at' => null]);
+
+    foreach (['333333', '444444'] as $code) {
+        DB::table('auth_identifier_verifications')->insert([
+            'identifier_type' => 'email',
+            'identifier_value' => 'grace@acme.example',
+            'code_hash' => Hash::make($code),
+            'is_decoy' => false,
+            'expires_at' => now()->addMinutes(30),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    expect(liveProofCount('auth_identifier_verifications'))->toBe(2);
+
+    nextVerificationCode();
+
+    expect(liveProofCount('auth_identifier_verifications'))->toBe(1)
+        ->and(redeemVerification('333333'))->toBe(IdentifierVerificationOutcome::Refused)
+        ->and(redeemVerification('444444'))->toBe(IdentifierVerificationOutcome::Refused);
 });

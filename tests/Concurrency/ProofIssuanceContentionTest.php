@@ -11,6 +11,7 @@ use Fissible\Vouch\Tests\Support\ArrayOtpDelivery;
 use Fissible\Vouch\Tests\Support\PermittingDeliveryEconomics;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Schema;
 
 /*
@@ -147,13 +148,26 @@ function raceRecoveryIssuance(int $count): array
                 }
 
                 app(CredentialRecovery::class)->request(contendedRecoveryRequest());
-                file_put_contents($output, 'issued');
+
+                // "returned", not "issued": a loser is allowed to refuse by
+                // returning normally after rolling back, so a normal return
+                // does NOT mean a proof was written. The parent counts rows.
+                file_put_contents($output, 'returned');
                 exit(0);
             } catch (Throwable $exception) {
-                // The CLASS, not a swallowed catch: the parent then asserts a
-                // child that did not issue failed through contention rather
-                // than through a programming error.
-                file_put_contents($output, $exception::class);
+                /*
+                 * Class AND driver state. "Contains Exception" accepts a
+                 * TypeError-adjacent RuntimeException from a broken
+                 * implementation, which would read as acceptable contention;
+                 * a database contention failure carries a SQLSTATE.
+                 */
+                $state = $exception instanceof \PDOException ? (string) $exception->getCode() : '';
+
+                if ($exception instanceof QueryException) {
+                    $state = (string) ($exception->errorInfo[0] ?? $exception->getCode());
+                }
+
+                file_put_contents($output, 'threw|' . $exception::class . '|' . $state);
                 exit(1);
             }
         }
@@ -207,31 +221,62 @@ it('leaves exactly one live proof when issuances genuinely race', function (): v
      * doing anything unusual.
      *
      * The invariant names no mechanism. Whether a loser blocks and then
-     * supersedes, or fails to acquire and refuses, ONE live proof is the only
-     * acceptable end state.
+     * supersedes, throws a contention error, or rolls back and returns
+     * normally, ONE live proof is the only acceptable end state.
+     *
+     * WHAT THIS IS AND IS NOT. A release barrier makes the processes compete;
+     * it cannot force them to overlap at the one operation that matters, so
+     * this DETECTS a non-serializing implementation rather than proving
+     * serialization. A measured counterexample -- supersede in autocommit, then
+     * insert transactionally -- survived a single race about three times in
+     * four, so the race is repeated: eight rounds put detection near nine in
+     * ten, and repetition costs a correct implementation nothing, because it
+     * wins every round. Deterministic proof would need a hook inside issuance,
+     * and that is recorded as a gap rather than faked here.
      */
     contendedAccount();
     app()->instance(OtpDelivery::class, new ArrayOtpDelivery());
     app()->instance(DeliveryEconomics::class, new PermittingDeliveryEconomics());
 
-    $reports = raceRecoveryIssuance(3);
+    foreach (range(1, 8) as $round) {
+        DB::table('auth_recovery_proof_outbox')->delete();
+        DB::table('auth_recovery_proofs')->delete();
 
-    $issued = count(array_filter($reports, static fn (string $report): bool => $report === 'issued'));
+        $reports = raceRecoveryIssuance(3);
 
-    // Someone has to win, or "one live proof" below would be satisfied by a
-    // race in which nothing happened at all.
-    expect($issued)->toBeGreaterThan(0);
+        foreach ($reports as $report) {
+            /*
+             * A loser may refuse, and it may refuse EITHER WAY: by throwing a
+             * database contention error, or by returning normally after
+             * rolling back. What it may not do is fail through a programming
+             * error -- so a throw has to carry a driver SQLSTATE rather than
+             * merely being some exception class with "Exception" in the name.
+             */
+            if (str_starts_with($report, 'threw|')) {
+                [, $class, $state] = explode('|', $report, 3);
 
-    foreach ($reports as $report) {
-        // A loser may refuse. It may not crash: a TypeError or an undefined
-        // method would otherwise read as acceptable contention.
-        expect($report === 'issued' || str_contains($report, 'Exception'))->toBeTrue(
-            "a racing child failed in a way that is not contention: {$report}",
-        );
+                expect($state)->not->toBe('', "a racing child failed without a driver state: {$class}");
+
+                continue;
+            }
+
+            expect($report)->toBe('returned', "a racing child reported something unrecognised: {$report}");
+        }
+
+        // Someone won, or "one live proof" would be satisfied by a race in
+        // which nothing happened at all. Counted from ROWS rather than from
+        // normal returns, because a refusing loser also returns normally.
+        expect(DB::table('auth_recovery_proofs')->count())->toBeGreaterThan(0);
+
+        /*
+         * The invariant, stated twice over: one proof that could still be
+         * redeemed, and exactly one row not marked superseded. The second
+         * catches a row left live-but-unsuperseded that the first would miss
+         * if it happened to be expired.
+         */
+        expect(stillRedeemableCount())->toBe(1)
+            ->and(DB::table('auth_recovery_proofs')->whereNull('superseded_at')->count())->toBe(1);
     }
-
-    expect(stillRedeemableCount())->toBe(1)
-        ->and(DB::table('auth_recovery_proofs')->count())->toBe($issued);
 });
 
 it('leaves exactly one live proof across repeated rapid issuance', function (): void {
