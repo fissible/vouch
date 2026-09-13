@@ -41,10 +41,24 @@ final class ValidatesVouchSession
             ->where('session_binding', SessionBinding::for($request->session()->getId(), BindingDomain::Session))
             ->first();
 
-        if (($request->session()->exists(SessionLifecycle::OWNERSHIP_MARKER)
-                && (! $record instanceof AuthSession
-                    || $request->session()->get(SessionLifecycle::OWNERSHIP_MARKER) !== $record->id))
-            || ($record instanceof AuthSession && $record->revoked_at !== null)) {
+        $marked = $request->session()->exists(SessionLifecycle::OWNERSHIP_MARKER);
+
+        // Revoked is the reason this read exists at all: setting revoked_at is
+        // inert until something refuses on it. It applies whether or not the
+        // session is marked, which is what retires pre-marker sessions.
+        $revoked = $record instanceof AuthSession && $record->revoked_at !== null;
+
+        // A session vouch established whose row is gone -- pruned, deleted, or
+        // lost. Passing it through would turn losing a row into restored access.
+        $orphaned = $marked && ! $record instanceof AuthSession;
+
+        // The marker names a row the current binding does not resolve to, so it
+        // was copied from another session rather than issued for this one.
+        $foreign = $marked
+            && $record instanceof AuthSession
+            && $request->session()->get(SessionLifecycle::OWNERSHIP_MARKER) !== $record->id;
+
+        if ($revoked || $orphaned || $foreign) {
             $request->session()->invalidate();
 
             return redirect()->to('/');
