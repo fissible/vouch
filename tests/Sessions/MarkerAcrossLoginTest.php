@@ -194,6 +194,119 @@ final class MarkerAcrossLoginTest extends TestCase
         );
     }
 
+    #[Test]
+    public function re_authenticating_one_device_leaves_another_device_alone(): void
+    {
+        /*
+         * The replacement branch, entered with a live sibling present -- which
+         * no other fixture here does.
+         *
+         * "When replacing an existing session, revoke every live row for this
+         * user" passes every other re-auth test in this file, because they run
+         * with nothing else live. It signs the user out everywhere each time
+         * they log in again, and only a sibling can show it.
+         */
+        $this->completeLogin();
+        $deviceA = $this->hostStore()->getId();
+        $firstA = $this->currentBinding();
+        $this->hostStore()->save();
+
+        $this->switchToFreshDevice();
+        $this->completeLogin();
+        $bindingB = $this->currentBinding();
+        $this->hostStore()->save();
+
+        // Back to the first device, which re-authenticates.
+        $this->resumeDevice($deviceA);
+        $this->completeLogin();
+
+        self::assertNotSame($firstA, $this->currentBinding(), 'Device A did not rotate.');
+
+        self::assertNotNull(
+            AuthSession::query()->where('session_binding', $firstA)->value('revoked_at'),
+            "Device A's previous session was left live.",
+        );
+
+        self::assertTrue($this->middlewarePasses(), "Device A's replacement was refused.");
+
+        self::assertTrue(
+            AuthSession::query()->where('session_binding', $bindingB)->whereNull('revoked_at')->exists(),
+            "Device B was signed out by device A re-authenticating.",
+        );
+    }
+
+    #[Test]
+    public function a_refused_session_is_destroyed_rather_than_merely_redirected(): void
+    {
+        /*
+         * Refusing once is not enough. A branch that drops the marker, redirects
+         * and leaves the host authentication in place hands the NEXT request a
+         * session with no marker and no record -- which passes, because that is
+         * indistinguishable from a stranger's session.
+         *
+         * So the refusal has to end the session, not decline one request.
+         */
+        $this->completeLogin();
+
+        $store = $this->hostStore();
+        $before = $store->all();
+
+        self::assertNotSame([], $before, 'The login left nothing in the host session.');
+
+        AuthSession::query()->where('session_binding', $this->currentBinding())->delete();
+
+        self::assertFalse($this->middlewarePasses(), 'A session with no record was allowed through.');
+
+        self::assertSame(
+            [],
+            array_intersect_key($before, $this->hostStore()->all()),
+            'The refusal left host session data in place, so the next request carries it.',
+        );
+    }
+
+    #[Test]
+    public function a_missing_record_is_refused_after_a_save_and_reload(): void
+    {
+        /*
+         * The refusal has to survive the request boundary too. Positive
+         * composition coverage alone cannot show that: a marker read from
+         * memory could refuse correctly in-process and find nothing to check
+         * on the next request, which then passes.
+         */
+        $this->completeLogin();
+
+        $store = $this->hostStore();
+        $id = $store->getId();
+        $binding = $this->currentBinding();
+        $store->save();
+
+        AuthSession::query()->where('session_binding', $binding)->delete();
+
+        $reloaded = new Store('vouch-reload', $store->getHandler(), $id);
+        $reloaded->start();
+
+        self::assertFalse(
+            $this->middlewarePasses($reloaded),
+            'A reloaded session whose record is gone was allowed through.',
+        );
+    }
+
+    /** Begin a separate device: a fresh host session for the same user. */
+    private function switchToFreshDevice(): void
+    {
+        $store = $this->hostStore();
+        $store->flush();
+        $store->regenerate();
+    }
+
+    /** Return to a device whose session was saved earlier. */
+    private function resumeDevice(string $id): void
+    {
+        $store = $this->hostStore();
+        $store->setId($id);
+        $store->start();
+    }
+
     private function completeLogin(): void
     {
         session()->start();

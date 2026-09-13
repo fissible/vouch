@@ -60,7 +60,21 @@ uses(RefreshDatabase::class);
  *
  * The tests never name the marker's key. They drive the real login path, and
  * the tampering test copies the WHOLE session payload rather than one field --
- * which is also the realistic attack.
+ * which is also the realistic attack. Nor do they require the marker to hold a
+ * binding: a stable row identifier whose reader checks that row's CURRENT
+ * binding is equally correct, and pinning a representation would reject it.
+ *
+ * RECORDED GAPS, deliberately not covered here:
+ *
+ *   - ordinary host logout clearing the marker. Worth having, but it needs the
+ *     host's own logout path rather than this middleware, and refusing a
+ *     session whose record is gone already covers the security case.
+ *   - the marker's namespacing against host-owned session attributes. It should
+ *     not collide with anything a host writes, which is a property of whichever
+ *     key is chosen rather than something these tests can state without pinning
+ *     that key.
+ *   - a general session-backend write-failure matrix. Establishment failure is
+ *     covered below; every other persistence failure is not.
  */
 
 /** @return list<\Fissible\Vouch\Kernel\Factor\SatisfiedFactor> */
@@ -289,24 +303,35 @@ it('refuses an unmarked session whose record has been revoked', function (): voi
     expect(passesValidation($device))->toBeFalse();
 });
 
-it('refuses a marker copied into another session', function (): void {
+it('refuses a marker copied into another session that has its own live row', function (): void {
     /*
-     * The marker is bound to one session, so lifting it does not carry
-     * authority with it. The whole payload is copied rather than one field --
-     * both because that is the realistic attack and because naming the field
-     * would pin an implementation detail these tests deliberately avoid.
+     * The theft test, and the destination must have its OWN live row or it
+     * proves nothing about the marker.
+     *
+     * Copying onto a session with no row is refused by "marked but no record"
+     * alone, which a bare boolean satisfies without ever comparing bindings.
+     * Giving the destination a live row of its own removes that shortcut: the
+     * only thing left that can refuse it is the marker being bound to the
+     * session it was issued for.
+     *
+     * The whole payload is copied rather than one field -- the realistic
+     * attack, and a way to avoid naming a key these tests deliberately leave
+     * to the implementer.
      */
     $device = deviceSession('alpha');
     establishOn($device);
 
     $thief = deviceSession('thief');
+    establishOn($thief);
+
+    // The destination is genuinely usable before the theft, so a refusal
+    // afterwards is attributable to the copy and nothing else.
+    expect(passesValidation($thief))->toBeTrue()
+        ->and($device->all())->not->toBe([]);
 
     foreach ($device->all() as $key => $value) {
         $thief->put($key, $value);
     }
-
-    // The theft copied something, or this test proves nothing about copying.
-    expect($device->all())->not->toBe([]);
 
     expect(passesValidation($thief))->toBeFalse();
 });
