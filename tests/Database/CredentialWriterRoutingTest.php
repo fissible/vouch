@@ -398,7 +398,7 @@ it('revokes when a user removes a factor through self-service', function (): voi
     $outcome = app(CredentialSelfService::class)
         ->removeFactor(routingSteppedUpSession(), (int) $totp->id);
 
-    expect($outcome)->toBe(\Fissible\Vouch\SelfService\SelfServiceOutcome::Completed)
+    expect($outcome->outcome)->toBe(\Fissible\Vouch\SelfService\SelfServiceOutcome::Completed)
         ->and(AuthCredential::query()->whereKey($totp->id)->whereNotNull('disabled_at')->exists())->toBeTrue()
         ->and(routingSurvivors())->toBe(['cites-other'])
         ->and($issuer->revoked)->toBe(['cites-totp']);

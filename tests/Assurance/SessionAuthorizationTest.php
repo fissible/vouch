@@ -235,7 +235,7 @@ it('refuses credential self-service to a legacy session', function (): void {
      */
     $session = legacySessionRow('aal2');
 
-    expect(app(CredentialSelfService::class)->changePassword($session, 'a-new-password'))
+    expect(app(CredentialSelfService::class)->changePassword($session, 'a-new-password')->outcome)
         ->toBe(SelfServiceOutcome::StepUpRequired);
 });
 
@@ -247,7 +247,7 @@ it('allows credential self-service on a proven session', function (): void {
         proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
     ]));
 
-    expect(app(CredentialSelfService::class)->changePassword($session, 'a-new-password'))
+    expect(app(CredentialSelfService::class)->changePassword($session, 'a-new-password')->outcome)
         ->not->toBe(SelfServiceOutcome::StepUpRequired);
 });
 
