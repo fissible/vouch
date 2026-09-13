@@ -21,6 +21,23 @@ function stringValue(mixed $value): string
 }
 
 /**
+ * The id of the single row in a table, so a caller never hard-codes one.
+ *
+ * Auto-increment ids are NOT reset between RefreshDatabase tests on MySQL, so a
+ * literal 1 is a SQLite-only assumption: it silently matches nothing on the
+ * other engines, and a fixture that shifted no row would then be asserting
+ * against a premise it never established.
+ */
+function soleRowId(string $table): int
+{
+    $ids = \Illuminate\Support\Facades\DB::table($table)->pluck('id')->all();
+
+    expect($ids)->toHaveCount(1);
+
+    return (int) stringValue($ids[0]);
+}
+
+/**
  * Move one row's deadline N seconds from the DATABASE's current time.
  *
  * Shared here because two suites need it and Pest declares test-file functions

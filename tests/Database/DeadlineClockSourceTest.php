@@ -112,16 +112,6 @@ afterEach(function (): void {
     Carbon::setTestNow();
 });
 
-/** The single issued row, so nothing here depends on a table-wide update. */
-function soleRowId(string $table): int
-{
-    $ids = DB::table($table)->pluck('id')->all();
-
-    expect($ids)->toHaveCount(1);
-
-    return (int) stringValue($ids[0]);
-}
-
 function storedDeadline(string $table, int $id): DateTimeImmutable
 {
     return new DateTimeImmutable(stringValue(DB::table($table)->where('id', $id)->value('expires_at')));

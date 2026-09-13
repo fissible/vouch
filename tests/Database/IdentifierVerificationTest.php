@@ -215,7 +215,7 @@ it('refuses a redemption after its own ttl elapses', function (): void {
      * the app/DB skew rather than the TTL, and would have kept passing against a
      * window of any length whenever the two machines disagreed.
      */
-    shiftDeadlineOnDatabaseClock('auth_identifier_verifications', 1, -1);
+    shiftDeadlineOnDatabaseClock('auth_identifier_verifications', soleRowId('auth_identifier_verifications'), -1);
 
     expect(app(IdentifierVerifier::class)->redeem(verificationRequest('ada@acme.example'), $delivery->lastCode()))
         ->toBe(IdentifierVerificationOutcome::Refused)
