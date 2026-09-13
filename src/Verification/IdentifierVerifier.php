@@ -9,6 +9,8 @@ use Fissible\Vouch\Contracts\RandomSource;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Models\AuthIdentifierVerification;
 use Fissible\Vouch\Throttle\IssuancePermission;
+use Fissible\Vouch\Throttle\ProofAttemptStore;
+use Fissible\Vouch\Throttle\ThrottleDecision;
 use Fissible\Vouch\Throttle\ThrottleKey;
 use Fissible\Vouch\Support\DatabaseTime;
 use Illuminate\Database\Connection;
@@ -25,6 +27,7 @@ final readonly class IdentifierVerifier
         private DatabaseTime $time,
         private int $ttlSeconds,
         private RandomSource $random,
+        private ProofAttemptStore $attempts,
     ) {
     }
 
@@ -66,7 +69,14 @@ final readonly class IdentifierVerifier
             return IdentifierVerificationOutcome::Refused;
         }
 
-        return $this->connection->transaction(function () use ($request, $code): IdentifierVerificationOutcome {
+        $subject = $this->keys->recovery($request->submittedIdentifier, $request->tenantId);
+
+        // A backed-off caller must not be able to burn the user's proof.
+        if ($this->throttles->preflightShared($subject)->decision === ThrottleDecision::BackedOff) {
+            return IdentifierVerificationOutcome::Refused;
+        }
+
+        $outcome = $this->connection->transaction(function () use ($request, $code): IdentifierVerificationOutcome {
             /*
              * Lock the verification before checking or consuming it, then lock
              * the identifier before changing verified_at. Both rows must stay
@@ -78,6 +88,7 @@ final readonly class IdentifierVerifier
                 ->where('identifier_value', $request->submittedIdentifier)
                 ->whereNull('superseded_at')
                 ->whereNull('consumed_at')
+                ->whereNull('burned_at')
                 /*
                  * The outbox writes this deadline in database time; PHP clock skew
                  * must not change the verification window.
@@ -87,14 +98,19 @@ final readonly class IdentifierVerifier
                 ->lockForUpdate()
                 ->first();
 
+            if (! $verification instanceof AuthIdentifierVerification) {
+                return IdentifierVerificationOutcome::Refused;
+            }
+
             /*
              * Check the code before refusing a decoy. The comparison preserves
              * the ceremony's known-versus-unknown work shape; a decoy can never
              * succeed, but must not become a cheaper existence oracle.
              */
-            if (! $verification instanceof AuthIdentifierVerification
-                || ! Hash::check($code, $verification->code_hash)
+            if (! Hash::check($code, $verification->code_hash)
                 || $verification->is_decoy) {
+                $this->attempts->recordFailure($verification);
+
                 return IdentifierVerificationOutcome::Refused;
             }
 
@@ -104,11 +120,15 @@ final readonly class IdentifierVerifier
                 ->first();
 
             if (! $identifier instanceof AuthIdentifier) {
+                $this->attempts->recordFailure($verification);
+
                 return IdentifierVerificationOutcome::Refused;
             }
 
             AuthIdentifierVerification::query()->whereKey($verification->id)
                 ->whereNull('consumed_at')
+                ->whereNull('superseded_at')
+                ->whereNull('burned_at')
                 ->update(['consumed_at' => $this->time->now()]);
 
             AuthIdentifier::query()->whereKey($identifier->id)
@@ -116,6 +136,13 @@ final readonly class IdentifierVerifier
 
             return IdentifierVerificationOutcome::Verified;
         });
+
+        // Proof evidence commits before advisory throttle state acquires locks.
+        if ($outcome === IdentifierVerificationOutcome::Refused) {
+            $this->throttles->recordRecoveryFailure($subject);
+        }
+
+        return $outcome;
     }
 
     /**

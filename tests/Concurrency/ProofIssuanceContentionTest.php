@@ -38,6 +38,21 @@ beforeEach(function (): void {
     }
 });
 
+/**
+ * Drop the throttle's accumulated state without touching any proof.
+ *
+ * These races were written before #31 put an issuance limit on recovery
+ * requests, and they issue far more often than a real caller would -- eight
+ * rounds of three, or five in a row. Without clearing, the limit refuses most
+ * of them and the race measures the throttle rather than supersession.
+ */
+function clearIssuanceThrottle(): void
+{
+    foreach (['auth_throttle_counters', 'auth_throttle_locks', 'auth_throttle_tuples'] as $table) {
+        DB::table($table)->delete();
+    }
+}
+
 function contendedRecoveryRequest(): CredentialRecoveryRequest
 {
     return new CredentialRecoveryRequest(
@@ -46,31 +61,6 @@ function contendedRecoveryRequest(): CredentialRecoveryRequest
         tenantId: null,
         clientIp: '203.0.113.10',
     );
-}
-
-/**
- * How a losing writer reported itself: 'returned', 'contention|...', 'error|...'.
- *
- * Shared by both contention tests. Classifying in one place is what stops the
- * interleave from quietly accepting a child that died of a missing table --
- * measured, that passed twenty runs per ceremony while proving nothing.
- */
-function classifyIssuanceFailure(\Illuminate\Database\Connection $connection, Throwable $exception): string
-{
-    $driverCode = $exception instanceof QueryException ? ($exception->errorInfo[1] ?? null) : null;
-
-    /*
-     * Deadlock siblings are accepted although LockContention excludes them: it
-     * answers "is this safe to retry", while this asks the weaker "was this
-     * contention rather than a bug".
-     */
-    $contention = $exception instanceof QueryException
-        && (app(LockContention::class)->isVerified($connection, $exception)
-            || in_array($driverCode, [6, 1213], true)
-            || $exception->getCode() === '40001'
-            || $exception->getCode() === '40P01');
-
-    return ($contention ? 'contention|' : 'error|') . $exception::class . '|' . var_export($driverCode, true);
 }
 
 /** A loser must either return normally or lose to the database, never crash. */
@@ -238,7 +228,10 @@ function raceRecoveryIssuance(int $count): array
                  * than a bug", and a loser that deadlocks has still lost a race
                  * rather than crashed.
                  */
-                file_put_contents($output, classifyIssuanceFailure($connection, $exception));
+                file_put_contents(
+                    $output,
+                    (isContentionFailure($connection, $exception) ? 'contention|' : 'error|') . $exception::class,
+                );
                 exit(1);
             }
         }
@@ -312,6 +305,7 @@ it('leaves exactly one live proof when issuances genuinely race', function (): v
     foreach (range(1, 8) as $round) {
         DB::table('auth_recovery_proof_outbox')->delete();
         DB::table('auth_recovery_proofs')->delete();
+        clearIssuanceThrottle();
 
         $reports = raceRecoveryIssuance(3);
 
@@ -356,6 +350,7 @@ it('leaves exactly one live proof across repeated rapid issuance', function (): 
     app()->instance(DeliveryEconomics::class, new PermittingDeliveryEconomics());
 
     foreach (range(1, 5) as $ignored) {
+        clearIssuanceThrottle();
         app(CredentialRecovery::class)->request(contendedRecoveryRequest());
     }
 
@@ -383,6 +378,7 @@ it('leaves exactly one live proof when a second writer starts mid-issuance', fun
      * scheduling beyond what the matrix legs happen to exercise.
      */
     contendedAccount();
+    clearIssuanceThrottle();
     app()->instance(OtpDelivery::class, new ArrayOtpDelivery());
     app()->instance(DeliveryEconomics::class, new PermittingDeliveryEconomics());
 
@@ -428,7 +424,10 @@ it('leaves exactly one live proof when a second writer starts mid-issuance', fun
             file_put_contents($report, 'returned');
             exit(0);
         } catch (Throwable $exception) {
-            file_put_contents($report, classifyIssuanceFailure($connection, $exception));
+            file_put_contents(
+                $report,
+                (isContentionFailure($connection, $exception) ? 'contention:' : 'error:') . $exception::class,
+            );
             exit(1);
         }
     }
