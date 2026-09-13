@@ -89,8 +89,15 @@ it('clears the recovery grace deadline when a real session is established', func
      */
     session()->start();
 
+    /*
+     * Under THIS device's binding, which is what GraceGuard::start() writes --
+     * it is handed the current host session id. The fixture used an unrelated
+     * binding, which only worked while establish() upserted on user_id and so
+     * rebound whichever row it found; since #30 that row belongs to a different
+     * session and is correctly left alone.
+     */
     AuthSession::create([
-        'session_binding' => str_repeat('g', 64),
+        'session_binding' => SessionBinding::for(session()->getId(), BindingDomain::Session),
         'user_id' => 7,
         'amr' => ['recovery_code'],
         'recovery_grace_expires_at' => now()->addMinutes(15),
@@ -98,7 +105,14 @@ it('clears the recovery grace deadline when a real session is established', func
 
     app(SessionLifecycle::class)->establish(writeSuccess());
 
-    expect(AuthSession::whereNull('revoked_at')->firstOrFail()->recovery_grace_expires_at)->toBeNull();
+    // The row this session now has, selected by its binding rather than by
+    // being first: the superseded grace row is still in the table.
+    $established = AuthSession::query()
+        ->where('session_binding', SessionBinding::for(session()->getId(), BindingDomain::Session))
+        ->whereNull('revoked_at')
+        ->firstOrFail();
+
+    expect($established->recovery_grace_expires_at)->toBeNull();
 });
 
 it('records both the time and the reason when revoking siblings', function (): void {
