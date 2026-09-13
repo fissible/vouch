@@ -59,6 +59,7 @@ final readonly class CredentialRecovery
             $proof = AuthRecoveryProof::query()
                 ->where('identifier_type', $request->type)
                 ->where('identifier_value', $request->submittedIdentifier)
+                ->whereNull('superseded_at')
                 ->whereNull('consumed_at')
                 /*
                  * The outbox writes this deadline in database time; PHP clock skew

@@ -9,6 +9,7 @@ use Fissible\Vouch\Models\AuthIdentifierVerification;
 use Fissible\Vouch\Models\AuthIdentifierVerificationOutbox;
 use Fissible\Vouch\Notifications\OtpOutboxStatus;
 use Fissible\Vouch\Notifications\OtpQueueDispatcher;
+use Fissible\Vouch\Support\DatabaseRowLock;
 use Fissible\Vouch\Support\DatabaseTime;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\Hash;
@@ -37,8 +38,22 @@ final readonly class IdentifierVerificationOutbox
             'verified_at' => $identifier->verified_at?->toISOString(),
         ] : null;
 
-        /** @var AuthIdentifierVerificationOutbox $outbox */
         $outbox = $this->connection->transaction(function () use ($request, $identifier, $code, $ttlSeconds, $target): AuthIdentifierVerificationOutbox {
+            $scope = [
+                'ceremony' => 'verification',
+                'identifier_type' => $request->type,
+                'identifier_value' => $request->submittedIdentifier,
+            ];
+            (new DatabaseRowLock($this->connection))->ensureAndLock('auth_proof_issuance_locks', $scope, $scope);
+
+            // Consumption is evidence of redemption; replacement must not invent it.
+            AuthIdentifierVerification::query()
+                ->where('identifier_type', $request->type)
+                ->where('identifier_value', $request->submittedIdentifier)
+                ->whereNull('superseded_at')
+                ->whereNull('consumed_at')
+                ->update(['superseded_at' => $this->time->now()]);
+
             $expiresAt = $this->time->deadline($ttlSeconds);
             $verification = AuthIdentifierVerification::create([
                 'identifier_type' => $request->type,

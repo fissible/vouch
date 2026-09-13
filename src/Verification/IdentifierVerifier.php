@@ -76,6 +76,7 @@ final readonly class IdentifierVerifier
             $verification = AuthIdentifierVerification::query()
                 ->where('identifier_type', $request->type)
                 ->where('identifier_value', $request->submittedIdentifier)
+                ->whereNull('superseded_at')
                 ->whereNull('consumed_at')
                 /*
                  * The outbox writes this deadline in database time; PHP clock skew
