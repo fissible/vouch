@@ -48,6 +48,36 @@ function contendedRecoveryRequest(): CredentialRecoveryRequest
     );
 }
 
+function contendedVerificationRequest(): \Fissible\Vouch\Verification\IdentifierVerificationRequest
+{
+    return new \Fissible\Vouch\Verification\IdentifierVerificationRequest(
+        type: 'email',
+        submittedIdentifier: 'ada@acme.example',
+        tenantId: null,
+        clientIp: '203.0.113.10',
+    );
+}
+
+/**
+ * Issue one code for the named ceremony.
+ *
+ * Recovery and verification are separate implementations -- review found
+ * verification missing what recovery had twice over -- so the contention
+ * coverage is parameterised rather than written once for recovery and assumed
+ * to carry.
+ */
+function issueFor(string $ceremony): void
+{
+    $ceremony === 'recovery'
+        ? app(CredentialRecovery::class)->request(contendedRecoveryRequest())
+        : app(\Fissible\Vouch\Verification\IdentifierVerifier::class)->request(contendedVerificationRequest());
+}
+
+function proofTableFor(string $ceremony): string
+{
+    return $ceremony === 'recovery' ? 'auth_recovery_proofs' : 'auth_identifier_verifications';
+}
+
 function contendedAccount(): void
 {
     AuthIdentifier::create([
@@ -70,17 +100,19 @@ function contendedAccount(): void
  * never built the column. MySQL and PostgreSQL error on the same query, so the
  * vacancy is engine-specific too.
  */
-function stillRedeemableCount(): int
+function stillRedeemableCount(string $ceremony = 'recovery'): int
 {
+    $table = proofTableFor($ceremony);
+
     foreach (['consumed_at', 'superseded_at'] as $column) {
-        if (! Schema::hasColumn('auth_recovery_proofs', $column)) {
+        if (! Schema::hasColumn($table, $column)) {
             throw new RuntimeException(
-                "auth_recovery_proofs has no {$column} column, so this count cannot mean what it says.",
+                "{$table} has no {$column} column, so this count cannot mean what it says.",
             );
         }
     }
 
-    return DB::table('auth_recovery_proofs')
+    return DB::table($table)
         ->whereNull('consumed_at')
         ->whereNull('superseded_at')
         ->whereRaw('expires_at > CURRENT_TIMESTAMP')
@@ -312,7 +344,7 @@ it('leaves exactly one live proof across repeated rapid issuance', function (): 
         ->and(stillRedeemableCount())->toBe(1);
 });
 
-it('leaves exactly one live proof when a second writer starts mid-issuance', function (): void {
+it('leaves exactly one live proof when a second writer starts mid-issuance', function (string $ceremony): void {
     /*
      * The deterministic companion to the barrier race above.
      *
@@ -335,6 +367,7 @@ it('leaves exactly one live proof when a second writer starts mid-issuance', fun
     app()->instance(OtpDelivery::class, new ArrayOtpDelivery());
     app()->instance(DeliveryEconomics::class, new PermittingDeliveryEconomics());
 
+    $table = proofTableFor($ceremony);
     $directory = sys_get_temp_dir() . '/vouch-issue-interleave-' . bin2hex(random_bytes(8));
 
     if (! mkdir($directory, 0700) && ! is_dir($directory)) {
@@ -371,7 +404,7 @@ it('leaves exactly one live proof when a second writer starts mid-issuance', fun
                 usleep(500);
             }
 
-            app(CredentialRecovery::class)->request(contendedRecoveryRequest());
+            issueFor($ceremony);
             file_put_contents($report, 'returned');
             exit(0);
         } catch (Throwable $exception) {
@@ -388,11 +421,11 @@ it('leaves exactly one live proof when a second writer starts mid-issuance', fun
 
     $released = false;
 
-    $parent->beforeExecuting(function (string $query) use ($release, &$released): void {
+    $parent->beforeExecuting(function (string $query) use ($release, $table, &$released): void {
         // The first write to the proofs table, which is the moment a
         // non-serializing implementation has already made its decision and not
         // yet committed it.
-        if (! $released && str_contains($query, 'auth_recovery_proofs') && str_contains(strtolower($query), 'insert')) {
+        if (! $released && str_contains($query, $table) && str_contains(strtolower($query), 'insert')) {
             $released = true;
             touch($release);
 
@@ -402,7 +435,7 @@ it('leaves exactly one live proof when a second writer starts mid-issuance', fun
         }
     });
 
-    app(CredentialRecovery::class)->request(contendedRecoveryRequest());
+    issueFor($ceremony);
 
     pcntl_waitpid($pid, $status);
 
@@ -411,6 +444,6 @@ it('leaves exactly one live proof when a second writer starts mid-issuance', fun
     expect($released)->toBeTrue()
         ->and(is_file($report))->toBeTrue();
 
-    expect(stillRedeemableCount())->toBe(1)
-        ->and(DB::table('auth_recovery_proofs')->whereNull('superseded_at')->count())->toBe(1);
-});
+    expect(stillRedeemableCount($ceremony))->toBe(1)
+        ->and(DB::table($table)->whereNull('superseded_at')->count())->toBe(1);
+})->with(['recovery', 'verification']);
