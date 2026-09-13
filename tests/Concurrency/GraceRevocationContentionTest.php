@@ -41,7 +41,7 @@ function contendedGraceBinding(): string
     return SessionBinding::for('host-session-race', BindingDomain::Session);
 }
 
-it('keeps a revocation that lands while grace is opening', function (): void {
+it('keeps a revocation that lands while grace is opening', function (int $releaseAfter): void {
     /*
      * The revoking writer is released from inside grace's own first statement,
      * so it acts while start() is mid-flight rather than merely at the same
@@ -120,32 +120,33 @@ it('keeps a revocation that lands while grace is opening', function (): void {
     }
 
     /*
-     * Released AFTER grace's first statement against auth_sessions completes,
-     * through the query log rather than beforeExecuting -- and both halves of
-     * that matter.
+     * Released after the Nth statement grace makes against auth_sessions, and
+     * the test runs for N = 1 and N = 2 because different implementations put
+     * their vulnerable gap in different places.
      *
-     * beforeExecuting fires BEFORE the statement runs, so the revoker committed
-     * during the pause and grace's read then saw it. The stale read never
-     * happened and a non-locking implementation passed.
+     *   N = 1 catches a read followed by an unconditional write: the revocation
+     *   commits between them and the write clears it.
      *
-     * And releasing on a SELECT specifically required the implementation to
-     * issue one. A conditional upsert whose ON CONFLICT clause refuses revoked
-     * or foreign-subject rows is correct and reads nothing, so it never
-     * released the writer at all and failed a race it had already won. Keying
-     * on the first auth_sessions statement of any shape covers both.
+     *   N = 2 catches a check inside updateOrInsert's values callback, where
+     *   Laravel's own existence query is the first statement and the callback's
+     *   read is the second -- so releasing after the first lets the callback
+     *   see the revocation and refuse, and the schedule proves nothing.
      *
-     * What each shape then does:
-     *   - unlocked read, PHP check, write -> the revocation commits in the gap
-     *     and the write clears it. The row ends live, which fails below.
-     *   - locking read inside a transaction -> the revoker BLOCKS here instead
-     *     and lands after grace commits. The row ends revoked.
-     *   - conditional upsert -> grace has already written; the revoker then
-     *     revokes the row it finds. The row ends revoked.
+     * Correct shapes pass both. A locking read makes the revoker block until
+     * grace commits. A conditional upsert has already written by the time the
+     * writer runs, and is released by the fallback below since it issues only
+     * one statement.
      */
-    $released = false;
+    $statements = 0;
 
-    DB::listen(function ($query) use ($release, $report, &$released): void {
+    DB::listen(function ($query) use ($release, $report, $releaseAfter, &$released, &$statements): void {
         if ($released || ! str_contains($query->sql, 'auth_sessions')) {
+            return;
+        }
+
+        $statements++;
+
+        if ($statements < $releaseAfter) {
             return;
         }
 
@@ -153,9 +154,9 @@ it('keeps a revocation that lands while grace is opening', function (): void {
         touch($release);
 
         /*
-         * Wait for the writer, but only briefly. A locking implementation
-         * blocks it until grace commits, so insisting on its report would
-         * deadlock the very implementation this test is meant to accept.
+         * Bounded. A locking implementation blocks the writer until grace
+         * commits, so insisting on its report would deadlock exactly the
+         * implementation this is meant to accept.
          */
         $deadline = microtime(true) + 0.3;
 
@@ -165,6 +166,17 @@ it('keeps a revocation that lands while grace is opening', function (): void {
     });
 
     app(GraceGuard::class)->start('host-session-race', 7);
+
+    /*
+     * A single-statement implementation never reaches N = 2, so release once
+     * grace is done. The revoking writer then revokes whatever grace wrote,
+     * which is the correct end state and keeps that shape acceptable rather
+     * than failing it for being efficient.
+     */
+    if (! $released) {
+        $released = true;
+        touch($release);
+    }
 
     pcntl_waitpid($pid, $status);
 
@@ -190,4 +202,9 @@ it('keeps a revocation that lands while grace is opening', function (): void {
     expect($row->revoked_at)->not->toBeNull('A concurrent grace undid the revocation.')
         ->and(stringValue($row->revoked_reason))->toBe(RevokedReason::PasswordChanged->value)
         ->and(app(GraceGuard::class)->activeFor('host-session-race'))->toBeNull();
-});
+})->with([
+    // Wrapped, because Pest reads a bare scalar dataset value as a set of
+    // arguments rather than one argument.
+    'released after the first statement' => [1],
+    'released after the second statement' => [2],
+]);
