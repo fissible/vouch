@@ -283,12 +283,18 @@ it('supersedes only the identifier the new code was issued for', function (): vo
         ->toBe(CredentialRecoveryOutcome::GraceOpened);
 });
 
-it('leaves the previous recovery code live when a new issuance fails', function (): void {
+it('leaves the previous recovery code live when hashing a new one fails', function (): void {
     /*
-     * Atomicity. Supersession and the new proof are one unit: if the issuance
-     * fails after the earlier proof was retired, the user is left holding a
-     * code that no longer works and never received the one meant to replace it
-     * -- locked out by a failed retry.
+     * Named for what it actually covers. Hash::make() runs inside the issuance
+     * transaction today, but PHP evaluates it BEFORE the insert it is an
+     * argument to, and an implementation may legitimately hash before opening
+     * the transaction at all -- so this shows a failed issuance leaving the
+     * user's working code alone, NOT that supersession and creation commit
+     * atomically. Proving that needs a fault injected after the writes, which
+     * has no seam here yet and is recorded as a gap rather than claimed.
+     *
+     * It still earns its place: a failure here must not retire the code the
+     * user is holding, or a failed retry locks them out of their own account.
      */
     supersessionAccount();
 
@@ -322,7 +328,7 @@ it('leaves the previous recovery code live when a new issuance fails', function 
         ->and(supersessionGraceIsOpen('host-session-1'))->toBeTrue();
 });
 
-it('supersedes a decoy ceremony exactly as it supersedes a real one', function (): void {
+it('leaves a decoy ceremony in the same row states as a real one', function (): void {
     /*
      * Decoys exist so an unknown identifier costs the same work as a known one.
      * If supersession ran only for real identifiers, a second request would do
@@ -330,12 +336,16 @@ it('supersedes a decoy ceremony exactly as it supersedes a real one', function (
      * reintroduces the enumeration signal the decoy was built to remove.
      *
      * Requested through request() rather than the delivering helper, and this
-     * is not a shortcut: a decoy is deleted before provider I/O, so no code is
-     * ever delivered for one. Asking for a code here would fail on the decoy
-     * side for a reason that has nothing to do with supersession.
+     * is not a shortcut: the worker deletes the decoy's OUTBOX row before
+     * provider I/O, so no code is ever delivered for one, though the proof row
+     * itself remains and is still subject to supersession. Asking for a code
+     * here would fail on the decoy side for a reason unrelated to supersession.
      *
-     * Compared as COUNTS per state rather than by reading the decoy flag, so
-     * the assertion is about work performed rather than about a column.
+     * What this proves is STATE parity: the same rows in the same states either
+     * way. It does not prove equal WORK -- a real identifier may still cost
+     * extra queries, a lock, or a retry -- and it proves nothing about latency,
+     * which is the shape the enumeration threat actually takes. Equal-work
+     * instrumentation is a gap, recorded rather than implied.
      */
     supersessionAccount('ada@acme.example', 1);
     supersessionBindDelivery();
@@ -360,6 +370,145 @@ it('supersedes a decoy ceremony exactly as it supersedes a real one', function (
     expect($real['total'])->toBe(2)
         ->and($real['superseded'])->toBe(1)
         ->and($decoy)->toBe($real);
+});
+
+
+it('keeps a superseded recovery code dead once the newer proof row is gone', function (): void {
+    /*
+     * The escape that survives every other test here.
+     *
+     * An implementation can write supersession markers faithfully and still
+     * enforce nothing, by selecting the newest row OVERALL -- consumed ones
+     * included -- and refusing when that row is spent. Every assertion above
+     * passes, because the newest row is always present to refuse on its behalf.
+     * Delete it, as any retention pass eventually will, and the older proof
+     * becomes newest again and redeems.
+     *
+     * So this is the test that asks whether redemption honours supersession
+     * ITSELF, rather than inferring it from a neighbour that happens to exist.
+     */
+    supersessionAccount();
+
+    $first = nextRecoveryCode();
+    $second = nextRecoveryCode();
+
+    expect(redeemRecovery($second, 'host-a'))->toBe(CredentialRecoveryOutcome::GraceOpened);
+
+    // Reclaim the newer row. Nothing prunes these tables today, which is why
+    // this is written as a deletion rather than as a call to a pruner: the
+    // enforcement has to survive the row's absence whenever that arrives.
+    DB::table('auth_recovery_proofs')->whereNotNull('consumed_at')->delete();
+
+    expect(redeemRecovery($first, 'host-b'))->toBe(CredentialRecoveryOutcome::Refused)
+        ->and(supersessionGraceIsOpen('host-b'))->toBeFalse();
+});
+
+it('supersedes proofs that were already live before it, not just the previous one', function (): void {
+    /*
+     * Supersession by induction -- each issuance retiring only its immediate
+     * predecessor -- is correct for rows this code created, and wrong for every
+     * row that predates it. Rows written before the change ship live and
+     * unsuperseded, so an implementation that walks back one step leaves the
+     * whole existing stack redeemable after deployment.
+     *
+     * Seeded directly, because that is the only way to produce the state a
+     * migration inherits: several simultaneously live proofs, none superseded.
+     */
+    supersessionAccount();
+
+    foreach (['111111', '222222'] as $code) {
+        DB::table('auth_recovery_proofs')->insert([
+            'identifier_type' => 'email',
+            'identifier_value' => 'ada@acme.example',
+            'code_hash' => Hash::make($code),
+            'is_decoy' => false,
+            'expires_at' => now()->addMinutes(30),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    // Both are live before the new issuance, or this proves nothing.
+    expect(liveProofCount('auth_recovery_proofs'))->toBe(2);
+
+    $newest = nextRecoveryCode();
+
+    expect(redeemRecovery('111111', 'host-a'))->toBe(CredentialRecoveryOutcome::Refused)
+        ->and(redeemRecovery('222222', 'host-b'))->toBe(CredentialRecoveryOutcome::Refused)
+        ->and(redeemRecovery($newest, 'host-c'))->toBe(CredentialRecoveryOutcome::GraceOpened);
+});
+
+it('keeps a superseded recovery code dead after the newer one expires', function (): void {
+    /*
+     * Supersession outlives the proof that caused it. If the newer code is
+     * never used and simply expires, the older one must NOT quietly become the
+     * best remaining candidate -- otherwise every superseded code returns to
+     * life on a timer, which is the stacking defect with a delay in front.
+     */
+    supersessionAccount();
+
+    $first = nextRecoveryCode();
+    nextRecoveryCode();
+
+    $newest = DB::table('auth_recovery_proofs')->orderByDesc('id')->value('id');
+    shiftDeadlineOnDatabaseClock('auth_recovery_proofs', (int) stringValue($newest), -60);
+
+    expect(redeemRecovery($first))->toBe(CredentialRecoveryOutcome::Refused)
+        ->and(supersessionGraceIsOpen('host-session-1'))->toBeFalse();
+});
+
+it('refuses the superseded code and still redeems the newest one', function (): void {
+    // The combined sequence, in one test. Separate tests establish each half
+    // against a fresh database; only this one shows that refusing the older
+    // code leaves the newer one usable rather than burning the whole ceremony.
+    supersessionAccount();
+
+    $first = nextRecoveryCode();
+    $second = nextRecoveryCode();
+
+    expect(redeemRecovery($first, 'host-a'))->toBe(CredentialRecoveryOutcome::Refused)
+        ->and(redeemRecovery($second, 'host-b'))->toBe(CredentialRecoveryOutcome::GraceOpened)
+        ->and(supersessionGraceIsOpen('host-b'))->toBeTrue();
+});
+
+it('supersedes per identifier, not per user', function (): void {
+    /*
+     * The existing scope tests vary the identifier AND the user together, so
+     * they cannot tell per-identifier supersession from per-user. One user with
+     * two verified addresses separates them: recovering through one address
+     * must not kill the live code sent to the other.
+     */
+    supersessionAccount('ada@acme.example', 1);
+
+    AuthIdentifier::create([
+        'user_id' => 1,
+        'type' => 'email',
+        'value' => 'ada+alt@acme.example',
+        'verified_at' => now(),
+    ]);
+
+    $primary = nextRecoveryCode('ada@acme.example');
+    nextRecoveryCode('ada+alt@acme.example');
+
+    expect(app(CredentialRecovery::class)->redeem(supersessionRecoveryFor('ada@acme.example'), $primary, 'host-a'))
+        ->toBe(CredentialRecoveryOutcome::GraceOpened);
+});
+
+it('supersedes within a ceremony, not across ceremonies', function (): void {
+    /*
+     * Recovery and verification are separate authorities by design -- a
+     * verification code attests control, a recovery proof opens a password
+     * reset -- so issuing one must not retire the other. An implementation that
+     * superseded "every live proof for this identifier" across both tables
+     * would let anyone cancel a pending verification by requesting a recovery.
+     */
+    supersessionAccount('grace@acme.example', 1);
+
+    $verification = nextVerificationCode('grace@acme.example');
+    nextRecoveryCode('grace@acme.example');
+
+    expect(app(IdentifierVerifier::class)->redeem(supersessionVerificationFor('grace@acme.example'), $verification))
+        ->toBe(IdentifierVerificationOutcome::Verified);
 });
 
 /* ---- identifier verification -------------------------------------------- */
