@@ -1222,3 +1222,42 @@ it('counts guesses that reach one recovery proof through different type spelling
     expect($state['attempts'])->toBe(attemptLimit())
         ->and($state['burned'])->toBeTrue();
 });
+
+it('counts guesses that reach one verification proof through different type spellings', function (): void {
+    /*
+     * The counterpart to recovery's type-spelling test. Not symmetry for its
+     * own sake: IdentifierVerifier selects on identifier_type independently of
+     * identifier_value, and every other verification test here supplies a
+     * lower-case 'email', so a reset keyed on that column would go unseen in
+     * this ceremony while recovery caught it.
+     */
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => 'grace@acme.example', 'verified_at' => null]);
+    $code = issuedVerificationProofCode();
+    $proof = soleProofId('auth_identifier_verifications');
+
+    if (! selectsSameProof('auth_identifier_verifications', $proof, 'EMAIL', 'grace@acme.example')) {
+        $this->markTestSkipped('This engine selects case-sensitively, so the type spellings cannot reach one proof.');
+    }
+
+    foreach (range(1, attemptLimit()) as $nth) {
+        $request = new IdentifierVerificationRequest(
+            type: $nth % 2 === 0 ? 'email' : 'EMAIL',
+            submittedIdentifier: 'grace@acme.example',
+            tenantId: null,
+            clientIp: '203.0.113.10',
+        );
+
+        app(IdentifierVerifier::class)->redeem($request, distinctWrongCode($code, $nth));
+    }
+
+    expect(DB::table('auth_identifier_verifications')->count())->toBe(1);
+
+    $state = proofAccounting('auth_identifier_verifications', $proof);
+
+    expect($state['attempts'])->toBe(attemptLimit())
+        ->and($state['burned'])->toBeTrue();
+
+    expect(app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), $code))
+        ->toBe(IdentifierVerificationOutcome::Refused)
+        ->and(AuthIdentifier::query()->where('value', 'grace@acme.example')->value('verified_at'))->toBeNull();
+});
