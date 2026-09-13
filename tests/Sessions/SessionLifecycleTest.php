@@ -112,8 +112,14 @@ it('regenerates again on an assurance increase, not only at login', function ():
 
     lifecycle()->establish(lifecycleSuccess(acr: 'aal2'));
 
+    /*
+     * The LIVE row, explicitly. Since #30 a second establish supersedes the
+     * first rather than overwriting it, so an unfiltered firstOrFail() can
+     * return the superseded row and fail on a binding that is correctly stale.
+     * The claim was always about the row this session now has.
+     */
     expect(session()->getId())->not->toBe($afterLogin)
-        ->and(AuthSession::firstOrFail()->session_binding)
+        ->and(AuthSession::query()->whereNull('revoked_at')->firstOrFail()->session_binding)
         ->toBe(SessionBinding::for(session()->getId(), BindingDomain::Session));
 });
 
