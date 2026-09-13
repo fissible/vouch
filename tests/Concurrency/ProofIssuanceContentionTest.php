@@ -11,6 +11,7 @@ use Fissible\Vouch\Tests\Support\ArrayOtpDelivery;
 use Fissible\Vouch\Tests\Support\PermittingDeliveryEconomics;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
+use Fissible\Vouch\Support\LockContention;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Schema;
 
@@ -123,8 +124,9 @@ function raceRecoveryIssuance(int $count): array
         if ($pid === 0) {
             $output = $directory . "/output-{$index}";
 
+            $connection = DB::connection();
+
             try {
-                $connection = DB::connection();
                 $connection->getPdo();
 
                 if ($connection->getDriverName() === 'sqlite') {
@@ -156,18 +158,33 @@ function raceRecoveryIssuance(int $count): array
                 exit(0);
             } catch (Throwable $exception) {
                 /*
-                 * Class AND driver state. "Contains Exception" accepts a
-                 * TypeError-adjacent RuntimeException from a broken
-                 * implementation, which would read as acceptable contention;
-                 * a database contention failure carries a SQLSTATE.
+                 * Classified by the package's own measured classifier, not by
+                 * SQLSTATE. SQLSTATE cannot answer this and LockContention says
+                 * why: MySQL and SQLite both report contention under HY000, and
+                 * SQLite uses that same SQLSTATE for a missing table -- so two
+                 * children fed deliberately broken queries would otherwise pass
+                 * as honest contention.
+                 *
+                 * Deadlock siblings are accepted here although LockContention
+                 * deliberately excludes them. It answers "is this safe to
+                 * retry"; this test asks the weaker "was this contention rather
+                 * than a bug", and a loser that deadlocks has still lost a race
+                 * rather than crashed.
                  */
-                $state = $exception instanceof \PDOException ? (string) $exception->getCode() : '';
+                $driverCode = $exception instanceof QueryException
+                    ? ($exception->errorInfo[1] ?? null)
+                    : null;
 
-                if ($exception instanceof QueryException) {
-                    $state = (string) ($exception->errorInfo[0] ?? $exception->getCode());
-                }
+                $contention = $exception instanceof QueryException
+                    && (app(LockContention::class)->isVerified($connection, $exception)
+                        || in_array($driverCode, [6, 1213], true)
+                        || $exception->getCode() === '40001'
+                        || $exception->getCode() === '40P01');
 
-                file_put_contents($output, 'threw|' . $exception::class . '|' . $state);
+                file_put_contents(
+                    $output,
+                    ($contention ? 'contention|' : 'error|') . $exception::class . '|' . var_export($driverCode, true),
+                );
                 exit(1);
             }
         }
@@ -252,15 +269,13 @@ it('leaves exactly one live proof when issuances genuinely race', function (): v
              * error -- so a throw has to carry a driver SQLSTATE rather than
              * merely being some exception class with "Exception" in the name.
              */
-            if (str_starts_with($report, 'threw|')) {
-                [, $class, $state] = explode('|', $report, 3);
-
-                expect($state)->not->toBe('', "a racing child failed without a driver state: {$class}");
-
+            if (str_starts_with($report, 'contention|')) {
                 continue;
             }
 
-            expect($report)->toBe('returned', "a racing child reported something unrecognised: {$report}");
+            // Anything else is a bug wearing a race's clothes, and naming it is
+            // the difference between a useful failure and a mystery.
+            expect($report)->toBe('returned', "a racing child did not lose cleanly: {$report}");
         }
 
         // Someone won, or "one live proof" would be satisfied by a race in
@@ -295,4 +310,107 @@ it('leaves exactly one live proof across repeated rapid issuance', function (): 
 
     expect(DB::table('auth_recovery_proofs')->count())->toBe(5)
         ->and(stillRedeemableCount())->toBe(1);
+});
+
+it('leaves exactly one live proof when a second writer starts mid-issuance', function (): void {
+    /*
+     * The deterministic companion to the barrier race above.
+     *
+     * A barrier makes two processes start together; it cannot make them OVERLAP
+     * at the one operation that matters, which is why that test detects a
+     * non-serializing implementation most of the time rather than always. Here
+     * the second writer is released from inside the first one's own insert, so
+     * the overlap is arranged rather than hoped for: the child begins while the
+     * parent is already inside its issuance, past whatever read it does.
+     *
+     * An implementation that supersedes in autocommit and only then inserts
+     * transactionally ends this with two live proofs every time. One that holds
+     * a lock across both -- or that refuses rather than racing -- ends with one.
+     *
+     * Still SQLite-shaped, and it proves nothing about MySQL or PostgreSQL
+     * ordering beyond what the matrix legs run. It is a discriminating probe,
+     * not a proof of serializability.
+     */
+    contendedAccount();
+    app()->instance(OtpDelivery::class, new ArrayOtpDelivery());
+    app()->instance(DeliveryEconomics::class, new PermittingDeliveryEconomics());
+
+    $directory = sys_get_temp_dir() . '/vouch-issue-interleave-' . bin2hex(random_bytes(8));
+
+    if (! mkdir($directory, 0700) && ! is_dir($directory)) {
+        throw new RuntimeException('Could not create the interleave directory.');
+    }
+
+    $release = $directory . '/release';
+    $report = $directory . '/report';
+
+    DB::purge();
+
+    $pid = pcntl_fork();
+
+    if ($pid === -1) {
+        throw new RuntimeException('Could not fork the interleaving writer.');
+    }
+
+    if ($pid === 0) {
+        try {
+            $connection = DB::connection();
+            $connection->getPdo();
+
+            if ($connection->getDriverName() === 'sqlite') {
+                $connection->statement('PRAGMA busy_timeout = 5000');
+            }
+
+            $deadline = microtime(true) + 10.0;
+
+            while (! is_file($release)) {
+                if (microtime(true) >= $deadline) {
+                    throw new RuntimeException('The interleaving writer was never released.');
+                }
+
+                usleep(500);
+            }
+
+            app(CredentialRecovery::class)->request(contendedRecoveryRequest());
+            file_put_contents($report, 'returned');
+            exit(0);
+        } catch (Throwable $exception) {
+            file_put_contents($report, $exception::class);
+            exit(1);
+        }
+    }
+
+    $parent = DB::connection();
+
+    if ($parent->getDriverName() === 'sqlite') {
+        $parent->statement('PRAGMA busy_timeout = 5000');
+    }
+
+    $released = false;
+
+    $parent->beforeExecuting(function (string $query) use ($release, &$released): void {
+        // The first write to the proofs table, which is the moment a
+        // non-serializing implementation has already made its decision and not
+        // yet committed it.
+        if (! $released && str_contains($query, 'auth_recovery_proofs') && str_contains(strtolower($query), 'insert')) {
+            $released = true;
+            touch($release);
+
+            // Long enough for the child to reach the database, short enough not
+            // to dominate the suite.
+            usleep(120_000);
+        }
+    });
+
+    app(CredentialRecovery::class)->request(contendedRecoveryRequest());
+
+    pcntl_waitpid($pid, $status);
+
+    // The interleave actually happened: without this the test could pass having
+    // never released the child at all.
+    expect($released)->toBeTrue()
+        ->and(is_file($report))->toBeTrue();
+
+    expect(stillRedeemableCount())->toBe(1)
+        ->and(DB::table('auth_recovery_proofs')->whereNull('superseded_at')->count())->toBe(1);
 });

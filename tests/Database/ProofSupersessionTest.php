@@ -648,3 +648,107 @@ it('supersedes verification proofs that were already live before it', function (
         ->and(redeemVerification('333333'))->toBe(IdentifierVerificationOutcome::Refused)
         ->and(redeemVerification('444444'))->toBe(IdentifierVerificationOutcome::Refused);
 });
+
+it('supersedes verification per identifier, not per user', function (): void {
+    /*
+     * The mirror of recovery's same-user scope test, and it is not redundant:
+     * the ceremonies are separate implementations, and a mutant superseding
+     * every address belonging to the owner passed the whole suite while
+     * stranding the code sent to the other address.
+     *
+     * One user, two addresses. Verifying control of one must not cancel a
+     * verification already in flight for the other.
+     */
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => 'grace@acme.example', 'verified_at' => null]);
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => 'grace+alt@acme.example', 'verified_at' => null]);
+
+    $primary = nextVerificationCode('grace@acme.example');
+    nextVerificationCode('grace+alt@acme.example');
+
+    expect(app(IdentifierVerifier::class)->redeem(supersessionVerificationFor('grace@acme.example'), $primary))
+        ->toBe(IdentifierVerificationOutcome::Verified)
+        ->and(AuthIdentifier::query()->where('value', 'grace@acme.example')->value('verified_at'))->not->toBeNull();
+});
+
+/**
+ * Fail the first statement matching $fragment, after letting it be observed.
+ *
+ * A test-only seam through the connection, so no production hook exists purely
+ * to be interrupted. Records what ran before the failure, which is how the
+ * caller knows the interruption landed AFTER the writes it cares about rather
+ * than before them.
+ *
+ * @param  list<string>  $seen
+ */
+function failAfterObserving(string $fragment, array &$seen): void
+{
+    $tripped = false;
+
+    DB::connection()->beforeExecuting(function (string $query) use ($fragment, &$seen, &$tripped): void {
+        $seen[] = $query;
+
+        if (! $tripped && str_contains($query, $fragment)) {
+            $tripped = true;
+
+            throw new RuntimeException('Interrupted after the writes under test.');
+        }
+    });
+}
+
+it('restores the previous recovery code when issuance fails after superseding it', function (): void {
+    /*
+     * Atomicity, properly. The hashing test above only shows a failure BEFORE
+     * anything was written; this one interrupts the outbox insert, by which
+     * point supersession has run and the replacement proof exists.
+     *
+     * An implementation that supersedes outside the insertion transaction
+     * leaves the user holding a dead code and never delivers its replacement --
+     * locked out of their own account by a failed retry, which is precisely
+     * what "atomically" in the contract is there to prevent.
+     */
+    supersessionAccount();
+
+    $first = nextRecoveryCode();
+
+    $seen = [];
+    failAfterObserving('auth_recovery_proof_outbox', $seen);
+
+    try {
+        app(CredentialRecovery::class)->request(supersessionRecoveryFor('ada@acme.example'));
+        $threw = false;
+    } catch (Throwable) {
+        $threw = true;
+    }
+
+    // The interruption landed where this test needs it: after a write to the
+    // proofs table, not before the transaction had done anything.
+    expect($threw)->toBeTrue()
+        ->and(array_filter($seen, static fn (string $q): bool => str_contains($q, 'auth_recovery_proofs')))
+        ->not->toBe([]);
+
+    expect(redeemRecovery($first))->toBe(CredentialRecoveryOutcome::GraceOpened)
+        ->and(supersessionGraceIsOpen('host-session-1'))->toBeTrue();
+});
+
+it('restores the previous verification code when issuance fails after superseding it', function (): void {
+    // The same seam in the other ceremony, which is a separate implementation.
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => 'grace@acme.example', 'verified_at' => null]);
+
+    $first = nextVerificationCode();
+
+    $seen = [];
+    failAfterObserving('auth_identifier_verification_outbox', $seen);
+
+    try {
+        app(IdentifierVerifier::class)->request(supersessionVerificationFor('grace@acme.example'));
+        $threw = false;
+    } catch (Throwable) {
+        $threw = true;
+    }
+
+    expect($threw)->toBeTrue()
+        ->and(array_filter($seen, static fn (string $q): bool => str_contains($q, 'auth_identifier_verifications')))
+        ->not->toBe([]);
+
+    expect(redeemVerification($first))->toBe(IdentifierVerificationOutcome::Verified);
+});
