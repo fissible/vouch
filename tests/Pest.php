@@ -21,6 +21,32 @@ function stringValue(mixed $value): string
 }
 
 /**
+ * Did this query failure come from losing a race rather than from a bug?
+ *
+ * Wraps the package's own LockContention, which answers the narrower question
+ * "is this safe to retry" and therefore excludes deadlocks. A test asking
+ * whether a writer LOST a race should count them: four concurrent writers
+ * deadlocking on MySQL is an ordinary outcome, and reporting it as a
+ * programming error fails a run that behaved correctly.
+ *
+ * Shared because both contention suites need the identical rule, and Pest
+ * declares test-file functions into one global namespace.
+ */
+function isContentionFailure(\Illuminate\Database\Connection $connection, \Throwable $exception): bool
+{
+    if (! $exception instanceof \Illuminate\Database\QueryException) {
+        return false;
+    }
+
+    $driverCode = $exception->errorInfo[1] ?? null;
+
+    return app(\Fissible\Vouch\Support\LockContention::class)->isVerified($connection, $exception)
+        || in_array($driverCode, [6, 1213], true)
+        || $exception->getCode() === '40001'
+        || $exception->getCode() === '40P01';
+}
+
+/**
  * The id of the single row in a table, so a caller never hard-codes one.
  *
  * Auto-increment ids are NOT reset between RefreshDatabase tests on MySQL, so a

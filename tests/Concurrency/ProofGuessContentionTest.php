@@ -233,12 +233,9 @@ function raceGuesses(array $codes): array
                  * contention, and SQLite reports the same SQLSTATE for a
                  * missing table as for a lock.
                  */
-                $contended = $exception instanceof \Illuminate\Database\QueryException
-                    && app(\Fissible\Vouch\Support\LockContention::class)->isVerified($connection, $exception);
-
                 file_put_contents(
                     $output,
-                    ($contended ? 'contention:' : 'error:') . $exception::class,
+                    (isContentionFailure($connection, $exception) ? 'contention:' : 'error:') . $exception::class,
                 );
                 exit(1);
             }
@@ -300,9 +297,27 @@ it('loses no increment when two guesses arrive together', function (): void {
     $code = guessableProofCode();
     $proof = soleRowId('auth_recovery_proofs');
 
-    seedAttempts($proof, guessLimit() - 2);
+    /*
+     * Retry until a round actually serves both guesses. A round where one child
+     * lost the write lock cannot demonstrate that two concurrent increments are
+     * both preserved -- which is the only thing this test exists to show -- so
+     * accepting it would leave the claim untested rather than merely weaker.
+     */
+    $reports = [];
 
-    $reports = raceGuesses([guessWrong($code, 1), guessWrong($code, 2)]);
+    foreach (range(1, 5) as $attempt) {
+        DB::table('auth_recovery_proofs')->where('id', $proof)->update(['burned_at' => null]);
+        seedAttempts($proof, guessLimit() - 2);
+
+        $reports = raceGuesses([guessWrong($code, 1), guessWrong($code, 2)]);
+
+        if (count(array_filter(
+            $reports,
+            static fn (string $r): bool => $r === CredentialRecoveryOutcome::Refused->name,
+        )) === 2) {
+            break;
+        }
+    }
 
     /*
      * A child that lost to the database never had its guess PROCESSED, so it
@@ -314,29 +329,30 @@ it('loses no increment when two guesses arrive together', function (): void {
      * how many were actually served, which is the lost-increment claim stated
      * exactly rather than assumed from the number of children.
      */
-    $processed = 0;
-
     foreach ($reports as $report) {
         if ($report === CredentialRecoveryOutcome::Refused->name) {
-            $processed++;
-
             continue;
         }
 
         expect(str_starts_with($report, 'contention:'))->toBeTrue("a guessing child failed: {$report}");
     }
 
-    expect($reports)->toHaveCount(2)
-        ->and($processed)->toBeGreaterThan(0);
+    $served = count(array_filter(
+        $reports,
+        static fn (string $r): bool => $r === CredentialRecoveryOutcome::Refused->name,
+    ));
 
+    if ($served < 2) {
+        $this->markTestSkipped('No round served both guesses, so concurrent preservation was never exercised.');
+    }
+
+    // Both were served, so both must be counted: a collapse leaves four.
     $state = guessState($proof);
 
-    expect($state['attempts'])->toBe(guessLimit() - 2 + $processed)
+    expect($state['attempts'])->toBe(guessLimit())
+        ->and($state['burned'])->toBeTrue()
         ->and($state['consumed'])->toBeFalse()
         ->and($state['superseded'])->toBeFalse();
-
-    // Burned exactly when the count actually reached the limit.
-    expect($state['burned'])->toBe($state['attempts'] >= guessLimit());
 });
 
 it('never counts past the limit when guesses pile up', function (): void {
@@ -472,10 +488,10 @@ it('keeps burning and superseding exclusive when issuance races the final guess'
             // Reported rather than swallowed. A child that silently died of a
             // lock timeout would leave the parent asserting about a race that
             // only one side ever entered.
-            $contended = $exception instanceof \Illuminate\Database\QueryException
-                && app(\Fissible\Vouch\Support\LockContention::class)->isVerified($connection, $exception);
-
-            file_put_contents($directory . '/report', ($contended ? 'contention:' : 'error:') . $exception::class);
+            file_put_contents(
+                $directory . '/report',
+                (isContentionFailure($connection, $exception) ? 'contention:' : 'error:') . $exception::class,
+            );
             exit(1);
         }
     }
@@ -502,7 +518,7 @@ it('keeps burning and superseding exclusive when issuance races the final guess'
         app(CredentialRecovery::class)->redeem(guessRequest(), guessWrong($code, 1), 'host-a');
         $guessed = true;
     } catch (\Illuminate\Database\QueryException $exception) {
-        expect(app(\Fissible\Vouch\Support\LockContention::class)->isVerified(DB::connection(), $exception))
+        expect(isContentionFailure(DB::connection(), $exception))
             ->toBeTrue('the guess failed for a reason other than contention');
 
         $guessed = false;
@@ -535,9 +551,14 @@ it('keeps burning and superseding exclusive when issuance races the final guess'
     // lock there is nothing to judge and saying so beats asserting anyway.
     expect(count($endings))->toBeLessThan(2, 'the contested proof ended more than once');
 
-    if ($guessed || $issued) {
-        expect(count($endings))->toBe(1, 'a writer succeeded but the proof did not end');
+    if (! $guessed && ! $issued) {
+        // Neither writer got through, so there is nothing to judge. Saying so
+        // beats passing quietly, which would let a round that exercised
+        // nothing stand in as evidence.
+        $this->markTestSkipped('Both writers lost the lock, so the contested interval was never reached.');
     }
+
+    expect(count($endings))->toBe(1, 'a writer succeeded but the proof did not end');
 
     // Burned and superseded are the two that can collide here, and they are the
     // pair mutual exclusivity exists to keep apart.

@@ -63,31 +63,6 @@ function contendedRecoveryRequest(): CredentialRecoveryRequest
     );
 }
 
-/**
- * How a losing writer reported itself: 'returned', 'contention|...', 'error|...'.
- *
- * Shared by both contention tests. Classifying in one place is what stops the
- * interleave from quietly accepting a child that died of a missing table --
- * measured, that passed twenty runs per ceremony while proving nothing.
- */
-function classifyIssuanceFailure(\Illuminate\Database\Connection $connection, Throwable $exception): string
-{
-    $driverCode = $exception instanceof QueryException ? ($exception->errorInfo[1] ?? null) : null;
-
-    /*
-     * Deadlock siblings are accepted although LockContention excludes them: it
-     * answers "is this safe to retry", while this asks the weaker "was this
-     * contention rather than a bug".
-     */
-    $contention = $exception instanceof QueryException
-        && (app(LockContention::class)->isVerified($connection, $exception)
-            || in_array($driverCode, [6, 1213], true)
-            || $exception->getCode() === '40001'
-            || $exception->getCode() === '40P01');
-
-    return ($contention ? 'contention|' : 'error|') . $exception::class . '|' . var_export($driverCode, true);
-}
-
 /** A loser must either return normally or lose to the database, never crash. */
 function expectCleanLoss(string $report): void
 {
@@ -253,7 +228,10 @@ function raceRecoveryIssuance(int $count): array
                  * than a bug", and a loser that deadlocks has still lost a race
                  * rather than crashed.
                  */
-                file_put_contents($output, classifyIssuanceFailure($connection, $exception));
+                file_put_contents(
+                    $output,
+                    (isContentionFailure($connection, $exception) ? 'contention|' : 'error|') . $exception::class,
+                );
                 exit(1);
             }
         }
@@ -446,7 +424,10 @@ it('leaves exactly one live proof when a second writer starts mid-issuance', fun
             file_put_contents($report, 'returned');
             exit(0);
         } catch (Throwable $exception) {
-            file_put_contents($report, classifyIssuanceFailure($connection, $exception));
+            file_put_contents(
+                $report,
+                (isContentionFailure($connection, $exception) ? 'contention:' : 'error:') . $exception::class,
+            );
             exit(1);
         }
     }

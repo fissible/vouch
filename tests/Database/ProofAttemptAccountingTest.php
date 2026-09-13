@@ -1261,3 +1261,39 @@ it('counts guesses that reach one verification proof through different type spel
         ->toBe(IdentifierVerificationOutcome::Refused)
         ->and(AuthIdentifier::query()->where('value', 'grace@acme.example')->value('verified_at'))->toBeNull();
 });
+
+it('shares one redemption backoff bucket between the two ceremonies, for now', function (): void {
+    /*
+     * PINNING TODAY'S BEHAVIOUR, NOT ENDORSING IT.
+     *
+     * IdentifierVerifier::redeem() builds its throttle subject with
+     * ThrottleKey::recovery(), so verification redemption failures accumulate
+     * in the RECOVERY dimension. Guessing a verification code therefore backs
+     * off password recovery for the same identifier.
+     *
+     * Ceremony isolation is NOT guaranteed here, and #38 established that the
+     * two ceremonies are otherwise separate authorities. Splitting them needs a
+     * new ThrottleDimension, BindingDomain and store operation -- design work
+     * rather than a patch -- and is tracked separately.
+     *
+     * This test exists so that change is deliberate. When the dimensions are
+     * split this test SHOULD fail, and whoever splits them should replace it
+     * with bidirectional isolation coverage rather than deleting it quietly.
+     */
+    // One identifier, verified, usable by both ceremonies -- which is what
+    // makes the shared bucket observable at all.
+    accountingAccount('ada@acme.example', 1);
+
+    $code = issuedVerificationProofCode('ada@acme.example');
+
+    foreach (range(1, attemptLimit()) as $nth) {
+        app(IdentifierVerifier::class)->redeem(
+            accountingVerificationFor('ada@acme.example'),
+            distinctWrongCode($code, $nth),
+        );
+    }
+
+    // Verification guessing has moved the RECOVERY bucket, which is the
+    // coupling: the two ceremonies share one redemption backoff today.
+    expect(recoveryIsBackedOff('ada@acme.example'))->toBeTrue();
+});
