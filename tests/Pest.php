@@ -21,6 +21,52 @@ function stringValue(mixed $value): string
 }
 
 /**
+ * The id of the single row in a table, so a caller never hard-codes one.
+ *
+ * Auto-increment ids are NOT reset between RefreshDatabase tests on MySQL, so a
+ * literal 1 is a SQLite-only assumption: it silently matches nothing on the
+ * other engines, and a fixture that shifted no row would then be asserting
+ * against a premise it never established.
+ */
+function soleRowId(string $table): int
+{
+    $ids = \Illuminate\Support\Facades\DB::table($table)->pluck('id')->all();
+
+    expect($ids)->toHaveCount(1);
+
+    return (int) stringValue($ids[0]);
+}
+
+/**
+ * Move one row's deadline N seconds from the DATABASE's current time.
+ *
+ * Shared here because two suites need it and Pest declares test-file functions
+ * into one global namespace, so a per-file copy collides at load time.
+ *
+ * Built from the package's own portable expression rather than a PHP timestamp.
+ * A deadline written by DatabaseTime is compared against the database clock, so
+ * a test that expired a row from application time would be asserting the very
+ * app/DB skew the package closes -- and would pass only while the two machines
+ * agree.
+ */
+function shiftDeadlineOnDatabaseClock(string $table, int $id, int $seconds): void
+{
+    $updated = \Illuminate\Support\Facades\DB::update(
+        'update ' . $table . ' set expires_at = '
+        . \Fissible\Vouch\Support\DatabaseTime::deadlineSql(
+            \Illuminate\Support\Facades\DB::connection()->getDriverName(),
+        )
+        . ' where id = ?',
+        [$seconds, $id],
+    );
+
+    // The shift hit the row it named. A mistyped table or a filter matching
+    // nothing would otherwise leave the original deadline in place, and the
+    // test would report on a premise it never established.
+    expect($updated)->toBe(1);
+}
+
+/**
  * Build one satisfied factor for assurance-evidence tests.
  *
  * Shared here rather than in a sibling test file: Pest declares test-file
