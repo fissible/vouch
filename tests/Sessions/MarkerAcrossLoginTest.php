@@ -47,6 +47,11 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * These tests span that seam: complete a login through the real handler, then
  * validate the session the way the middleware does on the following request.
+ *
+ * Recorded gap: the sibling test checks that device B's ROW stays live after
+ * device A re-authenticates, but does not then validate B's session through the
+ * middleware. Restoring B's store to assert that would exercise the same
+ * preservation the row check already covers, so it is noted rather than added.
  */
 final class MarkerAcrossLoginTest extends TestCase
 {
@@ -249,19 +254,31 @@ final class MarkerAcrossLoginTest extends TestCase
         $this->completeLogin();
 
         $store = $this->hostStore();
-        $before = $store->all();
 
-        self::assertNotSame([], $before, 'The login left nothing in the host session.');
+        $authenticationKeys = array_keys(array_filter(
+            $store->all(),
+            static fn (mixed $value, string $key): bool => str_starts_with($key, 'login_'),
+            ARRAY_FILTER_USE_BOTH,
+        ));
+
+        self::assertNotSame([], $authenticationKeys, 'The login left no host authentication to destroy.');
 
         AuthSession::query()->where('session_binding', $this->currentBinding())->delete();
 
         self::assertFalse($this->middlewarePasses(), 'A session with no record was allowed through.');
 
-        self::assertSame(
-            [],
-            array_intersect_key($before, $this->hostStore()->all()),
-            'The refusal left host session data in place, so the next request carries it.',
-        );
+        /*
+         * The host AUTHENTICATION must be gone. Asserting that no key name
+         * reappears would be stricter than the contract and would reject a
+         * correct refusal: invalidate() followed by regenerateToken() puts a
+         * fresh _token back, which is right rather than a leak.
+         */
+        foreach ($authenticationKeys as $key) {
+            self::assertFalse(
+                $this->hostStore()->has($key),
+                "The refusal left host authentication ({$key}) in place, so the next request carries it.",
+            );
+        }
     }
 
     #[Test]
@@ -279,6 +296,25 @@ final class MarkerAcrossLoginTest extends TestCase
         $id = $store->getId();
         $binding = $this->currentBinding();
         $store->save();
+
+        /*
+         * One ordinary accepted request in between, then saved again. This is
+         * what separates a marker that PERSISTS from one merely present on the
+         * request that wrote it: flash data survives exactly one request and is
+         * aged away by the next, after which the session reads as a stranger's
+         * -- no marker, no record -- and passes, while the host guard still
+         * authenticates. Measured, an implementation storing the marker with
+         * flash() satisfies every other test in this file.
+         */
+        $intermediate = new Store('vouch-reload', $store->getHandler(), $id);
+        $intermediate->start();
+
+        self::assertTrue(
+            $this->middlewarePasses($intermediate),
+            'The session was refused on an ordinary request before anything was deleted.',
+        );
+
+        $intermediate->save();
 
         AuthSession::query()->where('session_binding', $binding)->delete();
 
