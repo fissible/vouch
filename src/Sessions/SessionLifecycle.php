@@ -26,6 +26,8 @@ use Throwable;
  */
 final readonly class SessionLifecycle
 {
+    public const string OWNERSHIP_MARKER = 'vouch.auth_session_id';
+
     public function __construct(
         private Session $session,
         private ClockInterface $clock,
@@ -37,6 +39,8 @@ final readonly class SessionLifecycle
      */
     public function establish(AuthSuccess $success): void
     {
+        $previousBinding = SessionBinding::for($this->session->getId(), BindingDomain::Session);
+
         // 1. Regenerate. §7.5 requires this on every assurance increase, not
         //    only at login: a step-up that raised assurance without rotating
         //    leaves the pre-step-up session ID valid at the higher level.
@@ -51,20 +55,35 @@ final readonly class SessionLifecycle
                 $success->tenantId,
                 $success->factors,
             );
-            // 2. Rotate in place. 2.1 ships this shape with a test that the row
-            //    count stays at one; a second row would orphan the old binding
-            //    and leave a session nothing can revoke.
-            AuthSession::query()->updateOrCreate(
-                ['user_id' => $success->userId, 'revoked_at' => null],
-                [
-                    'session_binding' => $binding,
-                    'amr' => $success->amr(),
-                    'acr' => $this->vocabulary->name($proof->facts()),
-                    'assurance_proof' => $proof->toArray(),
-                    'weakest_satisfied_at' => $proof->weakestSatisfiedAt(),
-                    'recovery_grace_expires_at' => null,
-                ],
-            );
+            // A replacement must retire only this device's prior binding,
+            // including anonymous grace, without stranding another device.
+            // Keep both writes atomic so a failed replacement cannot leave
+            // behind a successful supersession with no replacement row.
+            $record = (new AuthSession)->getConnection()->transaction(function () use ($previousBinding, $binding, $success, $proof): AuthSession {
+                AuthSession::query()
+                    ->where('session_binding', $previousBinding)
+                    ->whereNull('revoked_at')
+                    ->update([
+                        'revoked_at' => $this->clock->now(),
+                        'revoked_reason' => RevokedReason::Superseded,
+                    ]);
+
+                return AuthSession::query()->updateOrCreate(
+                    ['session_binding' => $binding, 'user_id' => $success->userId, 'revoked_at' => null],
+                    [
+                        'amr' => $success->amr(),
+                        'acr' => $this->vocabulary->name($proof->facts()),
+                        'assurance_proof' => $proof->toArray(),
+                        'weakest_satisfied_at' => $proof->weakestSatisfiedAt(),
+                        'recovery_grace_expires_at' => null,
+                    ],
+                );
+            });
+
+            // The row identity survives the host guard's later rotation and
+            // rebind. Readers must still match its CURRENT binding; a copied
+            // marker must not authorize another session with its own live row.
+            $this->session->put(self::OWNERSHIP_MARKER, $record->id);
         } catch (Throwable $failure) {
             // 4. Destroy the regenerated session and fail closed. Nothing has
             //    logged in yet, which is the entire point of the ordering.

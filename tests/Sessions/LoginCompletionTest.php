@@ -190,17 +190,38 @@ final class LoginCompletionTest extends TestCase
     }
 
     #[Test]
-    public function the_login_leaves_exactly_one_session_for_the_subject(): void
+    public function the_login_leaves_exactly_one_session_for_itself(): void
     {
         /*
-         * The rebind must move the row the login created, not create a second
-         * one. Two rows would leave the earlier binding unrevocable — the
-         * failure 2.1 shipped a row-count test to prevent, reached here by a
-         * different route.
+         * The rebind must MOVE the row this login created rather than leaving a
+         * second one behind it. That is a claim about one login, and it used to
+         * be written as a claim about the user -- which since #30 is wrong: a
+         * second device is supposed to add a row, and asserting otherwise is
+         * what let a device lose its session silently.
+         *
+         * So the sibling is seeded explicitly and required to survive. Counting
+         * every row for the user could not tell "this login made one" from
+         * "this login destroyed the other one".
          */
+        AuthSession::create([
+            'session_binding' => str_repeat('s', 64),
+            'user_id' => 7,
+            'amr' => ['password'],
+        ]);
+
         $this->completeLogin();
 
-        self::assertSame(1, AuthSession::query()->where('user_id', 7)->count());
+        self::assertSame(
+            1,
+            AuthSession::query()->where('session_binding', $this->currentBinding())->count(),
+            'The login did not leave exactly one row under its own binding.',
+        );
+
+        self::assertTrue(
+            AuthSession::query()->where('session_binding', str_repeat('s', 64))
+                ->whereNull('revoked_at')->exists(),
+            'The login disturbed another device\'s session.',
+        );
     }
 
     #[Test]
@@ -503,20 +524,33 @@ final class LoginCompletionTest extends TestCase
     }
 
     #[Test]
-    public function a_second_login_rotates_rather_than_accumulating(): void
+    public function a_second_login_on_one_device_rotates_rather_than_accumulating(): void
     {
         /*
-         * The rebind must not turn re-authentication into row growth. Rotation
-         * in place is the shipped contract; this proves the new step preserves
-         * it across the migration boundary rather than only on a first login.
+         * Re-authentication must not turn into row growth. Since #30 that is a
+         * claim about one DEVICE rather than about the user: the previous
+         * session no longer exists once the id rotates, so its row must stop
+         * being live, while another device's row is none of this login's
+         * business.
          */
         $this->completeLogin();
         $first = $this->currentBinding();
 
         $this->completeLogin();
 
-        self::assertSame(1, AuthSession::query()->where('user_id', 7)->count());
         self::assertNotSame($first, $this->currentBinding());
+
+        self::assertSame(
+            1,
+            AuthSession::query()->where('user_id', 7)->whereNull('revoked_at')->count(),
+            'Re-authenticating on one device left more than one live row.',
+        );
+
+        self::assertNotNull(
+            AuthSession::query()->where('session_binding', $first)->value('revoked_at'),
+            'The session this login replaced was left live.',
+        );
+
         self::assertSame(
             1,
             AuthSession::query()->where('session_binding', $this->currentBinding())->count(),
