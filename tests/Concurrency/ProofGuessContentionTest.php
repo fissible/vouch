@@ -15,6 +15,7 @@ use Fissible\Vouch\Tests\Support\PermittingDeliveryEconomics;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 
 /*
@@ -524,7 +525,20 @@ it('keeps burning and superseding exclusive when issuance races the final guess'
 
         expect($replacement['attempts'])->toBeLessThanOrEqual(1)
             ->and($replacement['burned'])->toBeFalse()
-            ->and($replacement['consumed'])->toBeFalse()
             ->and($replacement['superseded'])->toBeFalse();
+
+        /*
+         * The replacement's code is generated during the race, so the guess
+         * intended as wrong can collide with it -- once in a million, and then
+         * legitimately redeeming it. Rather than tolerate a flake or weaken the
+         * assertion, the collision is checked for exactly: consumption is only
+         * acceptable if the submitted code really does match this row.
+         */
+        if ($replacement['consumed']) {
+            $row = requiredRow(DB::table('auth_recovery_proofs')->where('id', $newest)->first());
+
+            expect(Hash::check(guessWrong($code, 1), stringValue($row->code_hash)))
+                ->toBeTrue('the replacement was consumed by a code that does not match it');
+        }
     }
 });

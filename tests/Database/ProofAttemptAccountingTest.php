@@ -58,22 +58,28 @@ uses(RefreshDatabase::class);
  * what keeps burning from becoming a way to deny a user their own recovery.
  */
 
-function accountingRecoveryFor(string $value = 'ada@acme.example', string $ip = '203.0.113.10'): CredentialRecoveryRequest
-{
+function accountingRecoveryFor(
+    string $value = 'ada@acme.example',
+    string $ip = '203.0.113.10',
+    ?int $tenantId = null,
+): CredentialRecoveryRequest {
     return new CredentialRecoveryRequest(
         type: 'email',
         submittedIdentifier: $value,
-        tenantId: null,
+        tenantId: $tenantId,
         clientIp: $ip,
     );
 }
 
-function accountingVerificationFor(string $value = 'grace@acme.example', string $ip = '203.0.113.10'): IdentifierVerificationRequest
-{
+function accountingVerificationFor(
+    string $value = 'grace@acme.example',
+    string $ip = '203.0.113.10',
+    ?string $tenantId = null,
+): IdentifierVerificationRequest {
     return new IdentifierVerificationRequest(
         type: 'email',
         submittedIdentifier: $value,
-        tenantId: null,
+        tenantId: $tenantId,
         clientIp: $ip,
     );
 }
@@ -1009,6 +1015,79 @@ it('counts distinct verification guesses arriving from alternating addresses', f
             distinctWrongCode($code, $nth),
         );
     }
+
+    $state = proofAccounting('auth_identifier_verifications', $proof);
+
+    expect($state['attempts'])->toBe(attemptLimit())
+        ->and($state['burned'])->toBeTrue();
+
+    expect(app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), $code))
+        ->toBe(IdentifierVerificationOutcome::Refused)
+        ->and(AuthIdentifier::query()->where('value', 'grace@acme.example')->value('verified_at'))->toBeNull();
+});
+
+it('counts distinct recovery guesses arriving under alternating tenants', function (): void {
+    /*
+     * The third axis a reset could key on, after the code and the source
+     * address: the tenant the request claims.
+     *
+     * It works because proofs are stored and selected GLOBALLY by identifier --
+     * there is no tenant column on either table and no tenant predicate in
+     * either redeem query -- so both contexts reach the very same row. A
+     * counter keyed on tenant therefore resets a budget it does not own, and
+     * measured against such an implementation a hundred guesses alternating
+     * between two tenants left attempts at one and the delivered code working.
+     *
+     * That same global storage is why tenancy was left undecided in #38. It is
+     * decided here only in the narrow sense that matters for accounting: the
+     * budget belongs to the proof, so it cannot be reset by claiming a
+     * different tenant.
+     */
+    accountingAccount();
+    $code = issuedRecoveryProofCode();
+    $proof = soleProofId('auth_recovery_proofs');
+
+    $tenants = [1, 2];
+
+    foreach (range(1, attemptLimit()) as $nth) {
+        app(CredentialRecovery::class)->redeem(
+            accountingRecoveryFor('ada@acme.example', '203.0.113.10', $tenants[$nth % 2]),
+            distinctWrongCode($code, $nth),
+            "host-{$nth}",
+        );
+    }
+
+    // One proof throughout: if a tenant had somehow scoped issuance, this test
+    // would be spreading its guesses over rows rather than exhausting one.
+    expect(DB::table('auth_recovery_proofs')->count())->toBe(1);
+
+    $state = proofAccounting('auth_recovery_proofs', $proof);
+
+    expect($state['attempts'])->toBe(attemptLimit())
+        ->and($state['burned'])->toBeTrue();
+
+    expect(app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), $code, 'host-after'))
+        ->toBe(CredentialRecoveryOutcome::Refused);
+});
+
+it('counts distinct verification guesses arriving under alternating tenants', function (): void {
+    // The ceremony the survivor was demonstrated against.
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => 'grace@acme.example', 'verified_at' => null]);
+    $code = issuedVerificationProofCode();
+    $proof = soleProofId('auth_identifier_verifications');
+
+    // Strings here, integers for recovery: the two request objects type this
+    // field differently, which is worth knowing when reading both at once.
+    $tenants = ['tenant-a', 'tenant-b'];
+
+    foreach (range(1, attemptLimit()) as $nth) {
+        app(IdentifierVerifier::class)->redeem(
+            accountingVerificationFor('grace@acme.example', '203.0.113.10', $tenants[$nth % 2]),
+            distinctWrongCode($code, $nth),
+        );
+    }
+
+    expect(DB::table('auth_identifier_verifications')->count())->toBe(1);
 
     $state = proofAccounting('auth_identifier_verifications', $proof);
 
