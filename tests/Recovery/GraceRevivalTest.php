@@ -65,6 +65,32 @@ function revokedSession(RevokedReason $reason, int $userId = 7, string $host = '
     ]);
 }
 
+/**
+ * The whole row, so a refusal can be required to change NOTHING.
+ *
+ * Reducing revoked_at to "is it set" let a variant replace the original
+ * timestamp with a fresh one and still pass, which loses exactly the audit fact
+ * the rule exists to keep. And activeFor() cannot stand in for "no grace
+ * metadata was written": it filters revoked rows out whatever their deadline,
+ * so a future deadline written onto a revoked row is invisible to it.
+ */
+/** @return array<string, scalar|null> */
+function sessionRowFor(string $host = 'host-session-1'): array
+{
+    $row = requiredRow(DB::table('auth_sessions')->where('session_binding', revivalBinding($host))->first());
+
+    $columns = [];
+
+    foreach (get_object_vars($row) as $column => $value) {
+        // Narrowed rather than cast: a column that is not scalar or null is a
+        // schema change this comparison was never written for, and silently
+        // stringifying it would hide that.
+        $columns[$column] = is_scalar($value) || $value === null ? $value : stringValue($value);
+    }
+
+    return $columns;
+}
+
 /** @return array{revoked: bool, reason: string|null, user_id: int, grace: bool} */
 function sessionStateFor(string $host = 'host-session-1'): array
 {
@@ -88,14 +114,18 @@ it('opens no grace on a session revoked by a password change', function (): void
      */
     revokedSession(RevokedReason::PasswordChanged);
 
+    $before = sessionRowFor();
+
     app(GraceGuard::class)->start('host-session-1', 7);
 
-    expect(sessionStateFor())->toBe([
-        'revoked' => true,
-        'reason' => RevokedReason::PasswordChanged->value,
-        'user_id' => 7,
-        'grace' => false,
-    ]);
+    /*
+     * The ENTIRE row, unchanged. Asserting only that it is still revoked lets
+     * an implementation rewrite revoked_at with a fresh timestamp, or stamp a
+     * future grace deadline onto a revoked row, while satisfying every
+     * narrower check.
+     */
+    expect(sessionRowFor())->toBe($before)
+        ->and(app(GraceGuard::class)->activeFor('host-session-1'))->toBeNull();
 });
 
 it('opens no grace on a session an administrator revoked', function (): void {
@@ -106,14 +136,18 @@ it('opens no grace on a session an administrator revoked', function (): void {
      */
     revokedSession(RevokedReason::AdminRevoked);
 
+    $before = sessionRowFor();
+
     app(GraceGuard::class)->start('host-session-1', 7);
 
-    expect(sessionStateFor())->toBe([
-        'revoked' => true,
-        'reason' => RevokedReason::AdminRevoked->value,
-        'user_id' => 7,
-        'grace' => false,
-    ]);
+    /*
+     * The ENTIRE row, unchanged. Asserting only that it is still revoked lets
+     * an implementation rewrite revoked_at with a fresh timestamp, or stamp a
+     * future grace deadline onto a revoked row, while satisfying every
+     * narrower check.
+     */
+    expect(sessionRowFor())->toBe($before)
+        ->and(app(GraceGuard::class)->activeFor('host-session-1'))->toBeNull();
 });
 
 it('does not reassign a revoked session to whoever is recovering', function (): void {
@@ -262,3 +296,62 @@ it('does not spend the recovery code on a refusal it cannot act on', function ()
 
     expect(AuthRecoveryProof::query()->whereNull('consumed_at')->count())->toBe(1);
 });
+
+it('opens no grace on a revoked row whose old grace deadline has lapsed', function (): void {
+    /*
+     * A revoked row that ALSO carries a stale grace deadline, which is the
+     * ordinary end state of expireIfLapsed: it revokes with GraceExpired and
+     * leaves the deadline where it was.
+     *
+     * Measured: an implementation that treats a lapsed deadline as permission
+     * to recycle the row -- "this grace is over, so the row is free" -- passes
+     * every other test here and then performs the original revival writes. The
+     * lapsed-deadline test elsewhere only exercises expireIfLapsed and cannot
+     * see it.
+     */
+    $row = revokedSession(RevokedReason::GraceExpired);
+
+    shiftDeadlineOnLapsedGrace($row->id, -60);
+
+    $before = sessionRowFor();
+
+    app(GraceGuard::class)->start('host-session-1', 7);
+
+    expect(sessionRowFor())->toBe($before)
+        ->and(app(GraceGuard::class)->activeFor('host-session-1'))->toBeNull();
+});
+
+it('refuses a redemption against a revoked row with a lapsed grace deadline', function (): void {
+    // The same state reached through the caller, since redeem() is where a
+    // user actually arrives and where the wrong answer is acted on.
+    revivalAccount();
+    $code = revivalCode();
+
+    $row = revokedSession(RevokedReason::GraceExpired);
+    shiftDeadlineOnLapsedGrace($row->id, -60);
+
+    $before = sessionRowFor();
+
+    expect(app(CredentialRecovery::class)->redeem(revivalRequest(), $code, 'host-session-1'))
+        ->toBe(CredentialRecoveryOutcome::Refused)
+        ->and(sessionRowFor())->toBe($before);
+});
+
+/**
+ * Put a grace deadline N seconds from the DATABASE's current time.
+ *
+ * On the database clock, not PHP's: #37 settled that a deadline written from
+ * application time and compared against CURRENT_TIMESTAMP is only nominally
+ * what it says, and this fixture would inherit exactly that drift.
+ */
+function shiftDeadlineOnLapsedGrace(int $id, int $seconds): void
+{
+    $updated = DB::update(
+        'update auth_sessions set recovery_grace_expires_at = '
+        . \Fissible\Vouch\Support\DatabaseTime::deadlineSql(DB::connection()->getDriverName())
+        . ' where id = ?',
+        [$seconds, $id],
+    );
+
+    expect($updated)->toBe(1);
+}

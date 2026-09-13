@@ -91,7 +91,7 @@ it('keeps a revocation that lands while grace is opening', function (): void {
                 usleep(500);
             }
 
-            $connection->table('auth_sessions')
+            $affected = $connection->table('auth_sessions')
                 ->where('session_binding', contendedGraceBinding())
                 ->whereNull('revoked_at')
                 ->update([
@@ -99,7 +99,10 @@ it('keeps a revocation that lands while grace is opening', function (): void {
                     'revoked_reason' => RevokedReason::PasswordChanged->value,
                 ]);
 
-            file_put_contents($report, 'revoked');
+            // Report what it actually did. An update matching no rows is not a
+            // revocation, and counting it as one would let this test conclude
+            // that grace preserved something nobody wrote.
+            file_put_contents($report, $affected === 1 ? 'revoked' : 'matched-nothing');
             exit(0);
         } catch (Throwable $exception) {
             file_put_contents(
@@ -118,13 +121,27 @@ it('keeps a revocation that lands while grace is opening', function (): void {
 
     $released = false;
 
+    /*
+     * Released on grace's READ, not on any statement it makes.
+     *
+     * The window this test exists for is between reading the row and writing
+     * to it: an implementation that reads without a lock, checks revoked_at in
+     * PHP and then writes will overwrite a revocation that committed in
+     * between. Firing on a later statement would let the read happen after the
+     * revocation and prove nothing.
+     *
+     * A locking read inside a transaction closes the same window from the
+     * other side: the revoking writer blocks here instead, and lands after
+     * grace commits -- so the row ends revoked either way, which is the
+     * invariant below.
+     */
     $parent->beforeExecuting(function (string $query) use ($release, &$released): void {
-        if (! $released && str_contains($query, 'auth_sessions')) {
+        if (! $released && str_contains(strtolower($query), 'select') && str_contains($query, 'auth_sessions')) {
             $released = true;
             touch($release);
 
             // Long enough for the revoking writer to reach the database.
-            usleep(120_000);
+            usleep(150_000);
         }
     });
 
@@ -141,7 +158,12 @@ it('keeps a revocation that lands while grace is opening', function (): void {
         );
 
     if ($outcome !== 'revoked') {
-        $this->markTestSkipped('The revoking writer lost the lock, so no revocation raced this grace.');
+        /*
+         * Skipped rather than passed, and the distinction matters: a run where
+         * the revocation never landed has not tested anything, and letting it
+         * report green would hide exactly the schedule this test exists for.
+         */
+        $this->markTestSkipped("No revocation raced this grace ({$outcome}), so nothing was exercised.");
     }
 
     $row = requiredRow(DB::table('auth_sessions')->where('session_binding', contendedGraceBinding())->first());
