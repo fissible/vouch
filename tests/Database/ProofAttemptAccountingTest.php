@@ -1098,3 +1098,127 @@ it('counts distinct verification guesses arriving under alternating tenants', fu
         ->toBe(IdentifierVerificationOutcome::Refused)
         ->and(AuthIdentifier::query()->where('value', 'grace@acme.example')->value('verified_at'))->toBeNull();
 });
+
+/**
+ * Does querying $table with these selector values reach $id?
+ *
+ * The premise of the tests below rather than their conclusion. MySQL's default
+ * collation is case-insensitive, so a differently-spelled identifier selects
+ * the same row there; SQLite compares text case-sensitively and selects
+ * nothing. Asking the database settles which engine is running without naming
+ * one.
+ */
+function selectsSameProof(string $table, int $id, string $type, string $value): bool
+{
+    return DB::table($table)
+        ->where('identifier_type', $type)
+        ->where('identifier_value', $value)
+        ->where('id', $id)
+        ->exists();
+}
+
+it('counts guesses that reach one recovery proof through different spellings', function (): void {
+    /*
+     * The fourth axis, after the code, the source address and the tenant: the
+     * raw spelling of the selector itself.
+     *
+     * Both redeem paths select by SQL equality on identifier_type and
+     * identifier_value. Under a case-insensitive collation two different
+     * strings reach the SAME row, so a counter keyed on the raw submitted text
+     * resets a budget belonging to a proof it is still perfectly able to find.
+     *
+     * The budget belongs to whichever proof SQL actually selects. That is the
+     * whole claim, and it needs no view about how identifiers ought to be
+     * normalised.
+     */
+    accountingAccount();
+    $code = issuedRecoveryProofCode();
+    $proof = soleProofId('auth_recovery_proofs');
+
+    if (! selectsSameProof('auth_recovery_proofs', $proof, 'email', 'ADA@acme.example')) {
+        $this->markTestSkipped('This engine selects case-sensitively, so the spellings cannot reach one proof.');
+    }
+
+    $spellings = ['ada@acme.example', 'ADA@acme.example'];
+
+    foreach (range(1, attemptLimit()) as $nth) {
+        app(CredentialRecovery::class)->redeem(
+            accountingRecoveryFor($spellings[$nth % 2]),
+            distinctWrongCode($code, $nth),
+            "host-{$nth}",
+        );
+    }
+
+    // Still one proof: a differently-spelled request must not have issued or
+    // reached a second row, or the guesses were spread rather than pooled.
+    expect(DB::table('auth_recovery_proofs')->count())->toBe(1);
+
+    $state = proofAccounting('auth_recovery_proofs', $proof);
+
+    expect($state['attempts'])->toBe(attemptLimit())
+        ->and($state['burned'])->toBeTrue();
+
+    expect(app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), $code, 'host-after'))
+        ->toBe(CredentialRecoveryOutcome::Refused);
+});
+
+it('counts guesses that reach one verification proof through different spellings', function (): void {
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => 'grace@acme.example', 'verified_at' => null]);
+    $code = issuedVerificationProofCode();
+    $proof = soleProofId('auth_identifier_verifications');
+
+    if (! selectsSameProof('auth_identifier_verifications', $proof, 'email', 'GRACE@acme.example')) {
+        $this->markTestSkipped('This engine selects case-sensitively, so the spellings cannot reach one proof.');
+    }
+
+    $spellings = ['grace@acme.example', 'GRACE@acme.example'];
+
+    foreach (range(1, attemptLimit()) as $nth) {
+        app(IdentifierVerifier::class)->redeem(
+            accountingVerificationFor($spellings[$nth % 2]),
+            distinctWrongCode($code, $nth),
+        );
+    }
+
+    expect(DB::table('auth_identifier_verifications')->count())->toBe(1);
+
+    $state = proofAccounting('auth_identifier_verifications', $proof);
+
+    expect($state['attempts'])->toBe(attemptLimit())
+        ->and($state['burned'])->toBeTrue();
+
+    expect(app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), $code))
+        ->toBe(IdentifierVerificationOutcome::Refused);
+});
+
+it('counts guesses that reach one recovery proof through different type spellings', function (): void {
+    /*
+     * The same escape on the OTHER selector column, which a fix keyed on the
+     * identifier alone would leave open.
+     */
+    accountingAccount();
+    $code = issuedRecoveryProofCode();
+    $proof = soleProofId('auth_recovery_proofs');
+
+    if (! selectsSameProof('auth_recovery_proofs', $proof, 'EMAIL', 'ada@acme.example')) {
+        $this->markTestSkipped('This engine selects case-sensitively, so the type spellings cannot reach one proof.');
+    }
+
+    foreach (range(1, attemptLimit()) as $nth) {
+        $request = new CredentialRecoveryRequest(
+            type: $nth % 2 === 0 ? 'email' : 'EMAIL',
+            submittedIdentifier: 'ada@acme.example',
+            tenantId: null,
+            clientIp: '203.0.113.10',
+        );
+
+        app(CredentialRecovery::class)->redeem($request, distinctWrongCode($code, $nth), "host-{$nth}");
+    }
+
+    expect(DB::table('auth_recovery_proofs')->count())->toBe(1);
+
+    $state = proofAccounting('auth_recovery_proofs', $proof);
+
+    expect($state['attempts'])->toBe(attemptLimit())
+        ->and($state['burned'])->toBeTrue();
+});
