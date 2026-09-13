@@ -29,9 +29,13 @@ use PHPUnit\Framework\Attributes\Test;
  *
  *   - it reads these two files only. A helper elsewhere that reads native time
  *     and is called from here passes.
- *   - it recognises the spellings below. `(new ReflectionClass(...))`-style
- *     indirection, a variable function name, or a native call reached through
- *     an alias would evade it.
+ *   - it recognises the spellings below, bare or fully qualified. A variable
+ *     function name, a native call reached through a `use function` alias, or
+ *     `(new ReflectionClass(...))`-style indirection would evade it.
+ *   - the attribute skip handles `#[date(...)]` as the FIRST name in its group.
+ *     A later name in `#[Foo, date(...)]` would need bracket tracking and is not
+ *     attempted: that direction is a false positive rather than an escape, and
+ *     no such code exists here.
  *   - it says nothing about WHICH authority is used, only that no native clock
  *     is read. Using the injected PSR clock for a deadline comparison is the
  *     original defect and remains a behavioural question, covered where the
@@ -106,20 +110,38 @@ final class DeadlineClockAuthorityTest extends TestCase
                 continue;
             }
 
-            if (! is_array($token) || $token[0] !== T_STRING) {
+            /*
+             * T_NAME_FULLY_QUALIFIED as well as T_STRING. `\date(...)` is the
+             * ordinary spelling inside a namespaced file -- it needs no alias
+             * and no indirection -- and scanning only T_STRING let exactly that
+             * through.
+             */
+            if (! is_array($token) || ! in_array($token[0], [T_STRING, T_NAME_FULLY_QUALIFIED], true)) {
                 continue;
             }
 
-            // A method or static call is qualified by an object or a class, and
-            // is therefore somebody's injected authority rather than a native
-            // read: `$this->time->date(...)` must not be reported here.
+            /*
+             * A qualified call belongs to somebody's injected authority rather
+             * than being a native read, so `$this->time->date(...)` and its
+             * nullsafe form are not findings. A declaration is not a call, and
+             * `function &date()` puts a reference token in between. An attribute
+             * name is not a call either.
+             */
             $previous = $tokens[$index - 1] ?? null;
-            if (is_array($previous) && in_array($previous[0], [T_OBJECT_OPERATOR, T_DOUBLE_COLON, T_FUNCTION], true)) {
+            $beforeReference = $previous === '&' ? ($tokens[$index - 2] ?? null) : null;
+
+            $qualified = is_array($previous) && in_array(
+                $previous[0],
+                [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR, T_DOUBLE_COLON, T_FUNCTION, T_ATTRIBUTE],
+                true,
+            );
+
+            if ($qualified || (is_array($beforeReference) && $beforeReference[0] === T_FUNCTION)) {
                 continue;
             }
 
             if (($tokens[$index + 1] ?? null) === '('
-                && in_array(strtolower($token[1]), self::NATIVE_CLOCK_FUNCTIONS, true)) {
+                && in_array(strtolower(ltrim($token[1], '\\')), self::NATIVE_CLOCK_FUNCTIONS, true)) {
                 $found[] = $token[1] . '()';
             }
         }

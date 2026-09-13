@@ -209,13 +209,13 @@ it('refuses a redemption after its own ttl elapses', function (): void {
     $delivery = requestAndDeliver('ada@acme.example');
 
     /*
-     * Provided by Testbench's TestCase via InteractsWithTime. PHPStan types the
-     * Pest closure's $this as PHPUnit\Framework\TestCase and cannot see it; the
-     * global travel() helper is not equivalent here and fails at runtime.
-     *
-     * @phpstan-ignore method.notFound
+     * Expire the row on the DATABASE clock, which is the authority that wrote
+     * the deadline. Travelling the application clock forward used to work here
+     * only because the redemption compared against PHP's now(): it was asserting
+     * the app/DB skew rather than the TTL, and would have kept passing against a
+     * window of any length whenever the two machines disagreed.
      */
-    $this->travel(301)->seconds();
+    shiftDeadlineOnDatabaseClock('auth_identifier_verifications', 1, -1);
 
     expect(app(IdentifierVerifier::class)->redeem(verificationRequest('ada@acme.example'), $delivery->lastCode()))
         ->toBe(IdentifierVerificationOutcome::Refused)

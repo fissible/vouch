@@ -122,27 +122,6 @@ function soleRowId(string $table): int
     return (int) stringValue($ids[0]);
 }
 
-/**
- * Move one row's deadline N seconds from the DATABASE's current time.
- *
- * Built from the package's own portable expression rather than a PHP timestamp:
- * writing the premise from the application clock would bake the very skew these
- * tests are about into the setup.
- */
-function shiftDeadlineOnDatabaseClock(string $table, int $id, int $seconds): void
-{
-    $updated = DB::update(
-        'update ' . $table . ' set expires_at = ' . DatabaseTime::deadlineSql(DB::connection()->getDriverName())
-        . ' where id = ?',
-        [$seconds, $id],
-    );
-
-    // The shift hit the row it named. Without this a mistyped table or a filter
-    // that matched nothing would leave the original deadline in place and the
-    // test would report on a premise it never established.
-    expect($updated)->toBe(1);
-}
-
 function storedDeadline(string $table, int $id): DateTimeImmutable
 {
     return new DateTimeImmutable(stringValue(DB::table($table)->where('id', $id)->value('expires_at')));

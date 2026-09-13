@@ -21,6 +21,35 @@ function stringValue(mixed $value): string
 }
 
 /**
+ * Move one row's deadline N seconds from the DATABASE's current time.
+ *
+ * Shared here because two suites need it and Pest declares test-file functions
+ * into one global namespace, so a per-file copy collides at load time.
+ *
+ * Built from the package's own portable expression rather than a PHP timestamp.
+ * A deadline written by DatabaseTime is compared against the database clock, so
+ * a test that expired a row from application time would be asserting the very
+ * app/DB skew the package closes -- and would pass only while the two machines
+ * agree.
+ */
+function shiftDeadlineOnDatabaseClock(string $table, int $id, int $seconds): void
+{
+    $updated = \Illuminate\Support\Facades\DB::update(
+        'update ' . $table . ' set expires_at = '
+        . \Fissible\Vouch\Support\DatabaseTime::deadlineSql(
+            \Illuminate\Support\Facades\DB::connection()->getDriverName(),
+        )
+        . ' where id = ?',
+        [$seconds, $id],
+    );
+
+    // The shift hit the row it named. A mistyped table or a filter matching
+    // nothing would otherwise leave the original deadline in place, and the
+    // test would report on a premise it never established.
+    expect($updated)->toBe(1);
+}
+
+/**
  * Build one satisfied factor for assurance-evidence tests.
  *
  * Shared here rather than in a sibling test file: Pest declares test-file
