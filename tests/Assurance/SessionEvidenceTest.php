@@ -208,7 +208,14 @@ it('still writes acr, and still does not authorize from it', function (): void {
         ->and(nameOf(usableEvidence($session)))->toBe('aal1');
 });
 
-it('replaces the proof on rotation rather than accumulating rows', function (): void {
+it('carries the raised proof on the live row after rotation', function (): void {
+    /*
+     * The claim is about which proof the session NOW answers with, and it used
+     * to be written as a row count. Since #30 a step-up supersedes the previous
+     * row rather than overwriting it -- so an unfiltered read can return the
+     * stale one, and "one row in the table" is no longer the same statement as
+     * "the proof was replaced rather than accumulated".
+     */
     session()->start();
     $lifecycle = app(SessionLifecycle::class);
 
@@ -218,11 +225,14 @@ it('replaces the proof on rotation rather than accumulating rows', function (): 
         proofFactor('totp', '2026-08-13T11:00:00+00:00', FactorStrength::Possession, 'cred-2'),
     ]));
 
-    $session = AuthSession::query()->firstOrFail();
+    $live = AuthSession::query()->whereNull('revoked_at')->get();
 
-    expect(AuthSession::query()->count())->toBe(1)
-        ->and(usableEvidence($session)->factors)->toHaveCount(2)
-        ->and(nameOf(usableEvidence($session)))->toBe('aal2');
+    expect($live)->toHaveCount(1)
+        ->and(usableEvidence($live->firstOrFail())->factors)->toHaveCount(2)
+        ->and(nameOf(usableEvidence($live->firstOrFail())))->toBe('aal2');
+
+    // Still not accumulating LIVE rows: the one it replaced is superseded.
+    expect(AuthSession::query()->whereNotNull('revoked_at')->count())->toBe(1);
 });
 
 it('fails the login closed when the proof cannot be serialized', function (): void {
