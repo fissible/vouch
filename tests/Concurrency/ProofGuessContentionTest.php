@@ -502,10 +502,29 @@ it('keeps burning and superseding exclusive when issuance races the final guess'
     expect($state['burned'] && $state['superseded'])->toBeFalse('the proof ended both burned and superseded');
 
     if ($issued) {
-        // The replacement exists and owes nothing to the row it replaced.
         $newest = (int) stringValue(DB::table('auth_recovery_proofs')->orderByDesc('id')->value('id'));
 
-        expect($newest)->not->toBe($proof)
-            ->and(guessState($newest)['attempts'])->toBe(0);
+        expect($newest)->not->toBe($proof);
+
+        /*
+         * The replacement's count depends on which side committed first, and
+         * BOTH orderings are correct.
+         *
+         * If the guess landed first it was charged to the old proof and the
+         * replacement is untouched. If issuance landed first, the guess found
+         * the replacement -- selection is by identifier, not by row -- and
+         * charging it there is exactly right. Requiring zero rejected the
+         * second ordering, which a correct implementation produces whenever
+         * issuance wins.
+         *
+         * What must hold either way is that the replacement carries no ending
+         * and no more than the single guess this test made.
+         */
+        $replacement = guessState($newest);
+
+        expect($replacement['attempts'])->toBeLessThanOrEqual(1)
+            ->and($replacement['burned'])->toBeFalse()
+            ->and($replacement['consumed'])->toBeFalse()
+            ->and($replacement['superseded'])->toBeFalse();
     }
 });

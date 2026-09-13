@@ -58,23 +58,23 @@ uses(RefreshDatabase::class);
  * what keeps burning from becoming a way to deny a user their own recovery.
  */
 
-function accountingRecoveryFor(string $value = 'ada@acme.example'): CredentialRecoveryRequest
+function accountingRecoveryFor(string $value = 'ada@acme.example', string $ip = '203.0.113.10'): CredentialRecoveryRequest
 {
     return new CredentialRecoveryRequest(
         type: 'email',
         submittedIdentifier: $value,
         tenantId: null,
-        clientIp: '203.0.113.10',
+        clientIp: $ip,
     );
 }
 
-function accountingVerificationFor(string $value = 'grace@acme.example'): IdentifierVerificationRequest
+function accountingVerificationFor(string $value = 'grace@acme.example', string $ip = '203.0.113.10'): IdentifierVerificationRequest
 {
     return new IdentifierVerificationRequest(
         type: 'email',
         submittedIdentifier: $value,
         tenantId: null,
-        clientIp: '203.0.113.10',
+        clientIp: $ip,
     );
 }
 
@@ -133,6 +133,22 @@ function wrongCode(string $delivered): string
     expect($wrong)->not->toBe($delivered);
 
     return $wrong;
+}
+
+/**
+ * Drop the throttle's accumulated state without touching any proof.
+ *
+ * Burning a proof takes a run of failures, and those failures legitimately
+ * back the identifier off -- so a test that burns and then immediately uses a
+ * replacement is asserting against a throttled caller and would reject a
+ * correct implementation. Clearing between the two keeps such a test about
+ * accounting, which is what it claims to measure.
+ */
+function clearThrottleState(): void
+{
+    foreach (['auth_throttle_counters', 'auth_throttle_locks', 'auth_throttle_tuples'] as $table) {
+        DB::table($table)->delete();
+    }
 }
 
 function attemptLimit(): int
@@ -309,6 +325,8 @@ it('gives a newly issued recovery proof its own guess budget', function (): void
     foreach (range(1, attemptLimit()) as $ignored) {
         app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), wrongCode($first), 'host-a');
     }
+
+    clearThrottleState();
 
     $second = issuedRecoveryProofCode();
     $newest = (int) stringValue(DB::table('auth_recovery_proofs')->orderByDesc('id')->value('id'));
@@ -648,6 +666,8 @@ it('counts a replacement recovery proof independently of the burned one', functi
         app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), wrongCode($first), 'host-a');
     }
 
+    clearThrottleState();
+
     $second = issuedRecoveryProofCode();
     $replacement = (int) stringValue(DB::table('auth_recovery_proofs')->orderByDesc('id')->value('id'));
 
@@ -910,6 +930,8 @@ it('counts a replacement verification proof independently of the burned one', fu
         app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), distinctWrongCode($first, $nth));
     }
 
+    clearThrottleState();
+
     $second = issuedVerificationProofCode();
     $replacement = (int) stringValue(DB::table('auth_identifier_verifications')->orderByDesc('id')->value('id'));
 
@@ -938,4 +960,62 @@ it('preserves the failure count through a successful verification', function ():
     expect($state['attempts'])->toBe(attemptLimit() - 1)
         ->and($state['consumed'])->toBeTrue()
         ->and($state['burned'])->toBeFalse();
+});
+
+it('counts distinct recovery guesses arriving from alternating addresses', function (): void {
+    /*
+     * The budget belongs to the PROOF, not to whoever is asking. A counter that
+     * resets when the source address changes passes every test that guesses
+     * from one IP -- and measured against such an implementation, a hundred
+     * guesses alternating between two addresses left attempts at one, the proof
+     * unburned, and the delivered code still working.
+     *
+     * Rotating source addresses is the cheapest thing an attacker can do.
+     */
+    accountingAccount();
+    $code = issuedRecoveryProofCode();
+    $proof = soleProofId('auth_recovery_proofs');
+
+    $addresses = ['203.0.113.10', '198.51.100.7'];
+
+    foreach (range(1, attemptLimit()) as $nth) {
+        app(CredentialRecovery::class)->redeem(
+            accountingRecoveryFor('ada@acme.example', $addresses[$nth % 2]),
+            distinctWrongCode($code, $nth),
+            "host-{$nth}",
+        );
+    }
+
+    $state = proofAccounting('auth_recovery_proofs', $proof);
+
+    expect($state['attempts'])->toBe(attemptLimit())
+        ->and($state['burned'])->toBeTrue();
+
+    expect(app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), $code, 'host-after'))
+        ->toBe(CredentialRecoveryOutcome::Refused);
+});
+
+it('counts distinct verification guesses arriving from alternating addresses', function (): void {
+    // The ceremony the survivor was demonstrated against.
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => 'grace@acme.example', 'verified_at' => null]);
+    $code = issuedVerificationProofCode();
+    $proof = soleProofId('auth_identifier_verifications');
+
+    $addresses = ['203.0.113.10', '198.51.100.7'];
+
+    foreach (range(1, attemptLimit()) as $nth) {
+        app(IdentifierVerifier::class)->redeem(
+            accountingVerificationFor('grace@acme.example', $addresses[$nth % 2]),
+            distinctWrongCode($code, $nth),
+        );
+    }
+
+    $state = proofAccounting('auth_identifier_verifications', $proof);
+
+    expect($state['attempts'])->toBe(attemptLimit())
+        ->and($state['burned'])->toBeTrue();
+
+    expect(app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), $code))
+        ->toBe(IdentifierVerificationOutcome::Refused)
+        ->and(AuthIdentifier::query()->where('value', 'grace@acme.example')->value('verified_at'))->toBeNull();
 });
