@@ -38,6 +38,21 @@ beforeEach(function (): void {
     }
 });
 
+/**
+ * Drop the throttle's accumulated state without touching any proof.
+ *
+ * These races were written before #31 put an issuance limit on recovery
+ * requests, and they issue far more often than a real caller would -- eight
+ * rounds of three, or five in a row. Without clearing, the limit refuses most
+ * of them and the race measures the throttle rather than supersession.
+ */
+function clearIssuanceThrottle(): void
+{
+    foreach (['auth_throttle_counters', 'auth_throttle_locks', 'auth_throttle_tuples'] as $table) {
+        DB::table($table)->delete();
+    }
+}
+
 function contendedRecoveryRequest(): CredentialRecoveryRequest
 {
     return new CredentialRecoveryRequest(
@@ -312,6 +327,7 @@ it('leaves exactly one live proof when issuances genuinely race', function (): v
     foreach (range(1, 8) as $round) {
         DB::table('auth_recovery_proof_outbox')->delete();
         DB::table('auth_recovery_proofs')->delete();
+        clearIssuanceThrottle();
 
         $reports = raceRecoveryIssuance(3);
 
@@ -356,6 +372,7 @@ it('leaves exactly one live proof across repeated rapid issuance', function (): 
     app()->instance(DeliveryEconomics::class, new PermittingDeliveryEconomics());
 
     foreach (range(1, 5) as $ignored) {
+        clearIssuanceThrottle();
         app(CredentialRecovery::class)->request(contendedRecoveryRequest());
     }
 
@@ -383,6 +400,7 @@ it('leaves exactly one live proof when a second writer starts mid-issuance', fun
      * scheduling beyond what the matrix legs happen to exercise.
      */
     contendedAccount();
+    clearIssuanceThrottle();
     app()->instance(OtpDelivery::class, new ArrayOtpDelivery());
     app()->instance(DeliveryEconomics::class, new PermittingDeliveryEconomics());
 
