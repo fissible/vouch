@@ -29,8 +29,8 @@ use PHPUnit\Framework\Attributes\Test;
  *
  *   - it reads these two files only. A helper elsewhere that reads native time
  *     and is called from here passes.
- *   - it recognises the spellings below, bare or fully qualified. A variable
- *     function name, a native call reached through a `use function` alias, or
+ *   - it recognises DIRECT calls, bare or fully qualified. A variable function
+ *     name, a call reached through a `use function` alias, or
  *     `(new ReflectionClass(...))`-style indirection would evade it.
  *   - the attribute skip handles `#[date(...)]` as the FIRST name in its group.
  *     A later name in `#[Foo, date(...)]` would need bracket tracking and is not
@@ -49,13 +49,46 @@ final class DeadlineClockAuthorityTest extends TestCase
         'src/Verification/IdentifierVerifier.php',
     ];
 
-    /** Native reads of the machine clock, which no injected authority can move. */
-    private const NATIVE_CLOCK_FUNCTIONS = [
-        'time', 'date', 'mktime', 'gmmktime', 'gmdate',
-        'microtime', 'hrtime', 'strtotime', 'getdate', 'localtime', 'date_create',
-    ];
+    /**
+     * Clock readers outside the date extension. Everything else comes from PHP
+     * itself, below.
+     */
+    private const OTHER_NATIVE_CLOCK_FUNCTIONS = ['microtime', 'hrtime', 'gettimeofday'];
 
     private const NATIVE_CLOCK_CLASSES = ['datetime', 'datetimeimmutable'];
+
+    /**
+     * Every date-extension function, asked of PHP rather than listed by hand.
+     *
+     * A hand-written list was wrong twice: first it missed `\date(...)`, then it
+     * had `date_create` but not `date_create_immutable`, and each time a redeem
+     * path could have read the machine clock with no alias and no indirection
+     * while this guard reported nothing. Enumerating the extension closes the
+     * class instead of the instance, and cannot drift as PHP adds functions.
+     *
+     * It is deliberately broader than "clock reads": it also covers `date_diff`,
+     * `date_format` and the timezone calls, which do not read a clock. The rule
+     * these two files actually follow is stronger and easier to state -- they
+     * call no date-extension function directly, and get time from an injected
+     * authority -- so the wider net costs nothing and removes the judgement call
+     * that got this wrong twice.
+     *
+     * @return list<string>
+     */
+    private function nativeClockFunctions(): array
+    {
+        $extension = get_extension_funcs('date');
+
+        // Fail loudly rather than silently scanning for three names: a guard
+        // that quietly lost most of its list is worse than one that is absent.
+        self::assertIsArray($extension, 'PHP reported no date extension, so this guard cannot be built.');
+        self::assertGreaterThan(20, count($extension));
+
+        return array_map(
+            static fn (string $name): string => strtolower($name),
+            [...$extension, ...self::OTHER_NATIVE_CLOCK_FUNCTIONS],
+        );
+    }
 
     #[Test]
     public function redeem_paths_read_no_native_clock(): void
@@ -66,7 +99,7 @@ final class DeadlineClockAuthorityTest extends TestCase
 
             self::assertIsString($source, $file . ' could not be read.');
 
-            foreach ($this->nativeClockReads($source) as $found) {
+            foreach ($this->nativeClockReads($source, $this->nativeClockFunctions()) as $found) {
                 self::fail(sprintf(
                     '%s reads the machine clock through %s. A deadline written by DatabaseTime '
                     . 'must be compared against the database clock; native time cannot be skewed '
@@ -87,9 +120,10 @@ final class DeadlineClockAuthorityTest extends TestCase
      * Native clock reads, over tokens rather than text so a mention in a comment
      * or a docblock is not a finding.
      *
+     * @param  list<string>  $nativeFunctions
      * @return list<string>
      */
-    private function nativeClockReads(string $source): array
+    private function nativeClockReads(string $source, array $nativeFunctions): array
     {
         $tokens = array_values(array_filter(
             token_get_all($source),
@@ -128,7 +162,12 @@ final class DeadlineClockAuthorityTest extends TestCase
              * name is not a call either.
              */
             $previous = $tokens[$index - 1] ?? null;
-            $beforeReference = $previous === '&' ? ($tokens[$index - 2] ?? null) : null;
+
+            // Compare the TEXT: PHP 8.4 emits a by-reference declaration's `&`
+            // as T_AMPERSAND_NOT_FOLLOWED_BY_VAR_OR_VARARG rather than the bare
+            // string, so matching the string alone missed `function &date()`.
+            $previousText = is_array($previous) ? $previous[1] : $previous;
+            $beforeReference = $previousText === '&' ? ($tokens[$index - 2] ?? null) : null;
 
             $qualified = is_array($previous) && in_array(
                 $previous[0],
@@ -141,7 +180,7 @@ final class DeadlineClockAuthorityTest extends TestCase
             }
 
             if (($tokens[$index + 1] ?? null) === '('
-                && in_array(strtolower(ltrim($token[1], '\\')), self::NATIVE_CLOCK_FUNCTIONS, true)) {
+                && in_array(strtolower(ltrim($token[1], '\\')), $nativeFunctions, true)) {
                 $found[] = $token[1] . '()';
             }
         }
