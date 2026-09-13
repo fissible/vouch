@@ -63,10 +63,15 @@ it('never stores the raw session id', function (): void {
     expect(DB::table('auth_sessions')->value('session_binding'))->not->toBe(session()->getId());
 });
 
-it('rotates in place rather than adding a row', function (): void {
+it('leaves one live row when the same session establishes again', function (): void {
     /*
-     * 2.1 established rotate-in-place; a second row would orphan the first
-     * binding and leave a session nothing can revoke.
+     * A step-up establishes again on a live session, and #30 changed what that
+     * leaves behind. The id rotates, so the previous session stops existing and
+     * its row stops being live -- but it is no longer OVERWRITTEN, because a
+     * second device's row must survive a first device's step-up.
+     *
+     * So the claim is one LIVE row carrying the raised evidence, not one row
+     * in the table.
      *
      * The second establish() raises the evidence rather than passing a stronger
      * acr string. Since 2.4 Task 2a the writer DERIVES acr from the persisted
@@ -88,8 +93,11 @@ it('rotates in place rather than adding a row', function (): void {
         null,
     ));
 
-    expect(AuthSession::count())->toBe(1)
-        ->and(AuthSession::firstOrFail()->acr)->toBe('aal2');
+    $live = AuthSession::query()->whereNull('revoked_at')->get();
+
+    expect($live)->toHaveCount(1)
+        ->and($live->firstOrFail()->acr)->toBe('aal2')
+        ->and(AuthSession::query()->whereNotNull('revoked_at')->count())->toBe(1);
 });
 
 it('regenerates again on an assurance increase, not only at login', function (): void {

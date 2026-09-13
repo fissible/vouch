@@ -36,21 +36,31 @@ uses(RefreshDatabase::class);
  *
  * Hence a marker, and this truth table:
  *
- *   no marker,   no record   -> pass    (a host session Vouch never established)
- *   no marker,   record      -> REFUSE  (established before the marker shipped)
- *   marker,      no record   -> REFUSE  (the record was pruned, deleted or lost)
- *   marker,      revoked     -> REFUSE  (what revocation is for)
- *   marker,      live match  -> pass
- *   marker copied elsewhere  -> REFUSE  (it is bound to one session)
+ *   no marker,   no record       -> pass    (a host session Vouch never established)
+ *   no marker,   live record     -> pass    (recovery grace writes exactly this)
+ *   no marker,   revoked record  -> REFUSE  (already true, and how rollout works)
+ *   marker,      no record       -> REFUSE  (the record was pruned, deleted or lost)
+ *   marker,      revoked         -> REFUSE  (what revocation is for)
+ *   marker,      live match      -> pass
+ *   marker copied elsewhere      -> REFUSE  (it is bound to one session)
  *
- * The second row is the rollout rule. A session established before this ships
- * carries no marker, and without it nothing separates that session from an
- * ordinary host session -- so the presence of a record is what identifies it,
- * and those sessions are refused rather than silently trusted.
+ * ROLLOUT, and an earlier draft of this file got it wrong twice. "A record with
+ * no marker means a pre-upgrade login" is false in both directions:
+ * GraceGuard::start() writes an anonymous row under this same binding domain
+ * with no marker, so that rule refuses a working flow; and the device stranded
+ * by the original defect has no record either, having had it rebound away, so
+ * the rule misses the very session the issue is about.
  *
- * The tests never name the marker's key. They drive establish(), which is what
- * production does, and the tampering test copies the WHOLE session payload
- * rather than one field -- which is also the realistic attack.
+ * What actually works needs no new rule. Revoking the pre-existing rows when
+ * this ships puts those sessions on the revoked branch the middleware already
+ * has. The stranded device cannot be reached at all -- it has neither marker
+ * nor record, and nothing distinguishes it from a stranger's session -- which
+ * is a limit of the upgrade rather than something a predicate can fix, and is
+ * why hosts have to be told to flush sessions.
+ *
+ * The tests never name the marker's key. They drive the real login path, and
+ * the tampering test copies the WHOLE session payload rather than one field --
+ * which is also the realistic attack.
  */
 
 /** @return list<\Fissible\Vouch\Kernel\Factor\SatisfiedFactor> */
@@ -126,6 +136,10 @@ function passesValidation(Store $store): bool
 
     return $reached;
 }
+
+
+
+
 
 /* ---- the row shape ------------------------------------------------------ */
 
@@ -229,23 +243,50 @@ it('refuses an established session whose record has been deleted', function (): 
     expect(passesValidation($device))->toBeFalse();
 });
 
-it('refuses a session established before the marker shipped', function (): void {
+it('passes a session whose record is live but unmarked', function (): void {
     /*
-     * The rollout rule. Such a session has a record but no marker, and nothing
-     * else separates it from an ordinary host session -- so the record is what
-     * identifies it, and it is refused rather than trusted.
+     * Recovery grace writes exactly this: GraceGuard::start() creates a row
+     * under the same binding domain without going through establish(), so it
+     * has a record and no marker.
      *
-     * Simulated by clearing the session payload while leaving the row, which is
-     * exactly the state an upgrade produces.
+     * An earlier draft refused this shape as "a pre-upgrade login" and would
+     * have broken grace entirely. It passes, and grace does its own validation
+     * on its own routes.
      */
-    $device = deviceSession('alpha');
-    establishOn($device);
-    $binding = bindingOf($device);
+    $device = deviceSession('grace');
 
-    $device->flush();
+    AuthSession::create([
+        'session_binding' => bindingOf($device),
+        'user_id' => 7,
+        'amr' => ['recovery_code'],
+    ]);
 
-    expect(AuthSession::query()->where('session_binding', $binding)->whereNull('revoked_at')->exists())->toBeTrue()
-        ->and(passesValidation($device))->toBeFalse();
+    expect(passesValidation($device))->toBeTrue();
+});
+
+it('refuses an unmarked session whose record has been revoked', function (): void {
+    /*
+     * How the rollout actually works. Revoking the pre-existing rows when this
+     * ships puts every surviving pre-upgrade session on the branch the
+     * middleware already had, with no new predicate and nothing for grace to
+     * collide with.
+     */
+    $device = deviceSession('legacy');
+
+    AuthSession::create([
+        'session_binding' => bindingOf($device),
+        'user_id' => 7,
+        'amr' => ['password'],
+        'revoked_at' => now(),
+        'revoked_reason' => RevokedReason::AdminRevoked,
+    ]);
+
+    // Populated the way a real host session is, rather than emptied: an upgrade
+    // leaves authentication and CSRF data in place and removes nothing.
+    $device->put('_token', 'csrf-token-value');
+    $device->put('login_web_abcdef', 7);
+
+    expect(passesValidation($device))->toBeFalse();
 });
 
 it('refuses a marker copied into another session', function (): void {
