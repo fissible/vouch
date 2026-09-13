@@ -15,6 +15,7 @@ use Illuminate\Support\Carbon;
  * @property bool $is_decoy
  * @property Carbon $expires_at
  * @property Carbon|null $consumed_at
+ * @property Carbon|null $superseded_at
  * @property Carbon $created_at
  * @property Carbon $updated_at
  */
@@ -26,6 +27,6 @@ final class AuthRecoveryProof extends Model
 
     protected function casts(): array
     {
-        return ['is_decoy' => 'boolean', 'expires_at' => 'datetime', 'consumed_at' => 'datetime'];
+        return ['is_decoy' => 'boolean', 'expires_at' => 'datetime', 'consumed_at' => 'datetime', 'superseded_at' => 'datetime'];
     }
 }
