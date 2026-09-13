@@ -31,7 +31,11 @@ use PHPUnit\Framework\Attributes\Test;
  *     and is called from here passes.
  *   - it recognises DIRECT calls, bare or fully qualified. A variable function
  *     name, a call reached through a `use function` alias, or
- *     `(new ReflectionClass(...))`-style indirection would evade it.
+ *     `(new ReflectionClass(...))`-style indirection would evade it. So would a
+ *     RENAMED class import (`use DateTimeImmutable as NativeDate`) or an
+ *     anonymous subclass of a native date class: both are ordinary PHP, but
+ *     neither serves any purpose in a fix for this issue, so they are recorded
+ *     rather than chased.
  *   - the attribute skip handles `#[date(...)]` as the FIRST name in its group.
  *     A later name in `#[Foo, date(...)]` would need bracket tracking and is not
  *     attempted: that direction is a false positive rather than an escape, and
