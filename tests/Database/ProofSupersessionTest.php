@@ -290,8 +290,8 @@ it('leaves the previous recovery code live when hashing a new one fails', functi
      * argument to, and an implementation may legitimately hash before opening
      * the transaction at all -- so this shows a failed issuance leaving the
      * user's working code alone, NOT that supersession and creation commit
-     * atomically. Proving that needs a fault injected after the writes, which
-     * has no seam here yet and is recorded as a gap rather than claimed.
+     * atomically. The two tests below cover that, by failing the outbox insert
+     * once supersession and the replacement row have both been written.
      *
      * It still earns its place: a failure here must not retire the code the
      * user is holding, or a failed retry locks them out of their own account.
