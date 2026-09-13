@@ -596,9 +596,14 @@ it('burns a recovery proof in the same write that reaches the limit', function (
      * reads attempts == limit and burned_at IS NULL -- and in that window
      * another guess still counts.
      *
-     * So the row is observed BETWEEN statements rather than after them. The
-     * hook fires before each query, which is exactly the seam a second
-     * statement would have to pass through.
+     * So the row is observed BETWEEN statements rather than after them, in both
+     * directions: increment-then-burn leaves it at the limit unburned, and
+     * burn-then-increment leaves it burned while short of the limit.
+     *
+     * This DETECTS a split write on this connection. It does not prove a single
+     * one -- an intermediate state visible here can be invisible to a competing
+     * writer inside a transaction -- and that limit is recorded rather than
+     * claimed away.
      */
     accountingAccount();
     $code = issuedRecoveryProofCode();
@@ -622,8 +627,8 @@ it('burns a recovery proof in the same write that reaches the limit', function (
     // The observer actually observed, or the absence below proves nothing.
     expect($observer->seen)->not->toBe([]);
 
-    expect($observer->atLimitUnburned(attemptLimit()))
-        ->toBe([], 'the row was readable at the limit while still unburned');
+    expect($observer->inconsistentSamples(attemptLimit()))
+        ->toBe([], 'the count and the burn were readable in disagreement');
 });
 
 it('counts a replacement recovery proof independently of the burned one', function (): void {
@@ -754,4 +759,183 @@ it('keeps guess budgets separate for two identifiers', function (): void {
 
     expect(app(CredentialRecovery::class)->redeem(accountingRecoveryFor('bob@acme.example'), $bob, 'host-b'))
         ->toBe(CredentialRecoveryOutcome::GraceOpened);
+});
+
+/**
+ * A wrong code that differs from every other guess in the same test.
+ *
+ * Repeating one wrong value is the unrealistic case: an attacker submits a
+ * DIFFERENT code each time. A counter that resets whenever the submitted value
+ * changes satisfies every same-code test and never burns anything.
+ */
+function distinctWrongCode(string $delivered, int $nth): string
+{
+    $wrong = str_pad((string) (((int) $delivered + $nth) % 1_000_000), 6, '0', STR_PAD_LEFT);
+
+    return $wrong === $delivered ? distinctWrongCode($delivered, $nth + 1) : $wrong;
+}
+
+it('burns a recovery proof on distinct wrong guesses, not just repeated ones', function (): void {
+    /*
+     * The shape a real attack takes, and the one every other test here missed:
+     * each guess is a different six-digit code.
+     *
+     * A counter that resets when the submitted value changes passes the whole
+     * rest of this file. Measured against such an implementation, a hundred
+     * distinct guesses left attempts at one and the proof unburned, after which
+     * the delivered code still worked.
+     */
+    accountingAccount();
+    $code = issuedRecoveryProofCode();
+    $proof = soleProofId('auth_recovery_proofs');
+
+    $submitted = [];
+
+    foreach (range(1, attemptLimit()) as $nth) {
+        $guess = distinctWrongCode($code, $nth);
+        $submitted[] = $guess;
+
+        app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), $guess, "host-{$nth}");
+    }
+
+    // Every guess really was different, or this proves nothing beyond the
+    // same-code case already covered.
+    expect(count(array_unique($submitted)))->toBe(attemptLimit());
+
+    $state = proofAccounting('auth_recovery_proofs', $proof);
+
+    expect($state['attempts'])->toBe(attemptLimit())
+        ->and($state['burned'])->toBeTrue();
+
+    expect(app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), $code, 'host-after'))
+        ->toBe(CredentialRecoveryOutcome::Refused);
+});
+
+it('burns a verification proof on distinct wrong guesses, not just repeated ones', function (): void {
+    // The same survivor in the other ceremony, which is where it was actually
+    // demonstrated.
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => 'grace@acme.example', 'verified_at' => null]);
+    $code = issuedVerificationProofCode();
+    $proof = soleProofId('auth_identifier_verifications');
+
+    $submitted = [];
+
+    foreach (range(1, attemptLimit()) as $nth) {
+        $guess = distinctWrongCode($code, $nth);
+        $submitted[] = $guess;
+
+        app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), $guess);
+    }
+
+    expect(count(array_unique($submitted)))->toBe(attemptLimit());
+
+    $state = proofAccounting('auth_identifier_verifications', $proof);
+
+    expect($state['attempts'])->toBe(attemptLimit())
+        ->and($state['burned'])->toBeTrue();
+
+    expect(app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), $code))
+        ->toBe(IdentifierVerificationOutcome::Refused)
+        ->and(AuthIdentifier::query()->where('value', 'grace@acme.example')->value('verified_at'))->toBeNull();
+});
+
+it('counts distinct wrong guesses one at a time', function (): void {
+    /*
+     * Progression, not just the endpoint. A reset-on-change counter reaches the
+     * limit eventually if something else also increments, so the count is read
+     * after every guess rather than only at the end.
+     */
+    accountingAccount();
+    $code = issuedRecoveryProofCode();
+    $proof = soleProofId('auth_recovery_proofs');
+
+    foreach (range(1, attemptLimit() - 1) as $nth) {
+        app(CredentialRecovery::class)->redeem(accountingRecoveryFor(), distinctWrongCode($code, $nth), 'host-a');
+
+        expect(proofAccounting('auth_recovery_proofs', $proof)['attempts'])->toBe($nth);
+    }
+});
+
+it('refuses a burned verification proof that is demonstrably unexpired', function (): void {
+    // Expiry substitution, for the ceremony that did not have this guard.
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => 'grace@acme.example', 'verified_at' => null]);
+    $code = issuedVerificationProofCode();
+    $proof = soleProofId('auth_identifier_verifications');
+
+    foreach (range(1, attemptLimit()) as $nth) {
+        app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), distinctWrongCode($code, $nth));
+    }
+
+    shiftDeadlineOnDatabaseClock('auth_identifier_verifications', $proof, 3600);
+
+    expect(DB::table('auth_identifier_verifications')->where('id', $proof)
+        ->whereRaw('expires_at > CURRENT_TIMESTAMP')->exists())->toBeTrue()
+        ->and(proofAccounting('auth_identifier_verifications', $proof)['burned'])->toBeTrue();
+
+    expect(app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), $code))
+        ->toBe(IdentifierVerificationOutcome::Refused);
+});
+
+it('preserves a terminal verification timestamp against later submissions', function (): void {
+    // History preservation for the other ceremony.
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => 'grace@acme.example', 'verified_at' => null]);
+    $code = issuedVerificationProofCode();
+    $proof = soleProofId('auth_identifier_verifications');
+
+    foreach (range(1, attemptLimit()) as $nth) {
+        app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), distinctWrongCode($code, $nth));
+    }
+
+    $before = requiredRow(DB::table('auth_identifier_verifications')->where('id', $proof)->first());
+
+    app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), distinctWrongCode($code, 99));
+    app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), $code);
+
+    $after = requiredRow(DB::table('auth_identifier_verifications')->where('id', $proof)->first());
+
+    expect($after->burned_at)->toBe($before->burned_at)
+        ->and($after->consumed_at)->toBe($before->consumed_at)
+        ->and($after->superseded_at)->toBe($before->superseded_at)
+        ->and((int) stringValue($after->attempts))->toBe((int) stringValue($before->attempts));
+
+    assertTerminalStatesAreExclusive();
+});
+
+it('counts a replacement verification proof independently of the burned one', function (): void {
+    // Identifier-keyed counting, for the ceremony where the survivor was found.
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => 'grace@acme.example', 'verified_at' => null]);
+    $first = issuedVerificationProofCode();
+
+    foreach (range(1, attemptLimit()) as $nth) {
+        app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), distinctWrongCode($first, $nth));
+    }
+
+    $second = issuedVerificationProofCode();
+    $replacement = (int) stringValue(DB::table('auth_identifier_verifications')->orderByDesc('id')->value('id'));
+
+    app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), distinctWrongCode($second, 1));
+
+    expect(proofAccounting('auth_identifier_verifications', $replacement)['attempts'])->toBe(1);
+
+    expect(app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), $second))
+        ->toBe(IdentifierVerificationOutcome::Verified);
+});
+
+it('preserves the failure count through a successful verification', function (): void {
+    AuthIdentifier::create(['user_id' => 1, 'type' => 'email', 'value' => 'grace@acme.example', 'verified_at' => null]);
+    $code = issuedVerificationProofCode();
+    $proof = soleProofId('auth_identifier_verifications');
+
+    foreach (range(1, attemptLimit() - 1) as $nth) {
+        app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), distinctWrongCode($code, $nth));
+    }
+
+    expect(app(IdentifierVerifier::class)->redeem(accountingVerificationFor(), $code))
+        ->toBe(IdentifierVerificationOutcome::Verified);
+
+    $state = proofAccounting('auth_identifier_verifications', $proof);
+
+    expect($state['attempts'])->toBe(attemptLimit() - 1)
+        ->and($state['consumed'])->toBeTrue()
+        ->and($state['burned'])->toBeFalse();
 });

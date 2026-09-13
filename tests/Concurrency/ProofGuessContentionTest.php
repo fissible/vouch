@@ -50,8 +50,34 @@ beforeEach(function (): void {
         $this->markTestSkipped('A genuine interleave needs pcntl_fork.');
     }
 
-    Config::set('vouch.throttle.identifier.backoff_after', 10_000);
-    Config::set('vouch.throttle.identifier.lock_after', 10_000);
+    /*
+     * Make throttling permissive, and REBUILD the services that already read
+     * it. ThrottleConfiguration is resolved eagerly at boot, so setting config
+     * alone leaves the effective thresholds at their defaults and a refused
+     * guess -- never reaching the counter -- looks exactly like a lost
+     * increment, which is the one thing these tests must not confuse.
+     *
+     * Raised as far as the package ALLOWS rather than to an absurd number. It
+     * refuses a lock_after above the fixed-boundary online-guess target derived
+     * from the TOTP settings, which caps it at sixteen for the shipped defaults
+     * -- a refusal worth respecting rather than working around. Sixteen is
+     * comfortably above the handful of guesses any test here makes, which is
+     * all these need.
+     */
+    Config::set('vouch.throttle.identifier.backoff_after', 15);
+    Config::set('vouch.throttle.identifier.lock_after', 16);
+
+    foreach ([
+        \Fissible\Vouch\Throttle\ThrottleConfiguration::class,
+        \Fissible\Vouch\Contracts\AuthThrottleStore::class,
+        CredentialRecovery::class,
+    ] as $service) {
+        app()->forgetInstance($service);
+    }
+
+    // Asserted rather than assumed: a rebuild that silently failed would leave
+    // every accounting race measuring the throttle instead.
+    expect(app(\Fissible\Vouch\Throttle\ThrottleConfiguration::class)->backoffAfter)->toBe(15);
 });
 
 function guessRequest(): CredentialRecoveryRequest
@@ -155,7 +181,14 @@ function raceGuesses(array $codes): array
     $release = $directory . '/release';
     $children = [];
 
-    DB::purge();
+    /*
+     * disconnect(), not purge(). Purging removes the manager's connection
+     * entirely, so already-resolved singletons -- the throttle store among them
+     * -- keep the old object and end up writing through a different connection
+     * than the transaction they were meant to join. Measured, that produced
+     * SQLite lock failures rather than the race under test.
+     */
+    DB::disconnect();
 
     foreach ($codes as $index => $code) {
         $pid = pcntl_fork();
@@ -167,8 +200,9 @@ function raceGuesses(array $codes): array
         if ($pid === 0) {
             $output = $directory . "/output-{$index}";
 
+            $connection = DB::connection();
+
             try {
-                $connection = DB::connection();
                 $connection->getPdo();
 
                 if ($connection->getDriverName() === 'sqlite') {
@@ -192,7 +226,19 @@ function raceGuesses(array $codes): array
                 file_put_contents($output, $outcome->name);
                 exit(0);
             } catch (Throwable $exception) {
-                file_put_contents($output, 'threw:' . $exception::class);
+                /*
+                 * Classified through the package's own measured classifier.
+                 * "Any throw" accepts a programming error as honest
+                 * contention, and SQLite reports the same SQLSTATE for a
+                 * missing table as for a lock.
+                 */
+                $contended = $exception instanceof \Illuminate\Database\QueryException
+                    && app(\Fissible\Vouch\Support\LockContention::class)->isVerified($connection, $exception);
+
+                file_put_contents(
+                    $output,
+                    ($contended ? 'contention:' : 'error:') . $exception::class,
+                );
                 exit(1);
             }
         }
@@ -261,6 +307,8 @@ it('loses no increment when two guesses arrive together', function (): void {
         expect($report)->toBe(CredentialRecoveryOutcome::Refused->name, "a guessing child failed: {$report}");
     }
 
+    expect($reports)->toHaveCount(2);
+
     $state = guessState($proof);
 
     expect($state['attempts'])->toBe(guessLimit())
@@ -281,12 +329,19 @@ it('never counts past the limit when guesses pile up', function (): void {
 
     seedAttempts($proof, guessLimit() - 1);
 
-    raceGuesses([
+    $reports = raceGuesses([
         guessWrong($code, 1),
         guessWrong($code, 2),
         guessWrong($code, 3),
         guessWrong($code, 4),
     ]);
+
+    // Reports are judged rather than discarded: a child that died of a
+    // programming error is not a losing racer, and treating it as one would
+    // let the count below be short for a reason nothing here would notice.
+    foreach ($reports as $report) {
+        expect(str_starts_with($report, 'error:'))->toBeFalse("a guessing child failed unrelated to contention: {$report}");
+    }
 
     $state = guessState($proof);
 
@@ -356,7 +411,7 @@ it('keeps burning and superseding exclusive when issuance races the final guess'
 
     $release = $directory . '/release';
 
-    DB::purge();
+    DB::disconnect();
 
     $pid = pcntl_fork();
 
@@ -365,8 +420,9 @@ it('keeps burning and superseding exclusive when issuance races the final guess'
     }
 
     if ($pid === 0) {
+        $connection = DB::connection();
+
         try {
-            $connection = DB::connection();
             $connection->getPdo();
 
             if ($connection->getDriverName() === 'sqlite') {
@@ -394,7 +450,10 @@ it('keeps burning and superseding exclusive when issuance races the final guess'
             // Reported rather than swallowed. A child that silently died of a
             // lock timeout would leave the parent asserting about a race that
             // only one side ever entered.
-            file_put_contents($directory . '/report', 'threw:' . $exception::class);
+            $contended = $exception instanceof \Illuminate\Database\QueryException
+                && app(\Fissible\Vouch\Support\LockContention::class)->isVerified($connection, $exception);
+
+            file_put_contents($directory . '/report', ($contended ? 'contention:' : 'error:') . $exception::class);
             exit(1);
         }
     }
@@ -422,7 +481,7 @@ it('keeps burning and superseding exclusive when issuance races the final guess'
      * else -- a timeout wearing a generic name, a programming error -- means
      * the race never happened and the end state below describes one writer.
      */
-    expect($report === 'issued' || str_starts_with($report, 'threw:'))->toBeTrue(
+    expect($report === 'issued' || str_starts_with($report, 'contention:'))->toBeTrue(
         "the issuing child did not finish cleanly: {$report}",
     );
 
