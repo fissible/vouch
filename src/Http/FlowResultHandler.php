@@ -7,9 +7,14 @@ namespace Fissible\Vouch\Http;
 use Fissible\Vouch\Flow\Authenticated;
 use Fissible\Vouch\Flow\Continuing;
 use Fissible\Vouch\Flow\FlowResult;
+use Fissible\Vouch\Flow\RecoveryGraceRefused;
 use Fissible\Vouch\Flow\RecoveryGraceStarted;
+use Fissible\Vouch\Flow\ScreenBuilder;
 use Fissible\Vouch\Flow\UnknownFlowResult;
+use Fissible\Vouch\Kernel\Enumeration\Outcome;
+use Fissible\Vouch\Kernel\Screen\AuthStep;
 use Fissible\Vouch\Recovery\GraceGuard;
+use Fissible\Vouch\Recovery\GraceStartOutcome;
 use Fissible\Vouch\Sessions\SessionLifecycle;
 use Fissible\Vouch\Sessions\SessionRebinder;
 use Fissible\Vouch\Sessions\BindingDomain;
@@ -31,18 +36,24 @@ use Illuminate\Contracts\Session\Session;
  */
 final readonly class FlowResultHandler
 {
+    private ScreenBuilder $screens;
+
     public function __construct(
         private SessionLifecycle $lifecycle,
         private GraceGuard $grace,
         private StatefulGuard $guard,
         private Session $session,
         private SessionRebinder $rebinder,
-    ) {}
+        ?ScreenBuilder $screens = null,
+    ) {
+        $this->screens = $screens ?? app(ScreenBuilder::class);
+    }
 
     public function handle(FlowResult $result): FlowResult
     {
         return match (true) {
             $result instanceof Continuing => $result,
+            $result instanceof RecoveryGraceRefused => $result,
 
             $result instanceof Authenticated => $this->establish($result),
 
@@ -86,10 +97,17 @@ final readonly class FlowResultHandler
         return $result;
     }
 
-    private function openGrace(RecoveryGraceStarted $result): RecoveryGraceStarted
+    private function openGrace(RecoveryGraceStarted $result): RecoveryGraceStarted|RecoveryGraceRefused
     {
-        $this->grace->start($this->session->getId(), $result->userId);
-
-        return $result;
+        return match ($this->grace->start($this->session->getId(), $result->userId)) {
+            GraceStartOutcome::Opened => $result,
+            GraceStartOutcome::Refused => new RecoveryGraceRefused(
+                $this->screens->refused(
+                    AuthStep::Recover,
+                    Outcome::CredentialRejected,
+                    $result->posture,
+                ),
+            ),
+        };
     }
 }

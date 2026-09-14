@@ -124,7 +124,7 @@ final readonly class CredentialRecovery
 
             // A revoked or differently owned binding cannot receive grace.
             // Keep the proof usable when that expected refusal prevents recovery.
-            if (! $this->grace->start($hostSessionId, $identifier->user_id)) {
+            if ($this->grace->start($hostSessionId, $identifier->user_id) === GraceStartOutcome::Refused) {
                 return CredentialRecoveryOutcome::Refused;
             }
 

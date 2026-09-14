@@ -7,6 +7,7 @@ namespace Fissible\Vouch\Http;
 use Fissible\Vouch\Flow\Authenticated;
 use Fissible\Vouch\Flow\Continuing;
 use Fissible\Vouch\Flow\FlowResult;
+use Fissible\Vouch\Flow\RecoveryGraceRefused;
 use Fissible\Vouch\Flow\RecoveryGraceStarted;
 use Fissible\Vouch\Flow\UnknownFlowResult;
 use Fissible\Vouch\Kernel\Screen\FactorOption;
@@ -48,6 +49,11 @@ final readonly class FlowResultSerializer
             ],
             $result instanceof RecoveryGraceStarted => [
                 'result' => 'recovery_grace',
+                'handle' => null,
+                'screen' => $this->screen($result->screen),
+            ],
+            $result instanceof RecoveryGraceRefused => [
+                'result' => 'recovery_grace_refused',
                 'handle' => null,
                 'screen' => $this->screen($result->screen),
             ],

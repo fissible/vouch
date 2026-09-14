@@ -354,6 +354,7 @@ final readonly class AuthFlow
                 userId: $userId,
                 boundContext: $request->boundContext,
                 screen: $this->screens->challenge('password', $posture),
+                posture: $posture,
             );
         }
 

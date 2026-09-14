@@ -405,6 +405,7 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(\Illuminate\Contracts\Auth\StatefulGuard::class),
                 $app->make(\Illuminate\Contracts\Session\Session::class),
                 $app->make(\Fissible\Vouch\Sessions\SessionRebinder::class),
+                $app->make(\Fissible\Vouch\Flow\ScreenBuilder::class),
             ),
         );
 

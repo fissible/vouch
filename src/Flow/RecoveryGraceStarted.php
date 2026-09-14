@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Flow;
 
+use Fissible\Vouch\Kernel\Enumeration\EnumerationPosture;
 use Fissible\Vouch\Kernel\Screen\ScreenSpec;
 
 /**
@@ -19,5 +20,8 @@ final readonly class RecoveryGraceStarted implements FlowResult
         public int $userId,
         public string $boundContext,
         public ScreenSpec $screen,
+        // The HTTP completion can still refuse; its error must retain the
+        // flow's disclosure policy. Direct callers default to strict rendering.
+        public EnumerationPosture $posture = EnumerationPosture::Strict,
     ) {}
 }
