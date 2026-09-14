@@ -391,6 +391,7 @@ final class MarkerAcrossLoginTest extends TestCase
             $guard,
             $session,
             app(SessionRebinder::class),
+        app(\Fissible\Vouch\Flow\ScreenBuilder::class),
         );
     }
 

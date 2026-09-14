@@ -103,6 +103,7 @@ final class LoginCompletionTest extends TestCase
             $guard ?? self::webGuard(),
             self::hostSession(),
             $rebinder ?? app(SessionRebinder::class),
+        app(\Fissible\Vouch\Flow\ScreenBuilder::class),
         );
     }
 

@@ -114,6 +114,7 @@ function refusalHandler(): FlowResultHandler
         $guard,
         $session,
         app(SessionRebinder::class),
+        app(\Fissible\Vouch\Flow\ScreenBuilder::class),
     );
 }
 

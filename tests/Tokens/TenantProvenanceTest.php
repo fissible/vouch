@@ -209,6 +209,7 @@ final class TenantProvenanceTest extends TestCase
             self::webGuard(),
             self::hostSession(),
             app(\Fissible\Vouch\Sessions\SessionRebinder::class),
+            app(\Fissible\Vouch\Flow\ScreenBuilder::class),
         );
     }
 
