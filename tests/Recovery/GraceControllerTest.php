@@ -144,18 +144,25 @@ it('strips any assurance level when a session becomes a grace capability', funct
         ->and(\Fissible\Vouch\Sessions\SessionEvidence::for($row))->toBeNull();
 });
 
-it('clears a prior revocation when opening grace on the same host session', function (): void {
+it('refuses to open grace on a host session whose record was revoked', function (): void {
     /*
-     * start() writes through updateOrCreate keyed on the session binding, so a
-     * host session that previously held a REVOKED vouch session lands on that
-     * row. Without `revoked_at => null` and `revoked_reason => null` in the
-     * payload, the new grace capability is born already revoked: activeFor()
-     * filters on revoked_at, so recovery would appear to succeed and then refuse
-     * every subsequent step, with no error explaining why.
+     * This test used to require the opposite, and its reasoning was sound on
+     * its own terms: start() lands on the revoked row, so without clearing
+     * revoked_at the new capability is born already revoked, activeFor()
+     * filters it out, and recovery appears to succeed and then refuses every
+     * later step with nothing explaining why.
      *
-     * Both keys, because they are separate columns and the reason outlives the
-     * timestamp: a row cleared of revoked_at but still carrying
-     * revoked_reason = AdminRevoked reports a false cause in the audit trail.
+     * #36 answers that worry by refusing EARLIER rather than by clearing the
+     * revocation. Reviving the row erased why the session ended -- and, since
+     * start() keyed on the binding alone, reassigned the row to whoever was
+     * recovering. Measured on the old behaviour: a row revoked for
+     * PasswordChanged and belonging to user 7 came back live, reasonless, and
+     * owned by user 9.
+     *
+     * So the silent half-success the original author feared is still avoided,
+     * by the redemption refusing outright instead of opening a capability that
+     * cannot work. Revocation is an ownership and audit boundary, and
+     * expireIfLapsed in the same class already treated it as one.
      */
     $id = graceSessionId('previously-revoked');
 
@@ -171,10 +178,11 @@ it('clears a prior revocation when opening grace on the same host session', func
 
     $row = AuthSession::firstOrFail();
 
-    expect($row->revoked_at)->toBeNull()
-        ->and($row->revoked_reason)->toBeNull()
-        // And the capability is genuinely usable, not merely un-revoked.
-        ->and(app(GraceGuard::class)->activeFor($id))->toBeInstanceOf(AuthSession::class);
+    expect($row->revoked_at)->not->toBeNull()
+        ->and($row->revoked_reason)->toBe(RevokedReason::AdminRevoked)
+        ->and($row->user_id)->toBe(7)
+        // No capability either: refusing must not leave a grace nobody can use.
+        ->and(app(GraceGuard::class)->activeFor($id))->toBeNull();
 });
 
 it('uses database time for grace creation, resolution, expiry and completion', function (): void {
