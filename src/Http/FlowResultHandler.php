@@ -36,18 +36,14 @@ use Illuminate\Contracts\Session\Session;
  */
 final readonly class FlowResultHandler
 {
-    private ScreenBuilder $screens;
-
     public function __construct(
         private SessionLifecycle $lifecycle,
         private GraceGuard $grace,
         private StatefulGuard $guard,
         private Session $session,
         private SessionRebinder $rebinder,
-        ?ScreenBuilder $screens = null,
-    ) {
-        $this->screens = $screens ?? app(ScreenBuilder::class);
-    }
+        private ScreenBuilder $screens,
+    ) {}
 
     public function handle(FlowResult $result): FlowResult
     {
