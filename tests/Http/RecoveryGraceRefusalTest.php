@@ -57,6 +57,20 @@ function refusalBinding(string $hostSessionId): string
 
 function refusalAccount(): string
 {
+    return refusalCodes()[0];
+}
+
+/**
+ * Enrol the account once and hand back every recovery code it minted.
+ *
+ * Separate from refusalAccount() because a test needing two usable codes must
+ * not enrol twice: the identifier is unique, and a second enrolment fails on
+ * the index rather than on anything the test is about.
+ *
+ * @return list<string>
+ */
+function refusalCodes(): array
+{
     AuthIdentifier::create([
         'user_id' => 7,
         'type' => 'email',
@@ -75,7 +89,10 @@ function refusalAccount(): string
 
     // Revealed here because recovery codes are stored only as hashes, the way
     // the flow's own recovery tests do it.
-    return app(RecoveryCodeFactor::class)->enroll(7, [])->secrets[0]->reveal();
+    return array_map(
+        static fn (\Fissible\Vouch\Secrets\OneTimeSecret $secret): string => $secret->reveal(),
+        app(RecoveryCodeFactor::class)->enroll(7, [])->secrets,
+    );
 }
 
 function refusalHandler(): FlowResultHandler
@@ -227,13 +244,18 @@ it('renders a refusal distinctly from an opened grace', function (): void {
      * 'recovery_grace' would leave the adapter redirecting into a flow that
      * has no capability behind it -- the original defect, one layer out.
      */
-    $code = refusalAccount();
+    /*
+     * Two codes from ONE enrollment rather than two accounts: re-running the
+     * fixture would re-create the identifier and collide on its unique index,
+     * which is a fixture failure rather than anything about rendering.
+     */
+    $codes = refusalCodes();
 
-    $opened = app(FlowResultSerializer::class)->toArray(completeRecoveryLogin($code), null);
+    $opened = app(FlowResultSerializer::class)->toArray(completeRecoveryLogin($codes[0]), null);
 
     DB::table('auth_sessions')->delete();
 
-    $refusedCode = refusalAccount();
+    $refusedCode = $codes[1];
     session()->start();
 
     AuthSession::create([
