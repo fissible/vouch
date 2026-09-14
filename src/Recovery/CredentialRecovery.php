@@ -122,14 +122,18 @@ final readonly class CredentialRecovery
                 return CredentialRecoveryOutcome::Refused;
             }
 
+            // A revoked or differently owned binding cannot receive grace.
+            // Keep the proof usable when that expected refusal prevents recovery.
+            if (! $this->grace->start($hostSessionId, $identifier->user_id)) {
+                return CredentialRecoveryOutcome::Refused;
+            }
+
             AuthRecoveryProof::query()
                 ->whereKey($proof->id)
                 ->whereNull('consumed_at')
                 ->whereNull('superseded_at')
                 ->whereNull('burned_at')
                 ->update(['consumed_at' => $this->time->now()]);
-
-            $this->grace->start($hostSessionId, $identifier->user_id);
 
             return CredentialRecoveryOutcome::GraceOpened;
         });

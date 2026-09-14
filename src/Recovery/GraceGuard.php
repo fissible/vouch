@@ -38,34 +38,60 @@ final readonly class GraceGuard
      * The deadline is written with the database's own clock, so the window is
      * nominally $ttlSeconds rather than $ttlSeconds plus or minus drift.
      */
-    public function start(string $hostSessionId, int $userId): void
+    public function start(string $hostSessionId, int $userId): bool
     {
-        $this->connection->table('auth_sessions')->updateOrInsert(
-            ['session_binding' => SessionBinding::for($hostSessionId, BindingDomain::Session)],
-            [
+        $binding = SessionBinding::for($hostSessionId, BindingDomain::Session);
+
+        return $this->connection->transaction(function () use ($binding, $userId): bool {
+            /*
+             * Ensure before reading: even an ignored insert takes SQLite's
+             * write lock, avoiding a deferred read-to-write upgrade. Existing
+             * rows stay untouched, including their ownership and audit fields.
+             */
+            $this->connection->table('auth_sessions')->insertOrIgnore([
+                'session_binding' => $binding,
                 'user_id' => $userId,
                 'amr' => json_encode(['recovery_code']),
-                'acr' => null,
-                'revoked_at' => null,
-                'revoked_reason' => null,
                 'created_at' => $this->time->now(),
                 'updated_at' => $this->time->now(),
-            ],
-        );
+            ]);
 
-        /*
-         * The deadline is set in a second statement so the seconds can be a
-         * BOUND parameter: interval arithmetic differs per engine, and every
-         * per-engine fragment is a true literal with a placeholder rather than
-         * an interpolated int. Written with the database's own clock, so the
-         * window is nominally $ttlSeconds rather than that plus or minus drift.
-         */
-        $this->connection->update(
-            'update auth_sessions set recovery_grace_expires_at = '
-            . $this->time->deadlineSqlHere()
-            . ' where session_binding = ?',
-            [$this->ttlSeconds, SessionBinding::for($hostSessionId, BindingDomain::Session)],
-        );
+            // A locking re-read sees any revocation that won the race and
+            // keeps later revocations serialized through the grace writes.
+            // Ownership matters even on live rows: reset acts on their user_id.
+            $session = $this->connection->table('auth_sessions')
+                ->where('session_binding', $binding)
+                ->whereNull('revoked_at')
+                ->where('user_id', $userId)
+                ->lockForUpdate()
+                ->first();
+
+            if ($session === null) {
+                return false;
+            }
+
+            $this->connection->table('auth_sessions')
+                ->where('session_binding', $binding)
+                ->update([
+                    'amr' => json_encode(['recovery_code']),
+                    'acr' => null,
+                    'updated_at' => $this->time->now(),
+                ]);
+
+            /*
+             * The deadline is set separately so the seconds remain a bound
+             * parameter in each engine's database-clock interval expression.
+             * The transaction keeps the capability and its evidence atomic.
+             */
+            $this->connection->update(
+                'update auth_sessions set recovery_grace_expires_at = '
+                . $this->time->deadlineSqlHere()
+                . ' where session_binding = ?',
+                [$this->ttlSeconds, $binding],
+            );
+
+            return true;
+        });
     }
 
     /** The live grace record for this host session, or null. */
