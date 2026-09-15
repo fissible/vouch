@@ -38,11 +38,11 @@ final readonly class GraceGuard
      * The deadline is written with the database's own clock, so the window is
      * nominally $ttlSeconds rather than $ttlSeconds plus or minus drift.
      */
-    public function start(string $hostSessionId, int $userId): bool
+    public function start(string $hostSessionId, int $userId): GraceStartOutcome
     {
         $binding = SessionBinding::for($hostSessionId, BindingDomain::Session);
 
-        return $this->connection->transaction(function () use ($binding, $userId): bool {
+        return $this->connection->transaction(function () use ($binding, $userId): GraceStartOutcome {
             /*
              * Ensure before reading: even an ignored insert takes SQLite's
              * write lock, avoiding a deferred read-to-write upgrade. Existing
@@ -67,7 +67,7 @@ final readonly class GraceGuard
                 ->first();
 
             if ($session === null) {
-                return false;
+                return GraceStartOutcome::Refused;
             }
 
             $this->connection->table('auth_sessions')
@@ -90,7 +90,7 @@ final readonly class GraceGuard
                 [$this->ttlSeconds, $binding],
             );
 
-            return true;
+            return GraceStartOutcome::Opened;
         });
     }
 
