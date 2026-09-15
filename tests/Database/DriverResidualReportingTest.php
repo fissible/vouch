@@ -337,6 +337,7 @@ it('keeps an unrelated mutation out of a removal\'s residual', function (int $un
      * well as the connection still gets it wrong, because both operations
      * belong to the same user.
      */
+    // Assigned by the observer below, which the first assertion proves ran.
     $nested = null;
     $fired = false;
 
@@ -360,12 +361,18 @@ it('keeps an unrelated mutation out of a removal\'s residual', function (int $un
 
     $result = app(CredentialSelfService::class)->removeFactor(residualSession(), $target->id);
 
+    /*
+     * Fail loudly rather than compare an empty list: if the observer never ran,
+     * there was no competing mutation and every isolation assertion below would
+     * pass while proving nothing.
+     */
+    $nestedResult = $nested ?? throw new RuntimeException('The updating observer never ran.');
+
     expect($fired)->toBeTrue()
         ->and($result->outcome)->toBe(SelfServiceOutcome::Completed)
         // Each operation reports its own, and only its own.
         ->and(residualPairs($result->driverFailures))->toBe([['sanctum', 'target-late']])
-        ->and($nested)->not->toBeNull()
-        ->and(internalPairs($nested?->driverFailures ?? []))->toBe([['sanctum', 'unrelated']])
+        ->and(internalPairs($nestedResult->driverFailures))->toBe([['sanctum', 'unrelated']])
         /*
          * Both revocations must still have been attempted and both proofs
          * withdrawn. Excluding the unrelated failure by suppressing the nested
@@ -379,6 +386,6 @@ it('keeps an unrelated mutation out of a removal\'s residual', function (int $un
         ->and(AuthCredential::query()->whereKey($target->id)->whereNull('disabled_at')->exists())->toBeFalse()
         ->and(AuthCredential::query()->whereKey($unrelated->id)->whereNull('disabled_at')->exists())->toBeTrue();
 })->with([
-    'different subject' => 2,
-    'same subject, different credential' => 1,
+    'different subject' => [2],
+    'same subject, different credential' => [1],
 ]);
