@@ -41,6 +41,10 @@ final class InterceptingPasswordFactor implements Factor
         private readonly Factor $inner,
         private readonly ?Closure $before = null,
         private readonly bool $throw = false,
+        // Throwing AFTER the real enrollment is a different failure from
+        // throwing instead of it: the credential write has already happened,
+        // so it is the only way to ask whether the caller rolls it back.
+        private readonly bool $throwAfter = false,
     ) {}
 
     public function enroll(int $userId, array $data): EnrollmentResult
@@ -55,7 +59,13 @@ final class InterceptingPasswordFactor implements Factor
             throw new RuntimeException('Credential mutation failed after revocation committed.');
         }
 
-        return $this->inner->enroll($userId, $data);
+        $result = $this->inner->enroll($userId, $data);
+
+        if ($this->throwAfter) {
+            throw new RuntimeException('Credential mutation failed after the credential was written.');
+        }
+
+        return $result;
     }
 
     public function id(): string

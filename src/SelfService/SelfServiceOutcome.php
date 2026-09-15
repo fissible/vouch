@@ -8,6 +8,7 @@ namespace Fissible\Vouch\SelfService;
 enum SelfServiceOutcome: string
 {
     case Completed = 'completed';
+    case CredentialChangeFailed = 'credential_change_failed';
     case RecoveryRestricted = 'recovery_restricted';
     case StepUpRequired = 'step_up_required';
     case RequiredByPolicy = 'required_by_policy';

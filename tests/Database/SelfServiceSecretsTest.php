@@ -617,8 +617,14 @@ it('returns no secrets when enrollment itself fails', function (): void {
 
     $result = app(CredentialSelfService::class)->regenerateRecoveryCodes($session);
 
+    /*
+     * #35: regeneration replaces a credential set, so it revokes siblings and
+     * commits that before mutating. A failure past that commit is no longer
+     * spelled the same as an unauthorized caller's refusal. The empty-secrets
+     * assertion is the point of these tests and is unchanged.
+     */
     expect($result)->toBeInstanceOf(SelfServiceResult::class)
-        ->and($result->outcome)->toBe(SelfServiceOutcome::Refused)
+        ->and($result->outcome)->toBe(SelfServiceOutcome::CredentialChangeFailed)
         ->and($result->secrets)->toBe([]);
 });
 
@@ -669,8 +675,14 @@ it('returns no secrets when the operation fails after minting them', function ()
 
     $result = app(CredentialSelfService::class)->regenerateRecoveryCodes($session);
 
+    /*
+     * #35: regeneration replaces a credential set, so it revokes siblings and
+     * commits that before mutating. A failure past that commit is no longer
+     * spelled the same as an unauthorized caller's refusal. The empty-secrets
+     * assertion is the point of these tests and is unchanged.
+     */
     expect($result)->toBeInstanceOf(SelfServiceResult::class)
-        ->and($result->outcome)->toBe(SelfServiceOutcome::Refused)
+        ->and($result->outcome)->toBe(SelfServiceOutcome::CredentialChangeFailed)
         ->and($result->secrets)->toBe([]);
 });
 

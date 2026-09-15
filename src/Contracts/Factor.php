@@ -58,5 +58,14 @@ interface Factor
 
     public function verify(VerificationRequest $request): FactorResult;
 
+    /**
+     * Known limitation: a revoke() that performs TWO credential mutations in
+     * sequence currently has only the first one's issuer-revocation failures
+     * reported back to the caller. The credential writes and proof withdrawal
+     * both happen; it is the reporting that stops short, so a caller can be
+     * told cleanup was clean while a token from the second mutation is still
+     * live at its issuer. No shipped factor does this -- password, TOTP,
+     * recovery code and the OTP drivers each perform one. Tracked separately.
+     */
     public function revoke(AuthCredential $credential): void;
 }

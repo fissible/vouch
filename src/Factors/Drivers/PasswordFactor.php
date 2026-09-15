@@ -108,9 +108,9 @@ final readonly class PasswordFactor implements Factor
         };
         $subject = SubjectKey::forConfiguredUser($userId);
         if ($replace) {
-            $this->mutation()->revoking($subject, array_values(AuthCredential::query()->where('user_id', $userId)->where('type', $this->id())->whereNull('disabled_at')->get()->map(static fn (AuthCredential $credential): string => (string) $credential->id)->all()), $write);
+            $mutation = $this->mutation()->revoking($subject, array_values(AuthCredential::query()->where('user_id', $userId)->where('type', $this->id())->whereNull('disabled_at')->get()->map(static fn (AuthCredential $credential): string => (string) $credential->id)->all()), $write);
         } else {
-            $this->mutation()->additive($subject, $write);
+            $mutation = $this->mutation()->additive($subject, $write);
         }
 
         // No one-time secrets: the user already knows their password.
@@ -118,7 +118,7 @@ final readonly class PasswordFactor implements Factor
             throw new \LogicException('Password enrollment did not create a credential.');
         }
 
-        return new EnrollmentResult([$credential]);
+        return new EnrollmentResult([$credential], report: $mutation->report);
     }
 
     public function challenge(ChallengeRequest $request): ?AuthChallenge
