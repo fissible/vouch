@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Fissible\Vouch\Credentials\CredentialDriverFailureIdentity;
 use Fissible\Vouch\Factors\Drivers\PasswordFactor;
 use Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor;
 use Fissible\Vouch\Factors\Drivers\TotpFactor;
@@ -122,11 +123,20 @@ function lateCredential(string $type, string $secret = 'late-digest'): AuthCrede
     ]);
 }
 
-/** @param list<object> $failures */
+/**
+ * The identities a result reports, as sorted (issuer, token) pairs.
+ *
+ * Typed against the real identity rather than object: at level 9 a bare object
+ * has no properties to read, and loosening the assertion to get past that would
+ * stop it noticing if the channel started carrying something else.
+ *
+ * @param list<CredentialDriverFailureIdentity> $failures
+ * @return list<array{string, string}>
+ */
 function residualPairs(array $failures): array
 {
     $pairs = array_map(
-        fn (object $failure): array => [$failure->issuerKey, $failure->tokenKey],
+        static fn (CredentialDriverFailureIdentity $failure): array => [$failure->issuerKey, $failure->tokenKey],
         $failures,
     );
     sort($pairs);
