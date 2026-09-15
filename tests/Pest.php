@@ -449,3 +449,23 @@ function readmeUncommented(string $fence): string
     return (string) preg_replace('~^\s*(?://|#).*$~m', '', $withoutBlocks);
 }
 
+/**
+ * An issuer that fails for the token named 'shared' and succeeds otherwise.
+ *
+ * Keyed on what it was actually asked to revoke rather than on call order, so
+ * the fixture does not quietly depend on the order revocations happen in --
+ * which is not a contract.
+ */
+function failingOnSharedToken(string $issuerKey): \Fissible\Vouch\Tests\Support\Tokens\RecordingIssuer
+{
+    $issuer = new \Fissible\Vouch\Tests\Support\Tokens\RecordingIssuer($issuerKey);
+    $issuer->onRevoke = function () use (&$issuer): null {
+        if (end($issuer->attempted) === 'shared') {
+            throw new RuntimeException('Issuer unreachable.');
+        }
+
+        return null;
+    };
+
+    return $issuer;
+}
