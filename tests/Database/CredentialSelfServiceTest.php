@@ -1504,3 +1504,100 @@ function mappingOnAnotherConnection(string $tokenKey): bool
     return DB::connection('residual_probe')
         ->table('auth_token_credentials')->where('token_key', $tokenKey)->exists();
 }
+
+it('leaves a token that never cited the codes it regenerates', function (): void {
+    selfServiceUser();
+    $totp = app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)
+        ->enroll(1, ['label' => 'ada@acme.example'])->credentials[0];
+    $code = app(\Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor::class)
+        ->enroll(1, [])->credentials[0];
+
+    tokenCitingCredential('cites-codes', 'recovery_code', $code->id);
+    tokenCitingCredential('cites-totp', 'totp', $totp->id);
+
+    $issuer = new \Fissible\Vouch\Tests\Support\Tokens\RecordingIssuer('sanctum');
+    onlyIssuer($issuer);
+
+    /*
+     * Regeneration replaces the recovery codes, so it withdraws the proofs that
+     * cite THOSE credentials -- not every proof the subject has. Sweeping
+     * subject-wide would log out an API client resting on password and TOTP
+     * that had nothing to do with the codes, which is the punishment the
+     * additive/revoking split exists to avoid. A password change is the one
+     * deliberate subject-wide sweep, and this is not one.
+     */
+    $result = app(CredentialSelfService::class)->regenerateRecoveryCodes(steppedUpSession());
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::Completed)
+        ->and($issuer->revoked)->toBe(['cites-codes'])
+        ->and(DB::table('auth_token_assurances')->where('token_key', 'cites-codes')->exists())
+        ->toBeFalse()
+        ->and(DB::table('auth_token_assurances')->where('token_key', 'cites-totp')->exists())
+        ->toBeTrue();
+});
+
+it('reports a driver failure on a proof withdrawn after the revocation pass', function (): void {
+    selfServiceUser();
+    $code = app(\Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor::class)
+        ->enroll(1, [])->credentials[0];
+    tokenCitingCredential('early', 'recovery_code', $code->id);
+
+    // Fails for the late token only, so a residual that names 'early' as well
+    // is reporting a revocation that actually succeeded.
+    $issuer = new \Fissible\Vouch\Tests\Support\Tokens\RecordingIssuer('sanctum');
+    $issuer->onRevoke = function () use (&$issuer): null {
+        if (end($issuer->attempted) === 'late') {
+            throw new RuntimeException('Issuer unreachable.');
+        }
+
+        return null;
+    };
+    onlyIssuer($issuer);
+
+    /*
+     * before() runs after the service's revocation pass has taken its
+     * credential-id list and before the factor takes its own, so this
+     * credential exists only in the factor's. That is the window
+     * CredentialMutation's snapshot union exists to cover: the factor DOES
+     * withdraw the late proof, correctly.
+     *
+     * What is missing is the report. The inner mutation's driver failures are
+     * recorded on a result the factor discards, so the operation returns a
+     * clean Completed while the late token may still be live at its issuer --
+     * the same false claim #35 removes, one layer down.
+     */
+    $factor = new InterceptingPasswordFactor(
+        app(\Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor::class),
+        before: function (int $userId): null {
+            $late = AuthCredential::create([
+                'user_id' => $userId,
+                'type' => 'recovery_code',
+                'secret' => 'late-digest',
+                'strength' => 'recovery',
+            ]);
+            tokenCitingCredential('late', 'recovery_code', $late->id);
+
+            return null;
+        },
+    );
+    $registry = new FactorRegistry();
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class));
+    $registry->register($factor);
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn () => $registry);
+    app()->forgetInstance(CredentialSelfService::class);
+
+    $result = app(CredentialSelfService::class)->regenerateRecoveryCodes(steppedUpSession());
+
+    $pairs = array_map(
+        fn (object $failure): array => [$failure->issuerKey, $failure->tokenKey],
+        $result->driverFailures,
+    );
+    sort($pairs);
+
+    expect($issuer->attempted)->toContain('late')
+        ->and(DB::table('auth_token_assurances')->where('token_key', 'late')->exists())->toBeFalse()
+        ->and($result->outcome)->toBe(SelfServiceOutcome::Completed)
+        // Exactly one entry: merged from both passes, and de-duplicated, so a
+        // token revoked successfully in either pass never appears.
+        ->and($pairs)->toBe([['sanctum', 'late']]);
+});
