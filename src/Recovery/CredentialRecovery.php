@@ -7,6 +7,8 @@ namespace Fissible\Vouch\Recovery;
 use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Contracts\Factor;
 use Fissible\Vouch\Contracts\RandomSource;
+use Fissible\Vouch\Credentials\CredentialDriverFailureIdentity;
+use Fissible\Vouch\Credentials\CredentialMutation;
 use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Models\AuthRecoveryProof;
@@ -18,6 +20,7 @@ use Fissible\Vouch\Throttle\IssuancePermission;
 use Fissible\Vouch\Throttle\ProofAttemptStore;
 use Fissible\Vouch\Throttle\ThrottleDecision;
 use Fissible\Vouch\Throttle\ThrottleKey;
+use Fissible\Vouch\Tokens\SubjectKey;
 use Illuminate\Database\Connection;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Support\Facades\Hash;
@@ -30,6 +33,7 @@ final readonly class CredentialRecovery
         private GraceGuard $grace,
         private Factor $password,
         private Connection $connection,
+        private CredentialMutation $credentialMutation,
         private DatabaseTime $time,
         private RandomSource $random,
         private Repository $config,
@@ -147,16 +151,16 @@ final readonly class CredentialRecovery
         return $outcome;
     }
 
-    public function reset(string $hostSessionId, string $password): CredentialRecoveryOutcome
+    public function reset(string $hostSessionId, string $password): CredentialResetResult
     {
         // This authorization occurs before either revocation pass.
         $grace = $this->grace->activeFor($hostSessionId);
         if (! $grace instanceof AuthSession) {
-            return CredentialRecoveryOutcome::Refused;
+            return new CredentialResetResult(CredentialRecoveryOutcome::Refused);
         }
 
         if ($this->config->boolean('vouch.recovery.require_second_factor') && $this->hasEnabledSecondFactor($grace->user_id)) {
-            return CredentialRecoveryOutcome::SecondFactorRequired;
+            return new CredentialResetResult(CredentialRecoveryOutcome::SecondFactorRequired);
         }
 
         // Authorize first: no rejected request may revoke another session.
@@ -164,17 +168,25 @@ final readonly class CredentialRecovery
         // established after that pass while the password factor was mutating.
         $this->revokeOtherSessions($grace);
 
+        $revocation = $this->credentialMutation->subjectWide(
+            SubjectKey::forConfiguredUser($grace->user_id), static fn () => null,
+        );
+        $driverFailures = $revocation->report->driverFailures;
+
         try {
-            $this->password->enroll($grace->user_id, ['password' => $password, 'replace' => true]);
+            $enrollment = $this->connection->transaction(fn () => $this->password->enroll($grace->user_id, ['password' => $password, 'replace' => true]));
         } catch (Throwable $failure) {
             report($failure);
 
-            return CredentialRecoveryOutcome::Refused;
+            return new CredentialResetResult(CredentialRecoveryOutcome::CredentialChangeFailed, $driverFailures);
         }
 
         $this->revokeOtherSessions($grace);
 
-        return CredentialRecoveryOutcome::Reset;
+        return new CredentialResetResult(CredentialRecoveryOutcome::Reset, CredentialDriverFailureIdentity::merge(
+            $revocation->report->driverFailures,
+            $enrollment->driverFailures,
+        ));
     }
 
     private function revokeOtherSessions(AuthSession $grace): void

@@ -159,14 +159,15 @@ final readonly class RecoveryCodeFactor implements Factor
         $ids = array_values(AuthCredential::query()->where('user_id', $userId)->where('type', $this->id())->whereNull('disabled_at')->get()->map(static fn (AuthCredential $credential): string => (string) $credential->id)->all());
         $mutation = $this->mutation();
         if ($ids === []) {
-            $mutation->additive(SubjectKey::forConfiguredUser($userId), $write);
+            $result = $mutation->additive(SubjectKey::forConfiguredUser($userId), $write);
         } else {
-            $mutation->revoking(SubjectKey::forConfiguredUser($userId), $ids, $write);
+            $result = $mutation->revoking(SubjectKey::forConfiguredUser($userId), $ids, $write);
         }
 
         return new EnrollmentResult(
             $generated['credentials'],
             array_map(static fn (string $code): OneTimeSecret => new OneTimeSecret($code), $generated['codes']),
+            $result->report,
         );
     }
 

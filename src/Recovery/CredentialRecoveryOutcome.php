@@ -8,6 +8,7 @@ enum CredentialRecoveryOutcome
 {
     case GraceOpened;
     case Reset;
+    case CredentialChangeFailed;
     case Refused;
     case SecondFactorRequired;
 }

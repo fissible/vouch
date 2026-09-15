@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace Fissible\Vouch\SelfService;
 
 use Fissible\Vouch\Factors\FactorRegistry;
+use Fissible\Vouch\Factors\EnrollmentResult;
 use Fissible\Vouch\Assurance\AssuranceRequirement;
 use Fissible\Vouch\Assurance\EvidenceComparator;
+use Fissible\Vouch\Credentials\CredentialDriverFailureIdentity;
+use Fissible\Vouch\Credentials\CredentialDriverFailureCollector;
+use Fissible\Vouch\Credentials\CredentialMutation;
 use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary;
 use Fissible\Vouch\Kernel\Policy\AllOf;
@@ -18,12 +22,12 @@ use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Models\AuthPolicy;
 use Fissible\Vouch\Models\AuthSession;
-use Fissible\Vouch\Secrets\OneTimeSecret;
 use Fissible\Vouch\Sessions\RevokedReason;
 use Fissible\Vouch\Sessions\SessionLifecycle;
 use Fissible\Vouch\Sessions\SessionEvidence;
 use Fissible\Vouch\Support\DatabaseTime;
 use Fissible\Vouch\Tokens\SubjectKey;
+use Illuminate\Database\Connection;
 use Throwable;
 
 /**
@@ -43,6 +47,9 @@ final readonly class CredentialSelfService
         private SessionLifecycle $sessions,
         private DatabaseTime $databaseTime,
         private AssuranceVocabulary $vocabulary,
+        private Connection $connection,
+        private CredentialMutation $credentialMutation,
+        private CredentialDriverFailureCollector $failureCollector,
     ) {}
 
     public function changePassword(AuthSession $session, string $password): SelfServiceResult
@@ -52,18 +59,11 @@ final readonly class CredentialSelfService
             return new SelfServiceResult($authoritative);
         }
 
-        return $this->mutateCredentials($authoritative, RevokedReason::PasswordChanged, function () use ($authoritative, $password): array {
-            app(\Fissible\Vouch\Credentials\CredentialMutation::class)->subjectWide(
-                SubjectKey::forConfiguredUser($authoritative->user_id),
-                function () use ($authoritative, $password): void {
-                    $this->factors->get('password')->enroll($authoritative->user_id, [
-                        'password' => $password,
-                        'replace' => true,
-                    ]);
-                },
-            );
-
-            return [];
+        return $this->mutateCredentials($authoritative, RevokedReason::PasswordChanged, function () use ($authoritative, $password): EnrollmentResult {
+            return $this->factors->get('password')->enroll($authoritative->user_id, [
+                'password' => $password,
+                'replace' => true,
+            ]);
         });
     }
 
@@ -95,9 +95,15 @@ final readonly class CredentialSelfService
             return new SelfServiceResult(SelfServiceOutcome::Completed, $enrollment->secrets);
         }
 
-        return $this->mutateCredentials($authoritative, RevokedReason::CredentialChanged, function () use ($factor, $authoritative, $data): array {
-            return $factor->enroll($authoritative->user_id, $data)->secrets;
-        });
+        return $this->mutateCredentials($authoritative, RevokedReason::CredentialChanged, function () use ($factor, $authoritative, $data): EnrollmentResult {
+            return $factor->enroll($authoritative->user_id, $data);
+        }, credentialIds: array_values(AuthCredential::query()
+            ->where('user_id', $authoritative->user_id)
+            ->where('type', $factorId)
+            ->whereNull('disabled_at')
+            ->get()
+            ->map(static fn (AuthCredential $credential): string => (string) $credential->id)
+            ->all()));
     }
 
     public function regenerateRecoveryCodes(AuthSession $session): SelfServiceResult
@@ -107,13 +113,15 @@ final readonly class CredentialSelfService
             return new SelfServiceResult($authoritative);
         }
 
-        try {
-            $enrollment = $this->factors->get('recovery_code')->enroll($authoritative->user_id, []);
-        } catch (Throwable) {
-            return new SelfServiceResult(SelfServiceOutcome::Refused);
-        }
-
-        return new SelfServiceResult(SelfServiceOutcome::Completed, $enrollment->secrets);
+        return $this->mutateCredentials($authoritative, RevokedReason::CredentialChanged, function () use ($authoritative): EnrollmentResult {
+            return $this->factors->get('recovery_code')->enroll($authoritative->user_id, []);
+        }, credentialIds: array_values(AuthCredential::query()
+            ->where('user_id', $authoritative->user_id)
+            ->where('type', 'recovery_code')
+            ->whereNull('disabled_at')
+            ->get()
+            ->map(static fn (AuthCredential $credential): string => (string) $credential->id)
+            ->all()));
     }
 
     public function addIdentifier(AuthSession $session, string $type, string $value): SelfServiceResult
@@ -167,11 +175,11 @@ final readonly class CredentialSelfService
             return new SelfServiceResult(SelfServiceOutcome::Refused);
         }
 
-        return $this->mutateCredentials($authoritative, RevokedReason::CredentialChanged, function () use ($factor, $credential): array {
-            $factor->revoke($credential);
+        return $this->mutateCredentials($authoritative, RevokedReason::CredentialChanged, function () use ($factor, $credential): EnrollmentResult {
+            $report = $this->failureCollector->collect($this->connection, fn () => $factor->revoke($credential));
 
-            return [];
-        }, $credential->id);
+            return new EnrollmentResult([], report: $report);
+        }, $credential->id, [(string) $credential->id]);
     }
 
     /** @return AuthSession|SelfServiceOutcome */
@@ -197,24 +205,36 @@ final readonly class CredentialSelfService
             : SelfServiceOutcome::StepUpRequired;
     }
 
-    /** @param callable(): list<OneTimeSecret> $mutation */
-    private function mutateCredentials(AuthSession $session, RevokedReason $reason, callable $mutation, ?int $removedCredentialId = null): SelfServiceResult
+    /**
+     * @param callable(): EnrollmentResult $mutation
+     * @param list<string>|null $credentialIds
+     */
+    private function mutateCredentials(AuthSession $session, RevokedReason $reason, callable $mutation, ?int $removedCredentialId = null, ?array $credentialIds = null): SelfServiceResult
     {
         // Do not wrap these writes together: the first commit must survive a
         // failed credential mutation, and is externally observable by design.
         $this->sessions->revokeSiblings($session->user_id, $session->session_binding, $reason);
 
+        $subject = SubjectKey::forConfiguredUser($session->user_id);
+        $revocation = $credentialIds === null
+            ? $this->credentialMutation->subjectWide($subject, static fn () => null)
+            : $this->credentialMutation->revoking($subject, $credentialIds, static fn () => null);
+        $driverFailures = $revocation->report->driverFailures;
+
         try {
-            $secrets = $mutation();
+            $enrollment = $this->connection->transaction(fn () => $mutation());
         } catch (Throwable $throwable) {
             report($throwable);
-            return new SelfServiceResult(SelfServiceOutcome::Refused);
+            return new SelfServiceResult(SelfServiceOutcome::CredentialChangeFailed, [], $driverFailures);
         }
 
         $this->sessions->revokeSiblings($session->user_id, $session->session_binding, $reason);
         $this->removeCredentialFromEvidence($session, $removedCredentialId);
 
-        return new SelfServiceResult(SelfServiceOutcome::Completed, $secrets);
+        return new SelfServiceResult(SelfServiceOutcome::Completed, $enrollment->secrets, CredentialDriverFailureIdentity::merge(
+            $revocation->report->driverFailures,
+            $enrollment->driverFailures,
+        ));
     }
 
     private function removeCredentialFromEvidence(AuthSession $session, ?int $credentialId): void
