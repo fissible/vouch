@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use Fissible\Vouch\Credentials\CredentialDriverFailure;
 use Fissible\Vouch\Credentials\CredentialDriverFailureIdentity;
+use Fissible\Vouch\Credentials\CredentialMutation;
 use Fissible\Vouch\Factors\Drivers\PasswordFactor;
 use Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor;
 use Fissible\Vouch\Factors\Drivers\TotpFactor;
@@ -75,12 +77,12 @@ function residualSession(string $binding = 'residual-1'): AuthSession
 }
 
 /** Seed a human token whose recorded proof cites one credential. */
-function residualToken(string $tokenKey, string $type, int $credentialId): void
+function residualToken(string $tokenKey, string $type, int $credentialId, int $userId = 1): void
 {
     app(TokenAssuranceRecord::class)->store(
         'sanctum',
         $tokenKey,
-        SubjectKey::forConfiguredUser(1),
+        SubjectKey::forConfiguredUser($userId),
         null,
         ActorKind::Human,
         [new SatisfiedFactor(
@@ -94,12 +96,16 @@ function residualToken(string $tokenKey, string $type, int $credentialId): void
     );
 }
 
-/** An issuer whose revoke() fails for $failing, carrying a recognisable text. */
-function residualIssuer(string $failing = 'late'): RecordingIssuer
+/**
+ * An issuer whose revoke() fails for each of $failing, with a recognisable text.
+ *
+ * @param list<string> $failing
+ */
+function residualIssuer(array $failing = ['late']): RecordingIssuer
 {
     $issuer = new RecordingIssuer('sanctum');
     $issuer->onRevoke = function () use (&$issuer, $failing): null {
-        if (end($issuer->attempted) === $failing) {
+        if (in_array(end($issuer->attempted), $failing, true)) {
             throw new RuntimeException(RESIDUAL_SENTINEL);
         }
 
@@ -113,10 +119,10 @@ function residualIssuer(string $failing = 'late'): RecordingIssuer
 }
 
 /** Write an enabled credential directly, outside any factor's own list. */
-function lateCredential(string $type, string $secret = 'late-digest'): AuthCredential
+function lateCredential(string $type, string $secret = 'late-digest', int $userId = 1): AuthCredential
 {
     return AuthCredential::create([
-        'user_id' => 1,
+        'user_id' => $userId,
         'type' => $type,
         'secret' => $secret,
         'strength' => $type === 'totp' ? 'possession' : 'recovery',
@@ -287,4 +293,92 @@ it('reports a proof withdrawn late by a removal', function (string $type, string
 })->with([
     'totp' => ['totp', 'JBSWY3DPEHPK3PXP'],
     'recovery_code' => ['recovery_code', 'digest'],
+]);
+
+/**
+ * The identities an internal mutation result reports, as sorted pairs.
+ *
+ * The internal type keeps the driver's text; only the identities are compared,
+ * which is what the two results have in common.
+ *
+ * @param list<CredentialDriverFailure> $failures
+ * @return list<array{string, string}>
+ */
+function internalPairs(array $failures): array
+{
+    $pairs = array_map(
+        static fn (CredentialDriverFailure $failure): array => [$failure->issuerKey, $failure->tokenKey],
+        $failures,
+    );
+    sort($pairs);
+
+    return $pairs;
+}
+
+it('keeps an unrelated mutation out of a removal\'s residual', function (int $unrelatedUser): void {
+    residualUser();
+    if ($unrelatedUser !== 1) {
+        residualUser($unrelatedUser);
+    }
+
+    $target = lateCredential('totp', 'JBSWY3DPEHPK3PXP');
+    $unrelated = lateCredential('totp', 'JBSWY3DPEHPK3PXP-other', $unrelatedUser);
+
+    $issuer = residualIssuer(['target-late', 'unrelated']);
+
+    /*
+     * The window is not hypothetical. Disabling the target fires Eloquent's
+     * updating event, and an observer there can run a second mutation on the
+     * same connection -- measured, not imagined.
+     *
+     * A channel that matches on the connection alone hands that mutation's
+     * failure to the removal, which then names a token it never touched. The
+     * same-subject row is the one that matters most: matching on the subject as
+     * well as the connection still gets it wrong, because both operations
+     * belong to the same user.
+     */
+    $nested = null;
+    $fired = false;
+
+    AuthCredential::updating(function (AuthCredential $credential) use (
+        &$nested, &$fired, $target, $unrelated, $unrelatedUser
+    ): void {
+        if ($fired || $credential->id !== $target->id) {
+            return;
+        }
+        $fired = true;
+
+        residualToken('target-late', 'totp', $target->id);
+        residualToken('unrelated', 'totp', $unrelated->id, $unrelatedUser);
+
+        $nested = app(CredentialMutation::class)->revoking(
+            SubjectKey::forConfiguredUser($unrelatedUser),
+            [(string) $unrelated->id],
+            static fn (): null => null,
+        );
+    });
+
+    $result = app(CredentialSelfService::class)->removeFactor(residualSession(), $target->id);
+
+    expect($fired)->toBeTrue()
+        ->and($result->outcome)->toBe(SelfServiceOutcome::Completed)
+        // Each operation reports its own, and only its own.
+        ->and(residualPairs($result->driverFailures))->toBe([['sanctum', 'target-late']])
+        ->and($nested)->not->toBeNull()
+        ->and(internalPairs($nested?->driverFailures ?? []))->toBe([['sanctum', 'unrelated']])
+        /*
+         * Both revocations must still have been attempted and both proofs
+         * withdrawn. Excluding the unrelated failure by suppressing the nested
+         * mutation would satisfy the two assertions above while silently
+         * cancelling work that was asked for.
+         */
+        ->and($issuer->attempted)->toContain('target-late')
+        ->and($issuer->attempted)->toContain('unrelated')
+        ->and(DB::table('auth_token_assurances')->where('token_key', 'target-late')->exists())->toBeFalse()
+        ->and(DB::table('auth_token_assurances')->where('token_key', 'unrelated')->exists())->toBeFalse()
+        ->and(AuthCredential::query()->whereKey($target->id)->whereNull('disabled_at')->exists())->toBeFalse()
+        ->and(AuthCredential::query()->whereKey($unrelated->id)->whereNull('disabled_at')->exists())->toBeTrue();
+})->with([
+    'different subject' => 2,
+    'same subject, different credential' => 1,
 ]);
