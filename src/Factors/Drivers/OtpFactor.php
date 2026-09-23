@@ -23,6 +23,7 @@ use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Tokens\SubjectKey;
 use Fissible\Vouch\Notifications\OtpChallengeOutbox;
+use Fissible\Vouch\Support\DatabaseTime;
 use Fissible\Vouch\Support\SystemRandomSource;
 use Fissible\Vouch\Throttle\ChallengeAttemptDecision;
 use Illuminate\Support\Facades\Hash;
@@ -312,7 +313,9 @@ abstract readonly class OtpFactor implements Factor
             return FactorResult::failed(FactorFailure::Consumed);
         }
 
-        if ($challenge->expires_at->getTimestamp() <= $this->clock->now()->getTimestamp()) {
+        $now = $this->databaseTime()->current();
+
+        if ($challenge->expires_at->getTimestamp() <= $now->getTimestamp()) {
             return FactorResult::failed(FactorFailure::Expired);
         }
 
@@ -400,6 +403,15 @@ abstract readonly class OtpFactor implements Factor
     private function mutation(): CredentialMutation
     {
         return app()->makeWith(CredentialMutation::class, ['connection' => $this->guard->connection()]);
+    }
+
+    /**
+     * The deadline was written by the guard's database, so the expiry comparison
+     * must ask that same database for the current time.
+     */
+    private function databaseTime(): DatabaseTime
+    {
+        return new DatabaseTime($this->guard->connection());
     }
 
     /**

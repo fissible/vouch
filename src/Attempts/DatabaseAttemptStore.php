@@ -191,8 +191,8 @@ final class DatabaseAttemptStore implements AttemptStore
      *
      * AuthFlow and OtpFactor write their attempt and challenge deadlines with
      * DatabaseTime::deadline(), so those writes share this store's database
-     * clock authority. OtpFactor's own expiry read still uses the application
-     * clock; that remaining clock mismatch is tracked separately in #43.
+     * clock authority. OtpFactor's own expiry read uses DatabaseTime::current()
+     * to compare against that same clock on each verification.
      *
      * @return Expression<'CURRENT_TIMESTAMP'>
      */
