@@ -349,7 +349,7 @@ final class VouchServiceProvider extends ServiceProvider
                 ),
                 $app->make(CaptchaVerifier::class),
                 $app->make(ThrottleConfiguration::class),
-                $app->make(\Psr\Clock\ClockInterface::class),
+                $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
                 config()->integer('vouch.attempts.ttl_seconds'),
             ),
         );
