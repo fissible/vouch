@@ -296,28 +296,60 @@ it('refuses an expired challenge', function (): void {
     $challenge = emailOtp()->challenge(new ChallengeRequest($attempt, $credential));
     $code = deliveredOtpCode();
 
-    Carbon::setTestNow(now()->addMinutes(5));
+    /*
+     * #43: expired on the DATABASE's clock, which is the one that wrote the
+     * deadline. Travelling application time used to expire this challenge, and
+     * that it worked was the defect -- the driver was judging a database
+     * deadline by PHP's clock. It no longer moves anything.
+     */
+    $challenge = requireChallenge($challenge);
+    shiftDeadlineOnDatabaseClock('auth_challenges', $challenge->id, -1);
 
     expect(emailOtp()->verify(new VerificationRequest(
         attempt: $attempt,
         input: ['code' => $code],
-        challenge: $challenge,
+        challenge: AuthChallenge::findOrFail($challenge->id),
     ))->failure)->toBe(FactorFailure::Expired);
 });
 
-it('refuses a challenge at its exact expiry boundary', function (): void {
+it('accepts a challenge before its deadline and refuses it after', function (): void {
     $credential = emailOtp()->enroll(7, ['identifier_id' => verifiedEmail()->id])->credentials[0];
     $attempt = otpAttempt();
     $challenge = requireChallenge(emailOtp()->challenge(new ChallengeRequest($attempt, $credential)));
     $code = deliveredOtpCode();
 
-    Carbon::setTestNow($challenge->expires_at);
-
-    expect(emailOtp()->verify(new VerificationRequest(
+    /*
+     * #43 changed what this test can prove, and the change is stated rather
+     * than hidden.
+     *
+     * It used to pin the exact instant: with the comparison on an application
+     * clock a test could hold time still at precisely expires_at and show that
+     * <= rather than < was meant. Setting the deadline to database now does
+     * NOT reconstruct that -- PostgreSQL rounds through CURRENT_TIMESTAMP(0)
+     * and the stored value can land ahead of transaction time, which failed
+     * correct implementations on three runs in four when measured.
+     *
+     * So this is now the pair, both sides deterministic: live while the
+     * deadline is ahead, dead once it is behind. The exact instant is pinned
+     * separately, and only where it can be built honestly, by
+     * OtpExpiryClockSourceTest.
+     */
+    $live = emailOtp()->verify(new VerificationRequest(
         attempt: $attempt,
         input: ['code' => $code],
         challenge: $challenge,
-    ))->failure)->toBe(FactorFailure::Expired);
+    ));
+
+    shiftDeadlineOnDatabaseClock('auth_challenges', $challenge->id, -1);
+
+    $dead = emailOtp()->verify(new VerificationRequest(
+        attempt: $attempt,
+        input: ['code' => $code],
+        challenge: AuthChallenge::findOrFail($challenge->id),
+    ));
+
+    expect($live->failure)->toBeNull()
+        ->and($dead->failure)->toBe(FactorFailure::Expired);
 });
 
 it('refuses a challenge already consumed by the store', function (): void {

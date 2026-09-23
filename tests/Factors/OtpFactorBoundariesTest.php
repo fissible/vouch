@@ -133,13 +133,12 @@ it('issues codes of its documented default length and lifetime', function (): vo
         ->and($expiry)->toBeLessThanOrEqual($after);
 });
 
-it('treats a code as expired at its expiry instant, not one second after', function (): void {
+it('accepts a code before its deadline and refuses it after', function (): void {
     /*
-     * `expires_at <= now` read as `<` accepts a code at the exact instant it
-     * expires. One second of an OTP's life is not a security incident on its
-     * own, but the boundary is the whole meaning of a lifetime, and nothing
-     * else in the suite tests AT it -- every other expiry test is comfortably
-     * past.
+     * The live/dead pair around the deadline. #43 moved the comparison onto the
+     * database's clock, and the exact instant is no longer constructible here:
+     * OtpExpiryClockSourceTest pins that, on the one engine where the database
+     * clock can be held still.
      */
     $delivery = new ArrayOtpDelivery();
     $issuer = new EmailOtpFactor(
@@ -161,21 +160,34 @@ it('treats a code as expired at its expiry instant, not one second after', funct
         throw new RuntimeException('Expected the OTP challenge to be issued.');
     }
 
-    $clock = new SteppableClock($challenge->expires_at->toDateTimeImmutable()->modify('-1 second'));
+    /*
+     * #43 moved the expiry decision onto the clock that wrote the deadline, so
+     * stepping an injected clock no longer moves this boundary -- the whole
+     * point of the change. The pair is preserved by moving the DEADLINE
+     * instead, which is the same boundary approached from the other side.
+     *
+     * The exact instant is not reconstructible by setting the deadline to
+     * database now: PostgreSQL rounds through CURRENT_TIMESTAMP(0) and the
+     * stored value can land ahead of transaction time, which rejected correct
+     * implementations on three runs in four when measured. The pair is what is
+     * pinned here -- live while the deadline is ahead, dead once it is behind
+     * -- and the exact instant is pinned by OtpExpiryClockSourceTest, on the
+     * one engine where it can be built honestly.
+     */
     $verifier = new EmailOtpFactor(
         app(EnrollmentGuard::class),
-        $clock,
+        app(ClockInterface::class),
         app(OtpChallengeOutbox::class),
         app(AuthThrottleStore::class),
         6,
         120,
     );
 
-    // One second before the deadline: still good.
+    // The deadline is still ahead on the database's clock: good.
     $early = $verifier->verify(new VerificationRequest($attempt, ['code' => $code]));
 
-    // Exactly at the deadline: expired.
-    $clock->advance(1);
+    // Once the deadline has passed: expired.
+    shiftDeadlineOnDatabaseClock('auth_challenges', $challenge->id, -1);
     $atDeadline = $verifier->verify(new VerificationRequest($attempt, ['code' => $code]));
 
     expect($early->failure)->toBeNull()
