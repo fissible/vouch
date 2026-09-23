@@ -189,18 +189,10 @@ final class DatabaseAttemptStore implements AttemptStore
      * T0 would not close it — the predicate would compare against T0 and pass.
      * Evaluating at statement execution does.
      *
-     * NOT skew-free, and it is worth being exact about where the seam is. Every
-     * comparison this store makes reads the DATABASE clock, but OtpFactor —
-     * currently the only code in the package that writes an expires_at at all —
-     * writes challenge lifetimes from the injected PSR clock, i.e. the APP clock.
-     * So an OTP's lifetime is (app T0 + ttl) measured against the database's now,
-     * and app-to-database skew widens or narrows it by exactly that offset. The
-     * consequence is not only a wrong lifetime but a wrong OUTCOME NAME: if the
-     * app clock lags the database clock by more than the TTL, the driver's own
-     * expiry check (also app-clock) still says live, the store's guarded consume
-     * matches nothing, and the caller is told ChallengeAlreadyConsumed for a
-     * challenge that had merely expired. Moving the column write onto the
-     * database clock is a deliberate later-phase decision, not an oversight here.
+     * AuthFlow and OtpFactor write their attempt and challenge deadlines with
+     * DatabaseTime::deadline(), so those writes share this store's database
+     * clock authority. OtpFactor's own expiry read still uses the application
+     * clock; that remaining clock mismatch is tracked separately in #43.
      *
      * @return Expression<'CURRENT_TIMESTAMP'>
      */

@@ -36,6 +36,7 @@ use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Models\AuthPolicy;
+use Fissible\Vouch\Support\DatabaseTime;
 use Fissible\Vouch\Throttle\IdentifierThrottle;
 use Fissible\Vouch\Throttle\IssuancePermission;
 use Fissible\Vouch\Throttle\SharedThrottle;
@@ -43,7 +44,6 @@ use Fissible\Vouch\Throttle\ThrottleDecision;
 use Fissible\Vouch\Throttle\ThrottleKey;
 use Fissible\Vouch\Throttle\ThrottleSubject;
 use Fissible\Vouch\Throttle\ThrottleConfiguration;
-use Psr\Clock\ClockInterface;
 
 /**
  * Drives an authentication attempt.
@@ -76,7 +76,7 @@ final readonly class AuthFlow
         private VerificationEqualizer $equalizer,
         private CaptchaVerifier $captcha,
         private ThrottleConfiguration $throttleConfiguration,
-        private ClockInterface $clock,
+        private DatabaseTime $time,
         private int $attemptTtlSeconds,
     ) {}
 
@@ -124,7 +124,7 @@ final readonly class AuthFlow
             'version' => 1,
             'bound_context' => $request->boundContext,
             'tenant_id' => $this->tenants->currentTenantId(),
-            'expires_at' => $this->clock->now()->modify(sprintf('+%d seconds', $this->attemptTtlSeconds)),
+            'expires_at' => $this->time->deadline($this->attemptTtlSeconds),
         ]);
 
         return new Continuing($this->screens->identify($this->posture(null)), $attempt->handle);
