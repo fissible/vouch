@@ -171,9 +171,9 @@ final readonly class TotpFactor implements Factor
         };
         $subject = SubjectKey::forConfiguredUser($userId);
         if ($replace) {
-            $this->mutation()->revoking($subject, array_values(AuthCredential::query()->where('user_id', $userId)->where('type', $this->id())->whereNull('disabled_at')->get()->map(static fn (AuthCredential $credential): string => (string) $credential->id)->all()), $write);
+            $mutation = $this->mutation()->revoking($subject, array_values(AuthCredential::query()->where('user_id', $userId)->where('type', $this->id())->whereNull('disabled_at')->get()->map(static fn (AuthCredential $credential): string => (string) $credential->id)->all()), $write);
         } else {
-            $this->mutation()->additive($subject, $write);
+            $mutation = $this->mutation()->additive($subject, $write);
         }
 
         if (! $credential instanceof AuthCredential) {
@@ -183,6 +183,7 @@ final readonly class TotpFactor implements Factor
         return new EnrollmentResult(
             [$credential],
             [new OneTimeSecret($totp->getProvisioningUri())],
+            $mutation->report,
         );
     }
 

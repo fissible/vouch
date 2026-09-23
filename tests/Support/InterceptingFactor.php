@@ -38,6 +38,12 @@ final class InterceptingFactor implements Factor
         private readonly Factor $inner,
         private readonly ?Closure $beforeRevoke = null,
         private readonly bool $throwOnRevoke = false,
+        // The "after" variants throw once the driver's write has already
+        // landed. Throwing instead of the write and throwing after it are
+        // different failures, and only the second asks whether the caller
+        // rolls the write back.
+        private readonly bool $throwAfterRevoke = false,
+        private readonly bool $throwAfterEnroll = false,
     ) {}
 
     public function revoke(AuthCredential $credential): void
@@ -53,13 +59,23 @@ final class InterceptingFactor implements Factor
         }
 
         $this->inner->revoke($credential);
+
+        if ($this->throwAfterRevoke) {
+            throw new RuntimeException('Credential mutation failed after the credential was revoked.');
+        }
     }
 
     public function enroll(int $userId, array $data): EnrollmentResult
     {
         $this->enrollCalls++;
 
-        return $this->inner->enroll($userId, $data);
+        $result = $this->inner->enroll($userId, $data);
+
+        if ($this->throwAfterEnroll) {
+            throw new RuntimeException('Credential mutation failed after the credential was written.');
+        }
+
+        return $result;
     }
 
     public function id(): string

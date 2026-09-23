@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Factors;
 
+use Fissible\Vouch\Credentials\CredentialDriverFailureIdentity;
+use Fissible\Vouch\Credentials\CredentialDriverFailureReport;
 use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Secrets\OneTimeSecret;
 
@@ -19,14 +21,20 @@ use Fissible\Vouch\Secrets\OneTimeSecret;
  * exactly once, straight into the response, and put it in no session, log,
  * audit event, or queued payload.
  */
-final readonly class EnrollmentResult
+final class EnrollmentResult
 {
+    /** @var list<CredentialDriverFailureIdentity> */
+    public array $driverFailures {
+        get => $this->report->driverFailures;
+    }
+
     /**
      * @param  list<AuthCredential>  $credentials
      * @param  list<OneTimeSecret>  $secrets
      */
     public function __construct(
-        public array $credentials,
-        public array $secrets = [],
+        public readonly array $credentials,
+        public readonly array $secrets = [],
+        private readonly CredentialDriverFailureReport $report = new CredentialDriverFailureReport,
     ) {}
 }

@@ -20,6 +20,7 @@ final readonly class CredentialMutation
         private CredentialLockManager $locks,
         private TokenIssuerRegistry $issuers,
         private TokenAssuranceRecord $records,
+        private CredentialDriverFailureCollector $failureCollector,
     ) {}
 
     /** @param callable $write */
@@ -71,7 +72,11 @@ final readonly class CredentialMutation
          */
         $result = new CredentialMutationResult;
 
-        $mutate = function () use ($subject, $credentialIds, $subjectWide, $write, $result): array {
+        // Bind before the writer can enter another mutation. Capture the
+        // channels now because their scope may end before the outer commit.
+        $reports = $this->failureCollector->reportsFor($this->connection, $result->report);
+
+        $mutate = function () use ($subject, $credentialIds, $subjectWide, $write, $result, $reports): array {
             $this->locks->acquire($this->connection, $subject, $credentialIds);
 
             /*
@@ -106,7 +111,7 @@ final readonly class CredentialMutation
             );
 
             foreach ($revoked as $row) {
-                $this->connection->afterCommit(function () use ($row, $result): void {
+                $this->connection->afterCommit(function () use ($row, $result, $reports): void {
                     foreach ($this->issuers->issuers() as $issuer) {
                         if ($issuer->issuerKey() !== $row->issuer_key) {
                             continue;
@@ -119,6 +124,9 @@ final readonly class CredentialMutation
                                 $row->issuer_key, $row->token_key, $failure->getMessage(),
                             );
                             $result->recordDriverFailure($driverFailure);
+                            foreach ($reports as $report) {
+                                $report->record($row->issuer_key, $row->token_key);
+                            }
 
                             // Callers commonly do not retain the result. Record
                             // this here, at the shared post-commit boundary, so

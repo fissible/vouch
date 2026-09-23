@@ -11,6 +11,7 @@ final class CredentialMutationResult
         public int $revoked = 0,
         public array $driverFailures = [],
         public bool $driverRevocationsComplete = false,
+        public readonly CredentialDriverFailureReport $report = new CredentialDriverFailureReport,
     ) {}
 
     /**
@@ -21,6 +22,7 @@ final class CredentialMutationResult
     public function recordDriverFailure(CredentialDriverFailure $failure): void
     {
         $this->driverFailures[] = $failure;
+        $this->report->record($failure->issuerKey, $failure->tokenKey);
     }
 
     /** Mark the returned result final after all deferred driver calls ran. */

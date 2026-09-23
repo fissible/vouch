@@ -71,6 +71,7 @@ final class VouchServiceProvider extends ServiceProvider
         $this->app->bind(TenantResolver::class, NullTenantResolver::class);
 
         $this->app->singleton(SanctumTokenIssuer::class);
+        $this->app->singleton(\Fissible\Vouch\Credentials\CredentialDriverFailureCollector::class);
         $this->app->bind(TokenIssuer::class, SanctumTokenIssuer::class);
         $this->app->singleton(
             TokenIssuerRegistry::class,

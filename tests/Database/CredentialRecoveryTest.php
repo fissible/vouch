@@ -21,6 +21,7 @@ use Fissible\Vouch\Tests\Support\PermittingDeliveryEconomics;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Hash;
 
 uses(DatabaseMigrations::class);
@@ -306,6 +307,10 @@ it('commits revocation before mutating, and reports failure without undoing it',
      * that validated input first and revoked second cannot pass. The contract's
      * chosen ordering says revocation stands, the old credential still works,
      * and the operation reports failure rather than partial success.
+     *
+     * #35 amended the expected value only. The ordering this test pins did not
+     * change; the outcome stopped being spelled the same as an unauthorized
+     * caller's refusal.
      */
     $factor = interceptMutation(
         before: fn (): bool => revokedOnAnIndependentConnection($sibling->id),
@@ -322,7 +327,7 @@ it('commits revocation before mutating, and reports failure without undoing it',
      * same-connection read cannot tell the difference.
      */
     expect($factor->observed)->toBeTrue()
-        ->and($outcome)->toBe(CredentialRecoveryOutcome::Refused)
+        ->and($outcome->outcome)->toBe(CredentialRecoveryOutcome::CredentialChangeFailed)
         ->and($sibling->refresh()->revoked_at)->not->toBeNull()
         ->and(Hash::check('old-password', currentPasswordSecret()))->toBeTrue()
         ->and(app(GraceGuard::class)->activeFor('host-session-1'))->not->toBeNull();
@@ -340,7 +345,7 @@ it('refuses a reset without an active matching grace capability', function (): v
      */
     $recovery = app(CredentialRecovery::class);
 
-    expect($recovery->reset('host-session-unknown', 'new-password-value'))
+    expect($recovery->reset('host-session-unknown', 'new-password-value')->outcome)
         ->toBe(CredentialRecoveryOutcome::Refused)
         ->and(Hash::check('old-password', currentPasswordSecret()))->toBeTrue()
         ->and($sibling->refresh()->revoked_at)->toBeNull();
@@ -361,7 +366,7 @@ it('refuses a reset once its grace capability has lapsed', function (): void {
         ->whereNotNull('recovery_grace_expires_at')
         ->update(['recovery_grace_expires_at' => '2000-01-01 00:00:00']);
 
-    expect(app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value'))
+    expect(app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value')->outcome)
         ->toBe(CredentialRecoveryOutcome::Refused)
         ->and(Hash::check('old-password', currentPasswordSecret()))->toBeTrue()
         ->and($sibling->refresh()->revoked_at)->toBeNull();
@@ -384,7 +389,7 @@ it('revokes again after the mutation commits, catching the stated race', functio
 
     $outcome = app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value');
 
-    expect($outcome)->toBe(CredentialRecoveryOutcome::Reset)
+    expect($outcome->outcome)->toBe(CredentialRecoveryOutcome::Reset)
         ->and($factor->enrollCalls)->toBe(1)
         ->and($raced?->refresh()->revoked_at)->not->toBeNull()
         // Positive control: the reset must actually have replaced the credential.
@@ -459,7 +464,7 @@ it('requires an enabled second factor during reset when configured to', function
      * strand the user: they hold a valid proof, are told to present a second
      * factor, and have nothing left to present it against.
      */
-    expect(app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value'))
+    expect(app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value')->outcome)
         ->toBe(CredentialRecoveryOutcome::SecondFactorRequired)
         ->and(Hash::check('old-password', currentPasswordSecret()))->toBeTrue()
         ->and(app(GraceGuard::class)->activeFor('host-session-1'))->not->toBeNull();
@@ -474,7 +479,7 @@ it('does not require a second factor the account does not have', function (): vo
      * The paired branch of mode (a). Requiring a factor the account lacks would
      * be the lockout the policy explicitly refuses to create.
      */
-    expect(app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value'))
+    expect(app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value')->outcome)
         ->toBe(CredentialRecoveryOutcome::Reset)
         ->and(Hash::check('new-password-value', currentPasswordSecret()))->toBeTrue();
 });
@@ -490,6 +495,484 @@ it('ignores a disabled second factor when deciding whether to require one', func
      * A disabled factor cannot be presented, so treating it as present would
      * lock the account out of its own recovery.
      */
-    expect(app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value'))
+    expect(app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value')->outcome)
         ->toBe(CredentialRecoveryOutcome::Reset);
+});
+
+/*
+ * #35. The ordering above is the security contract and stays: siblings are
+ * revoked and that revocation is committed BEFORE the credential mutates, so
+ * a stale session cannot outlive the reset that was meant to end it.
+ *
+ * What was wrong was the vocabulary, not the order. A mutation that fails
+ * after that commit returned CredentialRecoveryOutcome::Refused -- the same
+ * value returned to a caller who was never authorized at all. So the caller
+ * could not distinguish "nothing happened" from "you are authorized, your
+ * other sessions are gone, and your password did not change", and the second
+ * of those needs different handling: the user must retry, and an operator
+ * needs to know the credential store failed.
+ *
+ * CredentialChangeFailed is scoped precisely, because a looser promise would
+ * repeat the bug in a new place:
+ *
+ *   authorized; sibling sessions were revoked and committed;
+ *   Vouch-owned credential writes rolled back.
+ *
+ * reset() returns a CredentialResetResult rather than the bare enum, for the
+ * same reason the outcome exists at all. A reset whose credential committed but
+ * whose token cleanup failed is not an ordinary Reset: the tokens that cited
+ * the replaced password may still be live at their issuer. That residual has
+ * nowhere to live on an enum, so every assertion here reads ->outcome, and the
+ * paired issuer tests at the end of this file pin the residual itself.
+ * driverFailures carries structured issuer/token identities, not exception
+ * text, because an operator needs to know WHICH token was stranded.
+ *
+ * "Rolled back" is a real requirement, not a description. A caught Throwable
+ * does not by itself prove the credential is unchanged: the failure can land
+ * after the driver already wrote. So the mutation phase runs in its own
+ * transaction, separate from and after the revocation's committed one, and the
+ * post-write tests below are what force that. There may have been zero
+ * siblings; the outcome says a revocation pass ran, not that it revoked rows.
+ *
+ * The discriminating axis these tests exist to hold is WHERE the failure
+ * happened. Refusals that occur before the revocation pass -- no grace, a
+ * required second factor -- keep the ordinary vocabulary AND must leave
+ * siblings alone. An implementation that renames the catch block without
+ * drawing that line passes none of the pairs below.
+ */
+
+it('distinguishes a reset that failed from one that was refused', function (): void {
+    recoverableUser();
+    openedGrace();
+
+    interceptMutation(throw: true);
+
+    $failed = app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value');
+
+    // The same call with no grace behind it: refused before anything was
+    // authorized. The two must not share a value.
+    $refused = app(CredentialRecovery::class)->reset('host-session-never-opened', 'new-password-value');
+
+    expect($failed->outcome)->toBe(CredentialRecoveryOutcome::CredentialChangeFailed)
+        ->and($failed->outcome)->not->toBe(CredentialRecoveryOutcome::Refused)
+        ->and($failed->outcome)->not->toBe(CredentialRecoveryOutcome::Reset)
+        ->and($refused->outcome)->toBe(CredentialRecoveryOutcome::Refused);
+});
+
+it('leaves the old credential usable when the reset fails', function (): void {
+    recoverableUser();
+    openedGrace();
+
+    interceptMutation(throw: true);
+
+    /*
+     * The failure outcome is only honest if the credential really did not
+     * change. Asserting the enum alone would accept an implementation that
+     * mutated and then reported failure.
+     */
+    expect(app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value')->outcome)
+        ->toBe(CredentialRecoveryOutcome::CredentialChangeFailed)
+        ->and(Hash::check('old-password', currentPasswordSecret()))->toBeTrue()
+        ->and(Hash::check('new-password-value', currentPasswordSecret()))->toBeFalse();
+});
+
+it('leaves siblings revoked after the mutation failed', function (): void {
+    recoverableUser();
+    $sibling = liveSession(1, str_repeat('s', 64));
+    openedGrace();
+
+    interceptMutation(throw: true);
+
+    /*
+     * #35 asked whether the revocation should be undone. It should not: the
+     * window it closes is real, and reversing the order re-opens it. The new
+     * outcome exists so the caller learns this happened, not so it stops
+     * happening.
+     *
+     * Final state only. The ordering itself is pinned by the
+     * independent-connection probe above, which is the one that can tell a
+     * committed revocation from one merely written first.
+     */
+    expect(app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value')->outcome)
+        ->toBe(CredentialRecoveryOutcome::CredentialChangeFailed)
+        ->and($sibling->refresh()->revoked_at)->not->toBeNull()
+        ->and($sibling->refresh()->revoked_reason)->toBe(RevokedReason::PasswordChanged);
+});
+
+it('does not revoke siblings for a reset refused before authorization', function (): void {
+    recoverableUser();
+    $sibling = liveSession(1, str_repeat('s', 64));
+
+    /*
+     * The paired negative. An implementation that revokes first and decides
+     * afterwards would return the failure outcome here too, and would have
+     * destroyed a live session on behalf of a caller holding nothing.
+     */
+    expect(app(CredentialRecovery::class)->reset('host-session-never-opened', 'new-password-value')->outcome)
+        ->toBe(CredentialRecoveryOutcome::Refused)
+        ->and($sibling->refresh()->revoked_at)->toBeNull();
+});
+
+it('does not revoke siblings when a second factor is required', function (): void {
+    Config::set('vouch.recovery.require_second_factor', true);
+    recoverableUser();
+    app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class)->enroll(1, ['label' => 'ada@acme.example']);
+    $sibling = liveSession(1, str_repeat('s', 64));
+    openedGrace();
+
+    /*
+     * SecondFactorRequired returns before the revocation pass, so it is the
+     * second early exit that must keep its own vocabulary and its own
+     * no-side-effects promise.
+     */
+    expect(app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value')->outcome)
+        ->toBe(CredentialRecoveryOutcome::SecondFactorRequired)
+        ->and($sibling->refresh()->revoked_at)->toBeNull();
+});
+
+it('keeps the grace window open when the reset fails', function (): void {
+    recoverableUser();
+    openedGrace();
+
+    interceptMutation(throw: true);
+
+    /*
+     * A user told to retry needs something to retry against. Consuming grace
+     * on an operational failure would strand them exactly as consuming it on
+     * a second-factor refusal would.
+     */
+    expect(app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value')->outcome)
+        ->toBe(CredentialRecoveryOutcome::CredentialChangeFailed)
+        ->and(app(GraceGuard::class)->activeFor('host-session-1'))->not->toBeNull();
+});
+
+it('reports the failure that produced the outcome', function (): void {
+    Exceptions::fake();
+
+    recoverableUser();
+    openedGrace();
+
+    interceptMutation(throw: true);
+
+    /*
+     * No AuditSink driver exists yet (2.4), so report() IS the operator path
+     * today. The outcome tells the caller to retry; this tells whoever runs
+     * the system that the credential store threw.
+     */
+    expect(app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value')->outcome)
+        ->toBe(CredentialRecoveryOutcome::CredentialChangeFailed);
+
+    /*
+     * By identity, not by class. Asserting RuntimeException alone would pass on
+     * any unrelated reported exception, including one raised by a later
+     * implementation for a different reason.
+     */
+    Exceptions::assertReported(fn (RuntimeException $reported): bool =>
+        $reported->getMessage() === 'Credential mutation failed after revocation committed.');
+});
+
+it('still reports success as success', function (): void {
+    recoverableUser();
+    $sibling = liveSession(1, str_repeat('s', 64));
+    openedGrace();
+
+    /*
+     * The new case must not widen. A reset that works keeps its own value,
+     * still revokes siblings, and still changes the credential.
+     */
+    expect(app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value')->outcome)
+        ->toBe(CredentialRecoveryOutcome::Reset)
+        ->and(Hash::check('new-password-value', currentPasswordSecret()))->toBeTrue()
+        ->and($sibling->refresh()->revoked_at)->not->toBeNull();
+});
+
+it('rolls back a credential written before the failure', function (): void {
+    recoverableUser();
+    $sibling = liveSession(1, str_repeat('s', 64));
+    openedGrace();
+
+    /*
+     * The failure lands AFTER the driver already wrote the new password. This
+     * is the case a catch block alone cannot handle and the one that decides
+     * whether CredentialChangeFailed is honest: without a transaction around
+     * the mutation phase, the outcome says "rolled back" while the account's
+     * password has silently changed to a value the user never saw confirmed.
+     *
+     * The revocation must still stand. It committed in its own transaction
+     * before this one opened, so rolling the mutation back cannot take it with
+     * it -- and an implementation that wrapped both together would fail here.
+     */
+    $factor = new InterceptingPasswordFactor(app(PasswordFactor::class), throwAfter: true);
+    app()->when(CredentialRecovery::class)->needs(Factor::class)->give(fn (): Factor => $factor);
+    app()->forgetInstance(CredentialRecovery::class);
+
+    expect(app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value')->outcome)
+        ->toBe(CredentialRecoveryOutcome::CredentialChangeFailed)
+        ->and($factor->enrollCalls)->toBe(1)
+        ->and(Hash::check('old-password', currentPasswordSecret()))->toBeTrue()
+        ->and(Hash::check('new-password-value', currentPasswordSecret()))->toBeFalse()
+        ->and($sibling->refresh()->revoked_at)->not->toBeNull();
+});
+
+it('keeps exactly one active password after a rolled-back reset', function (): void {
+    recoverableUser();
+    openedGrace();
+
+    /*
+     * enroll(replace: true) disables the old credential and writes a new one.
+     * A rollback that restored the secret but left both rows active, or left
+     * the old one disabled, would satisfy a Hash::check assertion while leaving
+     * the account in a state it was never in.
+     */
+    $factor = new InterceptingPasswordFactor(app(PasswordFactor::class), throwAfter: true);
+    app()->when(CredentialRecovery::class)->needs(Factor::class)->give(fn (): Factor => $factor);
+    app()->forgetInstance(CredentialRecovery::class);
+
+    app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value');
+
+    expect(AuthCredential::query()->where('user_id', 1)->where('type', 'password')->count())->toBe(1)
+        ->and(AuthCredential::query()->where('user_id', 1)->where('type', 'password')
+            ->whereNull('disabled_at')->count())->toBe(1);
+});
+
+/**
+ * A public residual names WHICH token at WHICH issuer, and nothing else.
+ *
+ * get_object_vars() from outside class scope sees public properties only, which
+ * is the point: json_encode() and print_r() can both be silenced, by
+ * JsonSerializable and __debugInfo respectively, while a public property still
+ * hands the driver's exception text to the caller. Measured as surviving both
+ * string checks, so the property set is what gets asserted.
+ *
+ * @param list<object> $failures
+ */
+function expectIdentityOnly(array $failures): void
+{
+    foreach ($failures as $failure) {
+        $properties = array_keys(get_object_vars($failure));
+        sort($properties);
+
+        // The SET is the contract; the declaration order is not. Comparing
+        // unsorted would fail a correct implementation that declares tokenKey
+        // first, which is a refusal this test has no business making.
+        expect($properties)->toBe(['issuerKey', 'tokenKey']);
+    }
+}
+
+/** Seed a human token whose recorded proof cites user 1's active password. */
+function tokenCitingPassword(string $tokenKey, string $issuerKey = 'sanctum'): void
+{
+    app(\Fissible\Vouch\Tokens\TokenAssuranceRecord::class)->store(
+        $issuerKey,
+        $tokenKey,
+        \Fissible\Vouch\Tokens\SubjectKey::forConfiguredUser(1),
+        null,
+        \Fissible\Vouch\Tokens\ActorKind::Human,
+        [new \Fissible\Vouch\Kernel\Factor\SatisfiedFactor(
+            'password',
+            stringValue(AuthCredential::query()->where('user_id', 1)->where('type', 'password')
+                ->whereNull('disabled_at')->value('id')),
+            \Fissible\Vouch\Kernel\Factor\FactorKind::Knowledge,
+            \Fissible\Vouch\Kernel\Factor\FactorStrength::Knowledge,
+            false, false, false, null,
+            new DateTimeImmutable('2026-08-13T10:00:00+00:00'),
+        )],
+    );
+}
+
+it('surfaces a driver residual when the reset committed', function (): void {
+    recoverableUser();
+
+    // The proof cites the password this reset replaces, so this token is the
+    // one the mutation must ask the issuer to revoke.
+    tokenCitingPassword('token-key-1');
+
+    $issuer = new \Fissible\Vouch\Tests\Support\Tokens\RecordingIssuer(
+        'sanctum',
+        new RuntimeException('Issuer unreachable.'),
+    );
+    app()->instance(
+        \Fissible\Vouch\Tokens\TokenIssuerRegistry::class,
+        new \Fissible\Vouch\Tokens\TokenIssuerRegistry([$issuer]),
+    );
+    app()->forgetInstance(CredentialRecovery::class);
+
+    openedGrace();
+
+    /*
+     * Issuer revocation runs in afterCommit, past the point any transaction can
+     * undo. This is NOT the rollback case and must not borrow its outcome: the
+     * password really did change, so the reset succeeded. What must not happen
+     * is a clean Reset, because a token citing the old password may still work.
+     *
+     * attempted proves the contested path ran, so this cannot become a demand
+     * for something unreachable.
+     */
+    $result = app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value');
+
+    expect($issuer->attempted)->toBe(['token-key-1'])
+        ->and($issuer->revoked)->toBe([])
+        ->and($result->outcome)->toBe(CredentialRecoveryOutcome::Reset)
+        ->and(Hash::check('new-password-value', currentPasswordSecret()))->toBeTrue()
+        ->and($result->driverFailures)->not->toBe([])
+        ->and($result->driverFailures[0]->issuerKey)->toBe('sanctum')
+        ->and($result->driverFailures[0]->tokenKey)->toBe('token-key-1');
+
+    /*
+     * Identities, not diagnostics. CredentialMutation's INTERNAL failure object
+     * carries the driver's exception text by design, and its own tests require
+     * that -- but returning that object unmodified from a service method puts
+     * a third party's error string on the caller's result, where it can reach a
+     * response body or a log the operator did not choose. Returning the
+     * internal object unchanged passes every identity assertion above, so the
+     * absence has to be asserted separately.
+     */
+    expect(json_encode($result->driverFailures))->not->toContain('Issuer unreachable.')
+        ->and(print_r($result->driverFailures, true))->not->toContain('Issuer unreachable.');
+
+    expectIdentityOnly($result->driverFailures);
+});
+
+it('reports a driver residual alongside a failed reset', function (): void {
+    recoverableUser();
+
+    tokenCitingPassword('token-key-1');
+
+    $issuer = new \Fissible\Vouch\Tests\Support\Tokens\RecordingIssuer(
+        'sanctum',
+        new RuntimeException('Issuer unreachable.'),
+    );
+    app()->instance(
+        \Fissible\Vouch\Tokens\TokenIssuerRegistry::class,
+        new \Fissible\Vouch\Tokens\TokenIssuerRegistry([$issuer]),
+    );
+
+    openedGrace();
+
+    $factor = new InterceptingPasswordFactor(app(PasswordFactor::class), throwAfter: true);
+    app()->when(CredentialRecovery::class)->needs(Factor::class)->give(fn (): Factor => $factor);
+    app()->forgetInstance(CredentialRecovery::class);
+
+    /*
+     * The residual and the outcome are independent. Token invalidation commits
+     * with the revocation pass, so its driver failure is real whether or not
+     * the credential mutation then succeeded. Populating driverFailures only
+     * when the outcome is Reset hides the residual exactly when an operator
+     * most needs it -- and passes every success-path residual test, measured.
+     */
+    $result = app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value');
+
+    expect($issuer->attempted)->toBe(['token-key-1'])
+        ->and($result->outcome)->toBe(CredentialRecoveryOutcome::CredentialChangeFailed)
+        ->and(Hash::check('old-password', currentPasswordSecret()))->toBeTrue()
+        ->and($result->driverFailures)->not->toBe([])
+        ->and($result->driverFailures[0]->issuerKey)->toBe('sanctum')
+        ->and($result->driverFailures[0]->tokenKey)->toBe('token-key-1');
+
+    // The failure path needs the same diagnostic guarantee as the success
+    // path. Leaking raw driver text only when the reset FAILED survived the
+    // whole suite, because this test checked identities and stopped there.
+    expectIdentityOnly($result->driverFailures);
+});
+
+it('reports no residual when the reset cleaned up completely', function (): void {
+    recoverableUser();
+
+    tokenCitingPassword('token-key-1');
+
+    $issuer = new \Fissible\Vouch\Tests\Support\Tokens\RecordingIssuer('sanctum');
+    app()->instance(
+        \Fissible\Vouch\Tokens\TokenIssuerRegistry::class,
+        new \Fissible\Vouch\Tokens\TokenIssuerRegistry([$issuer]),
+    );
+    app()->forgetInstance(CredentialRecovery::class);
+
+    openedGrace();
+
+    /*
+     * The paired negative. Without it an implementation that always reports a
+     * residual passes the test above while telling every caller their tokens
+     * are in doubt.
+     */
+    $result = app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value');
+
+    expect($issuer->revoked)->toBe(['token-key-1'])
+        ->and($result->outcome)->toBe(CredentialRecoveryOutcome::Reset)
+        ->and($result->driverFailures)->toBe([]);
+});
+
+it('names every token a reset could not clean up', function (): void {
+    recoverableUser();
+
+    /*
+     * Two issuers, one shared token key, and one token that cleans up fine.
+     *
+     * A token key is only unique WITHIN an issuer, so a residual keyed on the
+     * token alone silently drops one of the two 'shared' entries -- an operator
+     * reconciles one system and leaves the other live. And reporting a whole
+     * batch as failed because part of it failed sends them after 'good', which
+     * was revoked correctly. Both survived every same-issuer fixture.
+     */
+    tokenCitingPassword('shared', 'alpha');
+    tokenCitingPassword('shared', 'beta');
+    tokenCitingPassword('good', 'alpha');
+
+    app()->instance(
+        \Fissible\Vouch\Tokens\TokenIssuerRegistry::class,
+        new \Fissible\Vouch\Tokens\TokenIssuerRegistry([
+            failingOnSharedToken('alpha'),
+            failingOnSharedToken('beta'),
+        ]),
+    );
+    app()->forgetInstance(CredentialRecovery::class);
+
+    openedGrace();
+
+    $result = app(CredentialRecovery::class)->reset('host-session-1', 'new-password-value');
+
+    // Pairs, not keys: the identity is (issuer, token) together.
+    $pairs = array_map(
+        fn (object $failure): array => [$failure->issuerKey, $failure->tokenKey],
+        $result->driverFailures,
+    );
+    sort($pairs);
+
+    expect($result->outcome)->toBe(CredentialRecoveryOutcome::Reset)
+        ->and($pairs)->toBe([['alpha', 'shared'], ['beta', 'shared']]);
+});
+
+it('does not carry one reset\'s residual into the next', function (): void {
+    recoverableUser();
+    tokenCitingPassword('token-key-1');
+
+    // Throws on the FIRST revoke only, so the second reset cleans up fully.
+    $issuer = new \Fissible\Vouch\Tests\Support\Tokens\RecordingIssuer(
+        'sanctum',
+        new RuntimeException('Issuer unreachable.'),
+        throwOnCall: 1,
+    );
+    app()->instance(
+        \Fissible\Vouch\Tokens\TokenIssuerRegistry::class,
+        new \Fissible\Vouch\Tokens\TokenIssuerRegistry([$issuer]),
+    );
+    app()->forgetInstance(CredentialRecovery::class);
+
+    $recovery = app(CredentialRecovery::class);
+
+    openedGrace();
+    $first = $recovery->reset('host-session-1', 'new-password-value');
+
+    tokenCitingPassword('token-key-2');
+    openedGrace('host-session-2');
+    $second = $recovery->reset('host-session-2', 'another-password-value');
+
+    /*
+     * A residual accumulated on a service-level collection rather than built
+     * per call reports the first failure again on every later call, telling an
+     * operator to chase a token that was already reconciled. Same service
+     * instance deliberately: a fresh one would hide it.
+     */
+    expect($first->driverFailures)->not->toBe([])
+        ->and($second->outcome)->toBe(CredentialRecoveryOutcome::Reset)
+        ->and($second->driverFailures)->toBe([]);
 });
