@@ -8,6 +8,7 @@ use Fissible\Vouch\Factors\FactorRegistry;
 use Fissible\Vouch\Factors\EnrollmentResult;
 use Fissible\Vouch\Assurance\AssuranceRequirement;
 use Fissible\Vouch\Assurance\EvidenceComparator;
+use Fissible\Vouch\Credentials\CredentialCleanupStep;
 use Fissible\Vouch\Credentials\CredentialDriverFailureIdentity;
 use Fissible\Vouch\Credentials\CredentialDriverFailureCollector;
 use Fissible\Vouch\Credentials\CredentialMutation;
@@ -228,13 +229,26 @@ final readonly class CredentialSelfService
             return new SelfServiceResult(SelfServiceOutcome::CredentialChangeFailed, [], $driverFailures);
         }
 
-        $this->sessions->revokeSiblings($session->user_id, $session->session_binding, $reason);
-        $this->removeCredentialFromEvidence($session, $removedCredentialId);
+        $cleanupFailures = [];
+
+        try {
+            $this->sessions->revokeSiblings($session->user_id, $session->session_binding, $reason);
+        } catch (Throwable $throwable) {
+            report($throwable);
+            $cleanupFailures[] = CredentialCleanupStep::SiblingRevocation;
+        }
+
+        try {
+            $this->removeCredentialFromEvidence($session, $removedCredentialId);
+        } catch (Throwable $throwable) {
+            report($throwable);
+            $cleanupFailures[] = CredentialCleanupStep::EvidenceCleanup;
+        }
 
         return new SelfServiceResult(SelfServiceOutcome::Completed, $enrollment->secrets, CredentialDriverFailureIdentity::merge(
             $revocation->report->driverFailures,
             $enrollment->driverFailures,
-        ));
+        ), $cleanupFailures);
     }
 
     private function removeCredentialFromEvidence(AuthSession $session, ?int $credentialId): void

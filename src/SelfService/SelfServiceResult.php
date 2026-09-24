@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\SelfService;
 
+use Fissible\Vouch\Credentials\CredentialCleanupStep;
 use Fissible\Vouch\Credentials\CredentialDriverFailureIdentity;
 use Fissible\Vouch\Secrets\OneTimeSecret;
 
@@ -19,10 +20,12 @@ final readonly class SelfServiceResult
     /**
      * @param list<OneTimeSecret> $secrets
      * @param list<CredentialDriverFailureIdentity> $driverFailures
+     * @param list<CredentialCleanupStep> $cleanupFailures
      */
     public function __construct(
         public SelfServiceOutcome $outcome,
         public array $secrets = [],
         public array $driverFailures = [],
+        public array $cleanupFailures = [],
     ) {}
 }
