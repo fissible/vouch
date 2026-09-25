@@ -1262,45 +1262,414 @@ it('counts guesses that reach one verification proof through different type spel
         ->and(AuthIdentifier::query()->where('value', 'grace@acme.example')->value('verified_at'))->toBeNull();
 });
 
-it('shares one redemption backoff bucket between the two ceremonies, for now', function (): void {
-    /*
-     * PINNING TODAY'S BEHAVIOUR, NOT ENDORSING IT.
-     *
-     * IdentifierVerifier::redeem() builds its throttle subject with
-     * ThrottleKey::recovery(), so verification redemption failures accumulate
-     * in the RECOVERY dimension. Guessing a verification code therefore backs
-     * off password recovery for the same identifier.
-     *
-     * Ceremony isolation is NOT guaranteed here, and #38 established that the
-     * two ceremonies are otherwise separate authorities. Splitting them needs a
-     * new ThrottleDimension, BindingDomain and store operation -- design work
-     * rather than a patch -- and is tracked separately.
-     *
-     * This test exists so that change is deliberate. When the dimensions are
-     * split this test SHOULD fail, and whoever splits them should replace it
-     * with bidirectional isolation coverage rather than deleting it quietly.
-     */
-    // One identifier, verified, usable by both ceremonies -- which is what
-    // makes the shared bucket observable at all.
-    accountingAccount('ada@acme.example', 1);
+/*
+ * #48 replaced the pinning test that used to sit here.
+ *
+ * IdentifierVerifier::redeem() built its throttle subject with
+ * ThrottleKey::recovery(), so verification guessing accumulated in the RECOVERY
+ * dimension and backed off password recovery for the same identifier. That was
+ * pinned rather than endorsed, with the instruction that whoever split the
+ * dimensions replace it with bidirectional isolation coverage instead of
+ * deleting it quietly. This is that replacement.
+ *
+ * The two ceremonies are separate authorities -- a verification code attests
+ * control of an identifier, a recovery proof opens a password reset -- so a
+ * failed guess at one must not spend the other's redemption budget.
+ *
+ * ISSUANCE stays shared, deliberately and by decision. Both ceremonies send a
+ * message to the same address, so an aggregate cap on outbound traffic per
+ * identifier is the resource actually worth bounding; splitting it would hand
+ * an attacker two budgets against one address. That decision is pinned below
+ * rather than left implicit, since it is the half that looks like an oversight.
+ */
 
-    $code = issuedVerificationProofCode('ada@acme.example');
+/**
+ * Give the backoff a window long enough to still be open when asserted.
+ *
+ * The default initial backoff is one second, and once backoff activates further
+ * guesses stop charging -- so looping "comfortably past" the threshold buys no
+ * extra time and a test could assert against a window that had already closed.
+ */
+function useLongBackoff(): void
+{
+    Config::set('vouch.throttle.identifier.initial_backoff_seconds', 300);
+    Config::set('vouch.throttle.identifier.backoff_cap_seconds', 600);
+
+    app()->forgetInstance(\Fissible\Vouch\Contracts\AuthThrottleStore::class);
+    app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
+    app()->forgetInstance(IdentifierVerifier::class);
+    app()->forgetInstance(CredentialRecovery::class);
+
+    expect(Config::integer('vouch.throttle.identifier.initial_backoff_seconds'))->toBe(300);
+}
+
+/**
+ * Age every throttle window on the DATABASE clock, past the backoff deadline.
+ *
+ * Deleting the counters would prove reset rather than EXPIRY -- a backoff that
+ * never lapsed passed a delete-and-retry test, because the state it latched on
+ * was gone. Moving the window keeps the counter and its count in place.
+ */
+function ageThrottleWindows(int $seconds): void
+{
+    $updated = DB::update(
+        'update auth_throttle_counters set window_started_at = '
+        . \Fissible\Vouch\Support\DatabaseTime::deadlineSql(DB::connection()->getDriverName()),
+        [-$seconds],
+    );
+
+    // The rows this exists to move really moved.
+    expect($updated)->toBeGreaterThan(0);
+}
+
+function verificationIsBackedOff(string $value = 'ada@acme.example'): bool
+{
+    return app(\Fissible\Vouch\Contracts\AuthThrottleStore::class)->preflightShared(
+        app(\Fissible\Vouch\Throttle\ThrottleKey::class)->verification($value, null),
+    )->decision === \Fissible\Vouch\Throttle\ThrottleDecision::BackedOff;
+}
+
+/** Guess wrong at verification until well past the backoff threshold. */
+function exhaustVerificationGuesses(string $value = 'ada@acme.example'): void
+{
+    $code = issuedVerificationProofCode($value);
 
     /*
-     * Comfortably past the backoff threshold rather than exactly on it. The
-     * burn limit and the backoff threshold are different settings that happen
-     * to share a value, and landing on the boundary made this pass on SQLite
-     * and fail on MySQL -- a brittleness that says nothing about the coupling
-     * it exists to pin.
+     * Comfortably past the threshold rather than exactly on it. The burn limit
+     * and the backoff threshold are different settings that happen to share a
+     * value, and landing on the boundary previously passed on SQLite and failed
+     * on MySQL.
      */
     foreach (range(1, attemptLimit() * 3) as $nth) {
         app(IdentifierVerifier::class)->redeem(
-            accountingVerificationFor('ada@acme.example'),
+            accountingVerificationFor($value),
             distinctWrongCode($code, $nth),
         );
     }
+}
 
-    // Verification guessing has moved the RECOVERY bucket, which is the
-    // coupling: the two ceremonies share one redemption backoff today.
-    expect(recoveryIsBackedOff('ada@acme.example'))->toBeTrue();
+/** The same for recovery. */
+function exhaustRecoveryGuesses(string $value = 'ada@acme.example'): void
+{
+    $code = issuedRecoveryProofCode($value);
+
+    foreach (range(1, attemptLimit() * 3) as $nth) {
+        app(CredentialRecovery::class)->redeem(
+            accountingRecoveryFor($value),
+            distinctWrongCode($code, $nth),
+            'host-session-' . $nth,
+        );
+    }
+}
+
+it('leaves recovery usable after verification guessing is exhausted', function (): void {
+    useLongBackoff();
+    accountingAccount('ada@acme.example', 1);
+
+    exhaustVerificationGuesses('ada@acme.example');
+
+    /*
+     * The coupling this replaces. Availability of a password reset must not
+     * depend on traffic to an unrelated ceremony: an attacker who can reach the
+     * verification endpoint could otherwise deny recovery to an address they do
+     * not control, without ever holding a proof.
+     */
+    expect(verificationIsBackedOff('ada@acme.example'))->toBeTrue()
+        ->and(recoveryIsBackedOff('ada@acme.example'))->toBeFalse();
+
+    /*
+     * And recovery still WORKS. An untouched counter says nothing about
+     * usability: an implementation consulting both buckets leaves recovery's
+     * counter clean and refuses recovery anyway, passing every assertion above.
+     * Redeeming through the other ceremony is the only proof of isolation.
+     */
+    $recoveryCode = issuedRecoveryProofCode('ada@acme.example');
+
+    expect(app(CredentialRecovery::class)->redeem(
+        accountingRecoveryFor('ada@acme.example'),
+        $recoveryCode,
+        'host-session-isolated',
+    ))->toBe(CredentialRecoveryOutcome::GraceOpened);
 });
+
+it('leaves verification usable after recovery guessing is exhausted', function (): void {
+    useLongBackoff();
+    accountingAccount('ada@acme.example', 1);
+
+    exhaustRecoveryGuesses('ada@acme.example');
+
+    // The other direction. Isolation asserted one way is a bucket rename; both
+    // ways is a partition.
+    expect(recoveryIsBackedOff('ada@acme.example'))->toBeTrue()
+        ->and(verificationIsBackedOff('ada@acme.example'))->toBeFalse();
+
+    // The same in the other direction, and for the same reason.
+    $verificationCode = issuedVerificationProofCode('ada@acme.example');
+
+    expect(app(IdentifierVerifier::class)->redeem(
+        accountingVerificationFor('ada@acme.example'),
+        $verificationCode,
+    ))->toBe(IdentifierVerificationOutcome::Verified);
+});
+
+it('keeps the ceremonies apart when no proof exists at all', function (): void {
+    useLongBackoff();
+    accountingAccount('ada@acme.example', 1);
+
+    /*
+     * Redemption against nothing. A guesser who has never triggered issuance
+     * still records failures, and those must land in the dimension of the
+     * ceremony they were aimed at -- an implementation that only partitioned
+     * the path where a proof was found would leave this route coupled.
+     */
+    foreach (range(1, attemptLimit() * 3) as $nth) {
+        app(IdentifierVerifier::class)->redeem(
+            accountingVerificationFor('nobody@acme.example'),
+            sprintf('%06d', $nth),
+        );
+    }
+
+    expect(verificationIsBackedOff('nobody@acme.example'))->toBeTrue()
+        ->and(recoveryIsBackedOff('nobody@acme.example'))->toBeFalse();
+});
+
+it('keeps the ceremonies apart when recovery has no proof either', function (): void {
+    useLongBackoff();
+    accountingAccount('ada@acme.example', 1);
+
+    /*
+     * The reverse route. Sending recovery's no-proof failures into
+     * verification's bucket passed the forward test unchanged -- one direction
+     * proves a rename, both prove a partition.
+     *
+     * A known address AND an unknown one, because a mutant misrouting only the
+     * unknown case survived otherwise. They are not separate lookup paths today
+     * -- redeem() returns on the missing proof before it resolves the identifier
+     * -- so this is coverage of the two SUBJECTS rather than of two branches,
+     * and an earlier comment here claimed the latter.
+     */
+    foreach (range(1, attemptLimit() * 3) as $nth) {
+        app(CredentialRecovery::class)->redeem(
+            accountingRecoveryFor('ada@acme.example'),
+            sprintf('%06d', $nth),
+            'host-session-known-' . $nth,
+        );
+    }
+
+    foreach (range(1, attemptLimit() * 3) as $nth) {
+        app(CredentialRecovery::class)->redeem(
+            accountingRecoveryFor('stranger@acme.example'),
+            sprintf('%06d', $nth),
+            'host-session-unknown-' . $nth,
+        );
+    }
+
+    expect(recoveryIsBackedOff('ada@acme.example'))->toBeTrue()
+        ->and(verificationIsBackedOff('ada@acme.example'))->toBeFalse()
+        ->and(recoveryIsBackedOff('stranger@acme.example'))->toBeTrue()
+        ->and(verificationIsBackedOff('stranger@acme.example'))->toBeFalse();
+
+    // And verification still works for that address.
+    $code = issuedVerificationProofCode('ada@acme.example');
+
+    expect(app(IdentifierVerifier::class)->redeem(
+        accountingVerificationFor('ada@acme.example'),
+        $code,
+    ))->toBe(IdentifierVerificationOutcome::Verified);
+});
+
+it('refuses verification redemption while backed off, without spending the proof', function (): void {
+    useLongBackoff();
+    accountingAccount('ada@acme.example', 1);
+
+    /*
+     * Backoff first, then a FRESH proof. Exhausting guesses leaves the
+     * verification dimension backed off for this address, and issuing again
+     * leaves a proof whose own budget is untouched -- the only window where
+     * "throttled" and "burned, therefore inert" look different from outside. An
+     * earlier version could not reach that state and was skipped; a skipped
+     * assertion is not coverage.
+     *
+     * The guessed-at proof is BURNED rather than superseded, so several
+     * unsuperseded rows can coexist and latest('id') is what picks the fresh
+     * one -- an earlier comment here had that backwards.
+     */
+    exhaustVerificationGuesses('ada@acme.example');
+    $code = issuedVerificationProofCode('ada@acme.example');
+
+    $before = requiredRow(DB::table('auth_identifier_verifications')
+        ->where('identifier_value', 'ada@acme.example')
+        ->whereNull('superseded_at')->latest('id')->first());
+
+    expect(verificationIsBackedOff('ada@acme.example'))->toBeTrue()
+        ->and($before->attempts)->toBe(0);
+
+    /*
+     * A WRONG code as well as the right one. A throttle that refused the correct
+     * code while still charging an attempt for a wrong one passed the
+     * correct-code-only version -- and charging while refusing is how a
+     * backed-off attacker burns a proof they cannot use.
+     */
+    $wrong = app(IdentifierVerifier::class)->redeem(
+        accountingVerificationFor('ada@acme.example'),
+        distinctWrongCode($code, 99),
+    );
+
+    $outcome = app(IdentifierVerifier::class)->redeem(
+        accountingVerificationFor('ada@acme.example'),
+        $code,
+    );
+
+    /*
+     * where('id', ...) and not whereKey(): on the Query Builder that is not a
+     * method, so it falls through __call to a dynamic where('key', ...) which
+     * matches no column and silently narrows nothing.
+     */
+    $after = requiredRow(DB::table('auth_identifier_verifications')
+        ->where('id', $before->id)->first());
+
+    /*
+     * The CORRECT code, refused. And the proof untouched: a throttle that spent
+     * an attempt, consumed the proof or burned it would let a backed-off caller
+     * destroy what they cannot use.
+     */
+    expect($wrong)->toBe(IdentifierVerificationOutcome::Refused)
+        ->and($outcome)->toBe(IdentifierVerificationOutcome::Refused)
+        ->and($after->attempts)->toBe(0)
+        ->and($after->consumed_at)->toBeNull()
+        ->and($after->burned_at)->toBeNull()
+        ->and($after->superseded_at)->toBeNull();
+});
+
+it('redeems verification once its backoff has lapsed', function (): void {
+    useLongBackoff();
+    accountingAccount('ada@acme.example', 1);
+
+    exhaustVerificationGuesses('ada@acme.example');
+    $code = issuedVerificationProofCode('ada@acme.example');
+
+    expect(verificationIsBackedOff('ada@acme.example'))->toBeTrue();
+
+    /*
+     * The BACKOFF elapses -- not the window, which is a different clock and the
+     * distinction this fixture exists to hold. Deleting the counters proved
+     * reset instead, and a
+     * backoff that never lapsed passed that version -- the latch it held was
+     * simply deleted along with everything else. Aging the window on the
+     * database clock keeps the counter and its count exactly where they are.
+     */
+    /*
+     * Past the BACKOFF deadline, well inside the counting window. Aging by more
+     * than the window's own length let a mutant that held backoff until the
+     * window expired pass -- it was not the backoff lapsing that freed the
+     * caller, it was the counter falling out of scope entirely.
+     */
+    ageThrottleWindows(400);
+
+    expect(app(IdentifierVerifier::class)->redeem(
+        accountingVerificationFor('ada@acme.example'),
+        $code,
+    ))->toBe(IdentifierVerificationOutcome::Verified)
+        ->and(verificationIsBackedOff('ada@acme.example'))->toBeFalse();
+});
+
+it('spends one issuance budget across both ceremonies', function (): void {
+    accountingAccount('ada@acme.example', 1);
+
+    /*
+     * The decision, pinned behaviorally. Issuance stays shared because both
+     * ceremonies consume outbound delivery capacity for the same address, and an
+     * aggregate request budget is the resource boundary that means anything;
+     * two separate budgets would double the messages an attacker can provoke.
+     *
+     * Observed through what gets ISSUED rather than through a counter reading:
+     * SharedThrottle exposes no count, and preflightShared refuses the Ceremony
+     * dimension outright, so the budget is only visible in its effect.
+     */
+    $verifier = app(IdentifierVerifier::class);
+
+    $before = DB::table('auth_identifier_verifications')->count();
+
+    for ($i = 0; $i < 40; $i++) {
+        $verifier->request(accountingVerificationFor('ada@acme.example'));
+    }
+
+    $issued = DB::table('auth_identifier_verifications')->count() - $before;
+
+    // The premise: the shared budget really did stop verification issuing.
+    expect($issued)->toBeGreaterThan(0)
+        ->and($issued)->toBeLessThan(40);
+
+    $recoveryBefore = DB::table('auth_recovery_proofs')->count();
+
+    app(CredentialRecovery::class)->request(accountingRecoveryFor('ada@acme.example'));
+
+    /*
+     * Recovery gets nothing, because verification already spent the budget they
+     * share. Split per ceremony, this issuance would succeed.
+     */
+    expect(DB::table('auth_recovery_proofs')->count())->toBe($recoveryBefore);
+});
+
+it('charges the aggregate issuance budget from either ceremony', function (string $first): void {
+    accountingAccount('ada@acme.example', 1);
+    accountingAccount('neighbour@acme.example', 2);
+
+    /*
+     * A MIXED sequence, both orders, with the CAUSE of the refusal established.
+     *
+     * The one-directional version was satisfied by an asymmetric split --
+     * recovery reading verification's counter while charging its own -- and the
+     * naive mixed version was satisfied by separate budgets hidden behind a
+     * shared cap that counted every address together. Neither is the shared
+     * per-identifier budget the decision asked for.
+     *
+     * So: exactly one short of the limit through the first ceremony, one through
+     * the second to reach it, then refusal -- and a DIFFERENT address on the same
+     * IP and tenant must still issue, which is what separates a per-identifier
+     * budget from a cap on everything.
+     */
+    $second = $first === 'recovery' ? 'verification' : 'recovery';
+
+    $issueOne = static function (string $ceremony, string $address): void {
+        $ceremony === 'recovery'
+            ? app(CredentialRecovery::class)->request(accountingRecoveryFor($address))
+            : app(IdentifierVerifier::class)->request(accountingVerificationFor($address));
+    };
+
+    $countFor = static fn (string $ceremony, string $address): int => DB::table(
+        $ceremony === 'recovery' ? 'auth_recovery_proofs' : 'auth_identifier_verifications',
+    )->where('identifier_value', $address)->count();
+
+    // challenge, not identifier: the issuance ceiling lives beside the attempt
+    // ceiling, and reading the wrong section returned null rather than a number.
+    $limit = Config::integer('vouch.throttle.challenge.issuances_per_identifier');
+
+    for ($i = 0; $i < $limit - 1; $i++) {
+        $issueOne($first, 'ada@acme.example');
+    }
+
+    // The last of the shared budget, spent by the OTHER ceremony.
+    $issueOne($second, 'ada@acme.example');
+
+    $firstCount = $countFor($first, 'ada@acme.example');
+    $secondCount = $countFor($second, 'ada@acme.example');
+
+    // Now exhausted for this address, from either direction.
+    $issueOne($first, 'ada@acme.example');
+    $issueOne($second, 'ada@acme.example');
+
+    $neighbourBefore = $countFor($second, 'neighbour@acme.example');
+    $issueOne($second, 'neighbour@acme.example');
+
+    expect($firstCount)->toBe($limit - 1)
+        ->and($secondCount)->toBe(1)
+        ->and($countFor($first, 'ada@acme.example'))->toBe($limit - 1)
+        ->and($countFor($second, 'ada@acme.example'))->toBe(1)
+        /*
+         * The neighbour proves the refusal was about THIS identifier. A cap
+         * counting every address together refuses here too, and would otherwise
+         * look exactly like the shared per-identifier budget.
+         */
+        ->and($countFor($second, 'neighbour@acme.example'))->toBe($neighbourBefore + 1);
+})->with(['recovery', 'verification']);
