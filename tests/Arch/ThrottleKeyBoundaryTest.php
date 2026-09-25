@@ -77,6 +77,13 @@ it('declares every throttle HMAC domain explicitly', function (): void {
         ['ThrottleTenant', 'throttle.tenant'],
         ['ThrottleGlobal', 'throttle.global'],
         ['ThrottleCeremony', 'throttle.ceremony'],
+        /*
+         * #48. Verification redemption is a separate authority from recovery, so
+         * it gets its own HMAC domain: one identifier's two ceremony digests must
+         * differ, or the partition rests on the dimension column alone and any
+         * operation with a widened guard can cross it.
+         */
+        ['ThrottleVerification', 'throttle.verification'],
     ]);
 });
 

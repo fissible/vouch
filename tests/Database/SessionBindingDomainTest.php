@@ -54,6 +54,9 @@ it('lists every binding domain exactly once', function (): void {
             'throttle.tenant',
             'throttle.global',
             'throttle.ceremony',
+            // #48: verification redemption's own domain. Adding one is the
+            // protocol decision this test exists to make deliberate.
+            'throttle.verification',
         ]);
 });
 
