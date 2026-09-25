@@ -6,6 +6,9 @@ parameters:
     paths:
         - src
         - tests
+        # Migrations were outside analysis, which made the "PHPStan is clean"
+        # gate vacuous for the only code in the package that can destroy data.
+        - database
 
 services:
     -
