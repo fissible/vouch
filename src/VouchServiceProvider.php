@@ -231,6 +231,7 @@ final class VouchServiceProvider extends ServiceProvider
                 config()->integer('vouch.verification.ttl_seconds'),
                 $app->make(RandomSource::class),
                 $app->make(\Fissible\Vouch\Throttle\ProofAttemptStore::class),
+                $app->make(IdentifierCanonicalizer::class),
             ),
         );
 
@@ -256,6 +257,7 @@ final class VouchServiceProvider extends ServiceProvider
                     $app->make(IdentifierVerifier::class),
                     new BoundedLockWait($connection),
                     $app->make(LockContention::class),
+                    $app->make(IdentifierCanonicalizer::class),
                     config()->integer('vouch.enrollment.lock_wait_seconds'),
                 );
             },
@@ -350,6 +352,7 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(CaptchaVerifier::class),
                 $app->make(ThrottleConfiguration::class),
                 $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
+                $app->make(IdentifierCanonicalizer::class),
                 config()->integer('vouch.attempts.ttl_seconds'),
             ),
         );

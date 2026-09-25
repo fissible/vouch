@@ -8,6 +8,7 @@ use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Contracts\RandomSource;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Models\AuthIdentifierVerification;
+use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 use Fissible\Vouch\Throttle\IssuancePermission;
 use Fissible\Vouch\Throttle\ProofAttemptStore;
 use Fissible\Vouch\Throttle\ThrottleDecision;
@@ -28,11 +29,16 @@ final readonly class IdentifierVerifier
         private int $ttlSeconds,
         private RandomSource $random,
         private ProofAttemptStore $attempts,
+        private IdentifierCanonicalizer $identifiers,
     ) {
     }
 
     public function request(IdentifierVerificationRequest $request): void
     {
+        // One identity decision for the target lookup, the supersession scope
+        // and the verification row, taken before any of them.
+        $request = $request->canonicalized($this->identifiers);
+
         $identifier = AuthIdentifier::query()->where('type', $request->type)
             ->where('value', $request->submittedIdentifier)
             ->first();
@@ -47,7 +53,9 @@ final readonly class IdentifierVerifier
      */
     public function requestDecoy(IdentifierVerificationRequest $request): void
     {
-        $this->issue($request, null);
+        // A decoy has to occupy the same scope a real ceremony would, or its
+        // supersession and issuance anchors sit beside the genuine ones.
+        $this->issue($request->canonicalized($this->identifiers), null);
     }
 
     private function issue(IdentifierVerificationRequest $request, ?AuthIdentifier $identifier): void
@@ -68,6 +76,10 @@ final readonly class IdentifierVerifier
         if ($code === '') {
             return IdentifierVerificationOutcome::Refused;
         }
+
+        // Redemption asks the same question issuance did, or the code cannot be
+        // spent from a differently spelled submission.
+        $request = $request->canonicalized($this->identifiers);
 
         $subject = $this->keys->verification($request->submittedIdentifier, $request->tenantId);
 

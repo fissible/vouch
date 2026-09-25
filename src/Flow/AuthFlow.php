@@ -37,6 +37,7 @@ use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Models\AuthPolicy;
 use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 use Fissible\Vouch\Throttle\IdentifierThrottle;
 use Fissible\Vouch\Throttle\IssuancePermission;
 use Fissible\Vouch\Throttle\SharedThrottle;
@@ -77,6 +78,7 @@ final readonly class AuthFlow
         private CaptchaVerifier $captcha,
         private ThrottleConfiguration $throttleConfiguration,
         private DatabaseTime $time,
+        private IdentifierCanonicalizer $identifiers,
         private int $attemptTtlSeconds,
     ) {}
 
@@ -172,7 +174,16 @@ final readonly class AuthFlow
             );
         }
 
-        $identifier = AuthIdentifier::query()->where('value', $value)->whereNotNull('verified_at')->first();
+        /*
+         * Canonicalized, because the stored value is. Comparing the submitted
+         * spelling against the column would recover MySQL's old habit of
+         * matching more than the canonical form -- and, now that the column
+         * compares bytes, would stop it matching Ada@ to ada@ at all.
+         */
+        $identifier = AuthIdentifier::query()
+            ->where('value', $this->identifiers->canonicalize($value))
+            ->whereNotNull('verified_at')
+            ->first();
 
         /*
          * An unknown identifier still advances the attempt and still offers a

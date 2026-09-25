@@ -8,6 +8,7 @@ use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Credentials\CredentialMutation;
 use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
+use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 use Fissible\Vouch\Tokens\SubjectKey;
 use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\LockContention;
@@ -47,6 +48,7 @@ final readonly class FirstCredentialEnrollment
         private IdentifierVerifier $verifier,
         private BoundedLockWait $boundedLockWait,
         private LockContention $lockContention,
+        private IdentifierCanonicalizer $identifiers,
         private int $lockWaitSeconds,
     ) {}
 
@@ -105,9 +107,15 @@ final readonly class FirstCredentialEnrollment
             'password',
             1,
             function () use ($connection, $request): bool {
+                /*
+                 * Canonicalized, because the create below is: looking up the
+                 * submitted spelling would miss the row that already holds this
+                 * address and turn an idempotent bootstrap into a unique-index
+                 * violation.
+                 */
                 $identifier = AuthIdentifier::on($connection)
-                    ->where('type', $request->identifierType)
-                    ->where('value', $request->identifierValue)
+                    ->where('type', $this->identifiers->canonicalize($request->identifierType))
+                    ->where('value', $this->identifiers->canonicalize($request->identifierValue))
                     ->first();
 
                 if ($identifier instanceof AuthIdentifier && $identifier->user_id !== $request->userId) {
