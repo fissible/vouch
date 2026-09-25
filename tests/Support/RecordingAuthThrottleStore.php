@@ -25,6 +25,8 @@ final class RecordingAuthThrottleStore implements AuthThrottleStore
 
     public ?SharedThrottle $recordRecoveryResult = null;
 
+    public ?SharedThrottle $recordVerificationResult = null;
+
     public ?SharedThrottle $recordIpResult = null;
 
     public ?SharedThrottle $recordSharedResult = null;
@@ -62,6 +64,20 @@ final class RecordingAuthThrottleStore implements AuthThrottleStore
         $this->record(__FUNCTION__, $recovery);
 
         return $this->recordRecoveryResult ?? SharedThrottle::permitted();
+    }
+
+    /*
+     * #48 gave verification redemption its own recording operation, so every
+     * implementer gains it. Recorded under its OWN name via __FUNCTION__, which
+     * is what lets a caller assert which operation was reached -- collapsing it
+     * onto recovery's name would make the two indistinguishable here, in the
+     * double whose whole purpose is telling them apart.
+     */
+    public function recordVerificationFailure(ThrottleSubject $verification): SharedThrottle
+    {
+        $this->record(__FUNCTION__, $verification);
+
+        return $this->recordVerificationResult ?? SharedThrottle::permitted();
     }
 
     public function recordIpFailure(
