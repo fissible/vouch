@@ -1108,11 +1108,23 @@ it('counts distinct verification guesses arriving under alternating tenants', fu
  * nothing. Asking the database settles which engine is running without naming
  * one.
  */
+/**
+ * Whether the identity the application computes from this spelling reaches that
+ * exact proof row.
+ *
+ * Canonicalized rather than submitted raw. This used to ask the COLLATION
+ * whether two spellings met, and the four tests below skipped themselves
+ * wherever it said no -- so once identifier equality moved into Vouch and the
+ * columns became byte-exact, the premise failed on every engine and all four
+ * went quiet while still passing. The claim they make is now unconditional, so
+ * each asserts this instead of skipping on it: a skip here is a silent pass on
+ * the one regression these tests exist to catch.
+ */
 function selectsSameProof(string $table, int $id, string $type, string $value): bool
 {
     return DB::table($table)
-        ->where('identifier_type', $type)
-        ->where('identifier_value', $value)
+        ->where('identifier_type', canonical($type))
+        ->where('identifier_value', canonical($value))
         ->where('id', $id)
         ->exists();
 }
@@ -1135,9 +1147,7 @@ it('counts guesses that reach one recovery proof through different spellings', f
     $code = issuedRecoveryProofCode();
     $proof = soleProofId('auth_recovery_proofs');
 
-    if (! selectsSameProof('auth_recovery_proofs', $proof, 'email', 'ADA@acme.example')) {
-        $this->markTestSkipped('This engine selects case-sensitively, so the spellings cannot reach one proof.');
-    }
+    expect(selectsSameProof('auth_recovery_proofs', $proof, 'email', 'ADA@acme.example'))->toBeTrue();
 
     $spellings = ['ada@acme.example', 'ADA@acme.example'];
 
@@ -1167,9 +1177,7 @@ it('counts guesses that reach one verification proof through different spellings
     $code = issuedVerificationProofCode();
     $proof = soleProofId('auth_identifier_verifications');
 
-    if (! selectsSameProof('auth_identifier_verifications', $proof, 'email', 'GRACE@acme.example')) {
-        $this->markTestSkipped('This engine selects case-sensitively, so the spellings cannot reach one proof.');
-    }
+    expect(selectsSameProof('auth_identifier_verifications', $proof, 'email', 'GRACE@acme.example'))->toBeTrue();
 
     $spellings = ['grace@acme.example', 'GRACE@acme.example'];
 
@@ -1200,9 +1208,7 @@ it('counts guesses that reach one recovery proof through different type spelling
     $code = issuedRecoveryProofCode();
     $proof = soleProofId('auth_recovery_proofs');
 
-    if (! selectsSameProof('auth_recovery_proofs', $proof, 'EMAIL', 'ada@acme.example')) {
-        $this->markTestSkipped('This engine selects case-sensitively, so the type spellings cannot reach one proof.');
-    }
+    expect(selectsSameProof('auth_recovery_proofs', $proof, 'EMAIL', 'ada@acme.example'))->toBeTrue();
 
     foreach (range(1, attemptLimit()) as $nth) {
         $request = new CredentialRecoveryRequest(
@@ -1235,9 +1241,7 @@ it('counts guesses that reach one verification proof through different type spel
     $code = issuedVerificationProofCode();
     $proof = soleProofId('auth_identifier_verifications');
 
-    if (! selectsSameProof('auth_identifier_verifications', $proof, 'EMAIL', 'grace@acme.example')) {
-        $this->markTestSkipped('This engine selects case-sensitively, so the type spellings cannot reach one proof.');
-    }
+    expect(selectsSameProof('auth_identifier_verifications', $proof, 'EMAIL', 'grace@acme.example'))->toBeTrue();
 
     foreach (range(1, attemptLimit()) as $nth) {
         $request = new IdentifierVerificationRequest(

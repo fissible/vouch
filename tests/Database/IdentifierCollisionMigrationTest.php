@@ -216,8 +216,19 @@ it('canonicalizes rows that are unambiguous', function (): void {
      * SQLite's ASCII-only lower(). No SQL function normalizes Unicode at all, so
      * this is the last place the migration can reimplement canonicalization and
      * get away with it.
+     *
+     * A DIFFERENT local part, and the reason is the point. This fixture was
+     * first written as a decomposed spelling of the row above it -- which
+     * canonicalizes to the identical byte string, so it asked two rows of one
+     * type to end up sharing a single (type, value). unique(type, value) forbids
+     * that, and the two refusal tests below require exactly that shape to be
+     * REFUSED, so the test contradicted its own siblings; on MySQL it failed in
+     * the fixture rather than the assertion. Uppercase AND decomposed in one row
+     * keeps both properties without asking for a merge: reaching the canonical
+     * form here needs case folding past ASCII and composition, and lower() alone
+     * delivers neither.
      */
-    $decomposed = rawIdentifier("jose\u{301}@acme.example", 2);
+    $decomposed = rawIdentifier("ANDRE\u{301}@ACME.EXAMPLE", 2);
 
     /*
      * One row whose spelling is not canonical is not a collision -- there is
@@ -233,7 +244,7 @@ it('canonicalizes rows that are unambiguous', function (): void {
     expect(DB::table('auth_identifiers')->where('id', $id)->value('value'))
         ->toBe(canonical("JOS\u{c9}@ACME.EXAMPLE"))
         ->and(DB::table('auth_identifiers')->where('id', $decomposed)->value('value'))
-        ->toBe(canonical("jos\u{e9}@acme.example"));
+        ->toBe(canonical("andr\u{e9}@acme.example"));
 });
 
 it('converts every identifier column, not only the identifier table', function (): void {
