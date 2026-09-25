@@ -80,6 +80,7 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
         $this->requireDimension(
             $subject,
             ThrottleDimension::Recovery,
+            ThrottleDimension::Verification,
             ThrottleDimension::Tenant,
             ThrottleDimension::Global,
         );
@@ -151,6 +152,13 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
         $this->requireDimension($recovery, ThrottleDimension::Recovery);
 
         return $this->recordScalarFailure($recovery);
+    }
+
+    public function recordVerificationFailure(ThrottleSubject $verification): SharedThrottle
+    {
+        $this->requireDimension($verification, ThrottleDimension::Verification);
+
+        return $this->recordScalarFailure($verification);
     }
 
     public function recordIpFailure(
@@ -586,7 +594,10 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
             return $this->expiredPosture($subject);
         }
 
-        if ($subject->dimension === ThrottleDimension::Recovery) {
+        if (in_array($subject->dimension, [
+            ThrottleDimension::Recovery,
+            ThrottleDimension::Verification,
+        ], true)) {
             $threshold = $this->configuration->backoffAfter;
             $backoff = $this->configuration->initialBackoffSeconds;
         } else {
@@ -623,7 +634,10 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
 
     private function expiredPosture(ThrottleSubject $subject): SharedThrottle
     {
-        return $subject->dimension === ThrottleDimension::Recovery
+        return in_array($subject->dimension, [
+            ThrottleDimension::Recovery,
+            ThrottleDimension::Verification,
+        ], true)
             ? SharedThrottle::permitted()
             : SharedThrottle::observed();
     }

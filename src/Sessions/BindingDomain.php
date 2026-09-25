@@ -50,4 +50,7 @@ enum BindingDomain: string
 
     /** Identifier-control ceremony volume, distinct from login issuance. */
     case ThrottleCeremony = 'throttle.ceremony';
+
+    /** Identifier-verification failure state, separate from recovery. */
+    case ThrottleVerification = 'throttle.verification';
 }
