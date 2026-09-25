@@ -37,6 +37,15 @@ final readonly class ThrottleKey
         );
     }
 
+    public function verification(string $identifier, ?string $tenantId): ThrottleSubject
+    {
+        return $this->subject(
+            ThrottleDimension::Verification,
+            BindingDomain::ThrottleVerification,
+            $this->scoped($tenantId, $this->identifiers->canonicalize($identifier)),
+        );
+    }
+
     public function issuance(string $identifier, ?string $tenantId): ThrottleSubject
     {
         return $this->subject(

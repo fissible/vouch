@@ -253,3 +253,106 @@ it('refuses to construct a persistence subject from a raw or malformed value', f
     'short digest' => [str_repeat('a', 63)],
     'long digest' => [str_repeat('a', 65)],
 ]);
+
+/*
+ * #48. Verification redemption is its own authority.
+ *
+ * redeem() used ThrottleKey::recovery(), so guessing a verification code backed
+ * off password recovery for the same address.
+ *
+ * Counter rows are unique on (dimension, subject_digest), so a distinct
+ * dimension alone already separates them -- an earlier note here claimed that
+ * reusing EITHER the dimension or the binding domain necessarily shares a row,
+ * which is not how that uniqueness works. Both are kept distinct anyway, as an
+ * adopted contract rather than a consequence: a shared binding domain makes one
+ * identifier's two ceremony digests equal, leaving the partition resting on the
+ * dimension column alone and any operation that widened its guard able to cross
+ * it.
+ *
+ * Issuance stays shared, by decision -- both ceremonies spend the same outbound
+ * delivery budget for one address. That is asserted where it is observable, in
+ * the accounting suite; here it is only the reason ceremony() is untouched.
+ */
+
+it('separates verification redemption from recovery for the same subject', function (): void {
+    $keys = throttleKey();
+    $verification = throttleDigest($keys->verification('person@example.test', 'tenant-a'));
+
+    /*
+     * A different digest, not merely a different label. An accessor that
+     * delegated to recovery() produces the same digest here, and one that
+     * changed the dimension while keeping recovery's binding domain produces the
+     * same digest too -- leaving the partition resting on the dimension column
+     * alone. Counter rows are unique on (dimension, subject_digest), so equal
+     * digests under DIFFERENT dimensions do not share a row; what they lose is
+     * the second, independent separation this contract asks for.
+     */
+    expect($verification)
+        ->not->toBe(throttleDigest($keys->recovery('person@example.test', 'tenant-a')))
+        ->and($verification)
+        ->not->toBe(throttleDigest($keys->ceremony('person@example.test', 'tenant-a')))
+        ->and($verification)
+        ->not->toBe(throttleDigest($keys->identifier('person@example.test', 'tenant-a')));
+});
+
+it('separates distinct verification identifiers from each other', function (): void {
+    $keys = throttleKey();
+
+    /*
+     * The obvious thing nothing else asserted. A derivation that kept the
+     * tenant scope and the new dimension and domain, but replaced the identifier
+     * segment with a CONSTANT, passed every other test here -- and would back
+     * off every address in a tenant as soon as one of them was guessed at.
+     */
+    expect(throttleDigest($keys->verification('ada@example.test', 'tenant-a')))
+        ->not->toBe(throttleDigest($keys->verification('neighbour@example.test', 'tenant-a')))
+        ->and(throttleDigest($keys->verification('ada@example.test', null)))
+        ->not->toBe(throttleDigest($keys->verification('neighbour@example.test', null)));
+});
+
+it('gives verification redemption its own dimension', function (): void {
+    $keys = throttleKey();
+
+    expect($keys->verification('person@example.test', null)->dimension)
+        ->not->toBe(ThrottleDimension::Recovery)
+        ->and($keys->verification('person@example.test', null)->dimension)
+        ->not->toBe(ThrottleDimension::Ceremony);
+});
+
+it('canonicalizes and scopes verification subjects like every other dimension', function (): void {
+    $keys = throttleKey();
+
+    /*
+     * The same treatment as its neighbours, or the partition introduces a gap of
+     * its own: an uncanonicalized subject gives one address several buckets, and
+     * an unscoped one merges tenants.
+     */
+    expect(throttleDigest($keys->verification('Person@Example.Test', null)))
+        ->toBe(throttleDigest($keys->verification('person@example.test', null)))
+        /*
+         * Unicode composition too, not only ASCII case. A lowercasing that
+         * handled ASCII alone gave one address two buckets for a composed and a
+         * decomposed spelling, and passed a case-only assertion.
+         */
+        ->and(throttleDigest($keys->verification("jos\u{e9}@example.test", null)))
+        ->toBe(throttleDigest($keys->verification("jose\u{301}@example.test", null)))
+        /*
+         * Non-ASCII CASE, separately from composition. The pair above is already
+         * lowercase, so NFC normalization plus strtolower() satisfied it while
+         * leaving accented capitals in their own bucket -- one address, two
+         * budgets, which is the gap canonicalization exists to close.
+         */
+        ->and(throttleDigest($keys->verification("\u{c9}lodie@example.test", null)))
+        ->toBe(throttleDigest($keys->verification("\u{e9}lodie@example.test", null)))
+        ->and(throttleDigest($keys->verification('person@example.test', 'tenant-a')))
+        ->not->toBe(throttleDigest($keys->verification('person@example.test', 'tenant-b')))
+        ->and(throttleDigest($keys->verification('person@example.test', null)))
+        ->not->toBe(throttleDigest($keys->verification('person@example.test', 'tenant-a')))
+        /*
+         * An absent tenant is not an empty one. Treating them alike merges a
+         * single-tenant host's traffic with an explicitly-empty scope, and this
+         * suite already pins that distinction for the other dimensions.
+         */
+        ->and(throttleDigest($keys->verification('person@example.test', null)))
+        ->not->toBe(throttleDigest($keys->verification('person@example.test', '')));
+});

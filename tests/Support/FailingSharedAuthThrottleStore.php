@@ -37,6 +37,17 @@ final readonly class FailingSharedAuthThrottleStore implements AuthThrottleStore
         return $this->inner->recordRecoveryFailure($recovery);
     }
 
+    /*
+     * #48 gave verification redemption its own recording operation, so every
+     * implementer of the contract gains it -- including a double that forwards.
+     * Forwarding rather than sharing the recovery method: a double that aliased
+     * the two would hide the partition it is meant to be transparent about.
+     */
+    public function recordVerificationFailure(ThrottleSubject $verification): SharedThrottle
+    {
+        return $this->inner->recordVerificationFailure($verification);
+    }
+
     public function recordIpFailure(
         ThrottleSubject $ip,
         ThrottleSubject $ipIdentifier,

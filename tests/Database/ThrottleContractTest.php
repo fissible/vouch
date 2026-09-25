@@ -23,6 +23,12 @@ function contractSubject(ThrottleDimension $dimension): ThrottleSubject
     return new ThrottleSubject($dimension, str_pad($hex, 64, '0', STR_PAD_LEFT));
 }
 
+/*
+ * Note this also freezes declaration ORDER, which is not itself a contract --
+ * the persisted values are. It is left as an ordered comparison because the
+ * existing test was written that way and reordering cases is not something the
+ * package does silently; a set comparison would be the alternative.
+ */
 it('carries the exact persisted dimensions without open strings', function (): void {
     expect(array_map(
         static fn (ThrottleDimension $dimension): array => [$dimension->name, $dimension->value],
@@ -44,6 +50,18 @@ it('carries the exact persisted dimensions without open strings', function (): v
          * leave requireDimension() unable to tell them apart.
          */
         ['Ceremony', 'ceremony'],
+        /*
+         * #48. Verification redemption is its own authority: a verification code
+         * attests control of an identifier, a recovery proof opens a password
+         * reset, and a failed guess at one must not spend the other's redemption
+         * budget. Extending this vocabulary is the explicit act the note above
+         * describes, so the addition is recorded here rather than absorbed.
+         *
+         * Issuance stays shared between the ceremonies by decision -- both spend
+         * the same outbound delivery capacity for one address -- so nothing is
+         * added for it.
+         */
+        ['Verification', 'verification'],
     ]);
 });
 
@@ -202,4 +220,50 @@ it('exposes no candidate lookup or digest-returning operation', function (): voi
         expect($return instanceof ReflectionNamedType ? $return->getName() : null)
             ->not->toBe('string');
     }
+});
+
+/*
+ * #48. The store operation is named for what it records.
+ *
+ * recordRecoveryFailure() guards its dimension, which is why passing a
+ * verification subject to it throws rather than silently writing the wrong
+ * counter. Reusing that operation and WIDENING the guard to admit verification
+ * would pass every behavioural test in the accounting suite while putting two
+ * ceremonies' failures through one operation named for one of them -- so the
+ * guard is asserted here, where it lives.
+ */
+
+it('refuses a verification subject to the recovery recording operation', function (): void {
+    $keys = app(\Fissible\Vouch\Throttle\ThrottleKey::class);
+    $store = app(\Fissible\Vouch\Contracts\AuthThrottleStore::class);
+
+    expect(fn (): \Fissible\Vouch\Throttle\SharedThrottle => $store->recordRecoveryFailure(
+        $keys->verification('person@example.test', null),
+    ))->toThrow(InvalidArgumentException::class);
+});
+
+it('refuses a recovery subject to the verification recording operation', function (): void {
+    $keys = app(\Fissible\Vouch\Throttle\ThrottleKey::class);
+    $store = app(\Fissible\Vouch\Contracts\AuthThrottleStore::class);
+
+    // Both ways. A guard that only checked one direction would let the
+    // partition leak back through whichever operation was left open.
+    expect(fn (): \Fissible\Vouch\Throttle\SharedThrottle => $store->recordVerificationFailure(
+        $keys->recovery('person@example.test', null),
+    ))->toThrow(InvalidArgumentException::class);
+});
+
+it('accepts a verification subject for preflight and recording', function (): void {
+    $keys = app(\Fissible\Vouch\Throttle\ThrottleKey::class);
+    $store = app(\Fissible\Vouch\Contracts\AuthThrottleStore::class);
+    $subject = $keys->verification('person@example.test', null);
+
+    /*
+     * The paired positive. Guards that reject everything would satisfy both
+     * tests above, and the dimension would be unusable rather than partitioned.
+     */
+    expect($store->preflightShared($subject)->decision)
+        ->toBe(\Fissible\Vouch\Throttle\ThrottleDecision::Permitted)
+        ->and($store->recordVerificationFailure($subject))
+        ->toBeInstanceOf(\Fissible\Vouch\Throttle\SharedThrottle::class);
 });

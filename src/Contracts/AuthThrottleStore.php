@@ -33,6 +33,8 @@ interface AuthThrottleStore
 
     public function recordRecoveryFailure(ThrottleSubject $recovery): SharedThrottle;
 
+    public function recordVerificationFailure(ThrottleSubject $verification): SharedThrottle;
+
     public function recordIpFailure(
         ThrottleSubject $ip,
         ThrottleSubject $ipIdentifier,

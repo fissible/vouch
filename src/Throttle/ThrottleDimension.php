@@ -16,4 +16,5 @@ enum ThrottleDimension: string
     case Tenant = 'tenant';
     case Global = 'global';
     case Ceremony = 'ceremony';
+    case Verification = 'verification';
 }

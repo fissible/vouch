@@ -69,7 +69,7 @@ final readonly class IdentifierVerifier
             return IdentifierVerificationOutcome::Refused;
         }
 
-        $subject = $this->keys->recovery($request->submittedIdentifier, $request->tenantId);
+        $subject = $this->keys->verification($request->submittedIdentifier, $request->tenantId);
 
         // A backed-off caller must not be able to burn the user's proof.
         if ($this->throttles->preflightShared($subject)->decision === ThrottleDecision::BackedOff) {
@@ -139,7 +139,7 @@ final readonly class IdentifierVerifier
 
         // Proof evidence commits before advisory throttle state acquires locks.
         if ($outcome === IdentifierVerificationOutcome::Refused) {
-            $this->throttles->recordRecoveryFailure($subject);
+            $this->throttles->recordVerificationFailure($subject);
         }
 
         return $outcome;
