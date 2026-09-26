@@ -569,8 +569,12 @@ function identifierColumns(): array
         ['auth_identifier_verifications', 'identifier_type'],
         ['auth_recovery_proofs', 'identifier_value'],
         ['auth_recovery_proofs', 'identifier_type'],
-        ['auth_proof_issuance_locks', 'identifier_value'],
-        ['auth_proof_issuance_locks', 'identifier_type'],
+        /*
+         * auth_proof_issuance_locks is absent, and its absence is the point: that
+         * table holds a bucket now, not an identifier, so it has no column whose
+         * collation could decide anything. Six columns rather than eight because
+         * two stopped existing, not because two stopped mattering.
+         */
     ];
 }
 

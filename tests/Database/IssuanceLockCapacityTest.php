@@ -10,6 +10,7 @@ use Fissible\Vouch\Recovery\CredentialRecovery;
 use Fissible\Vouch\Recovery\CredentialRecoveryRequest;
 use Fissible\Vouch\Console\RetentionManifest;
 use Fissible\Vouch\Support\IssuanceLockBucket;
+use Fissible\Vouch\VouchServiceProvider;
 use Fissible\Vouch\Tests\Support\ArrayOtpDelivery;
 use Fissible\Vouch\Tests\Support\PermittingDeliveryEconomics;
 use Fissible\Vouch\Verification\IdentifierVerificationRequest;
@@ -50,40 +51,62 @@ uses(RefreshDatabase::class);
  * bug -- false sharing may cost latency and must never move state between
  * identifiers.
  *
- * The hash is keyed through the same seam as every other binding, so a caller
- * cannot work out which bucket an identifier lands in, let alone aim several at
- * one. Unkeyed, an attacker could concentrate traffic on a single bucket and
- * turn false sharing into a denial of service -- and a key-dependent OFFSET over
- * an unkeyed hash is not enough either, since it moves every bucket while
- * preserving which pairs collide.
+ * THIS FILE CANNOT SEE A MUTEX THAT DOES NOT LOCK, AND NEITHER CAN SQLITE.
+ * Measured: removing lockForUpdate() entirely passes every test here and both
+ * contention files on SQLite, and fails three on PostgreSQL; the same is true of
+ * a shared lock instead of an exclusive one, and of taking the mutex after the
+ * supersession write. SQLite locks the whole database for any write, so there is
+ * nothing for a row lock to add and nothing for its absence to break. A shard
+ * that runs only SQLite reports this change green whether or not it works.
  *
- * WHICH INPUTS SHARE A MUTEX IS THE DATABASE'S ANSWER, NOT THIS PACKAGE'S.
+ * The hash is keyed, so a caller cannot work out which bucket an identifier
+ * lands in, let alone aim several at one. Unkeyed, an attacker could concentrate
+ * traffic on a single bucket and turn false sharing into a denial of service --
+ * and a key-dependent OFFSET over an unkeyed hash is not enough either, since it
+ * moves every bucket while preserving which pairs collide.
  *
- * That took three attempts to get right, and the first two were measured wrong
- * rather than argued wrong. Folding accents left MySQL equating strasse and
- * stra(sharp-s), ae and (ae-ligature), sigma and final sigma, width and
- * soft-hyphen variants that the fold sent to different buckets. Replacing the
- * fold with an ICU primary-strength collation key -- same UCA foundation as
- * utf8mb4_0900_ai_ci -- still split pairs the column equates: MySQL pins UCA
- * 9/CLDR 30 while ICU ships tailored, versioned data, and across sixteen
- * thousand generated pairs twenty diverged. ICU's key bytes also move between
- * ICU releases, so that mapping would shift under a PHP upgrade and two
- * processes mid-rollout would stop serializing the same identifier.
+ * WHICH INPUTS SHARE A MUTEX IS THE CANONICAL FORM'S ANSWER, and that is only
+ * safe to say now.
  *
- * So the comparison key comes from the ACTIVE CONNECTION, for the ACTUAL column
- * collation -- the same authority the supersession predicate answers to, which
- * is the only thing that can be right by construction rather than by a list
- * someone has to keep finishing. On engines where identifier equality is binary
- * there is nothing to fold and the key is the string; on MySQL it is the
- * collation's own weights. The consequence worth stating plainly: two spellings
- * that this package would call the same address get different buckets on a
- * case-sensitive engine, and that is CORRECT, because the engine gives them
- * different proof scopes too.
+ * Two earlier attempts were measured wrong rather than argued wrong. Folding
+ * accents left MySQL's utf8mb4_0900_ai_ci equating strasse/stra(sharp-s),
+ * ae/(ae-ligature), sigma/final-sigma and width and soft-hyphen variants that the
+ * fold sent to different buckets. An ICU primary-strength key -- same UCA
+ * foundation as that collation -- still split pairs the column equated, because
+ * MySQL pins UCA 9/CLDR 30 while ICU ships tailored versioned data: twenty
+ * divergences across sixteen thousand generated pairs, and key bytes that move
+ * between ICU releases, so two processes mid-rollout would stop serializing one
+ * identifier.
+ *
+ * Both failed for the same reason: the column decided identity and the bucket had
+ * to predict what the column would say. It no longer does. The identifier columns
+ * now carry a deterministic NO PAD collation and hold canonical values, so SQL
+ * equality IS equality of canonical forms -- identical on all three engines. The
+ * bucket hashes the canonical form and therefore agrees with the supersession
+ * predicate by construction rather than by approximation, which is what makes a
+ * fixed bucket count safe here and was not true before.
+ *
+ * That dependency is load-bearing, so it is asserted rather than assumed: if a
+ * column ever went back to deciding equality for itself, two spellings sharing
+ * one supersession scope could take different mutexes and the serialization this
+ * table exists for would silently stop.
  *
  * Rotating the keying secret moves every bucket at once, so it needs a
  * coordinated deployment or a dual-lock transition: mid-rotation, old and new
  * processes would derive different mutexes for one identifier and stop
- * serializing. That is a release note, not a test.
+ * serializing. That is a release note, not a test. The secret is dedicated rather
+ * than APP_KEY precisely so that rotating APP_KEY -- which invalidates sessions
+ * and attempts and is expected to be survivable -- does not silently remap every
+ * mutex in the middle of a rollout.
+ *
+ * The secret is validated at boot, and that validation must follow the house
+ * pattern of exempting vouch:doctor, as the CAPTCHA and strict-assurance checks
+ * already do. Otherwise the one command whose job is to TELL an operator what is
+ * unconfigured is the command a missing secret stops from running, and the first
+ * usable signal becomes a refused ceremony in production. Not asserted here:
+ * Testbench boots the provider before a test body runs, so a test can set the
+ * config to null and call the command and it passes either way -- measured. It is
+ * stated because it is a requirement, not because it is covered.
  */
 
 /*
@@ -107,7 +130,7 @@ function lockTableContents(): string
 {
     $rendered = '';
 
-    foreach (DB::table('auth_proof_issuance_locks')->orderBy('id')->get() as $row) {
+    foreach (DB::table('auth_proof_issuance_locks')->orderBy('bucket')->get() as $row) {
         $rendered .= json_encode($row, JSON_THROW_ON_ERROR);
     }
 
@@ -194,25 +217,61 @@ it('keeps the submitted identifier out of the lock table', function (): void {
 
     /*
      * The whole table, not a named column: the point is that the string is not
-     * retained anywhere, and a schema that renamed the column while still
-     * storing it would satisfy a column-shaped assertion.
+     * retained anywhere, and a schema that renamed the column while still storing
+     * it would satisfy a column-shaped assertion.
+     *
+     * This test does not carry the property on its own, and it is worth saying so:
+     * an implementation that seeded NO buckets and allocated on demand leaves the
+     * table empty at this point, so both absence assertions hold for the wrong
+     * reason. What rules that out is the seeding trio below -- a fixed count,
+     * idempotent re-seeding, and the exact addressable bucket ids.
      */
     expect(lockTableContents())->not->toContain($submitted)
         ->and(lockTableContents())->not->toContain('traceable-address')
-        ->and(Schema::hasColumn('auth_proof_issuance_locks', 'identifier_value'))->toBeFalse();
+        ->and(Schema::hasColumn('auth_proof_issuance_locks', 'identifier_value'))->toBeFalse()
+        /*
+         * Both columns, and the replacement. A migration that dropped only the
+         * value would keep retaining the type, and one that dropped both without
+         * adding the bucket would pass every assertion above by making the table
+         * useless -- the rows would still be there and would serialize nothing.
+         */
+        ->and(Schema::hasColumn('auth_proof_issuance_locks', 'identifier_type'))->toBeFalse()
+        ->and(Schema::hasColumn('auth_proof_issuance_locks', 'bucket'))->toBeTrue();
 });
 
-it('sends one string to one bucket', function (): void {
+it('sends every spelling of one identifier to one bucket', function (): void {
     /*
-     * Stability only. An earlier version asserted that case and whitespace
-     * variants shared a bucket, which the change of authority makes WRONG on
-     * SQLite and PostgreSQL: there the column separates them, so they have
-     * separate proof scopes and must not be forced to contend. What inputs are
-     * equivalent is now asked of the column, below.
+     * Stability first, then equivalence. An earlier version of this test asserted
+     * stability ALONE, because the mechanism it was written for asked the column
+     * which inputs were equal and the answer differed per engine -- so case
+     * variants sharing a bucket was true on MySQL and wrong on the other two.
+     *
+     * The canonical form is the authority now, identically everywhere, so the
+     * equivalence is assertable without naming an engine: every spelling that
+     * canonicalizes alike shares a supersession scope, and must therefore share
+     * the mutex that protects it.
+     *
+     * Only the positive direction. Two different identifiers are FREE to collide
+     * -- that is what a fixed bucket count means -- so requiring distinct
+     * canonical forms to land in distinct buckets would be requiring a perfect
+     * hash. 'does not send every identifier to the same bucket' below is what
+     * rules out the degenerate derivation.
      */
     $bucket = IssuanceLockBucket::for('recovery', 'email', 'ada@acme.example');
 
-    expect(IssuanceLockBucket::for('recovery', 'email', 'ada@acme.example'))->toBe($bucket);
+    expect(IssuanceLockBucket::for('recovery', 'email', 'ada@acme.example'))->toBe($bucket)
+        ->and(IssuanceLockBucket::for('recovery', 'email', 'ADA@Acme.Example'))->toBe($bucket)
+        ->and(IssuanceLockBucket::for('recovery', 'EMAIL', 'ada@acme.example'))->toBe($bucket);
+
+    /*
+     * Decomposed, which no SQL function normalizes and which case folding alone
+     * does not reach: the one spelling that proves the derivation runs the value
+     * through canonicalization rather than a lowercase.
+     */
+    $accented = IssuanceLockBucket::for('recovery', 'email', "jos\u{e9}@acme.example");
+
+    expect(IssuanceLockBucket::for('recovery', 'email', "jose\u{301}@acme.example"))->toBe($accented)
+        ->and(IssuanceLockBucket::for('recovery', 'email', "JOS\u{c9}@ACME.EXAMPLE"))->toBe($accented);
 });
 
 it('does not send every identifier to the same bucket', function (): void {
@@ -282,10 +341,18 @@ function bucketVector(string $ceremony = 'recovery'): array
  */
 function rotateBucketSecret(string $seed): void
 {
-    $value = 'base64:' . base64_encode(str_repeat($seed, 32));
-
-    Config::set('app.key', $value);
-    Config::set('vouch.issuance_locks.secret', $value);
+    /*
+     * Both, because a test asking whether the mapping MOVED has no business
+     * choosing which secret it depends on -- that is the implementation's
+     * decision, and 'keeps every bucket where it was when only APP_KEY rotates'
+     * is where the dependency itself is pinned.
+     *
+     * The issuance secret is 64 characters rather than the 51 a base64-encoded
+     * key comes to, so that an implementation may require any minimum length up
+     * to 64 without failing tests that say nothing about length.
+     */
+    Config::set('app.key', 'base64:' . base64_encode(str_repeat($seed, 32)));
+    Config::set('vouch.issuance_locks.secret', str_repeat($seed, 64));
 }
 
 it('derives buckets that a caller cannot predict', function (): void {
@@ -336,17 +403,9 @@ it('does not let a collision found under one key survive another', function (): 
 
 it('agrees on every mapping across fresh processes', function (): void {
     $fixture = dirname(__DIR__) . '/Fixtures/issuance-lock-mapping.php';
-    $key = 'base64:' . base64_encode(str_repeat('s', 32));
+    // 64 characters, for the same reason rotateBucketSecret()'s is.
+    $key = str_repeat('s', 64);
 
-    /*
-     * The live connection configuration is handed over, because the comparison
-     * key comes from the database now. A fixture with only a config repository
-     * cannot derive anything and failed a correct implementation.
-     */
-    $connection = json_encode(
-        Config::array('database.connections.' . Config::string('database.default')),
-        JSON_THROW_ON_ERROR,
-    );
 
     /*
      * Three genuinely separate interpreters, identical configuration. A
@@ -363,10 +422,16 @@ it('agrees on every mapping across fresh processes', function (): void {
 
     for ($run = 0; $run < 3; $run++) {
         $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+        /*
+         * The secret travels in the environment, not in argv: an argument list is
+         * readable by anyone who can run `ps` on the machine.
+         */
         $process = proc_open(
-            [PHP_BINARY, $fixture, dirname(__DIR__, 2), $key, $connection],
+            [PHP_BINARY, $fixture, dirname(__DIR__, 2)],
             $descriptors,
             $pipes,
+            null,
+            ['VOUCH_ISSUANCE_LOCKS_SECRET' => $key],
         );
 
         if (! is_resource($process)) {
@@ -551,21 +616,39 @@ it('seeds buckets idempotently when the migration runs again', function (): void
 });
 
 it('seeds exactly the addressable bucket ids', function (): void {
-    $ids = [];
+    /*
+     * The BUCKET column, not the primary key, and that distinction is the whole
+     * test. An earlier version plucked `id` while claiming to catch a seed of
+     * 1..4096 against a 0..4095 derivation -- so a migration that seeded
+     * bucket = id + 1 left bucket 0 unaddressable, failed roughly one issuance in
+     * four thousand forever, and passed. The mutex predicate reads `bucket`, so
+     * `bucket` is what has to be right.
+     */
+    $seeded = DB::table('auth_proof_issuance_locks')->orderBy('bucket')->pluck('bucket')->all();
 
-    foreach (DB::table('auth_proof_issuance_locks')->pluck('id') as $id) {
-        $ids[] = (int) stringValue($id);
-    }
-
-    sort($ids);
+    expect(array_map(static fn (mixed $value): int => (int) stringValue($value), $seeded))
+        ->toBe(range(0, EXPECTED_BUCKETS - 1));
 
     /*
-     * The whole set, not a sample. Sampling two hundred derivations never
-     * selected bucket zero, so seeding 1..4096 against a 0..4095 derivation
-     * survived -- and ensureAndLock would then either create the missing row,
-     * which is the growth this removes, or lock nothing at all.
+     * And the derivation has to address that whole range, which the seed alone
+     * does not show. A derivation taking the low 256 of a 4096-row space seeds
+     * correctly, leaves 3,840 rows permanently unreachable and multiplies the
+     * contention rate sixteenfold -- silently, because every other assertion here
+     * is satisfied by any derivation that spreads at all.
+     *
+     * Sampled rather than exhaustive: 20,000 draws over 4,096 buckets leave about
+     * 31 untouched by coincidence, so the bound is set well below the expected
+     * coverage and far above what a narrower modulus can reach.
      */
-    expect($ids)->toBe(range(0, EXPECTED_BUCKETS - 1));
+    $touched = [];
+
+    for ($i = 0; $i < 20000; $i++) {
+        $touched[IssuanceLockBucket::for('recovery', 'email', sprintf('spread-%d@acme.example', $i))] = true;
+    }
+
+    expect(count($touched))->toBeGreaterThan(4000)
+        ->and(max(array_keys($touched)))->toBeLessThan(EXPECTED_BUCKETS)
+        ->and(min(array_keys($touched)))->toBeGreaterThanOrEqual(0);
 });
 
 it('locks the derived bucket on both issuance paths', function (string $ceremony): void {
@@ -611,182 +694,6 @@ it('issues successfully through both paths', function (string $ceremony): void {
 
     expect(DB::table($table)->where('identifier_value', 'ada@acme.example')->count())->toBe(1);
 })->with(['recovery', 'verification']);
-
-/**
- * Spellings whose equivalence differs by engine and by collation.
- *
- * The last six are the ones that showed accent folding to be insufficient:
- * MySQL's utf8mb4_0900_ai_ci equates all of them, and a fold that handled only
- * accents sent each pair to a different bucket. They are here because UCA
- * primary equivalence has far more classes than anyone enumerates by hand,
- * which is the argument for deriving from a collation key rather than a list.
- *
- * @return list<array{string, string}>
- */
-function equivalentSpellings(): array
-{
-    return [
-        ['ada@acme.example', 'ADA@acme.example'],
-        ['ada@acme.example', 'Ada@Acme.Example'],
-        ["jos\u{e9}@acme.example", "jose\u{301}@acme.example"],
-        ["jos\u{e9}@acme.example", 'jose@acme.example'],
-        ["stra\u{df}e@acme.example", 'strasse@acme.example'],
-        ["\u{e6}on@acme.example", 'aeon@acme.example'],
-        ["s\u{f8}ren@acme.example", 'soren@acme.example'],
-        ["\u{3c2}igma@acme.example", "\u{3c3}igma@acme.example"],
-        ["\u{ff41}da@acme.example", 'ada@acme.example'],
-        ["a\u{ad}da@acme.example", 'ada@acme.example'],
-        // PAD SPACE: even a binary collation equates a trailing ASCII space,
-        // which bare comparison weights do not -- measured, and the reason the
-        // key needs the engine's own padding treatment rather than raw weights.
-        ['ada@acme.example', 'ada@acme.example '],
-        ["ada@acme.example\u{a0}", 'ada@acme.example '],
-    ];
-}
-
-it('maps together whatever the proof column itself considers equal', function (string $ceremony): void {
-    permitDelivery();
-
-    /*
-     * Asked of the COLUMN, through the predicate supersession actually uses.
-     * An earlier version compared `? = ?`, which follows the connection
-     * collation rather than the column's -- changing only MySQL's connection
-     * collation to binary produced zero equal pairs while the proof columns
-     * still equated them, so the test went quiet exactly where the risk was.
-     *
-     * It was also vacuous on SQLite and PostgreSQL, where no pair is equal and
-     * the loop asserted nothing. Here the count of pairs the engine equates is
-     * reported rather than required, and the engine-independent contract is the
-     * test above -- this one exists to catch an engine equating something that
-     * contract does not cover.
-     */
-    $equated = 0;
-    $probed = 0;
-
-    $table = lockProofTable($ceremony);
-
-    foreach (equivalentSpellings() as [$stored, $candidate]) {
-        DB::table($table)->delete();
-        lockIssueFor($ceremony, $stored);
-
-        // The premise: this fixture really did store a row to compare against.
-        expect(DB::table($table)->count())->toBe(1);
-        $probed++;
-
-        $matches = DB::table($table)
-            ->where('identifier_type', 'email')
-            ->where('identifier_value', $candidate)
-            ->exists();
-
-        if (! $matches) {
-            continue;
-        }
-
-        $equated++;
-
-        expect(IssuanceLockBucket::for($ceremony, 'email', $stored))
-            ->toBe(
-                IssuanceLockBucket::for($ceremony, 'email', $candidate),
-                sprintf('the database equates %s and %s, so they must share a bucket', $stored, $candidate),
-            );
-    }
-
-    /*
-     * Reported rather than required: zero is the correct answer where identifier
-     * equality is binary, so demanding a nonzero count would fail SQLite and
-     * PostgreSQL. What must not happen is the loop going quiet because the
-     * FIXTURE stopped landing -- an earlier version asserted $equated >= 0,
-     * which is true of an empty run and of a broken one alike.
-     */
-    expect($probed)->toBe(count(equivalentSpellings()));
-})->with(['recovery', 'verification']);
-
-it('follows the column collation in force, not an assumed one', function (): void {
-    if (DB::connection()->getDriverName() !== 'mysql') {
-        $this->markTestSkipped('Only MySQL has a collation here that equates more than bytes.');
-    }
-
-    permitDelivery();
-
-    $pair = ["jos\u{e9}@acme.example", 'jose@acme.example'];
-    $underDefault = [
-        IssuanceLockBucket::for('recovery', 'email', $pair[0]),
-        IssuanceLockBucket::for('recovery', 'email', $pair[1]),
-    ];
-
-    /*
-     * Hard-coding utf8mb4_0900_ai_ci would be a substitute for asking, and it
-     * would be wrong for any host that configured something else -- the mutex
-     * has to track the collation the column actually has, because that is what
-     * decides the supersession scope it exists to protect.
-     *
-     * Switched to a binary collation, the column stops equating these two, and
-     * the derivation must stop putting them in one bucket. An implementation
-     * reading information_schema follows; one with the collation baked in does
-     * not move.
-     */
-    DB::statement(
-        'alter table auth_recovery_proofs modify identifier_value '
-        . 'varchar(255) character set utf8mb4 collate utf8mb4_bin not null',
-    );
-
-    $underBinary = [
-        IssuanceLockBucket::for('recovery', 'email', $pair[0]),
-        IssuanceLockBucket::for('recovery', 'email', $pair[1]),
-    ];
-
-    /*
-     * Sampled, not a single pair. Two genuinely distinct comparison keys land in
-     * one bucket about once in four thousand, and a measured secret did exactly
-     * that here -- so requiring one pair to separate fails correct work at that
-     * rate. What must hold is that the collation change moves the RELATION for
-     * most of a sample.
-     */
-    $sharedUnderDefault = 0;
-    $sharedUnderBinary = 0;
-
-    foreach (accentPairs() as [$left, $right]) {
-        if (IssuanceLockBucket::for('recovery', 'email', $left)
-            === IssuanceLockBucket::for('recovery', 'email', $right)) {
-            $sharedUnderBinary++;
-        }
-    }
-
-    expect($underDefault[0])->toBe($underDefault[1])
-        ->and($sharedUnderBinary)->toBeLessThan(count(accentPairs()) / 2);
-});
-
-/**
- * Pairs the default MySQL collation equates and a binary one does not.
- *
- * @return list<array{string, string}>
- */
-function accentPairs(): array
-{
-    $pairs = [];
-
-    for ($i = 0; $i < 40; $i++) {
-        $pairs[] = [
-            sprintf("jos\u{e9}-%d@acme.example", $i),
-            sprintf('jose-%d@acme.example', $i),
-        ];
-    }
-
-    return $pairs;
-}
-
-it('refuses to derive a bucket it cannot ask the database about', function (): void {
-    /*
-     * Fail closed. If the connection cannot produce a comparison key -- an
-     * engine nobody wrote the expression for -- the only safe answer is to
-     * refuse, the way DatabaseTime refuses an interval it cannot express. A
-     * fallback to an application-side fold would be exactly the silent
-     * under-bucketing this mechanism replaced, arriving on whichever engine
-     * nobody tested.
-     */
-    expect(fn (): int => IssuanceLockBucket::forDriver('nonesuch', 'recovery', 'email', 'ada@acme.example'))
-        ->toThrow(InvalidArgumentException::class);
-});
 
 it('stores nothing new in the lock table when issuance happens', function (string $ceremony): void {
     permitDelivery();
@@ -838,4 +745,220 @@ it('records in the retention manifest that no identifier is kept', function (): 
     expect($description)->not->toContain('grows with distinct requested identifiers')
         ->and($description)->not->toContain('including decoys')
         ->and(RetentionManifest::retained())->toHaveKey('auth_proof_issuance_locks');
+});
+
+it('agrees with the supersession scope about what one identifier is', function (string $ceremony): void {
+    permitDelivery();
+    verifiedAddress('ada@acme.example');
+
+    /*
+     * The load-bearing dependency, asserted rather than assumed.
+     *
+     * The mutex is derived in PHP from the canonical form; the supersession scope
+     * is decided by SQL equality on the proof table's own columns. Those two have
+     * to give the same answer, or a bucket stops protecting the scope it exists
+     * for: two spellings sharing a scope but taking different mutexes can both
+     * supersede and both issue, which is precisely the race the anchor was added
+     * to prevent.
+     *
+     * They agree today because the identifier columns carry a deterministic NO PAD
+     * collation and hold canonical values. If either half of that regressed, this
+     * test is the one that notices -- the bucket equality alone would not, because
+     * it never consults the database.
+     *
+     * A coupling guard rather than primary coverage, deliberately. Measured: a
+     * deriver that skipped canonicalization is caught here AND by the spelling
+     * test above, and a ceremony that stopped canonicalizing its request is caught
+     * here and in six places in IdentifierEqualityTest. It is kept because it is
+     * the only test that asserts the two mechanisms agree with EACH OTHER, which is
+     * the thing neither of them can notice alone.
+     */
+    lockIssueFor($ceremony, 'ada@acme.example');
+    lockIssueFor($ceremony, 'ADA@Acme.Example');
+
+    $live = DB::table(lockProofTable($ceremony))
+        ->whereNull('superseded_at')
+        ->whereNull('consumed_at')
+        ->whereNull('burned_at')
+        ->count();
+
+    expect($live)->toBe(1)
+        ->and(IssuanceLockBucket::for($ceremony, 'email', 'ADA@Acme.Example'))
+        ->toBe(IssuanceLockBucket::for($ceremony, 'email', 'ada@acme.example'));
+})->with(['recovery', 'verification']);
+
+it('refuses to derive a bucket without its keying secret', function (): void {
+    Config::set('vouch.issuance_locks.secret', null);
+
+    /*
+     * Shaped and specific, because the alternative is worse than a crash: an
+     * empty or absent secret that silently degrades to an unkeyed hash gives
+     * every installation the same bucket mapping, and an attacker who works it
+     * out once can aim submissions at any victim's mutex on any host. A refusal
+     * naming the key is recoverable; a silent default is not detectable.
+     */
+    expect(fn (): int => IssuanceLockBucket::for('recovery', 'email', 'ada@acme.example'))
+        ->toThrow(RuntimeException::class, 'vouch.issuance_locks.secret');
+
+    Config::set('vouch.issuance_locks.secret', '');
+
+    expect(fn (): int => IssuanceLockBucket::for('recovery', 'email', 'ada@acme.example'))
+        ->toThrow(RuntimeException::class, 'vouch.issuance_locks.secret');
+});
+
+it('fails at boot rather than at a ceremony when the secret is missing', function (): void {
+    Config::set('vouch.issuance_locks.secret', null);
+
+    /*
+     * At boot, because the alternative is discovering a missing secret when the
+     * first person tries to recover an account. A mutex secret is not something a
+     * host gets to be lazily wrong about: every issuance needs it, so there is no
+     * configuration in which the package works and this is absent.
+     *
+     * Asserted by booting the provider rather than by reaching into whatever
+     * validates -- what matters is that the failure happens during boot and names
+     * the key an operator has to set, not which line raises it.
+     */
+    expect(static function (): void {
+        (new VouchServiceProvider(app()))->boot();
+    })
+        ->toThrow(RuntimeException::class, 'vouch.issuance_locks.secret');
+
+    Config::set('vouch.issuance_locks.secret', '');
+
+    /*
+     * Empty as well as absent. An empty HMAC key is accepted by hash_hmac without
+     * complaint, so a host that sets the variable to nothing gets a working,
+     * deterministic, PUBLICLY DERIVABLE bucket mapping -- the one failure mode the
+     * keying exists to prevent, arrived at by a configuration that looks set.
+     */
+    expect(static function (): void {
+        (new VouchServiceProvider(app()))->boot();
+    })
+        ->toThrow(RuntimeException::class, 'vouch.issuance_locks.secret');
+});
+
+it('boots when the secret is present', function (): void {
+    /*
+     * The positive control for the two refusals above. Without it, a provider that
+     * threw unconditionally at boot -- or a test asserting against a message that
+     * always appears -- would satisfy them both.
+     */
+    Config::set('vouch.issuance_locks.secret', str_repeat('k', 64));
+
+    (new VouchServiceProvider(app()))->boot();
+
+    expect(IssuanceLockBucket::for('recovery', 'email', 'ada@acme.example'))
+        ->toBeGreaterThanOrEqual(0)
+        ->toBeLessThan(EXPECTED_BUCKETS);
+});
+
+it('ships no default secret to fall back on', function (): void {
+    /*
+     * The cheapest way to make every other test in this file pass is a default in
+     * config/vouch.php, and it is the one outcome the keying exists to prevent:
+     * every installation would share one publicly derivable bucket mapping, and an
+     * attacker who worked it out once could aim submissions at any victim's mutex
+     * on any host. The two refusal tests cannot see it, because they set the value
+     * to null explicitly and so override whatever the package shipped.
+     *
+     * Read from the package's own config file with the environment unset, which is
+     * the only way to ask what a fresh installation gets.
+     */
+    /*
+     * The environment is cleared around the require, in all three places Laravel's
+     * Env repository reads: putenv's table, $_ENV and $_SERVER. Clearing one is not
+     * enough, and clearing none makes this test fail against a CORRECT
+     * implementation on any machine that actually exports the variable -- a
+     * developer with a real .env, or a CI job that sets it.
+     */
+    $name = 'VOUCH_ISSUANCE_LOCKS_SECRET';
+    $putenv = getenv($name);
+    $inEnv = array_key_exists($name, $_ENV) ? $_ENV[$name] : null;
+    $inServer = array_key_exists($name, $_SERVER) ? $_SERVER[$name] : null;
+
+    putenv($name);
+    unset($_ENV[$name], $_SERVER[$name]);
+
+    try {
+        $published = require dirname(__DIR__, 2) . '/config/vouch.php';
+
+        expect($published)->toBeArray();
+
+        $locks = is_array($published) ? ($published['issuance_locks'] ?? null) : null;
+
+        expect($locks)->toBeArray();
+
+        $secret = is_array($locks) ? ($locks['secret'] ?? null) : null;
+
+        expect($secret === null || $secret === '')->toBeTrue(
+            'config/vouch.php must ship no issuance-lock secret: a default is a shared key',
+        );
+    } finally {
+        if (is_string($putenv)) {
+            putenv($name . '=' . $putenv);
+        }
+
+        if ($inEnv !== null) {
+            $_ENV[$name] = $inEnv;
+        }
+
+        if ($inServer !== null) {
+            $_SERVER[$name] = $inServer;
+        }
+    }
+});
+
+it('refuses a secret too short to be one', function (): void {
+    /*
+     * A one-character secret is accepted by hash_hmac without complaint, so
+     * without a floor here "set VOUCH_ISSUANCE_LOCKS_SECRET=x" is a configuration
+     * that boots, works, and is trivially brute-forced offline -- and looks
+     * configured to anyone reading the environment.
+     */
+    Config::set('vouch.issuance_locks.secret', 'x');
+
+    expect(static function (): void {
+        (new VouchServiceProvider(app()))->boot();
+    })->toThrow(RuntimeException::class, 'vouch.issuance_locks.secret');
+
+    /*
+     * A floor anywhere from two up to SIXTY-FOUR characters satisfies this file:
+     * TestCase supplies 64, and every secret these tests set is at least that
+     * long. Stated because the failure mode of getting it wrong is obscure --
+     * measured, a floor of 65 fails three tests about unpredictability, collision
+     * independence and cross-process agreement, none of whose messages mention
+     * length at all.
+     */
+});
+
+it('keeps every bucket where it was when only APP_KEY rotates', function (): void {
+    /*
+     * The reason the secret is dedicated, and nothing else asserted it. The
+     * existing rotation helper deliberately moves app.key and the issuance secret
+     * together, so it cannot see a derivation that reads app.key through some
+     * indirection and remaps every mutex when an operator rotates it.
+     *
+     * Rotating app.key is expected to be survivable -- it invalidates sessions and
+     * attempts by design. If it also moved the buckets, then during any rollout old
+     * and new processes would take different mutexes for one identifier and the
+     * serialization this table exists for would stop, silently, for as long as the
+     * deploy took.
+     */
+    Config::set('vouch.issuance_locks.secret', str_repeat('s', 64));
+
+    $before = bucketVector();
+
+    Config::set('app.key', 'base64:' . base64_encode(str_repeat('R', 32)));
+
+    expect(bucketVector())->toBe($before);
+
+    /*
+     * The positive control: rotating the secret that IS the key must move them, or
+     * the assertion above would be satisfied by a derivation that ignores keying
+     * altogether.
+     */
+    Config::set('vouch.issuance_locks.secret', str_repeat('z', 64));
+
+    expect(bucketVector())->not->toBe($before);
 });

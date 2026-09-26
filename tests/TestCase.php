@@ -116,6 +116,19 @@ abstract class TestCase extends Orchestra
         $app['config']->set('app.key', 'base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=');
 
         /*
+         * The issuance mutex secret, which the package refuses to boot without.
+         * Separate from app.key on purpose: rotating app.key invalidates sessions
+         * and attempts and is meant to be survivable, and it must not also remap
+         * every issuance bucket -- two processes mid-rotation would then derive
+         * different mutexes for one identifier and stop serializing it.
+         *
+         * Set here rather than left to config's default because there IS no
+         * default: a shipped fallback would give every installation the same
+         * publicly derivable bucket mapping.
+         */
+        $app['config']->set('vouch.issuance_locks.secret', str_repeat('t', 64));
+
+        /*
          * The lowest cost bcrypt accepts, and the reason is the mutation gate.
          *
          * RecoveryCodeFactor verifies a submitted code against up to ten stored
