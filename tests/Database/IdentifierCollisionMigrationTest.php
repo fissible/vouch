@@ -223,10 +223,16 @@ it('canonicalizes rows that are unambiguous', function (): void {
      * type to end up sharing a single (type, value). unique(type, value) forbids
      * that, and the two refusal tests below require exactly that shape to be
      * REFUSED, so the test contradicted its own siblings; on MySQL it failed in
-     * the fixture rather than the assertion. Uppercase AND decomposed in one row
-     * keeps both properties without asking for a merge: reaching the canonical
-     * form here needs case folding past ASCII and composition, and lower() alone
-     * delivers neither.
+     * the fixture rather than the assertion. Uppercase AND decomposed instead,
+     * which keeps the normalization axis without asking for a merge: no SQL
+     * lower() reaches this row's canonical form on any engine.
+     *
+     * The coverage here is a property of the PAIR, not of either row. Only row
+     * one discriminates a byte strtolower() from a multibyte one, because it is
+     * the one holding a precomposed non-ASCII letter -- A-E are ASCII and U+0301
+     * is not a letter, so strtolower() followed by normalization canonicalizes
+     * this row correctly. Making row one ASCII, or precomposing it, reopens that
+     * mutant silently.
      */
     $decomposed = rawIdentifier("ANDRE\u{301}@ACME.EXAMPLE", 2);
 

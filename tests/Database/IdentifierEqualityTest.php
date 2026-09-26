@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 use Fissible\Vouch\Contracts\DeliveryEconomics;
 use Fissible\Vouch\Contracts\OtpDelivery;
+use Fissible\Vouch\Flow\AuthFlow;
+use Fissible\Vouch\Flow\Continuing;
+use Fissible\Vouch\Flow\FlowRequest;
+use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Recovery\CredentialRecovery;
 use Fissible\Vouch\Recovery\CredentialRecoveryOutcome;
@@ -18,6 +22,7 @@ use Fissible\Vouch\Tests\Support\PermittingDeliveryEconomics;
 use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 uses(RefreshDatabase::class);
 
@@ -320,4 +325,68 @@ it('keeps one value string apart across two identifier types', function (): void
     expect($live)->toHaveCount(2)
         ->and($live->pluck('identifier_type')->sort()->values()->all())
         ->toBe(['email', 'sms']);
+});
+
+/** A derived binding, which is what FlowRequest takes -- never a raw session id. */
+function identifierFlowBinding(string $seed): string
+{
+    return str_repeat($seed, 64);
+}
+
+/**
+ * Begin a flow and return its handle.
+ *
+ * Narrowed to the continuing result rather than annotated onto FlowResult, which
+ * is a marker interface: not every implementation of it carries a handle, so a
+ * docblock claiming one would assert something false about the others.
+ */
+function beginIdentifierFlow(string $seed): string
+{
+    $begun = app(AuthFlow::class)->advance(
+        new FlowRequest(null, 'begin', [], identifierFlowBinding($seed)),
+    );
+
+    if (! $begun instanceof Continuing || $begun->handle === null) {
+        throw new RuntimeException('The flow did not begin with a continuing handle.');
+    }
+
+    return $begun->handle;
+}
+
+it('resolves a differently spelled identifier at the identify step', function (): void {
+    /*
+     * The login path, and the regression this file's header names: byte equality
+     * WITHOUT canonicalizing the lookup stops MySQL matching Ada@ to ada@, which
+     * it matches today. Every other test here drives recovery or verification,
+     * and those ceremonies canonicalize their own request objects -- so none of
+     * them says anything about identify, which resolves the identifier itself.
+     */
+    storedIdentifier('ada@acme.example');
+
+    $known = beginIdentifierFlow('i');
+
+    app(AuthFlow::class)->advance(new FlowRequest(
+        $known,
+        'submit',
+        ['identifier' => 'ADA@Acme.Example'],
+        identifierFlowBinding('i'),
+    ));
+
+    /*
+     * A second flow submitting an address nobody holds, because a recorded
+     * user_id is only evidence that the lookup RESOLVED if it can also come back
+     * null. Without this control an implementation that stamped the attempt
+     * unconditionally would satisfy the assertion above.
+     */
+    $unknown = beginIdentifierFlow('j');
+
+    app(AuthFlow::class)->advance(new FlowRequest(
+        $unknown,
+        'submit',
+        ['identifier' => 'ZOE@Acme.Example'],
+        identifierFlowBinding('j'),
+    ));
+
+    expect(AuthAttempt::query()->where('handle', $known)->value('user_id'))->toBe(1)
+        ->and(AuthAttempt::query()->where('handle', $unknown)->value('user_id'))->toBeNull();
 });

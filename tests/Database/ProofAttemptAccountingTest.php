@@ -1100,15 +1100,6 @@ it('counts distinct verification guesses arriving under alternating tenants', fu
 });
 
 /**
- * Does querying $table with these selector values reach $id?
- *
- * The premise of the tests below rather than their conclusion. MySQL's default
- * collation is case-insensitive, so a differently-spelled identifier selects
- * the same row there; SQLite compares text case-sensitively and selects
- * nothing. Asking the database settles which engine is running without naming
- * one.
- */
-/**
  * Whether the identity the application computes from this spelling reaches that
  * exact proof row.
  *
@@ -1135,13 +1126,14 @@ it('counts guesses that reach one recovery proof through different spellings', f
      * raw spelling of the selector itself.
      *
      * Both redeem paths select by SQL equality on identifier_type and
-     * identifier_value. Under a case-insensitive collation two different
-     * strings reach the SAME row, so a counter keyed on the raw submitted text
-     * resets a budget belonging to a proof it is still perfectly able to find.
+     * identifier_value, and both spellings canonicalize onto one pair -- so two
+     * different submissions reach the SAME row, and a counter keyed on the raw
+     * submitted text resets a budget belonging to a proof it is still perfectly
+     * able to find.
      *
-     * The budget belongs to whichever proof SQL actually selects. That is the
-     * whole claim, and it needs no view about how identifiers ought to be
-     * normalised.
+     * The budget belongs to whichever proof the ceremony selects. That used to
+     * be the collation's decision, which made the claim engine-dependent; it is
+     * Vouch's now, so it holds everywhere.
      */
     accountingAccount();
     $code = issuedRecoveryProofCode();
