@@ -48,6 +48,7 @@ use Fissible\Vouch\Delivery\SmsIdentifierAudit;
 use Fissible\Vouch\Delivery\UnconfiguredCaptchaVerifier;
 use Fissible\Vouch\Delivery\UnconfiguredDeliveryEconomics;
 use Fissible\Vouch\Support\BoundedLockWait;
+use Fissible\Vouch\Support\IssuanceLockBucket;
 use Fissible\Vouch\Support\LockContention;
 use Fissible\Vouch\Support\SystemClock;
 use Fissible\Vouch\Tenancy\NullTenantResolver;
@@ -516,6 +517,20 @@ final class VouchServiceProvider extends ServiceProvider
         // Validation is eager: an invalid security budget must fail package boot,
         // not wait for the first attacker-controlled request to reach a store.
         $this->app->make(ThrottleConfiguration::class);
+
+        /*
+         * #46. The issuance mutex's keying secret, at boot rather than at the first
+         * recovery request: every issuance derives a bucket from it, so there is no
+         * configuration in which the package works and this is absent, and the
+         * alternative is discovering it when somebody tries to recover an account.
+         *
+         * Exempt for vouch:doctor, as the CAPTCHA and strict-assurance checks are.
+         * Otherwise the one command whose job is to TELL an operator what is
+         * unconfigured is the command a missing secret stops from running.
+         */
+        if (! $this->isDoctorCommand()) {
+            IssuanceLockBucket::secret();
+        }
 
         if (! $this->isDoctorCommand()
             && $this->app->make(ThrottleConfiguration::class)->captchaEnabled

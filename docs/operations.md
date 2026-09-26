@@ -26,9 +26,8 @@ Live unmarked recovery-grace sessions continue to pass this middleware.
 Publish and run `2026_09_25_000001_deterministic_identifier_equality.php` with
 host traffic paused. It installs a deterministic collation on every column that
 holds an identifier value or type, in `auth_identifiers`,
-`auth_identifier_verifications`, `auth_recovery_proofs` and
-`auth_proof_issuance_locks`, and rewrites existing rows into the canonical form
-`IdentifierCanonicalizer` produces.
+`auth_identifier_verifications` and `auth_recovery_proofs`, and rewrites existing
+rows into the canonical form `IdentifierCanonicalizer` produces.
 
 The supported collations are part of the contract from here on:
 `utf8mb4_0900_bin` on MySQL, `C` on PostgreSQL, and SQLite's byte-comparing
@@ -49,11 +48,9 @@ Deciding first also means the scan holds every identifier row in memory at once,
 at roughly a kilobyte per row. Raise `memory_limit` for the run on an
 installation carrying more than a few hundred thousand of them.
 
-Two outcomes need no decision from the operator. A collision between live
+One outcome needs no decision from the operator. A collision between live
 recovery proofs or identifier verifications deletes every row in it: those are
-minute-scale grants rather than records, and the cost is one re-request. Where
-two spellings claim one issuance-lock scope, the non-canonical anchor is dropped,
-because that row is a mutex and not a record of anything.
+minute-scale grants rather than records, and the cost is one re-request.
 
 The migration refuses, with `IdentifierCollisionsFound`, when a collision reaches
 an `auth_identifiers` row or a consumed or burned proof. The exception carries
@@ -81,7 +78,7 @@ both: MySQL matched a stored `ada@acme.example` for a query of
 `unique(type, value)`, where PostgreSQL's `C` and SQLite's byte comparison do
 neither. `IdentifierCanonicalizer` normalizes case and Unicode but does not
 trim, so the space reaches both the stored value and the lookup parameter and
-the engine decided. This migration moves the eight identifier columns to
+the engine decided. This migration moves the six identifier columns to
 `utf8mb4_0900_bin`, which is NO PAD.
 
 It rewrites no rows, is safe to run twice, and does nothing on PostgreSQL or
@@ -98,7 +95,7 @@ from 8.0 only; 5.7 has `utf8mb4_bin` and nothing there behaves like PostgreSQL's
 
 MySQL refuses to change the collation of a column that participates in a foreign
 key, with `3780 Referencing column ... in foreign key constraint`. No shipped
-constraint references any of the eight columns, so this reaches only a host that
+constraint references any of the six columns, so this reaches only a host that
 added one of its own — and it fails at migrate time rather than converting part
 of the schema. Drop that constraint, run the migration, and recreate it.
 
@@ -109,6 +106,46 @@ value, so `unique(type, value)` rejects the change with `1062 Duplicate entry` o
 any host that has stored both spellings since. A rolled-back host keeps the NO
 PAD collation and loses nothing: values carrying no trailing whitespace compare
 identically under either.
+
+## Upgrading to a bucketed issuance mutex (#46)
+
+Set `VOUCH_ISSUANCE_LOCKS_SECRET` before deploying, then publish and run
+`2026_09_26_000001_bucketed_issuance_locks.php`.
+
+The issuance mutex used to hold one row per submitted identifier, allocated
+before resolution and whether or not resolution succeeded. The table therefore
+grew with attacker-chosen input — the per-identifier issuance throttles count
+repetition, and rotating identifiers walks past them — and it retained each
+submitted string verbatim and permanently, addresses of people who are not users
+included, with no reclamation path. It now holds a fixed 4,096 rows keyed only by
+a bucket number, and issuance locks
+`HMAC(secret, ceremony ‖ type ‖ canonical identifier) mod 4096`. The table is a
+fixed size forever and retains no identifier, so there is nothing to reclaim.
+
+The migration discards every existing row rather than converting it: a mutex is
+not a record of anything, and those rows are exactly the strings this change
+stops retaining. Rollback is deliberately empty — it would mean inventing them
+again. Run it with issuance traffic paused, because the table is dropped and
+recreated.
+
+**The secret has no shipped default and the package refuses to boot without one.**
+A default would give every installation the same publicly derivable mapping from
+identifier to mutex row, and an attacker who worked it out once could aim
+submissions at any victim's mutex on any host. Use at least 32 bytes of random
+data. `vouch:doctor` still runs when it is missing, so the command whose job is to
+report what is unconfigured is not the command a missing secret stops.
+
+It is dedicated rather than derived from `APP_KEY` on purpose. Rotating `APP_KEY`
+invalidates sessions and attempts and is expected to be survivable, and it must
+not also remap every mutex. **Rotating this secret needs a coordinated
+deployment**: it moves every bucket at once, so mid-rotation old and new processes
+derive different mutexes for one identifier and stop serializing it for as long
+as the rollout takes.
+
+Two unrelated identifiers may now land in one bucket and serialize against each
+other for the length of one issuance transaction. That is a latency cost and
+nothing else: no state crosses between them, and with ten simultaneous distinct
+issuances an arriving request contends roughly once in 455.
 
 ## Login adoption prerequisites
 

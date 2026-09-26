@@ -11,6 +11,7 @@ use Fissible\Vouch\Notifications\OtpOutboxStatus;
 use Fissible\Vouch\Notifications\OtpQueueDispatcher;
 use Fissible\Vouch\Support\DatabaseRowLock;
 use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Support\IssuanceLockBucket;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\Hash;
 
@@ -39,12 +40,14 @@ final readonly class IdentifierVerificationOutbox
         ] : null;
 
         $outbox = $this->connection->transaction(function () use ($request, $identifier, $code, $ttlSeconds, $target): AuthIdentifierVerificationOutbox {
-            $scope = [
-                'ceremony' => 'verification',
-                'identifier_type' => $request->type,
-                'identifier_value' => $request->submittedIdentifier,
-            ];
-            (new DatabaseRowLock($this->connection))->ensureAndLock('auth_proof_issuance_locks', $scope, $scope);
+            // #46. The mutex row is a bucket derived from the canonical scope, not
+            // the submitted string: the anchor serializes issuance without keeping
+            // a record of who asked. Verification and recovery for one address
+            // derive different buckets, so they do not block each other.
+            (new DatabaseRowLock($this->connection))->lockBucket(
+                IssuanceLockBucket::TABLE,
+                IssuanceLockBucket::for('verification', $request->type, $request->submittedIdentifier),
+            );
 
             // Preserve the recorded terminal cause: replacement must not relabel
             // either a redeemed proof or an exhausted guessing budget.
