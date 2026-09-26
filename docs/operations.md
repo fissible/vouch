@@ -34,9 +34,10 @@ The supported collations are part of the contract from here on:
 `utf8mb4_0900_bin` on MySQL, `C` on PostgreSQL, and SQLite's byte-comparing
 default. Identifier equality is then Vouch's decision rather than the engine's,
 so two spellings are one identifier exactly when they canonicalize alike, and
-the unique indexes over those columns mean the same thing on every engine. Leave the collations as the
-migration sets them. Moving a column back to a case- or accent-insensitive
-collation restores the behavior this upgrade removes, and does so silently.
+the unique indexes over those columns mean the same thing on every engine.
+Leave the collations as the migration sets them. Moving a column back to a
+case- or accent-insensitive collation restores the behavior this upgrade
+removes, and does so silently.
 
 The migration reads every identifier table and decides the whole upgrade before
 it writes anything, so a refusal changes neither rows nor schema and it is safe
