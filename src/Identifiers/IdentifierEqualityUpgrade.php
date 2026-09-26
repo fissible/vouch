@@ -45,6 +45,13 @@ use stdClass;
  * reconciles the reported rows re-runs against the database they started with
  * rather than one that is already half converted.
  *
+ * Not serializable against concurrent writers, and deliberately so. Deciding
+ * everything before writing anything is what makes a refusal leave no trace;
+ * the cost is that a row inserted between the scan and the rewrite keeps its
+ * non-canonical spelling and is invisible to the collision check. Locking four
+ * tables for the length of a full scan is a worse operational story than
+ * pausing traffic, which is what docs/operations.md asks for.
+ *
  * This lives here rather than inside the migration for a measured reason: a
  * migration file is recompiled on every migrate, and the suite runs hundreds of
  * them. At this size that cost 32 MB of never-reclaimed compiled classes across
@@ -279,6 +286,7 @@ final readonly class IdentifierEqualityUpgrade
                 $table,
                 $this->contested($rows, $component),
                 $this->ids($rows, $component),
+                $this->canonicalValues($rows, $component),
             );
         }
 
@@ -396,6 +404,38 @@ final readonly class IdentifierEqualityUpgrade
         }
 
         return $lowest === null ? '' : $rows[$lowest]['canonical'];
+    }
+
+    /**
+     * Every canonical value the group lands on, ascending.
+     *
+     * One for a merge. SEVERAL for a split, which is the case the single
+     * reported value cannot express: naming only one would tell an operator
+     * that two rows want one address when the truth is the opposite -- this
+     * database considers them one address and the change makes them two.
+     *
+     * @param  list<array{id: int|null, scope: string, type: string, value: string, canonicalType: string, canonical: string, key: string, loose: string, terminal: bool}>  $rows
+     * @param  list<int>  $component
+     * @return list<string>
+     */
+    private function canonicalValues(array $rows, array $component): array
+    {
+        $values = [];
+
+        foreach ($component as $position) {
+            /*
+             * A list, not the keys of a set. A canonical value that is all
+             * digits becomes an INT array key, which would hand a list<string>
+             * back with integers in it.
+             */
+            if (! in_array($rows[$position]['canonical'], $values, true)) {
+                $values[] = $rows[$position]['canonical'];
+            }
+        }
+
+        sort($values);
+
+        return $values;
     }
 
     /**
@@ -582,6 +622,14 @@ final readonly class IdentifierEqualityUpgrade
      *
      * One statement per table rather than per column: eight ALTERs otherwise run
      * on every test-suite migration as well as on every real upgrade.
+     *
+     * The two engines are not symmetric about what survives. MySQL's MODIFY
+     * replaces the WHOLE column definition, so a DEFAULT or COMMENT a host had
+     * added to one of these columns is dropped, and naming the character set
+     * converts the data on a table that was not utf8mb4; PostgreSQL's ALTER
+     * COLUMN ... TYPE preserves both. Latent rather than live -- none of the
+     * eight carries either today -- and recorded so the next reader need not
+     * rediscover it.
      */
     private function convert(): void
     {

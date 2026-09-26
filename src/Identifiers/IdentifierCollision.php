@@ -15,12 +15,18 @@ final readonly class IdentifierCollision
 {
     /**
      * @param  string  $table  the table holding the colliding rows
-     * @param  string  $value  the canonical identifier value they contend for
+     * @param  string  $value  the canonical value they contend for; a split
+     *                         lands on more than one, and this is the
+     *                         lowest-numbered row's
      * @param  list<int>  $ids  every colliding row id, ascending
+     * @param  list<string>  $canonicalValues  every canonical value the group
+     *                                         lands on, ascending: one for a
+     *                                         merge, several for a split
      */
     public function __construct(
         public string $table,
         public string $value,
         public array $ids,
+        public array $canonicalValues,
     ) {}
 }

@@ -33,12 +33,26 @@ final class IdentifierCollisionsFound extends RuntimeException
         $lines = [];
 
         foreach ($groups as $group) {
-            $lines[] = sprintf(
-                '  %s: rows %s all claim %s',
-                $group->table,
-                implode(', ', $group->ids),
-                $group->value,
-            );
+            /*
+             * A split reads the opposite way round from a merge, so it says so.
+             * "rows 4, 7 all claim jose@" would tell an operator that two rows
+             * want one address, when what happened is that this database
+             * considers them one address and the change makes them two -- and
+             * naming one of the two canonical values hides which.
+             */
+            $lines[] = count($group->canonicalValues) > 1
+                ? sprintf(
+                    '  %s: rows %s are one identifier to this database, and canonicalize apart onto %s',
+                    $group->table,
+                    implode(', ', $group->ids),
+                    implode(' and ', $group->canonicalValues),
+                )
+                : sprintf(
+                    '  %s: rows %s all claim %s',
+                    $group->table,
+                    implode(', ', $group->ids),
+                    $group->value,
+                );
         }
 
         return "Identifier rows collide under deterministic equality; nothing was changed.\n"
