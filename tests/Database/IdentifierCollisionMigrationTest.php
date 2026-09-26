@@ -298,9 +298,13 @@ it('keeps the unique constraints that make the decision enforceable', function (
      * rows for one canonical address, which is the state the whole change
      * exists to make impossible.
      */
-    expect(indexExists('auth_identifiers', 'auth_identifiers_type_value_unique'))->toBeTrue()
-        ->and(indexExists('auth_proof_issuance_locks', 'auth_proof_issuance_locks_scope_unique'))
-        ->toBeTrue();
+    /*
+     * The issuance lock table's scope index is not asserted here any more: its
+     * scope stopped being an identifier, so the index that enforced one anchor per
+     * identifier was replaced by one enforcing one row per bucket. What that table
+     * guarantees is asserted where the buckets are.
+     */
+    expect(indexExists('auth_identifiers', 'auth_identifiers_type_value_unique'))->toBeTrue();
 
     rawIdentifier('ada@acme.example', 1);
 
@@ -551,33 +555,6 @@ it('scans every table in one run, not the first that has rows', function (): voi
         ->and($groups[0]->ids)->toBe([$first, $second]);
 });
 
-it('canonicalizes the issuance lock rows too', function (): void {
-    revertToLegacyCollation();
-
-    DB::table('auth_proof_issuance_locks')->insert([
-        'ceremony' => 'recovery',
-        'identifier_type' => 'email',
-        'identifier_value' => "JOS\u{c9}@ACME.EXAMPLE",
-    ]);
-
-    /*
-     * The fourth table in scope, and the one nothing read. Two spellings of one
-     * address would otherwise each hold their own serialization anchor, which is
-     * precisely what that table exists to prevent.
-     *
-     * A trap for whoever writes the rewrite: do NOT probe for an existing
-     * canonical twin with where(value, $canonical) before updating. Under the
-     * collation being replaced that query is answered by the row you are about
-     * to rewrite -- JOSE-with-acute IS jose to utf8mb4_0900_ai_ci -- so the
-     * probe reports a twin that does not exist and the only anchor gets deleted.
-     * Attempt the write and handle the constraint violation instead.
-     */
-    runIdentifierMigration();
-
-    expect(DB::table('auth_proof_issuance_locks')->pluck('identifier_value')->all())
-        ->toBe([canonical("JOS\u{c9}@ACME.EXAMPLE")]);
-});
-
 it('triages the verification table on the same terms', function (): void {
     revertToLegacyCollation();
 
@@ -665,30 +642,4 @@ it('reports collisions from every table that has them', function (): void {
     sort($tables);
 
     expect($tables)->toBe(['auth_identifiers', 'auth_recovery_proofs']);
-});
-
-it('leaves one anchor when two spellings claim the same scope', function (): void {
-    /*
-     * Constructible only where equality is already byte-exact, which is why the
-     * collation is left alone here. Two anchors canonicalizing onto one value
-     * cannot both survive: unique(ceremony, type, value) forbids it, so the
-     * non-canonical row goes rather than the migration refusing -- a lock row is
-     * a mutex, not a record of anything.
-     */
-    if (DB::connection()->getDriverName() === 'mysql') {
-        $this->markTestSkipped('The legacy collation already treats these as one row.');
-    }
-
-    DB::table('auth_proof_issuance_locks')->insert([
-        ['ceremony' => 'recovery', 'identifier_type' => 'email',
-            'identifier_value' => 'Ada@Acme.Example'],
-        ['ceremony' => 'recovery', 'identifier_type' => 'email',
-            'identifier_value' => 'ada@acme.example'],
-    ]);
-
-    runIdentifierMigration();
-
-    expect(DB::table('auth_proof_issuance_locks')
-        ->where('identifier_value', 'ada@acme.example')->count())->toBe(1)
-        ->and(DB::table('auth_proof_issuance_locks')->count())->toBe(1);
 });

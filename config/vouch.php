@@ -252,4 +252,22 @@ return [
             'enabled' => env('VOUCH_THROTTLE_CAPTCHA_ENABLED', false),
         ],
     ],
+
+    /*
+     * The secret keying the issuance mutex's bucket derivation (#46).
+     *
+     * NO DEFAULT, deliberately. A shipped fallback would give every installation
+     * the same publicly derivable mapping from identifier to mutex row, and an
+     * attacker who worked it out once could aim submissions at any victim's mutex
+     * on any host. The package refuses to boot without this instead.
+     *
+     * Dedicated rather than derived from APP_KEY: rotating APP_KEY invalidates
+     * sessions and attempts and is meant to be survivable, and must not also
+     * remap every bucket -- mid-rollout, old and new processes would then derive
+     * different mutexes for one identifier and stop serializing it. Rotating THIS
+     * secret carries that cost, so it needs a coordinated deployment.
+     */
+    'issuance_locks' => [
+        'secret' => env('VOUCH_ISSUANCE_LOCKS_SECRET'),
+    ],
 ];

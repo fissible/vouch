@@ -35,7 +35,7 @@ final class RetentionManifest
             'auth_federated_identities' => 'Federated identity bindings are durable login ownership records.',
             'auth_identifiers' => 'Identifier records are durable user identity configuration.',
             'auth_policies' => 'Authentication policy rows are durable host configuration.',
-            'auth_proof_issuance_locks' => '#38: permanent ceremony and identifier mutex anchors preserve issuance serialization after proofs are deleted; capacity grows with distinct requested identifiers, including decoys.',
+            'auth_proof_issuance_locks' => '#46: a fixed set of permanent bucket mutex anchors preserves issuance serialization after proofs are deleted; the migration seeds every row, so capacity never grows with requests and no identifiers are retained -- there is nothing to reclaim.',
             'auth_subject_locks' => '#17: permanent host-controlled subject mutex anchors preserve serialization after sessions are deleted; capacity grows with distinct token-issuing subjects.',
         ];
     }

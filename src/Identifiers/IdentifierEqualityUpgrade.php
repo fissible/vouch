@@ -6,7 +6,6 @@ namespace Fissible\Vouch\Identifiers;
 
 use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 use Illuminate\Database\Connection;
-use Illuminate\Database\Query\Builder;
 use stdClass;
 
 /**
@@ -37,10 +36,6 @@ use stdClass;
  *   and REFUSED when any row in it is consumed or burned, because #31 and #38
  *   both make those terminal states permanent records of what happened.
  *
- *   auth_proof_issuance_locks is a mutex, not a record. Two spellings claiming
- *   one scope cannot both survive unique(ceremony, type, value), so the
- *   non-canonical anchor goes and the scope keeps exactly one.
- *
  * A refusal changes NOTHING -- not a row, not a column -- so an operator who
  * reconciles the reported rows re-runs against the database they started with
  * rather than one that is already half converted.
@@ -48,7 +43,7 @@ use stdClass;
  * Not serializable against concurrent writers, and deliberately so. Deciding
  * everything before writing anything is what makes a refusal leave no trace;
  * the cost is that a row inserted between the scan and the rewrite keeps its
- * non-canonical spelling and is invisible to the collision check. Locking four
+ * non-canonical spelling and is invisible to the collision check. Locking three
  * tables for the length of a full scan is a worse operational story than
  * pausing traffic, which is what docs/operations.md asks for.
  *
@@ -68,10 +63,7 @@ final readonly class IdentifierEqualityUpgrade
     /**
      * Every column that holds an identifier, and what a collision there means.
      *
-     * `refuse` is an account row, `transient` a short-lived credential, `mutex`
-     * a serialization anchor. `keyed` says whether rows have an id to report;
-     * auth_proof_issuance_locks has none, and never needs one, because it never
-     * refuses.
+     * `refuse` is an account row, `transient` a short-lived credential.
      */
     private const TABLES = [
         'auth_identifiers' => [
@@ -85,10 +77,6 @@ final readonly class IdentifierEqualityUpgrade
         'auth_recovery_proofs' => [
             'type' => 'identifier_type', 'value' => 'identifier_value',
             'keyed' => true, 'scope' => null, 'policy' => 'transient',
-        ],
-        'auth_proof_issuance_locks' => [
-            'type' => 'identifier_type', 'value' => 'identifier_value',
-            'keyed' => false, 'scope' => 'ceremony', 'policy' => 'mutex',
         ],
     ];
 
@@ -132,15 +120,12 @@ final readonly class IdentifierEqualityUpgrade
         $refusals = [];
         /** @var array<string, list<int>> $doomed */
         $doomed = [];
-        /** @var array<string, list<array<string, string>>> $surplus */
-        $surplus = [];
 
         foreach (self::TABLES as $table => $spec) {
             $triage = $this->triage($table, $spec, $scanned[$table]);
 
             $refusals = array_merge($refusals, $triage['refusals']);
             $doomed[$table] = $triage['doomed'];
-            $surplus[$table] = $triage['surplus'];
         }
 
         if ($refusals !== []) {
@@ -148,16 +133,16 @@ final readonly class IdentifierEqualityUpgrade
         }
 
         /*
-         * Schema first, then rows. Every delete and update below names an exact
-         * spelling, and only a deterministic collation makes "this spelling"
-         * mean one row: under the collation being replaced, a delete aimed at
-         * one anchor takes its canonical twin with it.
+         * Schema first, then rows. Every update below names an exact spelling,
+         * and only a deterministic collation makes "this spelling" mean one row:
+         * under the collation being replaced, a statement aimed at one spelling
+         * also reaches every other the engine considers equal to it.
          */
         self::installCollation($this->connection);
 
         foreach (self::TABLES as $table => $spec) {
-            $this->discard($table, $spec, $doomed[$table], $surplus[$table]);
-            $this->rewrite($table, $spec, $scanned[$table], $doomed[$table], $surplus[$table]);
+            $this->discard($table, $doomed[$table]);
+            $this->rewrite($table, $spec, $scanned[$table], $doomed[$table]);
         }
     }
 
@@ -245,12 +230,11 @@ final readonly class IdentifierEqualityUpgrade
     }
 
     /**
-     * What this table's collisions cost: rows to refuse over, rows to delete,
-     * anchors to drop.
+     * What this table's collisions cost: rows to refuse over, rows to delete.
      *
      * @param  array{type: string, value: string, keyed: bool, scope: string|null, policy: string}  $spec
      * @param  list<array{id: int|null, scope: string, type: string, value: string, canonicalType: string, canonical: string, key: string, loose: string, terminal: bool}>  $rows
-     * @return array{refusals: list<IdentifierCollision>, doomed: list<int>, surplus: list<array<string, string>>}
+     * @return array{refusals: list<IdentifierCollision>, doomed: list<int>}
      */
     private function triage(string $table, array $spec, array $rows): array
     {
@@ -258,8 +242,6 @@ final readonly class IdentifierEqualityUpgrade
         $refusals = [];
         /** @var list<int> $doomed */
         $doomed = [];
-        /** @var list<array<string, string>> $surplus */
-        $surplus = [];
 
         foreach ($this->components($rows) as $component) {
             $spellings = [];
@@ -277,12 +259,6 @@ final readonly class IdentifierEqualityUpgrade
              * alone -- there is nothing to choose between when the bytes agree.
              */
             if (count($spellings) < 2) {
-                continue;
-            }
-
-            if ($spec['policy'] === 'mutex') {
-                $surplus = array_merge($surplus, $this->dropAnchors($spec, $rows, $component));
-
                 continue;
             }
 
@@ -306,7 +282,7 @@ final readonly class IdentifierEqualityUpgrade
             );
         }
 
-        return ['refusals' => $refusals, 'doomed' => $doomed, 'surplus' => $surplus];
+        return ['refusals' => $refusals, 'doomed' => $doomed];
     }
 
     /**
@@ -455,79 +431,15 @@ final readonly class IdentifierEqualityUpgrade
     }
 
     /**
-     * Every anchor in a contended scope except the one that keeps it.
-     *
-     * The survivor is the row already spelled canonically where there is one,
-     * so the common case rewrites nothing. Deliberately NOT chosen by probing
-     * for a canonical twin with a where clause: under the collation being
-     * replaced that probe is answered by the very row being examined, and the
-     * scope loses its only anchor.
-     *
-     * @param  array{type: string, value: string, keyed: bool, scope: string|null, policy: string}  $spec
-     * @param  list<array{id: int|null, scope: string, type: string, value: string, canonicalType: string, canonical: string, key: string, loose: string, terminal: bool}>  $rows
-     * @param  list<int>  $component
-     * @return list<array<string, string>>
-     */
-    private function dropAnchors(array $spec, array $rows, array $component): array
-    {
-        $survivor = $component[0];
-
-        foreach ($component as $position) {
-            if ($rows[$position]['value'] === $rows[$position]['canonical']) {
-                $survivor = $position;
-
-                break;
-            }
-        }
-
-        $surplus = [];
-
-        foreach ($component as $position) {
-            if ($position === $survivor) {
-                continue;
-            }
-
-            $row = [
-                $spec['type'] => $rows[$position]['type'],
-                $spec['value'] => $rows[$position]['value'],
-            ];
-
-            if ($spec['scope'] !== null) {
-                $row[$spec['scope']] = $rows[$position]['scope'];
-            }
-
-            $surplus[] = $row;
-        }
-
-        return $surplus;
-    }
-
-    /**
-     * @param  array{type: string, value: string, keyed: bool, scope: string|null, policy: string}  $spec
      * @param  list<int>  $doomed
-     * @param  list<array<string, string>>  $surplus
      */
-    private function discard(string $table, array $spec, array $doomed, array $surplus): void
+    private function discard(string $table, array $doomed): void
     {
-        if ($doomed !== []) {
-            $this->connection->table($table)->whereIn('id', $doomed)->delete();
-        }
-
-        if ($surplus === []) {
+        if ($doomed === []) {
             return;
         }
 
-        // One statement, however many anchors: a delete per row would scale
-        // with the damage rather than with the tables.
-        $this->connection->table($table)->where(static function (Builder $outer) use ($surplus): void {
-            foreach ($surplus as $row) {
-                $outer->orWhere(static function (Builder $inner) use ($row): void {
-                    foreach ($row as $column => $value) {
-                        $inner->where($column, $value);
-                    }
-                });
-            }
-        })->delete();
+        $this->connection->table($table)->whereIn('id', $doomed)->delete();
     }
 
     /**
@@ -543,9 +455,8 @@ final readonly class IdentifierEqualityUpgrade
      * @param  array{type: string, value: string, keyed: bool, scope: string|null, policy: string}  $spec
      * @param  list<array{id: int|null, scope: string, type: string, value: string, canonicalType: string, canonical: string, key: string, loose: string, terminal: bool}>  $rows
      * @param  list<int>  $doomed
-     * @param  list<array<string, string>>  $surplus
      */
-    private function rewrite(string $table, array $spec, array $rows, array $doomed, array $surplus): void
+    private function rewrite(string $table, array $spec, array $rows, array $doomed): void
     {
         /** @var list<array{string, string}> $types */
         $types = [];
@@ -557,10 +468,6 @@ final readonly class IdentifierEqualityUpgrade
 
         foreach ($rows as $row) {
             if ($row['id'] !== null && isset($deleted[$row['id']])) {
-                continue;
-            }
-
-            if ($row['id'] === null && $this->isSurplus($spec, $row, $surplus)) {
                 continue;
             }
 
@@ -577,24 +484,6 @@ final readonly class IdentifierEqualityUpgrade
 
         $this->rewriteColumn($table, $spec['type'], $types);
         $this->rewriteColumn($table, $spec['value'], $values);
-    }
-
-    /**
-     * @param  array{type: string, value: string, keyed: bool, scope: string|null, policy: string}  $spec
-     * @param  array{id: int|null, scope: string, type: string, value: string, canonicalType: string, canonical: string, key: string, loose: string, terminal: bool}  $row
-     * @param  list<array<string, string>>  $surplus
-     */
-    private function isSurplus(array $spec, array $row, array $surplus): bool
-    {
-        foreach ($surplus as $dropped) {
-            if (($dropped[$spec['type']] ?? null) === $row['type']
-                && ($dropped[$spec['value']] ?? null) === $row['value']
-                && ($spec['scope'] === null || ($dropped[$spec['scope']] ?? null) === $row['scope'])) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
@@ -636,7 +525,7 @@ final readonly class IdentifierEqualityUpgrade
     /**
      * Install the deterministic collation.
      *
-     * One statement per table rather than per column: eight ALTERs otherwise run
+     * One statement per table rather than per column: six ALTERs otherwise run
      * on every test-suite migration as well as on every real upgrade.
      *
      * The two engines are not symmetric about what survives. MySQL's MODIFY
@@ -644,7 +533,7 @@ final readonly class IdentifierEqualityUpgrade
      * added to one of these columns is dropped, and naming the character set
      * converts the data on a table that was not utf8mb4; PostgreSQL's ALTER
      * COLUMN ... TYPE preserves both. Latent rather than live -- none of the
-     * eight carries either today -- and recorded so the next reader need not
+     * six carries either today -- and recorded so the next reader need not
      * rediscover it.
      *
      * Static, and public, because two migrations install this collation: the

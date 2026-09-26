@@ -443,10 +443,17 @@ it('keeps padded and unpadded spellings in separate issuance scopes', function (
 
     /*
      * The proof tables carry no unique index, so a padding collation does not
-     * fail here -- it silently shares. insertOrIgnore sees the padded spelling as
-     * a duplicate of the stored one and the ceremony locks the row already there,
-     * so two identifiers share one mutex and one supersession scope. Counted
-     * rather than inspected, because sharing is invisible in any single row.
+     * fail here -- it silently shares: two identifiers end up in one supersession
+     * scope, and the second issuance supersedes the first instead of standing
+     * beside it. Counted rather than inspected, because sharing is invisible in
+     * any single row.
+     *
+     * Asked of the PROOF table rather than the issuance lock table. The lock rows
+     * are a fixed set of buckets now and carry no identifier, so two distinct
+     * identifiers may legitimately share one -- a lock-row count cannot tell
+     * legitimate false sharing apart from the collation defect this test is about.
+     * Supersession scope is where identity still lives, so that is where it is
+     * asked.
      */
     foreach (['ada@acme.example', 'ada@acme.example '] as $value) {
         if ($ceremony === 'recovery') {
@@ -456,8 +463,12 @@ it('keeps padded and unpadded spellings in separate issuance scopes', function (
         }
     }
 
-    expect(DB::table('auth_proof_issuance_locks')->count())->toBe(2)
-        ->and(DB::table('auth_proof_issuance_locks')->distinct()->count('identifier_value'))->toBe(2);
+    $proofs = $ceremony === 'recovery' ? 'auth_recovery_proofs' : 'auth_identifier_verifications';
+
+    $live = DB::table($proofs)->whereNull('superseded_at')->count();
+
+    expect($live)->toBe(2)
+        ->and(DB::table($proofs)->distinct()->count('identifier_value'))->toBe(2);
 })->with(['recovery', 'verification']);
 
 it('carries a collation that pads nothing on every identifier column', function (): void {

@@ -116,7 +116,35 @@ it('keeps HMAC and APP_KEY access inside SessionBinding', function (): void {
 
             $source = (string) file_get_contents($file->getPathname());
 
-            if (preg_match('/\bhash_hmac\s*\(|config\s*\(\s*[\'\"]app\.key[\'\"]/', $source) === 1) {
+            /*
+             * Reading app.key outside SessionBinding is forbidden everywhere, with
+             * no exceptions -- that is the half of this rule that matters.
+             */
+            /*
+             * Every spelling, not just the helper. Measured: a derivation keyed on
+             * Config::get('app.key') passed this rule when the pattern matched only
+             * `config('app.key')`, and the Config facade, config()->string() and
+             * Config::string() all read the same value.
+             */
+            if (preg_match('/(?:\bconfig\s*\(\s*|\bConfig::[a-zA-Z]+\s*\(\s*)[\'\"]app\.key[\'\"]/', $source) === 1) {
+                $offenders[] = $relative;
+
+                continue;
+            }
+
+            /*
+             * IssuanceLockBucket keys an HMAC of its own, on a DEDICATED secret,
+             * which is the entire point: the issuance mutex must survive an app.key
+             * rotation. So it is exempt from the hash_hmac rule and deliberately
+             * NOT exempt from the app.key rule above -- routing it through
+             * SessionBinding would key it on app.key and reintroduce exactly what
+             * the dedicated secret exists to avoid.
+             */
+            if ($relative === 'src/Support/IssuanceLockBucket.php') {
+                continue;
+            }
+
+            if (preg_match('/\bhash_hmac\s*\(/', $source) === 1) {
                 $offenders[] = $relative;
             }
         }
