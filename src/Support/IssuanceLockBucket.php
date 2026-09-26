@@ -86,7 +86,20 @@ final class IssuanceLockBucket
 
     public static function for(string $ceremony, string $type, string $value): int
     {
-        $canonicalizer = new IdentifierCanonicalizer();
+        /*
+         * Resolved rather than constructed, as AuthIdentifier::identity() does for
+         * the same reason -- a static context cannot take constructor injection.
+         * The canonicalizer is a singleton, and this class is the one place where
+         * using an unconfigured second instance would be a correctness bug rather
+         * than a style one: the whole argument for a fixed bucket count is that the
+         * bucket canonicalizes IDENTICALLY to what the supersession predicate
+         * compares. Should the canonicalizer ever take configuration, a private
+         * instance here would quietly disagree with the configured one the
+         * ceremonies use, and two spellings sharing one supersession scope would
+         * take different mutexes -- the under-bucketing this design rules out,
+         * arriving through a seam nothing observes.
+         */
+        $canonicalizer = app(IdentifierCanonicalizer::class);
 
         /*
          * The ceremony is part of the hashed message rather than a column:
