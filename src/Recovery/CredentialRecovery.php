@@ -16,6 +16,7 @@ use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\Sessions\RevokedReason;
 use Fissible\Vouch\Sessions\SessionLifecycle;
 use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 use Fissible\Vouch\Throttle\IssuancePermission;
 use Fissible\Vouch\Throttle\ProofAttemptStore;
 use Fissible\Vouch\Throttle\ThrottleDecision;
@@ -41,10 +42,18 @@ final readonly class CredentialRecovery
         private AuthThrottleStore $throttles,
         private ThrottleKey $keys,
         private ProofAttemptStore $attempts,
+        private IdentifierCanonicalizer $identifiers,
     ) {}
 
     public function request(CredentialRecoveryRequest $request): void
     {
+        /*
+         * Every identifier read and written below -- the target lookup, the
+         * supersession scope, the issuance anchor, the proof row -- is one
+         * decision about who this is, taken here rather than four times.
+         */
+        $request = $request->canonicalized($this->identifiers);
+
         $this->outbox->assertReady();
 
         if ($this->throttles->permitIssuance(
@@ -75,6 +84,12 @@ final readonly class CredentialRecovery
         if ($code === '') {
             return CredentialRecoveryOutcome::Refused;
         }
+
+        /*
+         * Redemption, not only issuance. Canonicalizing on the way in and not
+         * on the way back hands a user a code they can never spend.
+         */
+        $request = $request->canonicalized($this->identifiers);
 
         $subject = $this->keys->recovery(
             $request->submittedIdentifier,

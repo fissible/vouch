@@ -469,3 +469,84 @@ function failingOnSharedToken(string $issuerKey): \Fissible\Vouch\Tests\Support\
 
     return $issuer;
 }
+
+/*
+ * #59 identifier-identity helpers, shared by two suites.
+ *
+ * Here rather than in whichever file happened to need them first: they were
+ * defined in IdentifierEqualityTest and called from
+ * IdentifierCollisionMigrationTest, so that file failed on its own against a
+ * CORRECT implementation and only worked because Pest loads every file before
+ * running anything. That breaks --filter debugging and any CI that shards by
+ * file, and it is the fourth time in this project a cross-file helper has done
+ * it.
+ */
+function canonical(string $value): string
+{
+    /*
+     * Fully qualified because Pest.php carries no use block, and named at its
+     * present location rather than a new one: what these tests pin is that the
+     * package and the migration agree on one canonical form, not which
+     * namespace computes it. Moving the class is a test amendment, not a
+     * violation.
+     */
+    return app(\Fissible\Vouch\Throttle\IdentifierCanonicalizer::class)->canonicalize($value);
+}
+/**
+ * The collation name the engine reports for that column, or null on SQLite.
+ *
+ * Returned rather than judged, because both the positive and the negative
+ * assertion need it. PostgreSQL reports 'default' for an unaltered varchar --
+ * never NULL -- so "is it deterministic" cannot distinguish a converted column
+ * from an untouched one there: the default IS deterministic. Only the name can.
+ */
+function collationOf(string $table, string $column): ?string
+{
+    $driver = DB::connection()->getDriverName();
+
+    if ($driver === 'sqlite') {
+        return null;
+    }
+
+    if ($driver === 'mysql') {
+        $row = DB::selectOne(
+            'select collation_name as name from information_schema.columns '
+            . 'where table_schema = database() and table_name = ? and column_name = ?',
+            [$table, $column],
+        );
+
+        $name = requiredRow($row)->name;
+
+        return is_string($name) ? $name : null;
+    }
+
+    $row = DB::selectOne(
+        'select c.collname as name from pg_attribute a '
+        . 'join pg_class t on t.oid = a.attrelid '
+        . 'left join pg_collation c on c.oid = a.attcollation '
+        . 'where t.relname = ? and a.attname = ?',
+        [$table, $column],
+    );
+
+    $name = requiredRow($row)->name;
+
+    return is_string($name) ? $name : null;
+}
+/** Whether that column carries the collation this change installs. */
+function carriesDeterministicCollation(string $table, string $column): bool
+{
+    $name = collationOf($table, $column);
+
+    if ($name === null) {
+        return false;
+    }
+
+    /*
+     * The collation Vouch SETS, not merely one that happens to be
+     * deterministic. PostgreSQL's default is deterministic, so accepting it let
+     * "never alter any collation at all" pass on that engine -- measured.
+     */
+    return DB::connection()->getDriverName() === 'mysql'
+        ? str_ends_with($name, '_bin')
+        : $name === 'C';
+}

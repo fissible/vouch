@@ -238,3 +238,34 @@ it('charges the ceremony throttle dimension', function (): void {
         ->toBe(0);
 });
 
+it('bootstraps a credential when the user already holds the identifier in another spelling', function (): void {
+    /*
+     * The identifier exists and belongs to the SAME user, which is the only
+     * shape that can discriminate here. Every refusal converges: a different
+     * user's address, a guard contention and a duplicate-key violation all end
+     * in the same durable decoy and the same neutral Accepted, so a fixture
+     * whose right answer is "refuse" passes whether or not the lookup
+     * canonicalizes -- an earlier version of this test asserted exactly those
+     * absences and proved nothing.
+     *
+     * With an existing row the same user owns, write() returns true and goes on
+     * to the password bootstrap. A lookup comparing the submitted spelling
+     * misses that row, attempts the create, and dies on the unique index the
+     * write side has already canonicalized into -- so the credential the host
+     * asked for is never written. The count below is the observable, and the
+     * result stays Accepted either way, which is why the count and not the
+     * result is what this asserts.
+     */
+    AuthIdentifier::create([
+        'user_id' => 1,
+        'type' => 'email',
+        'value' => 'ada@acme.example',
+    ]);
+
+    [$result, ] = enrollFirstCredential(firstCredentialRequest(1, 'Ada@Acme.Example'));
+
+    expect($result)->toBe(FirstCredentialResult::Accepted)
+        ->and(AuthCredential::query()->where('user_id', 1)->where('type', 'password')->count())->toBe(1)
+        ->and(AuthIdentifier::query()->where('value', 'ada@acme.example')->count())->toBe(1)
+        ->and(AuthIdentifier::query()->where('value', 'ada@acme.example')->value('user_id'))->toBe(1);
+});
