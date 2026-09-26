@@ -21,6 +21,54 @@ only that device's previous row. Keep `ValidatesVouchSession` on authenticated
 host routes so missing, mismatched, or revoked records destroy owned sessions.
 Live unmarked recovery-grace sessions continue to pass this middleware.
 
+## Upgrading to deterministic identifier equality (#59)
+
+Publish and run `2026_09_25_000001_deterministic_identifier_equality.php` with
+host traffic paused. It installs a deterministic collation on every column that
+holds an identifier value or type, in `auth_identifiers`,
+`auth_identifier_verifications`, `auth_recovery_proofs` and
+`auth_proof_issuance_locks`, and rewrites existing rows into the canonical form
+`IdentifierCanonicalizer` produces.
+
+The supported collations are part of the contract from here on: `utf8mb4_bin` on
+MySQL, `C` on PostgreSQL, and SQLite's byte-comparing default. Identifier
+equality is then Vouch's decision rather than the engine's, so two spellings are
+one identifier exactly when they canonicalize alike, and the unique indexes over
+those columns mean the same thing on every engine. Leave the collations as the
+migration sets them. Moving a column back to a case- or accent-insensitive
+collation restores the behavior this upgrade removes, and does so silently.
+
+The migration reads every identifier table and decides the whole upgrade before
+it writes anything, so a refusal changes neither rows nor schema and it is safe
+to reconcile what it reports and run it again. That read-then-write shape is also
+why traffic must be paused: a row written between the two keeps a non-canonical
+spelling and is not seen by the collision check.
+
+Deciding first also means the scan holds every identifier row in memory at once,
+at roughly a kilobyte per row. Raise `memory_limit` for the run on an
+installation carrying more than a few hundred thousand of them.
+
+Two outcomes need no decision from the operator. A collision between live
+recovery proofs or identifier verifications deletes every row in it: those are
+minute-scale grants rather than records, and the cost is one re-request. Where
+two spellings claim one issuance-lock scope, the non-canonical anchor is dropped,
+because that row is a mutex and not a record of anything.
+
+The migration refuses, with `IdentifierCollisionsFound`, when a collision reaches
+an `auth_identifiers` row or a consumed or burned proof. The exception carries
+every colliding group found across every table: the table, the canonical value
+contended for, and the row ids. One run therefore reports everything that needs
+attention rather than the first thing it met. Reconciling means deciding which
+row keeps the address and removing or re-pointing the others. The package cannot
+choose: an account row is an identity claim, and a consumed or burned proof is
+the record that a redemption or an exhausted guessing budget happened.
+
+Rollback is deliberately empty. Case folding and normalization have no inverse,
+and restoring a looser collation can violate the unique indexes outright, because
+rows that only byte equality keeps apart are exactly what an accent-insensitive
+index rejects. A rolled-back host loses nothing by keeping the deterministic
+collation: canonical rows compare identically under either.
+
 ## Login adoption prerequisites
 
 An unverified identifier is invisible to login by design. Its refusal is deliberately
