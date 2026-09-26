@@ -95,6 +95,22 @@ final readonly class IdentifierEqualityUpgrade
     /** Characters each identifier column holds, as the tables declare them. */
     private const LENGTHS = ['type' => 32, 'value' => 255];
 
+    /**
+     * The collation MySQL gets, named here because two migrations install it.
+     *
+     * NO PAD, which is the entire point of the name. `utf8mb4_bin` is
+     * deterministic and PAD SPACE both, so it equated a trailing ASCII space
+     * where PostgreSQL's C and SQLite's BINARY do not -- the engine-dependent
+     * equality this conversion exists to remove, surviving inside it. Measured:
+     * of MySQL's binary collations only utf8mb4_0900_bin is NO PAD; the other
+     * forty pad. Deterministic and NO PAD are different properties and a name
+     * ending in `_bin` carries only the first.
+     *
+     * It exists from MySQL 8.0 only, which is what makes 8.0 this package's
+     * floor. docs/operations.md states that as a requirement.
+     */
+    public const MYSQL_COLLATION = 'utf8mb4_0900_bin';
+
     /** Rows per statement in the rewrite. */
     private const CHUNK = 200;
 
@@ -137,7 +153,7 @@ final readonly class IdentifierEqualityUpgrade
          * mean one row: under the collation being replaced, a delete aimed at
          * one anchor takes its canonical twin with it.
          */
-        $this->convert();
+        self::installCollation($this->connection);
 
         foreach (self::TABLES as $table => $spec) {
             $this->discard($table, $spec, $doomed[$table], $surplus[$table]);
@@ -630,10 +646,17 @@ final readonly class IdentifierEqualityUpgrade
      * COLUMN ... TYPE preserves both. Latent rather than live -- none of the
      * eight carries either today -- and recorded so the next reader need not
      * rediscover it.
+     *
+     * Static, and public, because two migrations install this collation: the
+     * conversion above, so a fresh installation never transiently holds a
+     * padding one, and the follow-up that moves a host which already ran the
+     * conversion off the padding collation it installed. Neither needs a
+     * canonicalizer to change a collation, and the alternative -- each naming
+     * the collation itself -- is how the two came to disagree.
      */
-    private function convert(): void
+    public static function installCollation(Connection $connection): void
     {
-        $driver = $this->connection->getDriverName();
+        $driver = $connection->getDriverName();
 
         /*
          * SQLite's default BINARY collation already compares text as bytes, so
@@ -647,25 +670,42 @@ final readonly class IdentifierEqualityUpgrade
             $clauses = [];
 
             foreach (['type', 'value'] as $role) {
-                $column = $this->quote($spec[$role]);
+                $column = self::quoted($connection, $spec[$role]);
                 $length = self::LENGTHS[$role];
 
+                /*
+                 * The whole definition, every time. MODIFY replaces it rather
+                 * than amending it, so the width and the nullability have to be
+                 * restated here or a conversion silently widens what an
+                 * identifier column accepts.
+                 */
                 $clauses[] = $driver === 'mysql'
                     ? sprintf(
-                        'modify %s varchar(%d) character set utf8mb4 collate utf8mb4_bin not null',
+                        'modify %s varchar(%d) character set utf8mb4 collate %s not null',
                         $column,
                         $length,
+                        self::MYSQL_COLLATION,
                     )
                     : sprintf('alter column %s type varchar(%d) collate "C"', $column, $length);
             }
 
-            $this->connection->statement(sprintf('alter table %s %s', $this->quote($table), implode(', ', $clauses)));
+            $connection->statement(sprintf(
+                'alter table %s %s',
+                self::quoted($connection, $table),
+                implode(', ', $clauses),
+            ));
         }
     }
 
     private function quote(string $identifier): string
     {
-        return $this->connection->getDriverName() === 'mysql'
+        return self::quoted($this->connection, $identifier);
+    }
+
+    /** Quoting needs the driver rather than the instance: installCollation() is static. */
+    private static function quoted(Connection $connection, string $identifier): string
+    {
+        return $connection->getDriverName() === 'mysql'
             ? '`' . $identifier . '`'
             : '"' . $identifier . '"';
     }

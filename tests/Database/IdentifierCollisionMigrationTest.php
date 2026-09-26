@@ -50,16 +50,12 @@ uses(DatabaseMigrations::class);
  */
 function convertedColumns(): array
 {
-    return [
-        ['auth_identifiers', 'value'],
-        ['auth_identifiers', 'type'],
-        ['auth_identifier_verifications', 'identifier_value'],
-        ['auth_identifier_verifications', 'identifier_type'],
-        ['auth_recovery_proofs', 'identifier_value'],
-        ['auth_recovery_proofs', 'identifier_type'],
-        ['auth_proof_issuance_locks', 'identifier_value'],
-        ['auth_proof_issuance_locks', 'identifier_type'],
-    ];
+    /*
+     * Delegated rather than duplicated. This list and identifierColumns() were
+     * byte-identical copies in two files, so adding a ninth identifier column
+     * meant changing both or having one silently stop covering it.
+     */
+    return identifierColumns();
 }
 
 /**
@@ -271,6 +267,27 @@ it('converts every identifier column, not only the identifier table', function (
     }
 });
 
+it('converts to a collation that pads nothing', function (): void {
+    if (DB::connection()->getDriverName() !== 'mysql') {
+        $this->markTestSkipped('Only MySQL has a deterministic collation that pads; the check is true by construction elsewhere.');
+    }
+
+    /*
+     * Asked of THIS migration, not of the one that corrects it later. The first
+     * collation installed here was utf8mb4_bin, which is PAD SPACE -- so a fresh
+     * installation held an engine-dependent equality between running this and
+     * running the follow-up, and the collation name lived in two places that could
+     * disagree. Pinned here so the upgrade path names one collation and it is the
+     * right one.
+     */
+    revertToLegacyCollation();
+    runIdentifierMigration();
+
+    foreach (convertedColumns() as [$table, $column]) {
+        expect(comparesWithoutPadding($table, $column))
+            ->toBeTrue(sprintf('%s.%s must compare without padding', $table, $column));
+    }
+});
 it('keeps the unique constraints that make the decision enforceable', function (): void {
     revertToLegacyCollation();
     runIdentifierMigration();

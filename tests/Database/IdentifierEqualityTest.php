@@ -22,7 +22,6 @@ use Fissible\Vouch\Tests\Support\PermittingDeliveryEconomics;
 use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 uses(RefreshDatabase::class);
 
@@ -85,24 +84,19 @@ function requestRecoveryAs(string $submitted): void
     ));
 }
 
-/**
- * Every column that holds an identifier value or type.
- *
- * @return list<array{string, string}>
- */
-function identifierColumns(): array
+function requestVerificationAs(string $submitted): void
 {
-    return [
-        ['auth_identifiers', 'value'],
-        ['auth_identifiers', 'type'],
-        ['auth_identifier_verifications', 'identifier_value'],
-        ['auth_identifier_verifications', 'identifier_type'],
-        ['auth_recovery_proofs', 'identifier_value'],
-        ['auth_recovery_proofs', 'identifier_type'],
-        ['auth_proof_issuance_locks', 'identifier_value'],
-        ['auth_proof_issuance_locks', 'identifier_type'],
-    ];
+    DB::table('auth_throttle_counters')->delete();
+    DB::table('auth_throttle_tuples')->delete();
+
+    app(IdentifierVerifier::class)->request(new IdentifierVerificationRequest(
+        type: 'email',
+        submittedIdentifier: $submitted,
+        tenantId: null,
+        clientIp: '203.0.113.10',
+    ));
 }
+
 
 it('stores the canonical form rather than what was submitted', function (): void {
     /*
@@ -389,4 +383,98 @@ it('resolves a differently spelled identifier at the identify step', function ()
 
     expect(AuthAttempt::query()->where('handle', $known)->value('user_id'))->toBe(1)
         ->and(AuthAttempt::query()->where('handle', $unknown)->value('user_id'))->toBeNull();
+});
+
+/*
+ * #63. A deterministic collation is not the same thing as a NO PAD one.
+ *
+ * #59 installed utf8mb4_bin on MySQL, which is PAD SPACE: a query for
+ * 'ada@x ' matches a stored 'ada@x', and unique(type, value) rejects the second
+ * spelling as a duplicate. PostgreSQL's C and SQLite's BINARY do neither, so
+ * trailing ASCII whitespace remained exactly the kind of engine-dependent
+ * equality the collation was installed to end -- and the assertion guarding it
+ * asked for a name ending in '_bin', which the padding collation satisfies.
+ *
+ * Reachable rather than theoretical: IdentifierCanonicalizer normalizes case and
+ * Unicode but does not trim, so the space survives into the stored value and
+ * into the lookup parameter, and the engine decides.
+ *
+ * These assert the BEHAVIOUR, on every engine and with no skips, because the
+ * property at issue is that the three engines agree. Whether a trailing space
+ * ought to be trimmed is a separate question about identity policy; what is
+ * settled here is that the answer cannot depend on which database is installed.
+ */
+
+it('treats a trailing space as a different identifier', function (): void {
+    /*
+     * Two rows, everywhere. On a PAD SPACE collation the second create violates
+     * unique(type, value) instead, so this fails by exception rather than by
+     * count on the engine that has the defect -- which is why the count is
+     * asserted after both writes rather than between them.
+     */
+    storedIdentifier('ada@acme.example');
+    storedIdentifier('ada@acme.example ', 2);
+
+    expect(AuthIdentifier::query()->count())->toBe(2)
+        ->and(AuthIdentifier::query()->where('value', 'ada@acme.example')->count())->toBe(1)
+        ->and(AuthIdentifier::query()->where('value', 'ada@acme.example')->value('user_id'))->toBe(1)
+        ->and(AuthIdentifier::query()->where('value', 'ada@acme.example ')->value('user_id'))->toBe(2);
+});
+
+it('does not resolve a padded submission onto an unpadded identifier', function (): void {
+    /*
+     * The consequence that matters. A submission with a trailing space reaching
+     * someone else's identifier is an account-takeover shape on one engine and
+     * nothing at all on the other two.
+     */
+    storedIdentifier('ada@acme.example');
+
+    expect(AuthIdentifier::query()->where('value', 'ada@acme.example ')->exists())->toBeFalse()
+        ->and(AuthIdentifier::query()->where('value', canonical('ada@acme.example '))->exists())->toBeFalse()
+        /*
+         * The positive control. Two absences prove nothing on their own -- a
+         * lookup that had stopped finding anything at all would satisfy both.
+         */
+        ->and(AuthIdentifier::query()->where('value', 'ada@acme.example')->exists())->toBeTrue();
+});
+
+it('keeps padded and unpadded spellings in separate issuance scopes', function (string $ceremony): void {
+    permitIdentifierDelivery();
+
+    /*
+     * The proof tables carry no unique index, so a padding collation does not
+     * fail here -- it silently shares. insertOrIgnore sees the padded spelling as
+     * a duplicate of the stored one and the ceremony locks the row already there,
+     * so two identifiers share one mutex and one supersession scope. Counted
+     * rather than inspected, because sharing is invisible in any single row.
+     */
+    foreach (['ada@acme.example', 'ada@acme.example '] as $value) {
+        if ($ceremony === 'recovery') {
+            requestRecoveryAs($value);
+        } else {
+            requestVerificationAs($value);
+        }
+    }
+
+    expect(DB::table('auth_proof_issuance_locks')->count())->toBe(2)
+        ->and(DB::table('auth_proof_issuance_locks')->distinct()->count('identifier_value'))->toBe(2);
+})->with(['recovery', 'verification']);
+
+it('carries a collation that pads nothing on every identifier column', function (): void {
+    /*
+     * The schema half, and the assertion whose weakness let this ship: a name
+     * ending in '_bin' does not mean NO PAD. Pinned so a later migration cannot
+     * return to a padding collation while still satisfying the name check.
+     *
+     * A MySQL assertion in practice, and deliberately not skipped elsewhere:
+     * comparesWithoutPadding() is true by construction off MySQL, because
+     * PostgreSQL does not pad varchar comparisons and SQLite compares bytes.
+     * Running it everywhere keeps the contract stated in one place; the engine
+     * that can fail it is MySQL, and the control that proves it CAN fail lives in
+     * NoPadCollationMigrationTest.
+     */
+    foreach (identifierColumns() as [$table, $column]) {
+        expect(comparesWithoutPadding($table, $column))
+            ->toBeTrue(sprintf('%s.%s must compare without padding', $table, $column));
+    }
 });

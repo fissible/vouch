@@ -550,3 +550,99 @@ function carriesDeterministicCollation(string $table, string $column): bool
         ? str_ends_with($name, '_bin')
         : $name === 'C';
 }
+
+/**
+ * Every column that holds an identifier value or type.
+ *
+ * Here rather than in whichever test needed it first: two files assert over this
+ * list now, and a helper reached across files works only because Pest loads
+ * every file before running anything.
+ *
+ * @return list<array{string, string}>
+ */
+function identifierColumns(): array
+{
+    return [
+        ['auth_identifiers', 'value'],
+        ['auth_identifiers', 'type'],
+        ['auth_identifier_verifications', 'identifier_value'],
+        ['auth_identifier_verifications', 'identifier_type'],
+        ['auth_recovery_proofs', 'identifier_value'],
+        ['auth_recovery_proofs', 'identifier_type'],
+        ['auth_proof_issuance_locks', 'identifier_value'],
+        ['auth_proof_issuance_locks', 'identifier_type'],
+    ];
+}
+
+/**
+ * The full declared shape of that column, beside its collation.
+ *
+ * Because the collation is not the only thing an ALTER can change. MySQL's
+ * MODIFY replaces the WHOLE column definition, so a migration that names the
+ * collation and gets the width or the nullability wrong converts correctly and
+ * quietly widens what an identifier column accepts -- measured: a mutant
+ * declaring the eight columns `null` instead of `not null` passed every
+ * assertion here, and an identifier column that accepts NULL accepts it on every
+ * host.
+ *
+ * Everything MODIFY can rewrite EXCEPT the collation, deliberately: the collation
+ * is the one field the migration is supposed to change, so snapshotting it would
+ * reject the correct implementation -- measured. Dropping `default` instead let a
+ * mutant adding `DEFAULT ''` to all eight columns pass byte-identically to correct
+ * work, which silently turns an omitted identifier column into an empty string
+ * rather than an error.
+ *
+ * @return array{type: string, nullable: bool, default: mixed, comment: string|null, generation: array{type: string, expression: string|null}|null, auto_increment: bool}
+ */
+function columnShapeOf(string $table, string $column): array
+{
+    foreach (\Illuminate\Support\Facades\Schema::getColumns($table) as $found) {
+        if ($found['name'] === $column) {
+            return [
+                'type' => $found['type'],
+                'nullable' => $found['nullable'],
+                'default' => $found['default'],
+                'comment' => $found['comment'],
+                'generation' => $found['generation'],
+                'auto_increment' => $found['auto_increment'],
+            ];
+        }
+    }
+
+    throw new RuntimeException(sprintf('%s.%s does not exist.', $table, $column));
+}
+
+/**
+ * Whether that column compares without padding the shorter operand.
+ *
+ * Separate from carriesDeterministicCollation(), which this exists to correct.
+ * That one accepts any MySQL collation whose name ends in `_bin`, and
+ * `utf8mb4_bin` satisfies it while being PAD SPACE -- so a trailing ASCII space
+ * was equated on MySQL and not on the other two engines, which is the engine
+ * dependence the deterministic collation was installed to end. Deterministic and
+ * NO PAD are different properties and the name only carries the first.
+ *
+ * True by construction off MySQL: PostgreSQL does not pad varchar comparisons,
+ * and SQLite's BINARY compares bytes. The behavioural tests cover every engine;
+ * this pins what MySQL is actually carrying so a later migration cannot quietly
+ * return to a padding collation.
+ */
+function comparesWithoutPadding(string $table, string $column): bool
+{
+    if (DB::connection()->getDriverName() !== 'mysql') {
+        return true;
+    }
+
+    $name = collationOf($table, $column);
+
+    if ($name === null) {
+        return false;
+    }
+
+    $row = DB::selectOne(
+        'select pad_attribute as pad from information_schema.collations where collation_name = ?',
+        [$name],
+    );
+
+    return stringValue(requiredRow($row)->pad) === 'NO PAD';
+}

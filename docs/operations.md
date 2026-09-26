@@ -30,13 +30,14 @@ holds an identifier value or type, in `auth_identifiers`,
 `auth_proof_issuance_locks`, and rewrites existing rows into the canonical form
 `IdentifierCanonicalizer` produces.
 
-The supported collations are part of the contract from here on: `utf8mb4_bin` on
-MySQL, `C` on PostgreSQL, and SQLite's byte-comparing default. Identifier
-equality is then Vouch's decision rather than the engine's, so two spellings are
-one identifier exactly when they canonicalize alike, and the unique indexes over
-those columns mean the same thing on every engine. Leave the collations as the
-migration sets them. Moving a column back to a case- or accent-insensitive
-collation restores the behavior this upgrade removes, and does so silently.
+The supported collations are part of the contract from here on:
+`utf8mb4_0900_bin` on MySQL, `C` on PostgreSQL, and SQLite's byte-comparing
+default. Identifier equality is then Vouch's decision rather than the engine's,
+so two spellings are one identifier exactly when they canonicalize alike, and
+the unique indexes over those columns mean the same thing on every engine.
+Leave the collations as the migration sets them. Moving a column back to a
+case- or accent-insensitive collation restores the behavior this upgrade
+removes, and does so silently.
 
 The migration reads every identifier table and decides the whole upgrade before
 it writes anything, so a refusal changes neither rows nor schema and it is safe
@@ -68,6 +69,46 @@ and restoring a looser collation can violate the unique indexes outright, becaus
 rows that only byte equality keeps apart are exactly what an accent-insensitive
 index rejects. A rolled-back host loses nothing by keeping the deterministic
 collation: canonical rows compare identically under either.
+
+## Upgrading to a collation that pads nothing (#63)
+
+Publish and run `2026_09_25_000002_identifier_collation_without_padding.php`. It
+concerns MySQL only, and only an installation that ran
+`2026_09_25_000001_deterministic_identifier_equality.php` before this release.
+That migration installed `utf8mb4_bin`, which is deterministic and PAD SPACE
+both: MySQL matched a stored `ada@acme.example` for a query of
+`ada@acme.example ` and rejected the padded spelling as a duplicate under
+`unique(type, value)`, where PostgreSQL's `C` and SQLite's byte comparison do
+neither. `IdentifierCanonicalizer` normalizes case and Unicode but does not
+trim, so the space reaches both the stored value and the lookup parameter and
+the engine decided. This migration moves the eight identifier columns to
+`utf8mb4_0900_bin`, which is NO PAD.
+
+It rewrites no rows, is safe to run twice, and does nothing on PostgreSQL or
+SQLite. A fresh installation needs it for nothing: the conversion migration now
+installs `utf8mb4_0900_bin` itself, so no installation holds a padding collation
+even briefly. Whether a trailing space ought to be trimmed is a separate
+question about what an identifier is, and is deliberately left alone — what this
+settles is that the answer no longer depends on which database is installed.
+
+**MySQL 8.0 is this package's minimum from this release on.** `utf8mb4_0900_bin`
+is the only binary utf8mb4 collation MySQL offers that is NO PAD, and it exists
+from 8.0 only; 5.7 has `utf8mb4_bin` and nothing there behaves like PostgreSQL's
+`C` for trailing whitespace. PostgreSQL and SQLite gain no new requirement.
+
+MySQL refuses to change the collation of a column that participates in a foreign
+key, with `3780 Referencing column ... in foreign key constraint`. No shipped
+constraint references any of the eight columns, so this reaches only a host that
+added one of its own — and it fails at migrate time rather than converting part
+of the schema. Drop that constraint, run the migration, and recreate it.
+
+Rollback is deliberately empty, and for a stronger reason than the conversion's:
+tightening back to `utf8mb4_bin` fails outright on the installations that most
+needed this. Under PAD SPACE `ada@acme.example` and `ada@acme.example ` are one
+value, so `unique(type, value)` rejects the change with `1062 Duplicate entry` on
+any host that has stored both spellings since. A rolled-back host keeps the NO
+PAD collation and loses nothing: values carrying no trailing whitespace compare
+identically under either.
 
 ## Login adoption prerequisites
 
