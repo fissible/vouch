@@ -147,6 +147,31 @@ other for the length of one issuance transaction. That is a latency cost and
 nothing else: no state crosses between them, and with ten simultaneous distinct
 issuances an arriving request contends roughly once in 455.
 
+## Refusing an identifier that cannot be stored (#64, #65)
+
+A submitted identifier is now refused at the boundary instead of being passed to a
+column that would silently alter it. Two exceptions reach a host, both unchecked,
+and **a host that builds its own forms must catch them**:
+
+| Exception | When |
+|---|---|
+| `Fissible\Vouch\Identifiers\MalformedIdentifier` | The submitted type or value is not valid UTF-8, or contains a C0 control or DELETE. Its `reason` is `InvalidEncoding` or `ForbiddenCharacter`, so a form can say which. |
+| `Fissible\Vouch\Persistence\ValueBoundViolation` | The canonical form is longer than the column it lands in — 255 characters for an identifier value, 32 for a type. |
+
+Both come out of constructing `CredentialRecoveryRequest`,
+`IdentifierVerificationRequest` or `FirstCredentialRequest`, or out of writing an
+`AuthIdentifier`; the length one also comes out of `CredentialRecovery::request()`
+and `IdentifierVerifier::request()`, which write the proof row. `AuthFlow::advance()`
+raises neither: the identify step renders its own refused screen for both and
+leaves `auth_attempts.identifier` null.
+
+Neither is repaired, and that is the point. Stripping a NUL or truncating a tail is
+how an attacker-chosen string reaches somebody else's identifier: PostgreSQL
+truncates text at a NUL, and MySQL without a strict `sql_mode` truncates an
+over-long value and then matches the next distinct identifier to that truncation
+under `unique(type, value)`. Trailing whitespace is deliberately **not** refused —
+a padded spelling is a different identifier, not an invalid one.
+
 ## Login adoption prerequisites
 
 An unverified identifier is invisible to login by design. Its refusal is deliberately

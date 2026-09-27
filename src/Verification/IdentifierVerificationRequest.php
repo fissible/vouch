@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Verification;
 
+use Fissible\Vouch\Identifiers\IdentifierGuard;
 use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 
 final readonly class IdentifierVerificationRequest
@@ -13,7 +14,14 @@ final readonly class IdentifierVerificationRequest
         public string $submittedIdentifier,
         public ?string $tenantId,
         public ?string $clientIp,
-    ) {}
+    ) {
+        // Both halves, in the constructor, for the reasons
+        // CredentialRecoveryRequest records: the type is the other half of the
+        // unique index and reaches a column of its own, and a guard at one call
+        // site leaves every other caller unguarded.
+        IdentifierGuard::assertWellFormed($type);
+        IdentifierGuard::assertWellFormed($submittedIdentifier);
+    }
 
     /**
      * The same request with identity decided by Vouch rather than by whichever

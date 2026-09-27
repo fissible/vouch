@@ -63,6 +63,11 @@ final class AuthAttempt extends Model
             // length contract of its own. Bounded here because the write path
             // is the only place every writer must pass through.
             'tenant_id' => ['max' => 255],
+            // What was submitted at the identify step, stored as submitted rather
+            // than canonicalized -- so this measures the spelling the column will
+            // hold. varchar(255): without a bound, a non-strict MySQL truncates it
+            // and the attempt then carries an identifier nobody submitted.
+            'identifier' => ['max' => 255],
         ];
     }
 }
