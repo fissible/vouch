@@ -16,7 +16,6 @@ use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Fissible\Vouch\Tokens\TokenIssuerRegistry;
-use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\SanctumServiceProvider;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -91,6 +90,37 @@ final class TransactionalIssuanceContractTest extends TestCase
     }
 
     /**
+     * The tables of THIS database, unqualified.
+     *
+     * Scoped explicitly, and only MySQL needs the argument. Measured on a server
+     * carrying several test databases: a MySQL connection lists every non-system
+     * schema, 190 tables where this database holds 27, so the census picked up a
+     * name from an unrelated database and the count below failed with
+     * `1146 Table 'vouch_test.t' doesn't exist` -- naming a table nobody had asked
+     * about, inside whichever test happened to be under change. Two people
+     * diagnosed that as a regression in their own work before finding the cause.
+     *
+     * `schemaQualified: false` is the trap rather than the fix: it strips the
+     * schema prefix without narrowing the set, so it returns the same 190 names
+     * with the evidence removed.
+     *
+     * SQLite and PostgreSQL list only the connection's own tables already, and
+     * handing either the database name returns NOTHING -- their schema is `main`
+     * and `public`, not the database -- so the argument is passed where it is
+     * meaningful and withheld where it is not.
+     *
+     * @return list<string>
+     */
+    private function tablesOfThisDatabase(): array
+    {
+        $connection = DB::connection();
+        $schema = $connection->getSchemaBuilder();
+
+        return $connection->getDriverName() === 'mysql'
+            ? $schema->getTableListing(schema: $connection->getDatabaseName(), schemaQualified: false)
+            : $schema->getTableListing(schemaQualified: false);
+    }
+    /**
      * A row census of EVERY table, taken through a connection that did not
      * participate in the rolled-back transaction.
      *
@@ -112,9 +142,7 @@ final class TransactionalIssuanceContractTest extends TestCase
     {
         $counts = [];
 
-        foreach (Schema::getTableListing() as $table) {
-            $name = str_contains($table, '.') ? substr((string) strrchr($table, '.'), 1) : $table;
-
+        foreach ($this->tablesOfThisDatabase() as $name) {
             if (in_array($name, ['migrations', 'sqlite_sequence'], true)) {
                 continue;
             }
@@ -125,6 +153,43 @@ final class TransactionalIssuanceContractTest extends TestCase
         return $counts;
     }
 
+    #[Test]
+    public function the_census_ignores_tables_belonging_to_another_database(): void
+    {
+        $connection = DB::connection();
+
+        if ($connection->getDriverName() !== 'mysql') {
+            self::markTestSkipped('Only a MySQL connection can see another database on the same server.');
+        }
+
+        /*
+         * The condition this census used to fail on, constructed rather than waited
+         * for: a second database on the same server holding a table name this one
+         * does not have. A leftover scratch database is the normal state of a
+         * development machine, and before the listing was scoped it turned every
+         * run into `1146 Table 'vouch_test.probe_only_here' doesn't exist` inside
+         * whatever test was under change.
+         *
+         * Named uniquely and dropped in a finally, because a database left behind
+         * here would recreate the very hazard for the next person -- and because the
+         * failure it causes names the wrong culprit, so it costs a diagnosis rather
+         * than a glance.
+         */
+        $scratch = 'vouch_census_probe_' . bin2hex(random_bytes(6));
+
+        $connection->statement(sprintf('create database `%s`', $scratch));
+
+        try {
+            $connection->statement(sprintf('create table `%s`.`probe_only_here` (id int)', $scratch));
+
+            $census = $this->censusFromIndependentConnection();
+
+            self::assertArrayNotHasKey('probe_only_here', $census);
+            self::assertArrayHasKey('auth_identifiers', $census);
+        } finally {
+            $connection->statement(sprintf('drop database if exists `%s`', $scratch));
+        }
+    }
     #[Test]
     public function nothing_the_issuer_wrote_survives_a_rollback_of_the_caller_transaction(): void
     {
