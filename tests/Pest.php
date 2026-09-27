@@ -551,6 +551,37 @@ function carriesDeterministicCollation(string $table, string $column): bool
         : $name === 'C';
 }
 
+/** A derived binding, which is what FlowRequest takes -- never a raw session id. */
+function identifierFlowBinding(string $seed): string
+{
+    return str_repeat($seed, 64);
+}
+
+/**
+ * Begin a flow and return its handle.
+ *
+ * Here rather than in whichever test needed it first: two files drive the identify
+ * step now, and a helper reached across files works only because Pest loads every
+ * file before running anything.
+ *
+ * Narrowed to the continuing result rather than annotated onto FlowResult, which
+ * is a marker interface: not every implementation of it carries a handle, so a
+ * docblock claiming one would assert something false about the others.
+ */
+function beginIdentifierFlow(string $seed): string
+{
+    $begun = app(\Fissible\Vouch\Flow\AuthFlow::class)->advance(
+        new \Fissible\Vouch\Flow\FlowRequest(null, 'begin', [], identifierFlowBinding($seed)),
+    );
+
+    if (! $begun instanceof \Fissible\Vouch\Flow\Continuing || $begun->handle === null) {
+        throw new \RuntimeException('The flow did not begin with a continuing handle.');
+    }
+
+    return $begun->handle;
+}
+
+
 /**
  * Every column that holds an identifier value or type.
  *
