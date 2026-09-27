@@ -404,23 +404,76 @@ it('backtracks out of an any_of branch that strands a later requirement', functi
         ->and($verdict->usedFactors)->toHaveCount(2);
 });
 
-it('answers a wide policy without enumerating every assignment', function (): void {
-    // Six requirements over twelve credentials. Building the full cartesian product
-    // first cost 11.4 MB at five over ten and died of memory exhaustion at six over
-    // twelve; the depth-first search stops at the first complete assignment.
-    $pool = [];
+/**
+ * Run a script in a fresh interpreter under a memory limit, and report what happened.
+ *
+ * @return array{status: int, output: string, errors: string}
+ */
+function phpUnderMemoryLimit(string $limit, string ...$arguments): array
+{
+    $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
 
-    for ($i = 1; $i <= 12; $i++) {
-        $pool[] = factor('passkey', 'cred-' . $i);
+    /*
+     * Appended rather than spread or merged: both of those widen the key type past
+     * what proc_open declares, and the alternative is an annotation this project
+     * forbids.
+     */
+    $command = [PHP_BINARY, '-d', 'memory_limit=' . $limit];
+
+    foreach ($arguments as $argument) {
+        $command[] = $argument;
     }
 
-    $verdict = (new SatisfiabilityEvaluator())->evaluate(
-        new AllOf(array_fill(0, 6, new FactorRequirement('passkey'))),
-        $pool,
+    $process = proc_open($command, $descriptors, $pipes);
+
+    if (! is_resource($process)) {
+        throw new RuntimeException('Could not start a fresh interpreter.');
+    }
+
+    $output = (string) stream_get_contents($pipes[1]);
+    $errors = (string) stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+
+    return ['status' => proc_close($process), 'output' => $output, 'errors' => $errors];
+}
+
+it('answers a wide policy without enumerating every assignment', function (): void {
+    /*
+     * Six requirements over twelve credentials. Materialising the full cartesian
+     * product cost 11.4 MB at five over ten and exhausted 128 MB at six over twelve;
+     * a depth-first search stops at the first complete assignment and answers in
+     * kilobytes.
+     *
+     * In a SUBPROCESS with its own limit, because the regression is only observable
+     * as memory exhaustion. Asserted inline, this test made the whole suite's
+     * `memory_limit` load-bearing: the pin could not be raised however close the
+     * suite came to it -- and it came to within 0.4%, failing runs in the result-cache
+     * writer after every test had passed -- while any run that DID raise it left this
+     * guard green and inert. The mutation campaign raises it to 4G, so the guard was
+     * already inert there.
+     */
+    $result = phpUnderMemoryLimit(
+        '128M',
+        dirname(__DIR__, 2) . '/Fixtures/wide-policy-evaluation.php',
+        dirname(__DIR__, 3),
     );
 
-    expect($verdict->satisfied)->toBeTrue()
-        ->and($verdict->usedFactors)->toHaveCount(6);
+    expect($result['status'])->toBe(0, 'the wide evaluation exhausted 128M: ' . $result['errors'])
+        ->and(trim($result['output']))->toBe('6');
+});
+
+it('runs that evaluation under a limit it could actually exhaust', function (): void {
+    /*
+     * The control, and without it the test above proves nothing. If the `-d` flag
+     * were misspelled, or PHP ignored it, the subprocess would inherit whatever the
+     * suite runs under -- which is now generous -- and a fully eager evaluator would
+     * pass. So: the same mechanism, given something that must not fit.
+     */
+    $result = phpUnderMemoryLimit('128M', '-r', 'str_repeat("a", 200 * 1024 * 1024);');
+
+    expect($result['status'])->not->toBe(0)
+        ->and($result['errors'])->toContain('Allowed memory size');
 });
 
 it('consumes requirements left to right and records the factors in that order', function (): void {

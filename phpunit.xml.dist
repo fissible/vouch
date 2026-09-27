@@ -10,17 +10,34 @@
 >
     <php>
         <!--
-            Pinned, not inherited. SatisfiabilityEvaluatorTest's wide-policy test
-            exists to catch a regression from the lazy depth-first search back to
-            eager materialisation of every assignment. That regression is only
-            *observable* as a failure when a memory limit is set: with
-            memory_limit=-1 it does not fail, it hangs. The guard was calibrated
-            against 128M — the eager version cost 11.4 MB at five requirements
-            over ten factors and exhausted 128M at six over twelve — so leaving it
-            to the ambient value meant the guard silently stopped guarding on any
-            runner configured higher, while still reporting green.
+            Generous on purpose, and no longer load-bearing for any test.
+            SatisfiabilityEvaluatorTest's wide-policy guard used to need this value:
+            the regression it catches — lazy depth-first search reverting to eager
+            materialisation of every assignment — is only OBSERVABLE as memory
+            exhaustion, since with no limit it hangs rather than failing. Calibrated
+            against 128M, that made one test's guard depend on the whole suite's
+            limit, with two consequences.
+
+            The pin could not be raised however close the suite came to it, and the
+            suite came to within 0.4%: runs began dying at 127.5 MB in PHPUnit's
+            result-cache writer AFTER every test had passed, which failed CI on
+            allocator noise and named a file no author had touched. And any run that
+            raised the limit anyway left the guard reporting green while guarding
+            nothing — the mutation campaign raises it to 4G, so it was already inert
+            there.
+
+            That guard now runs its evaluation in a subprocess under a limit it sets
+            itself, with a control proving the limit bites, so it observes the
+            regression at 128M whatever this value is.
+
+            256M is chosen rather than something larger: the suite peaks around 127.5
+            MB, so this is roughly double what it needs — loose enough that ordinary
+            growth and the result-cache write do not fail a run on noise, tight enough
+            that a change which doubles the suite's memory still fails here rather
+            than quietly becoming normal. Raise it when the suite genuinely needs the
+            room, and say what measured it.
         -->
-        <ini name="memory_limit" value="128M"/>
+        <ini name="memory_limit" value="256M"/>
     </php>
 
     <testsuites>
