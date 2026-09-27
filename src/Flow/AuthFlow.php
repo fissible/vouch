@@ -229,6 +229,17 @@ final readonly class AuthFlow
          * Caught rather than measured before the write, so the width stays stated
          * once on the column that holds the value: a second copy of 255 here would
          * be the thing that disagrees with it later.
+         *
+         * THE TWO REFUSALS THEREFORE SIT AT DIFFERENT POINTS, and that asymmetry is
+         * chosen. Bad bytes are refused above, before the issuance permit, because
+         * they cannot reach it -- the throttle key canonicalizes them. An over-long
+         * value canonicalizes fine, so it is charged first and refused here. That
+         * costs one counter increment on a key scoped to (tenant, that canonical
+         * identifier), which is the submitter's own budget and nobody else's, and
+         * the row it writes is a fixed-width digest. Moving the length refusal up
+         * beside the byte one would buy that increment back at the price of
+         * restating the column's width in the flow, which is the trade this catch
+         * exists to avoid.
          */
         try {
             $attempt->update(['identifier' => $value, 'user_id' => $userId]);
