@@ -21,6 +21,8 @@ use Fissible\Vouch\Factors\ChallengeIssuer;
 use Fissible\Vouch\Factors\FactorFailure;
 use Fissible\Vouch\Factors\FactorRegistry;
 use Fissible\Vouch\Factors\VerificationRequest;
+use Fissible\Vouch\Identifiers\IdentifierGuard;
+use Fissible\Vouch\Identifiers\MalformedIdentifier;
 use Fissible\Vouch\Kernel\Assurance\AssuranceFacts;
 use Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary;
 use Fissible\Vouch\Kernel\Attempt\AttemptState;
@@ -36,6 +38,7 @@ use Fissible\Vouch\Models\AuthAttempt;
 use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthIdentifier;
 use Fissible\Vouch\Models\AuthPolicy;
+use Fissible\Vouch\Persistence\ValueBoundViolation;
 use Fissible\Vouch\Support\DatabaseTime;
 use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 use Fissible\Vouch\Throttle\IdentifierThrottle;
@@ -144,6 +147,28 @@ final readonly class AuthFlow
             );
         }
 
+        /*
+         * Bytes before anything reads the value. Two things downstream cannot
+         * survive them: the issuance key canonicalizes the identifier, which
+         * raises Symfony's own exception on invalid UTF-8 out of a throttle
+         * lookup, and auth_attempts.identifier stores the submitted spelling,
+         * which PostgreSQL truncates at a NUL.
+         *
+         * Refused on this step's channel rather than thrown out of advance(),
+         * because the step has one; and NOT down the unknown-identifier path
+         * below, which deliberately continues. Malformed input is not an account
+         * either way, so continuing would reveal nothing and would spend an
+         * issuance budget on a value that cannot be anybody.
+         */
+        try {
+            IdentifierGuard::assertWellFormed($value);
+        } catch (MalformedIdentifier) {
+            return new Continuing(
+                $this->screens->refused(AuthStep::Identify, Outcome::CredentialRejected, $posture),
+                $attempt->handle,
+            );
+        }
+
         $requestedFactor = $request->string('factor');
         $factorId = is_string($requestedFactor)
             && $requestedFactor !== 'recovery_code'
@@ -194,7 +219,36 @@ final readonly class AuthFlow
          */
         $userId = $identifier?->user_id;
 
-        $attempt->update(['identifier' => $value, 'user_id' => $userId]);
+        /*
+         * The column's own bound, answered on this step's channel. Nothing else in
+         * the package catches ValueBoundViolation and nothing should -- a bound
+         * broken by package code is a defect, not an outcome -- but this step is a
+         * form submission, and left alone one character too many would render a 500
+         * where one bad byte renders a refusal.
+         *
+         * Caught rather than measured before the write, so the width stays stated
+         * once on the column that holds the value: a second copy of 255 here would
+         * be the thing that disagrees with it later.
+         *
+         * THE TWO REFUSALS THEREFORE SIT AT DIFFERENT POINTS, and that asymmetry is
+         * chosen. Bad bytes are refused above, before the issuance permit, because
+         * they cannot reach it -- the throttle key canonicalizes them. An over-long
+         * value canonicalizes fine, so it is charged first and refused here. That
+         * costs one counter increment on a key scoped to (tenant, that canonical
+         * identifier), which is the submitter's own budget and nobody else's, and
+         * the row it writes is a fixed-width digest. Moving the length refusal up
+         * beside the byte one would buy that increment back at the price of
+         * restating the column's width in the flow, which is the trade this catch
+         * exists to avoid.
+         */
+        try {
+            $attempt->update(['identifier' => $value, 'user_id' => $userId]);
+        } catch (ValueBoundViolation) {
+            return new Continuing(
+                $this->screens->refused(AuthStep::Identify, Outcome::CredentialRejected, $posture),
+                $attempt->handle,
+            );
+        }
 
         /*
          * Two transitions, because the kernel's machine has no Identified ->

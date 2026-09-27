@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Recovery;
 
+use Fissible\Vouch\Identifiers\IdentifierGuard;
 use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 
 final readonly class CredentialRecoveryRequest
@@ -13,7 +14,22 @@ final readonly class CredentialRecoveryRequest
         public string $submittedIdentifier,
         public ?int $tenantId,
         public string $clientIp,
-    ) {}
+    ) {
+        /*
+         * In the constructor rather than in the ceremony, and on BOTH halves.
+         * Nothing downstream may hold an instance of this carrying bytes an
+         * identifier cannot be made of: canonicalized() would hand invalid UTF-8
+         * to Symfony, the throttle key canonicalizes it before any of this is
+         * looked up, and a guard installed at one call site leaves every other
+         * caller -- including a host's own -- unguarded.
+         *
+         * Length is NOT checked here. It is measured on the canonical form
+         * against each column's own width, which is a decision the model makes on
+         * the write path; this object holds what somebody typed.
+         */
+        IdentifierGuard::assertWellFormed($type);
+        IdentifierGuard::assertWellFormed($submittedIdentifier);
+    }
 
     /**
      * The same request with identity decided by Vouch rather than by whichever

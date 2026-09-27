@@ -321,32 +321,6 @@ it('keeps one value string apart across two identifier types', function (): void
         ->toBe(['email', 'sms']);
 });
 
-/** A derived binding, which is what FlowRequest takes -- never a raw session id. */
-function identifierFlowBinding(string $seed): string
-{
-    return str_repeat($seed, 64);
-}
-
-/**
- * Begin a flow and return its handle.
- *
- * Narrowed to the continuing result rather than annotated onto FlowResult, which
- * is a marker interface: not every implementation of it carries a handle, so a
- * docblock claiming one would assert something false about the others.
- */
-function beginIdentifierFlow(string $seed): string
-{
-    $begun = app(AuthFlow::class)->advance(
-        new FlowRequest(null, 'begin', [], identifierFlowBinding($seed)),
-    );
-
-    if (! $begun instanceof Continuing || $begun->handle === null) {
-        throw new RuntimeException('The flow did not begin with a continuing handle.');
-    }
-
-    return $begun->handle;
-}
-
 it('resolves a differently spelled identifier at the identify step', function (): void {
     /*
      * The login path, and the regression this file's header names: byte equality
