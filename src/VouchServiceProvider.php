@@ -48,6 +48,7 @@ use Fissible\Vouch\Delivery\SmsIdentifierAudit;
 use Fissible\Vouch\Delivery\UnconfiguredCaptchaVerifier;
 use Fissible\Vouch\Delivery\UnconfiguredDeliveryEconomics;
 use Fissible\Vouch\Support\BoundedLockWait;
+use Fissible\Vouch\Support\ConfigurationError;
 use Fissible\Vouch\Support\IssuanceLockBucket;
 use Fissible\Vouch\Support\LockContention;
 use Fissible\Vouch\Support\SystemClock;
@@ -531,16 +532,7 @@ final class VouchServiceProvider extends ServiceProvider
             $attemptTtl = config('vouch.attempts.ttl_seconds');
 
             if (! is_int($attemptTtl) || $attemptTtl < 1) {
-                throw new \InvalidArgumentException(sprintf(
-                    'Configuration "vouch.attempts.ttl_seconds" must be a positive integer; got %s.',
-                    match (true) {
-                        $attemptTtl === '' => 'an empty string',
-                        is_string($attemptTtl) => 'string "' . $attemptTtl . '"',
-                        is_int($attemptTtl) => (string) $attemptTtl,
-                        $attemptTtl === null => 'null',
-                        default => get_debug_type($attemptTtl),
-                    },
-                ));
+                throw ConfigurationError::positiveInteger($attemptTtl, 'vouch.attempts.ttl_seconds');
             }
         }
 
