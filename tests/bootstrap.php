@@ -41,13 +41,14 @@ if ((getenv('VOUCH_TEST_DB') ?: 'sqlite') === 'sqlite' && getenv('VOUCH_SQLITE_P
  * which is why four attempts to raise the limit from outside all truncated at the
  * same point with the stock 128M still in force in the child.
  *
- * The limit must NOT be raised for the ordinary suite. phpunit.xml.dist pins 128M
- * deliberately: SatisfiabilityEvaluatorTest's wide-policy test only *observes* the
- * eager-materialisation regression as a failure when a limit is set, and the guard
- * was calibrated against that exact value. Raising it globally would leave the
- * guard reporting green while no longer guarding — the same silent-loss failure
- * this audit has been finding all along, which is precisely why the fix is scoped
- * rather than convenient.
+ * This raise is still scoped to those two processes rather than applied globally,
+ * but no longer because a test depends on the ambient value. It used to:
+ * SatisfiabilityEvaluatorTest's wide-policy guard observes the eager-materialisation
+ * regression only as memory exhaustion, and was calibrated against the 128M this
+ * file's sibling pinned — so raising the limit anywhere left it green and inert,
+ * which is exactly what it did for mutation runs. That guard now sets its own limit
+ * in a subprocess, so it guards at 128M whatever the suite runs under. The scoping
+ * here survives because 4G is the mutation campaign's need and not the suite's.
  *
  * TWO processes need the raise, which cost four diagnostic attempts to separate:
  *
