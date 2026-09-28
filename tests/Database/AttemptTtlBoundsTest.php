@@ -42,6 +42,15 @@ uses(RefreshDatabase::class);
  * Surfaced by #44, which put the attempt deadline on the database clock. Before
  * that a non-positive TTL produced attempts that were already expired: useless,
  * but quiet.
+ *
+ * WHAT THIS FILE DOES NOT COVER, so it is not mistaken for a closed class: the
+ * TOP end. A positive integer too large for the engine's interval arithmetic --
+ * measured, 999999999999 makes SQLite and MySQL return NULL and PostgreSQL fail
+ * at PHP_INT_MAX -- still boots cleanly and still fails every login, with the
+ * defensive error naming neither the setting nor the value. That is #81, and it
+ * is out of scope here because closing it means choosing a bound, and every
+ * sibling TTL in the package accepts any positive integer: a cap on this one
+ * alone would be stricter than its siblings for no stated reason.
  */
 
 /** A window no shipped default could produce, so a stale 600 cannot pass for it. */
@@ -75,7 +84,15 @@ function bootWithAttemptTtl(mixed $value): void
     (new VouchServiceProvider(app()))->boot();
 }
 
-/** The one sentence the package uses to refuse a setting that must be a positive integer. */
+/**
+ * The one sentence the package uses to refuse a setting that must be a positive integer.
+ *
+ * Not invented here: it is `ThrottleConfiguration`'s wording, and the renderings
+ * these tests expect are that class's own private describe() output -- the same
+ * vocabulary already pinned for vouch.totp.window in ThrottleConfigurationTest.
+ * So the expectations below ask for reuse of a sentence the package already has,
+ * not for six strings an implementer has to invent.
+ */
 function attemptTtlRefusal(string $described): string
 {
     return 'Configuration "vouch.attempts.ttl_seconds" must be a positive integer; got ' . $described . '.';
@@ -242,6 +259,15 @@ it('lets vouch:doctor boot on an attempt ttl it otherwise refuses', function ():
      *
      * Measured against an implementation with no exemption: boot throws under
      * vouch:doctor argv, and the whole suite stays green -- nothing else notices.
+     *
+     * What the exemption does NOT do, said here so it is not mistaken for more than
+     * it is: the command has no row for this setting, so on a host with a blank TTL
+     * it runs and reports a clean bill of health while every login fails. That is
+     * not a regression -- before this check existed the command was equally silent,
+     * and the exemption preserves its behaviour rather than making it newly throw --
+     * but the exemption's premise is that an operator can still diagnose the
+     * problem, and for this setting they cannot. #82, with the issuance-mutex
+     * secret, which is exempted and unreported for the same reason.
      */
     $original = $_SERVER['argv'] ?? null;
 
@@ -291,6 +317,16 @@ it('boots on a valid attempt ttl and dates an attempt by it', function (): void 
         throw new RuntimeException('The flow refused to begin an attempt on a valid ttl.');
     }
 
+    /*
+     * The handle asserted before it is used as a key. Continuing::$handle is
+     * nullable and stringValue(null) is '', so a null handle would reach the query
+     * as an empty string and surface as "Expected a database row, got none." --
+     * a broken premise reporting as a broken feature, which is the shape the rest
+     * of this file is written to avoid.
+     */
+    expect($begun->handle)->toBeString();
+    expect($begun->handle)->not->toBe('');
+
     $after = app(DatabaseTime::class)->current();
 
     // By the handle the flow reported, not by the newest id: the assertion should be
@@ -315,6 +351,63 @@ it('boots on a valid attempt ttl and dates an attempt by it', function (): void 
      */
     expect($deadline->getTimestamp())->toBeGreaterThanOrEqual($before->getTimestamp() + TTL_BOUNDS_VALID - 1);
     expect($deadline->getTimestamp())->toBeLessThanOrEqual($after->getTimestamp() + TTL_BOUNDS_VALID + 1);
+});
+
+it('accepts the smallest window that can describe one', function (): void {
+    /*
+     * A boundary tightened by one is otherwise invisible: every other test here
+     * uses 137 or the shipped 600, so a check written as `< 2` passes all of them
+     * -- measured, 15 of 15. One second is what DatabaseTime::deadline() accepts,
+     * and the sibling throttle file pins the same convention for its own settings:
+     * validation must not quietly narrow what the rest of the package allows.
+     */
+    bootWithAttemptTtl(1);
+
+    $begun = app(AuthFlow::class)->advance(new FlowRequest(null, 'begin', [], str_repeat('s', 64)));
+
+    expect($begun)->toBeInstanceOf(Continuing::class);
+});
+
+it('dates the window by exactly the configured seconds', function (): void {
+    /*
+     * The slack the cross-engine test needs costs it off-by-one detection, and
+     * measured, nothing else in the package picks it up: `deadline($ttl + 1)` at
+     * AuthFlow's own call site leaves the ENTIRE suite green -- 2536 passed, 0
+     * failed -- because all three attempt-deadline files bracket this column with a
+     * second of slack for PostgreSQL's sake.
+     *
+     * So the arithmetic is asserted exactly, here, on SQLite only. That is the
+     * engine where the database clock is the application's and second-precision
+     * `datetime('now')` neither rounds nor freezes at a transaction start, so a
+     * bracket with no slack at all is honest rather than flaky.
+     *
+     * Zero slack, not an equality against one reading: the write happens somewhere
+     * between the two samples, so `deadline - ttl` must land within them. That still
+     * rejects a one-second drift in either direction, which is the whole point.
+     */
+    if (DB::connection()->getDriverName() !== 'sqlite') {
+        $this->markTestSkipped('Exact deadline arithmetic is asserted where the database clock is the application\'s.');
+    }
+
+    bootWithAttemptTtl(TTL_BOUNDS_VALID);
+
+    $before = app(DatabaseTime::class)->current();
+    $begun = app(AuthFlow::class)->advance(new FlowRequest(null, 'begin', [], str_repeat('x', 64)));
+    $after = app(DatabaseTime::class)->current();
+
+    if (! $begun instanceof Continuing) {
+        throw new RuntimeException('The flow refused to begin an attempt on a valid ttl.');
+    }
+
+    $attempt = DB::table('auth_attempts')->where('handle', stringValue($begun->handle))->first();
+    $written = (new DateTimeImmutable(stringValue(requiredRow($attempt)->expires_at)))->getTimestamp();
+
+    // The premise: the two samples really do bracket the write, so what follows is
+    // a statement about the arithmetic rather than about a clock that stood still.
+    expect($after->getTimestamp())->toBeGreaterThanOrEqual($before->getTimestamp());
+
+    expect($written - TTL_BOUNDS_VALID)->toBeGreaterThanOrEqual($before->getTimestamp());
+    expect($written - TTL_BOUNDS_VALID)->toBeLessThanOrEqual($after->getTimestamp());
 });
 
 /* ---- the defensive guard is not replaced by the boot one -------------- */
