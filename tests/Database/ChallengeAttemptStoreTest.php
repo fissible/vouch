@@ -90,7 +90,7 @@ it('receives a native integer from the driver and an integer from the model cast
 });
 
 it('fails closed on a persisted negative attempt count where the engine permits one', function (): void {
-    if (in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+    if (DB::connection()->getDriverName() === 'mysql') {
         $attempt = AuthAttempt::create([
             'handle' => bin2hex(random_bytes(32)),
             'state' => AttemptState::FactorPending,

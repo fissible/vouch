@@ -68,7 +68,7 @@ final readonly class DatabaseTime
     public static function deadlineSql(string $driver): string
     {
         return match ($driver) {
-            'mysql', 'mariadb' => 'DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)',
+            'mysql' => 'DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)',
             // The package's timestamp columns are declared at second
             // precision. PostgreSQL otherwise compares a rounded stored value
             // with a microsecond CURRENT_TIMESTAMP, making a deadline written
@@ -187,36 +187,31 @@ final readonly class DatabaseTime
     private static function deadlinePredicateSql(string $driver, string $predicate): string
     {
         return match ($predicate . ':' . $driver) {
-            'window_started_at_at_or_before:mysql',
-            'window_started_at_at_or_before:mariadb' =>
+            'window_started_at_at_or_before:mysql' =>
                 'window_started_at <= DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)',
             'window_started_at_at_or_before:pgsql' =>
                 "window_started_at <= CURRENT_TIMESTAMP(0) + (? * INTERVAL '1 second')",
             'window_started_at_at_or_before:sqlite' =>
                 "window_started_at <= datetime('now', printf('%+d seconds', ?))",
-            'window_started_at_after:mysql',
-            'window_started_at_after:mariadb' =>
+            'window_started_at_after:mysql' =>
                 'window_started_at > DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)',
             'window_started_at_after:pgsql' =>
                 "window_started_at > CURRENT_TIMESTAMP(0) + (? * INTERVAL '1 second')",
             'window_started_at_after:sqlite' =>
                 "window_started_at > datetime('now', printf('%+d seconds', ?))",
-            'locked_until_after:mysql',
-            'locked_until_after:mariadb' =>
+            'locked_until_after:mysql' =>
                 'locked_until > DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)',
             'locked_until_after:pgsql' =>
                 "locked_until > CURRENT_TIMESTAMP(0) + (? * INTERVAL '1 second')",
             'locked_until_after:sqlite' =>
                 "locked_until > datetime('now', printf('%+d seconds', ?))",
-            'created_at_after:mysql',
-            'created_at_after:mariadb' =>
+            'created_at_after:mysql' =>
                 'created_at > DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)',
             'created_at_after:pgsql' =>
                 "created_at > CURRENT_TIMESTAMP(0) + (? * INTERVAL '1 second')",
             'created_at_after:sqlite' =>
                 "created_at > datetime('now', printf('%+d seconds', ?))",
-            'dispatched_at_at_or_before:mysql',
-            'dispatched_at_at_or_before:mariadb' =>
+            'dispatched_at_at_or_before:mysql' =>
                 'dispatched_at <= DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)',
             'dispatched_at_at_or_before:pgsql' =>
                 "dispatched_at <= CURRENT_TIMESTAMP(0) + (? * INTERVAL '1 second')",

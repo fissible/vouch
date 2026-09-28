@@ -21,6 +21,26 @@ only that device's previous row. Keep `ValidatesVouchSession` on authenticated
 host routes so missing, mismatched, or revoked records destroy owned sessions.
 Live unmarked recovery-grace sessions continue to pass this middleware.
 
+## Supported database engines
+
+MySQL 8.0 or later, PostgreSQL, and SQLite. Nothing else.
+
+That set is not a preference. It is the set the suite runs against on every
+change, and every engine-specific fragment Vouch emits — interval arithmetic, the
+deadline predicates, identifier collations, identifier quoting — is written for
+exactly those three. An unrecognised driver is REFUSED by name rather than sent
+down whichever branch happens to be last: falling back would put untested SQL
+into a security comparison, on whichever engine nobody had tried.
+
+MariaDB is included in that refusal, deliberately. It once shared MySQL's
+interval arm, which read as support without being it — Laravel reports it as its
+own driver name, so that arm was reachable, while the identifier-collation
+migration would have handed it PostgreSQL syntax and no MariaDB host could have
+finished migrating. Its interval syntax genuinely is MySQL's; what it lacks is
+every other engine-specific branch, a CI leg, and anyone ever having run the
+suite against it. Supporting it is a decision with a test matrix attached, not a
+missing match arm.
+
 ## Upgrading to deterministic identifier equality (#59)
 
 Publish and run `2026_09_25_000001_deterministic_identifier_equality.php` with

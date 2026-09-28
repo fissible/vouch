@@ -157,7 +157,7 @@ final class CredentialMutationContentionTest extends TestCase
             // outside one, which would leave this on an unbounded wait and hang
             // CI rather than fail it.
             $connection->statement(match ($connection->getDriverName()) {
-                'mysql', 'mariadb' => 'SET SESSION innodb_lock_wait_timeout = 1',
+                'mysql' => 'SET SESSION innodb_lock_wait_timeout = 1',
                 'pgsql' => "SET LOCAL lock_timeout = '1s'",
                 default => 'SELECT 1',
             });
@@ -189,7 +189,7 @@ final class CredentialMutationContentionTest extends TestCase
 
             throw $exception;
         } finally {
-            if (in_array($connection->getDriverName(), ['mysql', 'mariadb'], true)) {
+            if ($connection->getDriverName() === 'mysql') {
                 $connection->statement('SET SESSION innodb_lock_wait_timeout = DEFAULT');
             }
         }
@@ -210,7 +210,7 @@ final class CredentialMutationContentionTest extends TestCase
     private function blockedTopLevel(Connection $connection, callable $work): bool
     {
         $connection->statement(match ($connection->getDriverName()) {
-            'mysql', 'mariadb' => 'SET SESSION innodb_lock_wait_timeout = 1',
+            'mysql' => 'SET SESSION innodb_lock_wait_timeout = 1',
             'pgsql' => "SET lock_timeout = '1s'",
             default => 'SELECT 1',
         });
@@ -237,7 +237,7 @@ final class CredentialMutationContentionTest extends TestCase
             throw $exception;
         } finally {
             $connection->statement(match ($connection->getDriverName()) {
-                'mysql', 'mariadb' => 'SET SESSION innodb_lock_wait_timeout = DEFAULT',
+                'mysql' => 'SET SESSION innodb_lock_wait_timeout = DEFAULT',
                 'pgsql' => 'SET lock_timeout = DEFAULT',
                 default => 'SELECT 1',
             });

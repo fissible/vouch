@@ -16,7 +16,6 @@ it('builds interval arithmetic for every supported driver, with a bound placehol
     expect(DatabaseTime::deadlineSql($driver))->toBe($expected);
 })->with([
     'mysql' => ['mysql', 'DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)'],
-    'mariadb' => ['mariadb', 'DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? SECOND)'],
     'pgsql' => ['pgsql', "CURRENT_TIMESTAMP(0) + (? * INTERVAL '1 second')"],
     'sqlite' => ['sqlite', "datetime('now', printf('%+d seconds', ?))"],
 ]);
@@ -37,6 +36,24 @@ it('refuses an unrecognised driver rather than falling back', function (): void 
      */
     expect(fn (): string => DatabaseTime::deadlineSql('oracle'))
         ->toThrow(InvalidArgumentException::class, 'oracle');
+});
+
+it('refuses mariadb by name rather than assuming it behaves like mysql', function (): void {
+    /*
+     * MariaDB used to share MySQL's arm here, which read as support and was not.
+     * Nothing tested it: it is absent from the README, composer.json, CI and the
+     * harness, which refuses the driver outright -- and the identifier-collation
+     * migration handed every non-MySQL driver PostgreSQL syntax, so a MariaDB host
+     * could not finish migrating. Laravel 11 reports it as its own driver name, so
+     * the shared arm was reachable in principle and wrong in practice.
+     *
+     * Named explicitly rather than merely dropped, so that the next person to
+     * consider MariaDB finds a decision instead of an absence. Its interval syntax
+     * really is MySQL's; what it lacks is every other engine-specific branch, a CI
+     * leg, and anybody having run the suite against it.
+     */
+    expect(fn (): string => DatabaseTime::deadlineSql('mariadb'))
+        ->toThrow(InvalidArgumentException::class, 'mariadb');
 });
 
 it('names both predicate and driver when a deadline comparison is unsupported', function (
