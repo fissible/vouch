@@ -87,13 +87,25 @@ final readonly class CredentialSelfService
         $replaces = ($data['replace'] ?? false) === true;
 
         if (! $replaces) {
-            try {
-                $enrollment = $factor->enroll($authoritative->user_id, $data);
-            } catch (Throwable) {
-                return new SelfServiceResult(SelfServiceOutcome::Refused);
+            $enrollment = SelfServiceOutcome::Refused;
+            $report = $this->failureCollector->collect($this->connection, function () use ($factor, $authoritative, $data, &$enrollment): void {
+                try {
+                    $enrollment = $factor->enroll($authoritative->user_id, $data);
+                } catch (Throwable) {
+                    // A factor can commit a mutation and then throw. Catch here
+                    // so collect() still returns those committed failures; a
+                    // refusal does not mean the issuer revoked every token.
+                }
+            });
+
+            if ($enrollment instanceof SelfServiceOutcome) {
+                return new SelfServiceResult($enrollment, [], $report->driverFailures);
             }
 
-            return new SelfServiceResult(SelfServiceOutcome::Completed, $enrollment->secrets);
+            return new SelfServiceResult(SelfServiceOutcome::Completed, $enrollment->secrets, CredentialDriverFailureIdentity::merge(
+                $enrollment->driverFailures,
+                $report->driverFailures,
+            ));
         }
 
         return $this->mutateCredentials($authoritative, RevokedReason::CredentialChanged, function () use ($factor, $authoritative, $data): EnrollmentResult {
@@ -177,9 +189,9 @@ final readonly class CredentialSelfService
         }
 
         return $this->mutateCredentials($authoritative, RevokedReason::CredentialChanged, function () use ($factor, $credential): EnrollmentResult {
-            $report = $this->failureCollector->collect($this->connection, fn () => $factor->revoke($credential));
+            $factor->revoke($credential);
 
-            return new EnrollmentResult([], report: $report);
+            return new EnrollmentResult([]);
         }, $credential->id, [(string) $credential->id]);
     }
 
@@ -222,11 +234,25 @@ final readonly class CredentialSelfService
             : $this->credentialMutation->revoking($subject, $credentialIds, static fn () => null);
         $driverFailures = $revocation->report->driverFailures;
 
-        try {
-            $enrollment = $this->connection->transaction(fn () => $mutation());
-        } catch (Throwable $throwable) {
-            report($throwable);
-            return new SelfServiceResult(SelfServiceOutcome::CredentialChangeFailed, [], $driverFailures);
+        // EnrollmentResult carries only the driver's own report. A factor's
+        // later mutations need a caller-owned channel, just as void removal
+        // does. The depth-bound scope includes sequential mutations while
+        // excluding an observer's nested mutation. Read it after transaction()
+        // returns: afterCommit has not populated it when enroll() returns.
+        $enrollment = SelfServiceOutcome::CredentialChangeFailed;
+        $report = $this->failureCollector->collect($this->connection, function () use ($mutation, &$enrollment): void {
+            try {
+                $enrollment = $this->connection->transaction(fn () => $mutation());
+            } catch (Throwable $throwable) {
+                report($throwable);
+            }
+        });
+
+        if ($enrollment instanceof SelfServiceOutcome) {
+            return new SelfServiceResult($enrollment, [], CredentialDriverFailureIdentity::merge(
+                $driverFailures,
+                $report->driverFailures,
+            ));
         }
 
         $cleanupFailures = [];
@@ -247,7 +273,10 @@ final readonly class CredentialSelfService
 
         return new SelfServiceResult(SelfServiceOutcome::Completed, $enrollment->secrets, CredentialDriverFailureIdentity::merge(
             $revocation->report->driverFailures,
+            // Drivers can report issuer work outside CredentialMutation. Keep
+            // that public channel alongside the caller's collected mutations.
             $enrollment->driverFailures,
+            $report->driverFailures,
         ), $cleanupFailures);
     }
 
