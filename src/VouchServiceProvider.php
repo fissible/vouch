@@ -519,6 +519,32 @@ final class VouchServiceProvider extends ServiceProvider
         $this->app->make(ThrottleConfiguration::class);
 
         /*
+         * #55. Reject an unusable attempt window before every login fails. Unlike
+         * the throttle reader, AuthFlow's config()->integer() rejects numeric
+         * strings, so positivity alone would leave a request-time failure behind.
+         * Keep that read at construction: the clock-source tests change config
+         * and forget only AuthFlow; caching the TTL here broke six of them.
+         * DatabaseTime keeps its own guard for callers outside configuration.
+         * Doctor must still boot so an operator can diagnose misconfiguration.
+         */
+        if (! $this->isDoctorCommand()) {
+            $attemptTtl = config('vouch.attempts.ttl_seconds');
+
+            if (! is_int($attemptTtl) || $attemptTtl < 1) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Configuration "vouch.attempts.ttl_seconds" must be a positive integer; got %s.',
+                    match (true) {
+                        $attemptTtl === '' => 'an empty string',
+                        is_string($attemptTtl) => 'string "' . $attemptTtl . '"',
+                        is_int($attemptTtl) => (string) $attemptTtl,
+                        $attemptTtl === null => 'null',
+                        default => get_debug_type($attemptTtl),
+                    },
+                ));
+            }
+        }
+
+        /*
          * #46. The issuance mutex's keying secret, at boot rather than at the first
          * recovery request: every issuance derives a bucket from it, so there is no
          * configuration in which the package works and this is absent, and the
