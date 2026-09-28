@@ -16,6 +16,7 @@ use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\SelfService\CredentialSelfService;
 use Fissible\Vouch\SelfService\SelfServiceOutcome;
+use Fissible\Vouch\Tests\Support\CompanionRevokingFactor;
 use Fissible\Vouch\Tests\Support\InterceptingFactor;
 use Fissible\Vouch\Tests\Support\InterceptingPasswordFactor;
 use Fissible\Vouch\Tests\Support\Tokens\RecordingIssuer;
@@ -294,6 +295,390 @@ it('reports a proof withdrawn late by a removal', function (string $type, string
     'totp' => ['totp', 'JBSWY3DPEHPK3PXP'],
     'recovery_code' => ['recovery_code', 'digest'],
 ]);
+
+/*
+ * #53. A custom factor's revoke() may perform more than one mutation, and only
+ * the first one's issuer failures reached the caller.
+ *
+ * The writes were always correct: every mutation ran, every credential was
+ * disabled, every proof withdrawn. What stopped short was the reporting, and that
+ * is the worse half -- the result could say driver cleanup was clean while a token
+ * from the second mutation was still live at its issuer. That is exactly the defect
+ * removed from the shipped paths, surviving on the extension contract.
+ *
+ * No shipped factor triggers it: password, TOTP, recovery code and the OTP drivers
+ * each perform exactly one mutation. So the tests below need a factor of their own,
+ * and the shape they use is an ordinary one -- retiring a companion credential
+ * alongside the requested one.
+ *
+ * Measured, the defect is worse than "only the first mutation is reported". A custom
+ * factor for a TOTP credential still has to revoke that credential, so it delegates
+ * to the shipped driver -- whose own mutation is then the FIRST, claims the report
+ * channel, and leaves every one of the custom factor's own mutations excluded. The
+ * list comes back empty rather than short, with every premise holding: both
+ * mutations ran, both revocations were attempted, both credentials were disabled and
+ * both proofs withdrawn.
+ *
+ * The hard part is that a SEQUENTIAL second mutation and a NESTED foreign one look
+ * identical from the collector's side: both are "another mutation on this
+ * connection during the collected call". The exclusions in
+ * 'keeps an unrelated mutation out of a removal's residual' above are the other
+ * half of this contract and must keep holding -- an observer's mutation, whether
+ * for a different subject or the same subject's different credential, stays out.
+ * Widening the collector until the tests below pass, without keeping those green,
+ * would trade a missing report for a false one.
+ */
+
+it('reports failures from every mutation a factor performs, not only the first', function (): void {
+    residualUser();
+
+    $target = lateCredential('totp', 'JBSWY3DPEHPK3PXP');
+    $first = lateCredential('totp', 'JBSWY3DPEHPK3PXP-first');
+    $second = lateCredential('totp', 'JBSWY3DPEHPK3PXP-second');
+
+    $issuer = residualIssuer(['late-first', 'late-second']);
+
+    /*
+     * Each proof is created immediately before the mutation that withdraws it, so
+     * both are later than the service's own revocation pass and neither could have
+     * been caught by it. That is what makes the second mutation the only possible
+     * source of the second identity.
+     */
+    $factor = new CompanionRevokingFactor(
+        app(TotpFactor::class),
+        [
+            ['id' => $first->id, 'before' => function () use ($first): void {
+                residualToken('late-first', 'totp', $first->id);
+            }],
+            ['id' => $second->id, 'before' => function () use ($second): void {
+                residualToken('late-second', 'totp', $second->id);
+            }],
+        ],
+    );
+
+    $registry = new FactorRegistry();
+    $registry->register(app(PasswordFactor::class));
+    $registry->register($factor);
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn () => $registry);
+    app()->forgetInstance(CredentialSelfService::class);
+
+    $result = app(CredentialSelfService::class)->removeFactor(residualSession(), $target->id);
+
+    /*
+     * Premises first, each on its own expectation. A chain that asserts the
+     * conclusion early stops there and says nothing about whether the setup even
+     * held -- and the first run of this test returned an empty list, which could
+     * equally have meant "reporting is broken" or "no revocation was attempted".
+     */
+    expect($result->outcome)->toBe(SelfServiceOutcome::Completed);
+    // Entered, in order. Recorded before each revoking() call, so completion is what
+    // the disabled_at assertions below establish rather than this one.
+    expect($factor->mutated)->toBe([$first->id, $second->id], 'both mutations should have been entered, in order');
+    /*
+     * ATTEMPTED, not revoked: both of these are configured to fail, so neither can
+     * appear among the successes. Asserting the wrong one of the two read as "no
+     * revocation happened" when the truth was "both were tried and both failed",
+     * which is the premise this test needs.
+     */
+    /*
+     * No failure message on toContain: it is VARIADIC, so a second argument becomes
+     * another value the array must contain, and the test then fails looking for the
+     * message text. Same shape as toThrow(Throwable::class) asserting on a message.
+     */
+    expect($issuer->attempted)->toContain('late-first');
+    expect($issuer->attempted)->toContain('late-second');
+
+    // The writes were never the defect, and a fix that broke them would be worse.
+    expect(AuthCredential::query()->whereKey($first->id)->whereNull('disabled_at')->exists())->toBeFalse();
+    expect(AuthCredential::query()->whereKey($second->id)->whereNull('disabled_at')->exists())->toBeFalse();
+    expect(DB::table('auth_token_assurances')->where('token_key', 'late-first')->exists())->toBeFalse();
+    expect(DB::table('auth_token_assurances')->where('token_key', 'late-second')->exists())->toBeFalse();
+
+    // And only then the claim: BOTH identities reach the caller.
+    expect(residualPairs($result->driverFailures))
+        ->toBe([['sanctum', 'late-first'], ['sanctum', 'late-second']]);
+});
+
+it('reports the second mutation when only the second fails', function (): void {
+    residualUser();
+
+    $target = lateCredential('totp', 'JBSWY3DPEHPK3PXP');
+    $first = lateCredential('totp', 'JBSWY3DPEHPK3PXP-first');
+    $second = lateCredential('totp', 'JBSWY3DPEHPK3PXP-second');
+
+    /*
+     * Only the second token's revocation fails. This is the case that distinguishes
+     * a real fix from one that merely returns the FIRST mutation's report under a
+     * new name: here the first mutation has nothing to report, so an implementation
+     * still bound to it hands back an empty list and calls the cleanup clean while
+     * a token is live at its issuer.
+     */
+    $issuer = residualIssuer(['late-second']);
+
+    $factor = new CompanionRevokingFactor(
+        app(TotpFactor::class),
+        [
+            ['id' => $first->id, 'before' => function () use ($first): void {
+                residualToken('late-first', 'totp', $first->id);
+            }],
+            ['id' => $second->id, 'before' => function () use ($second): void {
+                residualToken('late-second', 'totp', $second->id);
+            }],
+        ],
+    );
+
+    $registry = new FactorRegistry();
+    $registry->register(app(PasswordFactor::class));
+    $registry->register($factor);
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn () => $registry);
+    app()->forgetInstance(CredentialSelfService::class);
+
+    $result = app(CredentialSelfService::class)->removeFactor(residualSession(), $target->id);
+
+    /*
+     * Premises first here too. This test's failure mode is an empty list, and a
+     * chain that asserts that first tells you nothing about whether the first
+     * companion ran at all -- which is the diagnosis problem the comment in the
+     * test above is about, and which this test had.
+     */
+    expect($result->outcome)->toBe(SelfServiceOutcome::Completed);
+
+    // The first token really was revoked, so its absence from the list below is a
+    // success rather than a second thing going unreported.
+    expect($issuer->revoked)->toContain('late-first');
+    expect(DB::table('auth_token_assurances')->where('token_key', 'late-first')->exists())->toBeFalse();
+
+    expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'late-second']]);
+});
+
+it('keeps a driver diagnostic out of what a multi-mutation removal hands back', function (): void {
+    residualUser();
+
+    $target = lateCredential('totp', 'JBSWY3DPEHPK3PXP');
+    $companion = lateCredential('totp', 'JBSWY3DPEHPK3PXP-companion');
+
+    residualIssuer(['late-companion']);
+
+    /*
+     * Identities only, through every route a caller could read the result by. The
+     * enrollment path is already held to this; widening the collector to carry a
+     * second mutation's failures must not carry its driver text along with them.
+     *
+     * print_r and json_encode both, because they disagree: json_encode consults
+     * JsonSerializable and print_r does not, so a diagnostic hidden from one can
+     * still be reachable through the other.
+     */
+    $factor = new CompanionRevokingFactor(
+        app(TotpFactor::class),
+        [
+            ['id' => $companion->id, 'before' => function () use ($companion): void {
+                residualToken('late-companion', 'totp', $companion->id);
+            }],
+        ],
+    );
+
+    $registry = new FactorRegistry();
+    $registry->register(app(PasswordFactor::class));
+    $registry->register($factor);
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn () => $registry);
+    app()->forgetInstance(CredentialSelfService::class);
+
+    $result = app(CredentialSelfService::class)->removeFactor(residualSession(), $target->id);
+
+    expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'late-companion']])
+        ->and(print_r($result->driverFailures, true))->not->toContain(RESIDUAL_SENTINEL)
+        ->and(json_encode($result, JSON_THROW_ON_ERROR))->not->toContain(RESIDUAL_SENTINEL)
+        ->and(print_r($result, true))->not->toContain(RESIDUAL_SENTINEL);
+});
+
+it('keeps a nested mutation out of a removal residual when no event delivered it', function (): void {
+    residualUser();
+
+    $target = lateCredential('totp', 'JBSWY3DPEHPK3PXP');
+    $unrelated = lateCredential('totp', 'JBSWY3DPEHPK3PXP-other');
+
+    $issuer = residualIssuer(['target-late', 'unrelated']);
+
+    // Assigned by the hook below, which the first assertion proves ran.
+    $nested = null;
+    $fired = false;
+
+    /*
+     * beforeExecuting(), not an Eloquent observer. Same window, same
+     * contamination, different delivery -- and the delivery must not be what
+     * the exclusion depends on.
+     *
+     * @param list<mixed> $bindings
+     */
+    DB::connection()->beforeExecuting(function (string $query, array $bindings) use (
+        &$nested, &$fired, $target, $unrelated
+    ): void {
+        if ($fired) {
+            return;
+        }
+
+        $values = array_map(
+            static fn (mixed $binding): string => is_scalar($binding) ? (string) $binding : '',
+            $bindings,
+        );
+
+        // The credential UPDATE that disables the removal's target.
+        if (! str_contains(strtolower($query), 'update')
+            || ! str_contains(strtolower($query), 'auth_credentials')
+            || ! in_array((string) $target->id, $values, true)) {
+            return;
+        }
+
+        $fired = true;
+
+        residualToken('target-late', 'totp', $target->id);
+        residualToken('unrelated', 'totp', $unrelated->id);
+
+        $nested = app(CredentialMutation::class)->revoking(
+            SubjectKey::forConfiguredUser(1),
+            [(string) $unrelated->id],
+            static fn (): null => null,
+        );
+    });
+
+    $result = app(CredentialSelfService::class)->removeFactor(residualSession(), $target->id);
+
+    $nestedResult = $nested ?? throw new RuntimeException('The beforeExecuting hook never ran a mutation.');
+
+    expect($fired)->toBeTrue();
+    expect($result->outcome)->toBe(SelfServiceOutcome::Completed);
+    expect($issuer->attempted)->toContain('target-late');
+    expect($issuer->attempted)->toContain('unrelated');
+    expect(internalPairs($nestedResult->driverFailures))->toBe([['sanctum', 'unrelated']]);
+    expect(DB::table('auth_token_assurances')->where('token_key', 'unrelated')->exists())->toBeFalse();
+
+    // The conclusion: the removal must not name a token it never touched.
+    expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'target-late']]);
+});
+
+it('keeps an observer mutation that disables its own credential out of the residual', function (): void {
+    residualUser();
+
+    $target = lateCredential('totp', 'JBSWY3DPEHPK3PXP');
+    $unrelated = lateCredential('totp', 'JBSWY3DPEHPK3PXP-other');
+
+    $issuer = residualIssuer(['target-late', 'unrelated']);
+
+    // Assigned by the observer below, which the first assertion proves ran.
+    $nested = null;
+    $fired = false;
+
+    AuthCredential::updating(function (AuthCredential $credential) use (
+        &$nested, &$fired, $target, $unrelated
+    ): void {
+        if ($fired || $credential->id !== $target->id) {
+            return;
+        }
+        $fired = true;
+
+        residualToken('target-late', 'totp', $target->id);
+        residualToken('unrelated', 'totp', $unrelated->id);
+
+        /*
+         * An ordinary host cascade: retire a companion of its own when a
+         * credential is disabled. Its mutation WRITES, which is the half the
+         * inert observer elsewhere in this file never exercises.
+         */
+        $nested = app(CredentialMutation::class)->revoking(
+            SubjectKey::forConfiguredUser(1),
+            [(string) $unrelated->id],
+            static function () use ($unrelated): null {
+                AuthCredential::query()->whereKey($unrelated->id)->update(['disabled_at' => now()]);
+
+                return null;
+            },
+        );
+    });
+
+    $result = app(CredentialSelfService::class)->removeFactor(residualSession(), $target->id);
+
+    $nestedResult = $nested ?? throw new RuntimeException('The updating observer never ran.');
+
+    expect($fired)->toBeTrue();
+    expect($result->outcome)->toBe(SelfServiceOutcome::Completed);
+    expect($issuer->attempted)->toContain('target-late');
+    expect($issuer->attempted)->toContain('unrelated');
+    expect(internalPairs($nestedResult->driverFailures))->toBe([['sanctum', 'unrelated']]);
+    expect(DB::table('auth_token_assurances')->where('token_key', 'unrelated')->exists())->toBeFalse();
+    // The observer's own work really happened; it is the observer's to report.
+    expect(AuthCredential::query()->whereKey($unrelated->id)->whereNull('disabled_at')->exists())->toBeFalse();
+
+    // The conclusion: the removal still names only the token it touched.
+    expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'target-late']]);
+});
+
+it('reports every companion and still excludes a nested observer in the same call', function (): void {
+    residualUser();
+
+    $target = lateCredential('totp', 'JBSWY3DPEHPK3PXP');
+    $first = lateCredential('totp', 'JBSWY3DPEHPK3PXP-first');
+    $second = lateCredential('totp', 'JBSWY3DPEHPK3PXP-second');
+    $unrelated = lateCredential('totp', 'JBSWY3DPEHPK3PXP-other');
+
+    $issuer = residualIssuer(['late-first', 'late-second', 'unrelated']);
+
+    // Assigned by the observer below, which the first assertion proves ran.
+    $nested = null;
+    $fired = false;
+
+    AuthCredential::updating(function (AuthCredential $credential) use (
+        &$nested, &$fired, $target, $unrelated
+    ): void {
+        if ($fired || $credential->id !== $target->id) {
+            return;
+        }
+        $fired = true;
+
+        residualToken('unrelated', 'totp', $unrelated->id);
+
+        $nested = app(CredentialMutation::class)->revoking(
+            SubjectKey::forConfiguredUser(1),
+            [(string) $unrelated->id],
+            static fn (): null => null,
+        );
+    });
+
+    $factor = new CompanionRevokingFactor(
+        app(TotpFactor::class),
+        [
+            ['id' => $first->id, 'before' => function () use ($first): void {
+                residualToken('late-first', 'totp', $first->id);
+            }],
+            ['id' => $second->id, 'before' => function () use ($second): void {
+                residualToken('late-second', 'totp', $second->id);
+            }],
+        ],
+    );
+
+    $registry = new FactorRegistry();
+    $registry->register(app(PasswordFactor::class));
+    $registry->register($factor);
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn () => $registry);
+    app()->forgetInstance(CredentialSelfService::class);
+
+    $result = app(CredentialSelfService::class)->removeFactor(residualSession(), $target->id);
+
+    $nestedResult = $nested ?? throw new RuntimeException('The updating observer never ran.');
+
+    expect($fired)->toBeTrue();
+    expect($result->outcome)->toBe(SelfServiceOutcome::Completed);
+    expect($factor->mutated)->toBe([$first->id, $second->id], 'both companion mutations should have run');
+    expect($issuer->attempted)->toContain('late-first');
+    expect($issuer->attempted)->toContain('late-second');
+    expect($issuer->attempted)->toContain('unrelated');
+    expect(internalPairs($nestedResult->driverFailures))->toBe([['sanctum', 'unrelated']]);
+    expect(AuthCredential::query()->whereKey($unrelated->id)->whereNull('disabled_at')->exists())->toBeTrue();
+    expect(DB::table('auth_token_assurances')->where('token_key', 'unrelated')->exists())->toBeFalse();
+
+    // Both halves at once: every companion named, the observer's token not.
+    expect(residualPairs($result->driverFailures))
+        ->toBe([['sanctum', 'late-first'], ['sanctum', 'late-second']]);
+});
 
 /**
  * The identities an internal mutation result reports, as sorted pairs.
