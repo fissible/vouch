@@ -50,17 +50,35 @@ const TTL_BOUNDS_VALID = 137;
 /**
  * Re-run provider boot with the attempt TTL set to $value.
  *
- * ThrottleConfiguration is forgotten first because the provider resolves it
- * eagerly during boot, so the instance from the test application's own boot would
- * otherwise answer from the configuration this test just replaced.
+ * Every Vouch-namespaced singleton is forgotten first, rather than a named few.
+ * The provider resolves its validating services eagerly during boot, so an
+ * instance left over from the test application's own boot would answer from the
+ * configuration this test just replaced -- and naming the services would pin WHICH
+ * object carries the check. Measured: naming ThrottleConfiguration and AuthFlow
+ * alone makes a correct implementation that validates through any other eagerly
+ * resolved singleton indistinguishable from no implementation at all.
+ *
+ * app()->forgetInstances() is not the shortcut it looks like: it drops the
+ * container's aliases too, so boot() then dies with BindingResolutionException for
+ * reasons that have nothing to do with the TTL.
  */
 function bootWithAttemptTtl(mixed $value): void
 {
     Config::set('vouch.attempts.ttl_seconds', $value);
-    app()->forgetInstance(ThrottleConfiguration::class);
-    app()->forgetInstance(AuthFlow::class);
+
+    foreach (array_keys(app()->getBindings()) as $abstract) {
+        if (is_string($abstract) && str_starts_with($abstract, 'Fissible\\Vouch\\')) {
+            app()->forgetInstance($abstract);
+        }
+    }
 
     (new VouchServiceProvider(app()))->boot();
+}
+
+/** The one sentence the package uses to refuse a setting that must be a positive integer. */
+function attemptTtlRefusal(string $described): string
+{
+    return 'Configuration "vouch.attempts.ttl_seconds" must be a positive integer; got ' . $described . '.';
 }
 
 /* ---- the default the package ships must itself be acceptable ---------- */
@@ -85,10 +103,13 @@ it('ships an attempt ttl that its own boot check accepts', function (): void {
         'config/vouch.php must ship a positive attempt ttl: a non-positive default fails every login',
     );
 
-    // And the shipped value boots, rather than merely being positive in isolation.
+    /*
+     * And the shipped value actually boots, rather than merely being positive in
+     * isolation. Nothing is asserted about the container afterwards on purpose: any
+     * such assertion would either be a tautology or would name whichever object
+     * happens to carry the check.
+     */
     bootWithAttemptTtl($shipped);
-
-    expect(app(ThrottleConfiguration::class))->toBeInstanceOf(ThrottleConfiguration::class);
 });
 
 /* ---- boot must refuse what cannot describe a window ------------------- */
@@ -105,8 +126,18 @@ it('fails boot on a non-positive attempt ttl', function (int $seconds): void {
 
         throw new RuntimeException('Provider boot accepted an attempt ttl of ' . $seconds . '.');
     } catch (InvalidArgumentException $failure) {
-        expect($failure->getMessage())->toContain('vouch.attempts.ttl_seconds');
-        expect($failure->getMessage())->toContain((string) $seconds);
+        /*
+         * The whole sentence, as ProviderEffectTest pins it for the sibling throttle
+         * setting. Asserting only that the message CONTAINS the value is vacuous for
+         * the case this issue is mostly about: (string) 0 is "0", and a zero appears
+         * incidentally in almost any bounds message -- measured, a message naming no
+         * value at all but mentioning a range of 86400 satisfies it.
+         *
+         * Pinning the wording does not pin a class. The package has one sentence for
+         * this refusal; a second, differently worded one for a sibling setting would
+         * be the defect, whoever emits it.
+         */
+        expect($failure->getMessage())->toBe(attemptTtlRefusal((string) $seconds));
     }
 })->with([
     'zero' => [0],
@@ -138,7 +169,81 @@ it('resolves a blank attempt ttl environment variable to a value boot refuses', 
 
         throw new RuntimeException('Provider boot accepted the zero a blank VOUCH_ATTEMPT_TTL produces.');
     } catch (InvalidArgumentException $failure) {
-        expect($failure->getMessage())->toContain('vouch.attempts.ttl_seconds');
+        // The value named here too. This is the case where what the operator SET is
+        // not what arrived, which is precisely where a message without it misleads.
+        expect($failure->getMessage())->toBe(attemptTtlRefusal('0'));
+    }
+});
+
+it('fails boot on an attempt ttl that is not an integer', function (mixed $value, string $described): void {
+    /*
+     * The same defect with a different trigger, and the reason it belongs here: the
+     * read at the AuthFlow construction site is config()->integer(), which refuses a
+     * non-integer at REQUEST time. So a published config whose expression lost the
+     * (int) cast -- `env('VOUCH_ATTEMPT_TTL', 600)` -- boots cleanly and then 500s
+     * every login with no attempt insert, which is #55's symptom exactly.
+     *
+     * Measured, and this is why the datasets are here: a boot check that validates
+     * only positivity accepts the string "600", because the package's positive-value
+     * reader deliberately accepts numeric strings for the throttle settings that are
+     * read without a cast. That check leaves this whole class of values behind while
+     * every other test in this file passes.
+     */
+    try {
+        bootWithAttemptTtl($value);
+
+        throw new RuntimeException('Provider boot accepted a non-integer attempt ttl: ' . $described . '.');
+    } catch (InvalidArgumentException $failure) {
+        expect($failure->getMessage())->toBe(attemptTtlRefusal($described));
+    }
+})->with([
+    // A positive number that is not an integer: accepted by a positivity-only check,
+    // refused by config()->integer() once a request arrives.
+    'a numeric string' => ['600', 'string "600"'],
+    'an empty string' => ['', 'an empty string'],
+    'null' => [null, 'null'],
+    'an array' => [[], 'array'],
+    'a float' => [600.0, 'float'],
+    'a boolean' => [true, 'bool'],
+]);
+
+/* ---- the diagnostic command must survive what it exists to report ----- */
+
+it('lets vouch:doctor boot on an attempt ttl it otherwise refuses', function (): void {
+    /*
+     * The provider exempts vouch:doctor from the CAPTCHA and issuance-secret checks
+     * for a reason that applies here unchanged: the one command whose job is to TELL
+     * an operator what is misconfigured must not be the command a misconfiguration
+     * stops from running. A blank VOUCH_ATTEMPT_TTL is precisely the situation in
+     * which somebody reaches for it.
+     *
+     * Measured against an implementation with no exemption: boot throws under
+     * vouch:doctor argv, and the whole suite stays green -- nothing else notices.
+     */
+    $original = $_SERVER['argv'] ?? null;
+
+    try {
+        $_SERVER['argv'] = ['artisan', 'vouch:doctor'];
+
+        // Must not throw. An exception here fails the test by itself; the control
+        // below is what proves this is an exemption rather than an absent check.
+        bootWithAttemptTtl(0);
+
+        /*
+         * The control, in the same test so the two cannot drift apart: the identical
+         * value under ordinary argv must still be refused. Without it, deleting the
+         * boot check entirely would satisfy the exemption above.
+         */
+        $_SERVER['argv'] = ['artisan', 'about'];
+
+        expect(static fn (): null => bootWithAttemptTtl(0))
+            ->toThrow(InvalidArgumentException::class, attemptTtlRefusal('0'));
+    } finally {
+        if ($original === null) {
+            unset($_SERVER['argv']);
+        } else {
+            $_SERVER['argv'] = $original;
+        }
     }
 });
 
@@ -157,21 +262,36 @@ it('boots on a valid attempt ttl and dates an attempt by it', function (): void 
 
     $begun = app(AuthFlow::class)->advance(new FlowRequest(null, 'begin', [], str_repeat('t', 64)));
 
-    expect($begun)->toBeInstanceOf(Continuing::class);
+    // Narrowed by a guard rather than by expect()->toBeInstanceOf(), which reads
+    // like a type assertion but narrows nothing for the static analyser.
+    if (! $begun instanceof Continuing) {
+        throw new RuntimeException('The flow refused to begin an attempt on a valid ttl.');
+    }
 
     $after = app(DatabaseTime::class)->current();
 
-    $attempt = DB::table('auth_attempts')->orderByDesc('id')->first();
+    // By the handle the flow reported, not by the newest id: the assertion should be
+    // about the row this call created rather than about whatever was written last.
+    $attempt = DB::table('auth_attempts')->where('handle', stringValue($begun->handle))->first();
     $deadline = new DateTimeImmutable(stringValue(requiredRow($attempt)->expires_at));
 
     /*
-     * Bracketed against the database clock either side of the write rather than
-     * compared with a literal: PostgreSQL rounds CURRENT_TIMESTAMP(0) where
-     * getTimestamp() truncates, so a fixed comparison fails on engine rounding
-     * roughly half the time.
+     * Bracketed against the database clock either side of the write, with a second
+     * of slack at each end -- the same tolerance the merged sibling uses for this
+     * column on this clock.
+     *
+     * The slack is not caution, it is required. Under RefreshDatabase the test runs
+     * inside one transaction, and PostgreSQL's CURRENT_TIMESTAMP is the
+     * TRANSACTION's start, so $before and $after are the same instant and the
+     * bracket has zero width -- while deadlineSql('pgsql') uses
+     * CURRENT_TIMESTAMP(0), which ROUNDS, and getTimestamp() truncates. Measured
+     * without the slack: seven consecutive PostgreSQL runs, seven failures, always
+     * exactly one second above the upper bound.
+     *
+     * A second of slack on a 137-second window still rejects a stale 600.
      */
-    expect($deadline->getTimestamp())->toBeGreaterThanOrEqual($before->getTimestamp() + TTL_BOUNDS_VALID);
-    expect($deadline->getTimestamp())->toBeLessThanOrEqual($after->getTimestamp() + TTL_BOUNDS_VALID);
+    expect($deadline->getTimestamp())->toBeGreaterThanOrEqual($before->getTimestamp() + TTL_BOUNDS_VALID - 1);
+    expect($deadline->getTimestamp())->toBeLessThanOrEqual($after->getTimestamp() + TTL_BOUNDS_VALID + 1);
 });
 
 /* ---- the defensive guard is not replaced by the boot one -------------- */

@@ -690,9 +690,10 @@ function comparesWithoutPadding(string $table, string $column): bool
  * that wrong does not make a test fail loudly; it makes it fail on whichever
  * machine actually exports the variable, and pass on the one it was written on.
  *
- * Restoration is in `finally` and distinguishes "was absent" from "was empty",
- * because a test that leaves a variable behind changes what every later test in
- * the process reads.
+ * Restoration is in `finally`, and restores ABSENCE as absence rather than as an
+ * empty string, because `Env::get()` distinguishes them and a variable left behind
+ * changes what every later test in the process reads. It does not distinguish an
+ * absent key from one holding a literal null, which environment values never are.
  *
  * @template TReturn
  *
