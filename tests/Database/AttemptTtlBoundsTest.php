@@ -381,9 +381,18 @@ it('dates the window by exactly the configured seconds', function (): void {
      * `datetime('now')` neither rounds nor freezes at a transaction start, so a
      * bracket with no slack at all is honest rather than flaky.
      *
-     * Zero slack, not an equality against one reading: the write happens somewhere
-     * between the two samples, so `deadline - ttl` must land within them. That still
-     * rejects a one-second drift in either direction, which is the whole point.
+     * A bracket between two samples would NOT deterministically reject a one-second
+     * error: if the samples land on seconds 100 and 101, a deadline computed at 100
+     * with `ttl + 1` is 101 + ttl and sits inside the window. So the test does not
+     * bracket at all -- it retries until both samples fall in the SAME second, and
+     * then asserts exact equality, which no one-second drift can satisfy.
+     *
+     * The retry is not a tolerance in disguise. On SQLite in memory the three
+     * statements take well under a millisecond, so a same-second window is almost
+     * always available on the first try; the loop exists for the rare sample that
+     * straddles a boundary. Exhausting it throws rather than falling back to a
+     * weaker assertion, because a test that quietly degrades is worse than one that
+     * fails.
      */
     if (DB::connection()->getDriverName() !== 'sqlite') {
         $this->markTestSkipped('Exact deadline arithmetic is asserted where the database clock is the application\'s.');
@@ -391,23 +400,40 @@ it('dates the window by exactly the configured seconds', function (): void {
 
     bootWithAttemptTtl(TTL_BOUNDS_VALID);
 
-    $before = app(DatabaseTime::class)->current();
-    $begun = app(AuthFlow::class)->advance(new FlowRequest(null, 'begin', [], str_repeat('x', 64)));
-    $after = app(DatabaseTime::class)->current();
+    $time = app(DatabaseTime::class);
+    $flow = app(AuthFlow::class);
+    $second = null;
+    $written = null;
 
-    if (! $begun instanceof Continuing) {
-        throw new RuntimeException('The flow refused to begin an attempt on a valid ttl.');
+    foreach (range(1, 8) as $attemptNumber) {
+        $before = $time->current()->getTimestamp();
+        $begun = $flow->advance(new FlowRequest(null, 'begin', [], str_pad('x' . $attemptNumber, 64, 'x')));
+        $after = $time->current()->getTimestamp();
+
+        if (! $begun instanceof Continuing) {
+            throw new RuntimeException('The flow refused to begin an attempt on a valid ttl.');
+        }
+
+        if ($before !== $after) {
+            // The write straddled a second boundary, so this round cannot say
+            // anything exact. Discard it and sample again.
+            continue;
+        }
+
+        $row = DB::table('auth_attempts')->where('handle', stringValue($begun->handle))->first();
+        $second = $before;
+        $written = (new DateTimeImmutable(stringValue(requiredRow($row)->expires_at)))->getTimestamp();
+
+        break;
     }
 
-    $attempt = DB::table('auth_attempts')->where('handle', stringValue($begun->handle))->first();
-    $written = (new DateTimeImmutable(stringValue(requiredRow($attempt)->expires_at)))->getTimestamp();
+    if ($second === null || $written === null) {
+        throw new RuntimeException('Eight rounds all straddled a second boundary; no exact reading was taken.');
+    }
 
-    // The premise: the two samples really do bracket the write, so what follows is
-    // a statement about the arithmetic rather than about a clock that stood still.
-    expect($after->getTimestamp())->toBeGreaterThanOrEqual($before->getTimestamp());
-
-    expect($written - TTL_BOUNDS_VALID)->toBeGreaterThanOrEqual($before->getTimestamp());
-    expect($written - TTL_BOUNDS_VALID)->toBeLessThanOrEqual($after->getTimestamp());
+    // Exactly the configured seconds from the second the write happened in. A drift
+    // of one in either direction fails, whichever second that was.
+    expect($written - $second)->toBe(TTL_BOUNDS_VALID);
 });
 
 /* ---- the defensive guard is not replaced by the boot one -------------- */
