@@ -175,7 +175,7 @@ it('resolves a blank attempt ttl environment variable to a value boot refuses', 
     }
 });
 
-it('fails boot on an attempt ttl that is not an integer', function (mixed $value, string $described): void {
+it('fails boot on an attempt ttl that is not an integer', function (mixed $value, ?string $described): void {
     /*
      * The same defect with a different trigger, and the reason it belongs here: the
      * read at the AuthFlow construction site is config()->integer(), which refuses a
@@ -192,19 +192,42 @@ it('fails boot on an attempt ttl that is not an integer', function (mixed $value
     try {
         bootWithAttemptTtl($value);
 
-        throw new RuntimeException('Provider boot accepted a non-integer attempt ttl: ' . $described . '.');
+        throw new RuntimeException('Provider boot accepted a non-integer attempt ttl: ' . get_debug_type($value) . '.');
     } catch (InvalidArgumentException $failure) {
-        expect($failure->getMessage())->toBe(attemptTtlRefusal($described));
+        /*
+         * A null $described asks only for the sentence and its "got " prefix, not for
+         * a particular rendering of the value.
+         *
+         * The distinction is deliberate. Where the value has a text an operator
+         * actually typed, the whole sentence is pinned: that is what criterion one is
+         * about. Where it does not -- an array, a float, a boolean -- pinning a
+         * rendering only forbids describing it BETTER, and measured, an
+         * implementation that says "an array" or "boolean true" instead fails three
+         * of these datasets while catching nothing the numeric-string case does not
+         * already catch.
+         */
+        if ($described === null) {
+            expect($failure->getMessage())->toStartWith(
+                'Configuration "vouch.attempts.ttl_seconds" must be a positive integer; got ',
+            );
+        } else {
+            expect($failure->getMessage())->toBe(attemptTtlRefusal($described));
+        }
     }
 })->with([
-    // A positive number that is not an integer: accepted by a positivity-only check,
-    // refused by config()->integer() once a request arrives.
+    /*
+     * The numeric string is the one that does the work: it is the only value here a
+     * positivity-only check accepts, because the package's positive-value reader
+     * tolerates numeric strings for the throttle settings that are read without a
+     * cast. The rest are refused by any bounds check and are here for completeness
+     * of the type domain, which is exactly the complement of is_int().
+     */
     'a numeric string' => ['600', 'string "600"'],
     'an empty string' => ['', 'an empty string'],
     'null' => [null, 'null'],
-    'an array' => [[], 'array'],
-    'a float' => [600.0, 'float'],
-    'a boolean' => [true, 'bool'],
+    'an array' => [[], null],
+    'a float' => [600.0, null],
+    'a boolean' => [true, null],
 ]);
 
 /* ---- the diagnostic command must survive what it exists to report ----- */
