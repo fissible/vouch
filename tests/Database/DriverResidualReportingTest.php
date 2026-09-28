@@ -921,7 +921,7 @@ function residualEnroll(string $path): SelfServiceResult
  *
  * @param  list<array{0: int, 1: string}>  $companions  credential id, token key
  */
-function residualRetiringFactor(string $path, array $companions, bool $throwsAfterCompanions = false): CompanionRetiringFactor
+function residualRetiringFactor(string $path, array $companions, bool $throwsAfterCompanions = false, ?Closure $afterCompanions = null): CompanionRetiringFactor
 {
     $type = residualCompanionType($path);
     $retiring = [];
@@ -932,7 +932,7 @@ function residualRetiringFactor(string $path, array $companions, bool $throwsAft
         }];
     }
 
-    return new CompanionRetiringFactor(residualInnerFactor($path), $retiring, $throwsAfterCompanions);
+    return new CompanionRetiringFactor(residualInnerFactor($path), $retiring, $throwsAfterCompanions, $afterCompanions);
 }
 
 /* ---- shape one: every mutation an enrollment performs must report ------ */
@@ -1053,11 +1053,14 @@ it('keeps a driver diagnostic out of what a multi-mutation enrollment hands back
         ->and(json_encode($result, JSON_THROW_ON_ERROR))->not->toContain(RESIDUAL_SENTINEL)
         ->and(print_r($result, true))->not->toContain(RESIDUAL_SENTINEL);
 })->with([
-    // One path that routes through mutateCredentials() and one that returns before
-    // it -- a structural split. Neither dataset depends on a transaction being
-    // wrapped around the factor call; the identity travels the same way either way.
+    // Every entry point. The structural split that matters is through
+    // mutateCredentials() versus returning before it, but no dataset depends on a
+    // transaction being wrapped around the factor call -- the identity travels the
+    // same way either way, which is why all four can share one body.
     'changePassword',
+    'addFactor replacing',
     'addFactor adding',
+    'regenerateRecoveryCodes',
 ]);
 
 it('reports every companion and still excludes a nested observer during an enrollment', function (string $path): void {
@@ -1125,14 +1128,16 @@ it('reports every companion and still excludes a nested observer during an enrol
     expect(residualPairs($result->driverFailures))
         ->toBe([['sanctum', 'late-first'], ['sanctum', 'late-second']]);
 })->with([
-    // Both sides of the same structural split: through mutateCredentials() and
-    // returning before it. The exclusion holds by mutation nesting depth, which
-    // counts CredentialMutation frames only -- so it is transaction-independent by
-    // construction, and neither of these datasets depends on a transaction being
-    // wrapped around the factor call. The failed-enrollment test at the end of this
-    // file is the one test here that does, and it names that dependency itself.
+    // Every entry point, because the exclusion is the half a widened collector
+    // would break and it should be held on all of them. It holds by mutation
+    // nesting depth, which counts CredentialMutation frames only -- transaction
+    // independent by construction, so no dataset here depends on a transaction
+    // being wrapped around the factor call. The failed-enrollment test at the end
+    // of this file is the one test that does, and it names that dependency itself.
     'changePassword',
+    'addFactor replacing',
     'addFactor adding',
+    'regenerateRecoveryCodes',
 ]);
 
 it('reports what the driver itself recorded alongside what the caller collected', function (): void {
@@ -1288,6 +1293,56 @@ it('reports a committed mutation\'s driver failure when the enrollment then fail
     expect($issuer->attempted)->toContain('late-companion');
     // Committed, despite the later failure -- the write is what makes the stranded
     // token real rather than hypothetical.
+    expect(AuthCredential::query()->whereKey($companion->id)->whereNull('disabled_at')->exists())->toBeFalse();
+    expect(DB::table('auth_token_assurances')->where('token_key', 'late-companion')->exists())->toBeFalse();
+
+    expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'late-companion']]);
+    expect(print_r($result, true))->not->toContain(RESIDUAL_SENTINEL);
+});
+
+it('reports a committed mutation\'s driver failure when a post-commit listener then failed', function (): void {
+    residualUser();
+
+    $companion = lateCredential(residualCompanionType('changePassword'), 'companion-only');
+
+    $issuer = residualIssuer(['late-companion']);
+
+    /*
+     * The third way a failure strands, and the one that survives a transaction.
+     *
+     * Connection::commit() commits the PDO transaction FIRST and only then runs its
+     * afterCommit callbacks, so a callback that throws propagates out of
+     * transaction() into mutateCredentials()'s catch with the write already durable
+     * and the driver revocations -- registered earlier, so run earlier -- already
+     * attempted. The operation reports CredentialChangeFailed over committed state.
+     *
+     * Vouch's own per-token callbacks cannot reach here: both the issuer revoke and
+     * the log line are individually wrapped. A HOST's can, and ordinarily does --
+     * Laravel dispatches queued jobs afterCommit by default, so any listener on a
+     * credential event is a candidate.
+     *
+     * Registered after the companion mutations rather than before, because
+     * afterCommit callbacks run in registration order: registered first, this would
+     * run ahead of the revocation callbacks and there would be no failure to report.
+     */
+    $factor = residualRetiringFactor('changePassword', [[$companion->id, 'late-companion']], afterCompanions: static function (): void {
+        DB::connection()->afterCommit(static function (): void {
+            throw new RuntimeException('A post-commit listener failed after the credential write committed.');
+        });
+    });
+    residualRegistry($factor);
+
+    $result = residualEnroll('changePassword');
+
+    /*
+     * Premises first, and here they carry most of the test's weight: the whole point
+     * is that a FAILED outcome sits on top of work that really happened, so each
+     * piece of that work is asserted before the reporting claim.
+     */
+    expect($result->outcome)->toBe(SelfServiceOutcome::CredentialChangeFailed);
+    expect($factor->mutated)->toBe([$companion->id], 'the companion mutation should have run');
+    expect($issuer->attempted)->toContain('late-companion');
+    // Durable despite the failure: commit preceded the callback that threw.
     expect(AuthCredential::query()->whereKey($companion->id)->whereNull('disabled_at')->exists())->toBeFalse();
     expect(DB::table('auth_token_assurances')->where('token_key', 'late-companion')->exists())->toBeFalse();
 

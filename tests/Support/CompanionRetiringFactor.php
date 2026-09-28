@@ -67,6 +67,11 @@ final class CompanionRetiringFactor implements Factor
      * @param  list<array{id: int, before: ?Closure}>  $companions  each retired in
      *         its own mutation, with `before` run immediately before it -- the hook
      *         a test uses to create a proof only that mutation can withdraw.
+     * @param  ?Closure  $afterCompanions  run once after every companion mutation
+     *         has completed. Registration order is why this exists rather than a
+     *         per-companion hook: a post-commit listener registered BEFORE the
+     *         mutation runs ahead of the driver-revocation callbacks the mutation
+     *         itself registers, so the revocations would never run at all.
      * @param  bool  $throwsAfterCompanions  fail AFTER the companion mutations have
      *         committed. The revoking twin has no equivalent because revoke() is
      *         called inside a transaction the service owns; the non-replacing
@@ -77,6 +82,7 @@ final class CompanionRetiringFactor implements Factor
         private readonly Factor $inner,
         private readonly array $companions,
         private readonly bool $throwsAfterCompanions = false,
+        private readonly ?Closure $afterCompanions = null,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -118,6 +124,10 @@ final class CompanionRetiringFactor implements Factor
                     return null;
                 },
             );
+        }
+
+        if ($this->afterCompanions instanceof Closure) {
+            ($this->afterCompanions)();
         }
 
         if ($this->throwsAfterCompanions) {
