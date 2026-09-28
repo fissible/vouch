@@ -75,7 +75,7 @@ function attemptSubjectLock(Connection $connection, SubjectKey $subject, array $
 
     try {
         $connection->statement(match ($connection->getDriverName()) {
-            'mysql', 'mariadb' => 'SET SESSION innodb_lock_wait_timeout = 1',
+            'mysql' => 'SET SESSION innodb_lock_wait_timeout = 1',
             'pgsql' => "SET LOCAL lock_timeout = '1s'",
             // SQLite has no per-statement lock timeout; it inherits the
             // connection's busy timeout, which is already bounded.
@@ -112,7 +112,7 @@ function attemptSubjectLock(Connection $connection, SubjectKey $subject, array $
         // MySQL's setting is SESSION-scoped and these named connections are
         // reused across tests, so leaving it at 1 would silently shorten every
         // later lock wait on the same connection.
-        if (in_array($connection->getDriverName(), ['mysql', 'mariadb'], true)) {
+        if ($connection->getDriverName() === 'mysql') {
             $connection->statement('SET SESSION innodb_lock_wait_timeout = DEFAULT');
         }
     }

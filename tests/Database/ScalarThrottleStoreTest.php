@@ -373,7 +373,7 @@ it('fails closed when a threshold counter has no lock record', function (): void
 it('fails closed on a persisted negative throttle count where the engine permits one', function (): void {
     $subject = scalarThrottleSubject();
 
-    if (in_array(DB::connection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+    if (DB::connection()->getDriverName() === 'mysql') {
         expect(fn (): bool => DB::table('auth_throttle_counters')->insert([
             'dimension' => $subject->dimension->value,
             'subject_digest' => $subject->digest,

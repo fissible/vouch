@@ -6,6 +6,7 @@ namespace Fissible\Vouch\Identifiers;
 
 use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 use Illuminate\Database\Connection;
+use InvalidArgumentException;
 use stdClass;
 
 /**
@@ -568,14 +569,27 @@ final readonly class IdentifierEqualityUpgrade
                  * restated here or a conversion silently widens what an
                  * identifier column accepts.
                  */
-                $clauses[] = $driver === 'mysql'
-                    ? sprintf(
+                /*
+                 * Named drivers, with a refusal for anything else. A ternary sent
+                 * every non-MySQL driver down the PostgreSQL branch, so a host on
+                 * MariaDB -- which Laravel reports as its own driver name -- was
+                 * handed `alter column ... type ... collate "C"`: syntax MariaDB does
+                 * not accept, naming a collation it does not have. An engine this
+                 * package has never tested should be told so, not guessed at.
+                 */
+                $clauses[] = match ($driver) {
+                    'mysql' => sprintf(
                         'modify %s varchar(%d) character set utf8mb4 collate %s not null',
                         $column,
                         $length,
                         self::MYSQL_COLLATION,
-                    )
-                    : sprintf('alter column %s type varchar(%d) collate "C"', $column, $length);
+                    ),
+                    'pgsql' => sprintf('alter column %s type varchar(%d) collate "C"', $column, $length),
+                    default => throw new InvalidArgumentException(
+                        'Vouch cannot install a deterministic identifier collation on driver "'
+                        . $driver . '". Supported engines are MySQL, PostgreSQL and SQLite.',
+                    ),
+                };
             }
 
             $connection->statement(sprintf(
@@ -594,9 +608,14 @@ final readonly class IdentifierEqualityUpgrade
     /** Quoting needs the driver rather than the instance: installCollation() is static. */
     private static function quoted(Connection $connection, string $identifier): string
     {
-        return $connection->getDriverName() === 'mysql'
-            ? '`' . $identifier . '`'
-            : '"' . $identifier . '"';
+        return match ($connection->getDriverName()) {
+            'mysql' => '`' . $identifier . '`',
+            // SQLite and PostgreSQL both accept the SQL-standard double quote.
+            'pgsql', 'sqlite' => '"' . $identifier . '"',
+            default => throw new InvalidArgumentException(
+                'Vouch cannot quote an identifier for driver "' . $connection->getDriverName() . '".',
+            ),
+        };
     }
 
     private function text(stdClass $row, string $column): string

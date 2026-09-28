@@ -145,7 +145,7 @@ final class IssuanceSessionDurabilityTest extends TestCase
 
             try {
                 $revoker->statement(match ($revoker->getDriverName()) {
-                    'mysql', 'mariadb' => 'SET SESSION innodb_lock_wait_timeout = 1',
+                    'mysql' => 'SET SESSION innodb_lock_wait_timeout = 1',
                     'pgsql' => "SET LOCAL lock_timeout = '1s'",
                     default => 'SELECT 1',
                 });
@@ -165,7 +165,7 @@ final class IssuanceSessionDurabilityTest extends TestCase
                     throw $exception;
                 }
             } finally {
-                if (in_array($revoker->getDriverName(), ['mysql', 'mariadb'], true)) {
+                if ($revoker->getDriverName() === 'mysql') {
                     $revoker->statement('SET SESSION innodb_lock_wait_timeout = DEFAULT');
                 }
             }
