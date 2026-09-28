@@ -1054,8 +1054,8 @@ it('keeps a driver diagnostic out of what a multi-mutation enrollment hands back
         ->and(print_r($result, true))->not->toContain(RESIDUAL_SENTINEL);
 })->with([
     // One path that routes through mutateCredentials() and one that returns before
-    // it. That split is structural; whether either wraps the factor call in a
-    // transaction is an implementation choice these tests deliberately do not pin.
+    // it -- a structural split. Neither dataset depends on a transaction being
+    // wrapped around the factor call; the identity travels the same way either way.
     'changePassword',
     'addFactor adding',
 ]);
@@ -1128,7 +1128,9 @@ it('reports every companion and still excludes a nested observer during an enrol
     // Both sides of the same structural split: through mutateCredentials() and
     // returning before it. The exclusion holds by mutation nesting depth, which
     // counts CredentialMutation frames only -- so it is transaction-independent by
-    // construction, and neither dataset may depend on a transaction being there.
+    // construction, and neither of these datasets depends on a transaction being
+    // wrapped around the factor call. The failed-enrollment test at the end of this
+    // file is the one test here that does, and it names that dependency itself.
     'changePassword',
     'addFactor adding',
 ]);
@@ -1253,11 +1255,23 @@ it('reports a committed mutation\'s driver failure when the enrollment then fail
      * CredentialChangeFailed carrying the pre-pass failures rather than an empty
      * list, for the same reason. A refusal is not evidence that nothing happened.
      *
-     * Note what this test does NOT assert: the credential the inner driver created
-     * before the failure survives the Refused, because this branch has no
-     * transaction to roll it back. That is a separate defect from #77's reporting
-     * gap, and pinning today's behaviour either way here would be asserting
-     * something this change has no opinion about.
+     * One dead end worth naming, because the failure message here will not: the
+     * caller's collection has to survive the factor's throw. collect() RETHROWS, so
+     * a scope the exception escapes never returns its report at all -- the report
+     * must be reachable from the failure path, whether by catching inside the
+     * collected closure or by holding the report before the write begins.
+     *
+     * This test DEPENDS on that branch wrapping the factor call in no transaction,
+     * and says so rather than leaving it implicit. With a transaction there the
+     * companion mutation would roll back, afterCommit would never run, and nothing
+     * would be stranded at the issuer -- so the scenario becomes unreachable and
+     * this test should be RETIRED rather than made to pass.
+     *
+     * That is not hypothetical: adding the transaction is one of the two fixes
+     * proposed for #79, the credential the inner driver created before the failure
+     * surviving the Refused. This test takes no position on #79 -- it asserts
+     * nothing about that credential -- but whoever closes #79 by adding the
+     * transaction should delete this test in the same change and say why.
      */
     $factor = residualRetiringFactor('addFactor adding', [[$companion->id, 'late-companion']], throwsAfterCompanions: true);
     residualRegistry($factor);
