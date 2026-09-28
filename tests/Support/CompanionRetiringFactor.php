@@ -16,6 +16,7 @@ use Fissible\Vouch\Kernel\Factor\FactorStrength;
 use Fissible\Vouch\Models\AuthChallenge;
 use Fissible\Vouch\Models\AuthCredential;
 use Fissible\Vouch\Tokens\SubjectKey;
+use RuntimeException;
 
 /**
  * A host factor whose enroll() performs more than one credential mutation.
@@ -66,11 +67,16 @@ final class CompanionRetiringFactor implements Factor
      * @param  list<array{id: int, before: ?Closure}>  $companions  each retired in
      *         its own mutation, with `before` run immediately before it -- the hook
      *         a test uses to create a proof only that mutation can withdraw.
+     * @param  bool  $throwsAfterCompanions  fail AFTER the companion mutations have
+     *         committed. The revoking twin has no equivalent because revoke() is
+     *         called inside a transaction the service owns; the non-replacing
+     *         addFactor() branch wraps the factor call in nothing, so a mutation
+     *         there survives the driver's own later failure.
      */
     public function __construct(
         private readonly Factor $inner,
         private readonly array $companions,
-        private readonly int $userId = 1,
+        private readonly bool $throwsAfterCompanions = false,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -96,7 +102,7 @@ final class CompanionRetiringFactor implements Factor
              * predecessor does.
              */
             app(CredentialMutation::class)->revoking(
-                SubjectKey::forConfiguredUser($this->userId),
+                SubjectKey::forConfiguredUser($userId),
                 [(string) $id],
                 static function () use ($id): null {
                     /*
@@ -112,6 +118,10 @@ final class CompanionRetiringFactor implements Factor
                     return null;
                 },
             );
+        }
+
+        if ($this->throwsAfterCompanions) {
+            throw new RuntimeException('Enrollment failed after its companion mutations committed.');
         }
 
         return $enrollment;

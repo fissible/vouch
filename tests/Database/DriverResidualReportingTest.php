@@ -22,6 +22,7 @@ use Fissible\Vouch\Tests\Support\CompanionRetiringFactor;
 use Fissible\Vouch\Tests\Support\CompanionRevokingFactor;
 use Fissible\Vouch\Tests\Support\InterceptingFactor;
 use Fissible\Vouch\Tests\Support\InterceptingPasswordFactor;
+use Fissible\Vouch\Tests\Support\SelfReportingFactor;
 use Fissible\Vouch\Tests\Support\Tokens\RecordingIssuer;
 use Fissible\Vouch\Tokens\ActorKind;
 use Fissible\Vouch\Tokens\SubjectKey;
@@ -847,11 +848,22 @@ function residualInnerFactor(string $path): Factor
 /**
  * A credential type for companions that the path's own enrollment cannot touch.
  *
- * Deliberately never the type being enrolled. PasswordFactor and TotpFactor cap
- * active credentials at 1 and EnrollmentGuard checks that as a POST-condition over
- * the whole serialized write -- so a companion of the enrolled type is still active
- * when the count is taken, and the enrollment is refused for capacity before any of
- * this file's reporting is reachable. That refusal reads as "the fix is wrong".
+ * Deliberately never the type being enrolled, for two different reasons measured
+ * separately.
+ *
+ * On the NON-REPLACING path it is load-bearing: TotpFactor caps active credentials
+ * at 1, EnrollmentGuard checks that as a POST-condition over the whole serialized
+ * write, and an additive enrollment disables nothing -- so a companion of the
+ * enrolled type is still active when the count is taken and the enrollment is
+ * refused for capacity, which reads as "the fix is wrong".
+ *
+ * On the REPLACING paths capacity does not bite: those drivers open their write
+ * with a mass `update(['disabled_at' => ...])` over every active row of the type,
+ * companions included, so the count finds them already retired. The separation
+ * still matters there, because a companion the driver has already disabled makes
+ * the companion mutation's own write a no-op -- the mutation would still run and
+ * still withdraw the proof it names, but the fixture would no longer be modelling
+ * a factor retiring a credential of its own.
  */
 function residualCompanionType(string $path): string
 {
@@ -909,7 +921,7 @@ function residualEnroll(string $path): SelfServiceResult
  *
  * @param  list<array{0: int, 1: string}>  $companions  credential id, token key
  */
-function residualRetiringFactor(string $path, array $companions): CompanionRetiringFactor
+function residualRetiringFactor(string $path, array $companions, bool $throwsAfterCompanions = false): CompanionRetiringFactor
 {
     $type = residualCompanionType($path);
     $retiring = [];
@@ -920,7 +932,7 @@ function residualRetiringFactor(string $path, array $companions): CompanionRetir
         }];
     }
 
-    return new CompanionRetiringFactor(residualInnerFactor($path), $retiring);
+    return new CompanionRetiringFactor(residualInnerFactor($path), $retiring, $throwsAfterCompanions);
 }
 
 /* ---- shape one: every mutation an enrollment performs must report ------ */
@@ -1022,6 +1034,15 @@ it('keeps a driver diagnostic out of what a multi-mutation enrollment hands back
     $result = residualEnroll($path);
 
     /*
+     * Premises first, as everywhere else in this file. Without them a capacity
+     * refusal on the additive path -- the fragility residualCompanionType()
+     * describes -- arrives as an empty identity list, which reads as "the
+     * reporting channel is dead" when the truth is that no enrollment happened.
+     */
+    expect($result->outcome)->toBe(SelfServiceOutcome::Completed);
+    expect($factor->mutated)->toBe([$companion->id], 'the companion mutation should have run');
+
+    /*
      * Identities only, through every route a caller could read the result by.
      * print_r and json_encode both, because they disagree: json_encode consults
      * JsonSerializable and print_r does not, so a diagnostic hidden from one can
@@ -1032,7 +1053,9 @@ it('keeps a driver diagnostic out of what a multi-mutation enrollment hands back
         ->and(json_encode($result, JSON_THROW_ON_ERROR))->not->toContain(RESIDUAL_SENTINEL)
         ->and(print_r($result, true))->not->toContain(RESIDUAL_SENTINEL);
 })->with([
-    // One path that wraps the factor call in a transaction and one that does not.
+    // One path that routes through mutateCredentials() and one that returns before
+    // it. That split is structural; whether either wraps the factor call in a
+    // transaction is an implementation choice these tests deliberately do not pin.
     'changePassword',
     'addFactor adding',
 ]);
@@ -1102,12 +1125,52 @@ it('reports every companion and still excludes a nested observer during an enrol
     expect(residualPairs($result->driverFailures))
         ->toBe([['sanctum', 'late-first'], ['sanctum', 'late-second']]);
 })->with([
-    // With and without a transaction around the factor call: the discriminator is
-    // deliberately not transaction level, and the non-replacing path is the one
-    // where a transaction-level discriminator would behave differently.
+    // Both sides of the same structural split: through mutateCredentials() and
+    // returning before it. The exclusion holds by mutation nesting depth, which
+    // counts CredentialMutation frames only -- so it is transaction-independent by
+    // construction, and neither dataset may depend on a transaction being there.
     'changePassword',
     'addFactor adding',
 ]);
+
+it('reports what the driver itself recorded alongside what the caller collected', function (): void {
+    residualUser();
+
+    $companion = lateCredential(residualCompanionType('changePassword'), 'companion-only');
+
+    $issuer = residualIssuer(['late-companion']);
+
+    /*
+     * Two channels, and both must be read.
+     *
+     * 'late-companion' can only be learned on the CALLER's side: it is a failure
+     * from the factor's second mutation, which the factor cannot put in the result
+     * it returns. 'driver-side' can only be learned from the DRIVER's report: it
+     * stands for a revocation the factor performed at its own issuer, outside
+     * CredentialMutation, so no scope the service opens can observe it.
+     *
+     * Nothing else in this suite separates a caller that MERGES the driver's report
+     * from one that replaces it with its own -- measured: an implementation that
+     * ignores EnrollmentResult::$driverFailures entirely passes every other test in
+     * the package. That would silently retire a public channel, since both
+     * EnrollmentResult's report argument and CredentialDriverFailureReport::record()
+     * are API a host driver is meant to use.
+     */
+    $retiring = residualRetiringFactor('changePassword', [[$companion->id, 'late-companion']]);
+    $factor = new SelfReportingFactor($retiring, [['sanctum', 'driver-side']]);
+    residualRegistry($factor);
+
+    $result = residualEnroll('changePassword');
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::Completed);
+    expect($retiring->mutated)->toBe([$companion->id], 'the companion mutation should have run');
+    expect($issuer->attempted)->toContain('late-companion');
+    expect(DB::table('auth_token_assurances')->where('token_key', 'late-companion')->exists())->toBeFalse();
+
+    // Both, de-duplicated and sorted. Either one alone is a channel gone silent.
+    expect(residualPairs($result->driverFailures))
+        ->toBe([['sanctum', 'driver-side'], ['sanctum', 'late-companion']]);
+});
 
 /* ---- shape two: the non-replacing addFactor branch reported nothing --- */
 
@@ -1169,4 +1232,51 @@ it('reports nothing from an enrollment whose driver revocations all succeeded', 
     expect(DB::table('auth_token_assurances')->where('token_key', 'late')->exists())->toBeFalse();
 
     expect($result->driverFailures)->toBe([]);
+});
+
+it('reports a committed mutation\'s driver failure when the enrollment then failed', function (): void {
+    residualUser();
+
+    $companion = lateCredential(residualCompanionType('addFactor adding'), 'companion-only');
+
+    $issuer = residualIssuer(['late-companion']);
+
+    /*
+     * The failure path of the same branch. addFactor() without `replace` wraps the
+     * factor call in no transaction of its own, so a mutation the factor completed
+     * has already COMMITTED -- and its driver revocation has already been attempted
+     * and already failed -- by the time the factor fails for its own reasons. The
+     * branch turns that into a bare Refused, so the identity is lost on exactly the
+     * path where the caller is least likely to go looking for it.
+     *
+     * mutateCredentials() already holds the other half of this: its catch returns
+     * CredentialChangeFailed carrying the pre-pass failures rather than an empty
+     * list, for the same reason. A refusal is not evidence that nothing happened.
+     *
+     * Note what this test does NOT assert: the credential the inner driver created
+     * before the failure survives the Refused, because this branch has no
+     * transaction to roll it back. That is a separate defect from #77's reporting
+     * gap, and pinning today's behaviour either way here would be asserting
+     * something this change has no opinion about.
+     */
+    $factor = residualRetiringFactor('addFactor adding', [[$companion->id, 'late-companion']], throwsAfterCompanions: true);
+    residualRegistry($factor);
+
+    $result = residualEnroll('addFactor adding');
+
+    /*
+     * Premises first, and they matter more than usual here: Refused is also what
+     * this branch returns for an unknown factor and for a factor that threw before
+     * doing anything, and in both of those an empty list is correct.
+     */
+    expect($result->outcome)->toBe(SelfServiceOutcome::Refused);
+    expect($factor->mutated)->toBe([$companion->id], 'the companion mutation should have run before the failure');
+    expect($issuer->attempted)->toContain('late-companion');
+    // Committed, despite the later failure -- the write is what makes the stranded
+    // token real rather than hypothetical.
+    expect(AuthCredential::query()->whereKey($companion->id)->whereNull('disabled_at')->exists())->toBeFalse();
+    expect(DB::table('auth_token_assurances')->where('token_key', 'late-companion')->exists())->toBeFalse();
+
+    expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'late-companion']]);
+    expect(print_r($result, true))->not->toContain(RESIDUAL_SENTINEL);
 });
