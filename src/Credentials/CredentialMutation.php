@@ -72,9 +72,11 @@ final readonly class CredentialMutation
          */
         $result = new CredentialMutationResult;
 
-        // Bind before the writer can enter another mutation. Capture the
-        // channels now because their scope may end before the outer commit.
-        $reports = $this->failureCollector->reportsFor($this->connection, $result->report);
+        // Asked before this mutation marks itself in flight, so it is not
+        // counted among the mutations enclosing it. Captured now rather than
+        // read later because a collection's scope may end before the outer
+        // commit that runs the driver work.
+        $reports = $this->failureCollector->reportsFor($this->connection);
 
         $mutate = function () use ($subject, $credentialIds, $subjectWide, $write, $result, $reports): array {
             $this->locks->acquire($this->connection, $subject, $credentialIds);
@@ -159,10 +161,20 @@ final readonly class CredentialMutation
             return $revoked;
         };
 
-        /** @var list<object{issuer_key: string, token_key: string}> $revoked */
-        $revoked = $this->connection->transactionLevel() === 0
-            ? $this->connection->transaction($mutate)
-            : $mutate();
+        /*
+         * In flight for the whole body, so a mutation started from inside this
+         * one -- an Eloquent observer on the row being disabled, a
+         * beforeExecuting hook -- is distinguishable from the caller's own next
+         * mutation, which begins only after this returns.
+         */
+        $revoked = $this->failureCollector->during($this->connection, function () use ($mutate): array {
+            /** @var list<object{issuer_key: string, token_key: string}> $revoked */
+            $revoked = $this->connection->transactionLevel() === 0
+                ? $this->connection->transaction($mutate)
+                : $mutate();
+
+            return $revoked;
+        });
 
         $result->revoked = count($revoked);
 
