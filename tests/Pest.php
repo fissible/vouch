@@ -825,3 +825,37 @@ function doctorMissingCount(): int
 
     return $missing;
 }
+
+/**
+ * Run a script in a fresh interpreter under a memory limit, and report what happened.
+ *
+ * @return array{status: int, output: string, errors: string}
+ */
+function phpUnderMemoryLimit(string $limit, string ...$arguments): array
+{
+    $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+
+    /*
+     * Appended rather than spread or merged: both of those widen the key type past
+     * what proc_open declares, and the alternative is an annotation this project
+     * forbids.
+     */
+    $command = [PHP_BINARY, '-d', 'memory_limit=' . $limit];
+
+    foreach ($arguments as $argument) {
+        $command[] = $argument;
+    }
+
+    $process = proc_open($command, $descriptors, $pipes);
+
+    if (! is_resource($process)) {
+        throw new RuntimeException('Could not start a fresh interpreter.');
+    }
+
+    $output = (string) stream_get_contents($pipes[1]);
+    $errors = (string) stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+
+    return ['status' => proc_close($process), 'output' => $output, 'errors' => $errors];
+}

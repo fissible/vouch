@@ -643,3 +643,273 @@ it('reports collisions from every table that has them', function (): void {
 
     expect($tables)->toBe(['auth_identifiers', 'auth_recovery_proofs']);
 });
+
+/*
+ * #61. The scan read every row of every identifier table into PHP before
+ * deciding anything, so peak memory grew with the largest installation rather
+ * than with a working set. Measured on the array shape it built: 857 bytes per
+ * row, linear -- so roughly 157k auth_identifiers rows exhausted a 128 MB limit
+ * and a large host could not complete the upgrade at all.
+ *
+ * The two tests already in this file that bound statement counts say in their
+ * own comments that they do not bound this: "a scan held in PHP memory issues no
+ * statements at all". These are the other half.
+ *
+ * What makes chunking more than a loop change is the grouping. A group is the
+ * transitive closure of two relations -- rows sharing a canonical form, and rows
+ * the CURRENT collation already equates -- and a group can be reached through
+ * either. Chunk naively and one group becomes several, which does not report a
+ * smaller collision: it reports NO collision, converts rows that should have
+ * refused, and merges accounts. So the straddle fixtures below are the point of
+ * the issue rather than decoration.
+ *
+ * They place the colliding rows at opposite ends of a wide id range with filler
+ * between, rather than reading a chunk size from the implementation. That keeps
+ * them independent of how it chunks, at the cost of one stated assumption: a
+ * chunk larger than STRADDLE_GAP would hold the pair together and the test would
+ * still pass while proving less.
+ */
+
+const STRADDLE_GAP = 1200;
+
+/**
+ * Insert $count filler identifiers whose ids sit between two colliding rows.
+ *
+ * Batched, because these tests seed more rows than the rest of this file put
+ * together and a per-row insert makes them the slowest thing in the suite on
+ * MySQL. The values are already canonical, so the filler contributes no
+ * collisions and no rewrites of its own.
+ */
+function straddleFiller(int $count, int $firstUserId): void
+{
+    $now = (string) now();
+
+    foreach (array_chunk(range(0, $count - 1), 250) as $batch) {
+        $rows = [];
+
+        foreach ($batch as $offset) {
+            $rows[] = [
+                'user_id' => $firstUserId + $offset,
+                'type' => 'email',
+                'value' => sprintf('filler-%d@acme.example', $firstUserId + $offset),
+                'verified_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        DB::table('auth_identifiers')->insert($rows);
+    }
+}
+
+/**
+ * Insert $count filler proofs, so ids in the PROOF table are pushed apart.
+ *
+ * A separate helper rather than a parameter on the one above, because the two
+ * tables are what the distinction is about: filler in auth_identifiers does not
+ * move auth_recovery_proofs' ids at all, and a straddle test seeded with the
+ * wrong one quietly becomes a test of two adjacent rows. Measured -- that is
+ * exactly what the first version of the split tests below did, and the id
+ * premise is what caught it.
+ */
+function straddleProofFiller(int $count, int $offset): void
+{
+    $now = (string) now();
+    $expires = (string) now()->addMinutes(5);
+
+    foreach (array_chunk(range(0, $count - 1), 250) as $batch) {
+        $rows = [];
+
+        foreach ($batch as $index) {
+            $rows[] = [
+                'identifier_type' => 'email',
+                'identifier_value' => sprintf('proof-filler-%d@acme.example', $offset + $index),
+                'code_hash' => sprintf('hash-%d-%d', $offset, $index),
+                'is_decoy' => false,
+                'attempts' => 0,
+                'expires_at' => $expires,
+                'consumed_at' => $now,
+                'burned_at' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        DB::table('auth_recovery_proofs')->insert($rows);
+    }
+}
+
+/**
+ * Every row id any refusal named, sorted.
+ *
+ * @return list<int>
+ */
+function refusedIds(): array
+{
+    try {
+        runIdentifierMigration();
+
+        return [];
+    } catch (IdentifierCollisionsFound $refusal) {
+        $ids = [];
+
+        foreach ($refusal->groups as $group) {
+            $ids = array_merge($ids, $group->ids);
+        }
+
+        sort($ids);
+
+        return $ids;
+    }
+}
+
+it('closes a merge whose rows are a whole table apart', function (): void {
+    /*
+     * auth_identifiers stays on the deterministic collation so both spellings can
+     * be inserted -- under the legacy one its unique index rejects the second,
+     * which is what makes a merge constructible here and a split not.
+     */
+    revertToLegacyCollation(except: ['auth_identifiers']);
+
+    $first = rawIdentifier('Ada@Acme.Example', 1);
+    straddleFiller(STRADDLE_GAP, 100);
+    $second = rawIdentifier('ada@acme.example', 2);
+
+    /*
+     * The premise: the two really are far apart in id order, so any chunking
+     * smaller than the gap must reach across it to see them as one group.
+     */
+    expect($second - $first)->toBeGreaterThan(STRADDLE_GAP);
+
+    /*
+     * And the conclusion. A scan that lost the closure across chunks does not
+     * report a smaller collision here -- it reports NONE, and then canonicalizes
+     * two accounts' identifiers onto each other.
+     */
+    expect(refusedIds())->toBe([$first, $second]);
+});
+
+it('closes a split whose rows are a whole table apart', function (): void {
+    if (DB::connection()->getDriverName() !== 'mysql') {
+        $this->markTestSkipped('Only an accent-insensitive collation makes two spellings one address.');
+    }
+
+    revertToLegacyCollation();
+
+    /*
+     * The other relation, and the one no amount of PHP can discover: these two
+     * are one address to the current collation and two after the change. In a
+     * proof table because auth_identifiers' unique index rejects the second
+     * insert, and consumed so the refusal is about the split rather than about
+     * live-credential cleanup.
+     */
+    $first = rawProof("jos\u{e9}@acme.example", consumedAt: (string) now());
+    straddleProofFiller(STRADDLE_GAP, 100);
+    $second = rawProof('jose@acme.example', consumedAt: (string) now());
+
+    expect($second - $first)->toBeGreaterThan(STRADDLE_GAP);
+    // The premise: this engine really does consider them one address right now.
+    expect(DB::table('auth_recovery_proofs')->where('identifier_value', 'jose@acme.example')->count())->toBe(2);
+
+    expect(refusedIds())->toBe([$first, $second]);
+});
+
+it('closes a group it can only reach by following both relations across chunks', function (): void {
+    if (DB::connection()->getDriverName() !== 'mysql') {
+        $this->markTestSkipped('Only an accent-insensitive collation makes two spellings one address.');
+    }
+
+    revertToLegacyCollation();
+
+    /*
+     * Three rows, one group, and no single relation joins all three:
+     *
+     *   FIRST and SECOND share a canonical form  (Jose@... lowercases onto jose@...)
+     *   SECOND and THIRD share a loose class     (jose@... and josé@... under ai_ci)
+     *
+     * So FIRST reaches THIRD only by going canonical, then loose. A chunked scan
+     * that closes within a chunk and then merges results by either key alone
+     * splits this into two groups and reports the wrong rows; one that drops the
+     * closure entirely reports nothing at all. Each row is a full gap from the
+     * next, so no two of them can share a chunk.
+     */
+    $first = rawProof('Jose@acme.example', consumedAt: (string) now());
+    straddleProofFiller(STRADDLE_GAP, 1000);
+    $second = rawProof('jose@acme.example', consumedAt: (string) now());
+    straddleProofFiller(STRADDLE_GAP, 5000);
+    $third = rawProof("jos\u{e9}@acme.example", consumedAt: (string) now());
+
+    expect($second - $first)->toBeGreaterThan(STRADDLE_GAP);
+    expect($third - $second)->toBeGreaterThan(STRADDLE_GAP);
+
+    expect(refusedIds())->toBe([$first, $second, $third]);
+});
+
+it('keeps its statement count bounded when the table is large', function (): void {
+    /*
+     * A chunked scan buys bounded memory with statements, and nothing else stops
+     * it spending them a row at a time. The existing bound in this file is
+     * measured on forty rows, where a chunk of one is invisible; this one seeds
+     * enough that a degenerate chunk costs thousands of statements.
+     *
+     * Deliberately the same ceiling as the pairwise-detection test, because the
+     * claim is the same: the work is set-based, and a larger table does not buy
+     * proportionally more statements.
+     */
+    revertToLegacyCollation();
+    straddleFiller(STRADDLE_GAP, 100);
+
+    $queries = 0;
+    DB::listen(function () use (&$queries): void {
+        $queries++;
+    });
+
+    runIdentifierMigration();
+
+    expect($queries)->toBeLessThan(120);
+});
+
+it('decides in memory that does not grow with the table', function (): void {
+    /*
+     * The measurement the issue is about, and the only one of these tests that is
+     * red before the change. Ten thousand rows cost 22 MB under the scan that read
+     * them all -- 4 MB of baseline plus about 1.8 KB a row, linear and verified at
+     * 1k, 2k, 8k and 20k -- so a 16 MB limit refuses it. A scan that decides in
+     * chunks stays near its baseline whatever the row count.
+     *
+     * Ten thousand rather than the hundred thousand a real host has: the slope is
+     * linear, so the smallest count that clears the limit by a comfortable margin
+     * proves the same thing and costs the suite four seconds instead of a minute.
+     */
+    $result = phpUnderMemoryLimit(
+        '16M',
+        dirname(__DIR__) . '/Fixtures/identifier-upgrade-scan.php',
+        dirname(__DIR__, 2),
+        '10000',
+    );
+
+    expect($result['status'])->toBe(0, 'the upgrade must complete under a limit the old scan exhausted');
+    // The surviving row count, so an upgrade that "succeeded" by emptying the table
+    // or by refusing without working is a different answer rather than the same one.
+    expect(trim($result['output']))->toBe('10000');
+});
+
+it('is given a memory limit that actually bites', function (): void {
+    /*
+     * The positive control for the test above, and it is not ceremony: if the limit
+     * were not applied -- a php.ini that forbids overriding it, a wrapper that
+     * rewrites the flag -- then "the upgrade completed under 16M" would pass on a
+     * process with no limit at all, and the guard would be inert exactly when it
+     * mattered.
+     */
+    $result = phpUnderMemoryLimit(
+        '16M',
+        dirname(__DIR__) . '/Fixtures/identifier-upgrade-scan.php',
+        dirname(__DIR__, 2),
+        '0',
+        'control',
+    );
+
+    expect($result['status'])->not->toBe(0);
+    expect($result['errors'] . $result['output'])->toContain('Allowed memory size');
+});
