@@ -70,9 +70,12 @@ it('describes every prerequisite the doctor can report', function (): void {
 /**
  * The prerequisite names the operations table documents.
  *
- * Only the first column of the prerequisite table, and only its backticked names:
- * one row is prose ("Durable asynchronous queue") describing the `durable_queue`
- * check, so the names are read from the code spans an operator can search for.
+ * Read from the code spans in the first column, which is a REQUIREMENT rather than a
+ * tolerance: every row's name must be a code span, so that the name an operator
+ * reads in the document is the name the command prints and can be searched for. A
+ * row written as prose is invisible here and fails the comparison -- measured, and
+ * that is how the queue row was found describing itself as "Durable asynchronous
+ * queue" while the command printed `durable_queue`.
  *
  * @return list<string>
  */

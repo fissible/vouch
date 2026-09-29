@@ -39,15 +39,27 @@ uses(RefreshDatabase::class);
  * too -- CaptchaVerifier is a binding rather than a key, which is why it keeps its
  * contract name.
  *
- * ONE GAP NO TEST HERE CLOSES, said plainly rather than left to be discovered: a
- * FIFTH doctor-exempt boot check, added later with no row, would pass everything
- * below. Catching that means reading the provider's source and counting its
- * exemptions, and such a census is coupled to how the exemptions are spelled -- it
- * would fail against a refactor expressing them as one shared list, which is the
- * shape that would make drift impossible and is therefore the shape to encourage.
- * A guard that rejects the improvement it exists to promote is worse than none.
- * What IS guarded is the adjacent drift: DoctorPrerequisiteDocsTest requires
- * docs/operations.md and the reported rows to agree in both directions.
+ * THE DRIFT THAT MATTERS is not a fifth exempt check appearing without a row -- it
+ * is an existing check's PREDICATE changing while its row keeps the old one. Three
+ * of the four share their predicate with boot already, through
+ * IssuanceLockBucket::secret(), assertDeclared() and an instanceof. The attempt
+ * window is the one the report re-implements, and measured, adding a single clause
+ * to boot's version of it (`|| $ttl > 86400`) leaves every case below green while
+ * VOUCH_ATTEMPT_TTL=90000 refuses boot for every command but this one and the
+ * report calls that host healthy. That is #82 verbatim, reintroduced, with no new
+ * exemption anywhere -- so counting exemptions in the provider's source would not
+ * see it either, and such a census is coupled to how they are spelled: it fails
+ * against a refactor collapsing them into one list, which is a plausible shape,
+ * measured.
+ *
+ * So the guard below asserts the EQUIVALENCE instead of any spelling: for a range
+ * of values, the report says missing exactly when boot refuses. It reads no source
+ * and holds whatever either side is implemented as.
+ *
+ * What it does not cover, stated so the next reader knows: a fifth exempt check on
+ * a setting outside its value set. Only a report that evaluates the same predicate
+ * boot does closes both, which is why extracting the attempt window's predicate is
+ * worth more than any test here.
  *
  * A row is present exactly when its check runs: the attempt window and the
  * issuance secret are checked unconditionally, so they are always reported, while
@@ -323,3 +335,60 @@ it('boots the doctor itself on a configuration that refuses every other command'
         }
     }
 });
+
+/**
+ * Whether provider boot refuses the current configuration for an ordinary command.
+ *
+ * Under `vouch:other` argv, so the exemption is not in play: this is the question
+ * the report has to agree with.
+ */
+function bootRefusesHere(): bool
+{
+    $original = $_SERVER['argv'] ?? null;
+
+    try {
+        $_SERVER['argv'] = ['artisan', 'vouch:other'];
+
+        (new VouchServiceProvider(app()))->boot();
+
+        return false;
+    } catch (Throwable) {
+        return true;
+    } finally {
+        if ($original === null) {
+            unset($_SERVER['argv']);
+        } else {
+            $_SERVER['argv'] = $original;
+        }
+    }
+}
+
+it('reports the attempt window missing exactly when boot refuses it', function (mixed $value): void {
+    /*
+     * The one exempt check whose predicate the report re-implements, so the one place
+     * the two can disagree without anybody adding an exemption. Asserted as an
+     * equivalence over a range of values rather than as two separate truths, because
+     * what went wrong in #82 -- and what a tightened predicate would repeat -- is the
+     * two sides disagreeing, not either being wrong in isolation.
+     *
+     * 86400 and 90000 are here for that reason and no other: both are accepted today,
+     * so both are `pass` on either side, and a bound introduced at boot on one of them
+     * shows up as a disagreement immediately.
+     *
+     * This assertion alone would be satisfied by two sides that are wrong in the SAME
+     * way -- it says they agree, not that they are right. The cases above are what
+     * pin the values each must refuse.
+     */
+    Config::set('vouch.attempts.ttl_seconds', $value);
+
+    expect(doctorStatus('vouch.attempts.ttl_seconds') === 'missing')->toBe(bootRefusesHere());
+})->with([
+    'zero' => [0],
+    'a negative' => [-1],
+    'a numeric string' => ['600'],
+    'null' => [null],
+    'the shipped default' => [600],
+    'the smallest usable window' => [1],
+    'a day' => [86400],
+    'longer than a day' => [90000],
+]);
