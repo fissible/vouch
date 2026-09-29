@@ -48,7 +48,7 @@ use Fissible\Vouch\Delivery\SmsIdentifierAudit;
 use Fissible\Vouch\Delivery\UnconfiguredCaptchaVerifier;
 use Fissible\Vouch\Delivery\UnconfiguredDeliveryEconomics;
 use Fissible\Vouch\Support\BoundedLockWait;
-use Fissible\Vouch\Support\ConfigurationError;
+use Fissible\Vouch\Support\AttemptWindow;
 use Fissible\Vouch\Support\IssuanceLockBucket;
 use Fissible\Vouch\Support\LockContention;
 use Fissible\Vouch\Support\SystemClock;
@@ -527,13 +527,16 @@ final class VouchServiceProvider extends ServiceProvider
          * and forget only AuthFlow; caching the TTL here broke six of them.
          * DatabaseTime keeps its own guard for callers outside configuration.
          * Doctor must still boot so an operator can diagnose misconfiguration.
+         *
+         * #82. The condition lives in AttemptWindow::seconds() rather than inline
+         * here, because the doctor's row for this setting has to say missing exactly
+         * when this call refuses. Written twice they drift, and measured, a single
+         * extra clause on this side left the whole suite green while the exempt
+         * command reported a host it had just refused as healthy. The other three
+         * exempt checks below already share one predicate with their row.
          */
         if (! $this->isDoctorCommand()) {
-            $attemptTtl = config('vouch.attempts.ttl_seconds');
-
-            if (! is_int($attemptTtl) || $attemptTtl < 1) {
-                throw ConfigurationError::positiveInteger($attemptTtl, 'vouch.attempts.ttl_seconds');
-            }
+            AttemptWindow::seconds();
         }
 
         /*

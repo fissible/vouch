@@ -206,9 +206,12 @@ aggregate readiness only and never accepts an identifier argument.
 |---|---|
 | `verified_at` | Use the identifier verification ceremony (`IdentifierVerifier`) to prove control of the identifier and establish `verified_at`. Do not set it merely because the host has collected an identifier value. |
 | `OtpDelivery` | Bind a real `OtpDelivery` implementation that can deliver OTPs. |
-| Durable asynchronous queue | Configure the `OtpDelivery` to use a durable asynchronous queue connection and run its worker. This is separate from binding the delivery implementation; a bound provider on `QUEUE_CONNECTION=sync` is still rejected. |
+| `durable_queue` | Configure the `OtpDelivery` to use a durable asynchronous queue connection and run its worker. This is separate from binding the delivery implementation; a bound provider on `QUEUE_CONNECTION=sync` is still rejected. |
 | `DeliveryEconomics` | Bind a real `DeliveryEconomics` implementation. |
 | `CaptchaVerifier` | Only when `vouch.throttle.captcha.enabled` is true, bind a real `CaptchaVerifier` implementation. |
+| `vouch.attempts.ttl_seconds` | Set `VOUCH_ATTEMPT_TTL` to a positive whole number of seconds, or leave it unset for the shipped 600. A blank value casts to zero, and an edited config that drops the `(int)` cast yields the string `"600"`; both are rejected, and both otherwise fail every login at request time. |
+| `vouch.issuance_locks.secret` | Set `VOUCH_ISSUANCE_LOCKS_SECRET` to at least 32 bytes of dedicated random material — not `APP_KEY`, whose rotation must stay survivable. The package ships no default, because a shared one would give every installation the same derivable bucket mapping. |
+| `vouch.declared_abilities` | Only when `vouch.assurance_strict` is true, list every ability named as a key in `vouch.assurance_requirements`. An undeclared mapped ability is usually a typo, which leaves the intended policy unreachable. |
 
 ## OTP worker and one-minute maintenance
 
