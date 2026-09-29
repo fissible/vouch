@@ -1241,64 +1241,25 @@ it('reports nothing from an enrollment whose driver revocations all succeeded', 
     expect($result->driverFailures)->toBe([]);
 });
 
-it('reports a committed mutation\'s driver failure when the enrollment then failed', function (): void {
-    residualUser();
-
-    $companion = lateCredential(residualCompanionType('addFactor adding'), 'companion-only');
-
-    $issuer = residualIssuer(['late-companion']);
-
-    /*
-     * The failure path of the same branch. addFactor() without `replace` wraps the
-     * factor call in no transaction of its own, so a mutation the factor completed
-     * has already COMMITTED -- and its driver revocation has already been attempted
-     * and already failed -- by the time the factor fails for its own reasons. The
-     * branch turns that into a bare Refused, so the identity is lost on exactly the
-     * path where the caller is least likely to go looking for it.
-     *
-     * mutateCredentials() already holds the other half of this: its catch returns
-     * CredentialChangeFailed carrying the pre-pass failures rather than an empty
-     * list, for the same reason. A refusal is not evidence that nothing happened.
-     *
-     * One dead end worth naming, because the failure message here will not: the
-     * caller's collection has to survive the factor's throw. collect() RETHROWS, so
-     * a scope the exception escapes never returns its report at all -- the report
-     * must be reachable from the failure path, whether by catching inside the
-     * collected closure or by holding the report before the write begins.
-     *
-     * This test DEPENDS on that branch wrapping the factor call in no transaction,
-     * and says so rather than leaving it implicit. With a transaction there the
-     * companion mutation would roll back, afterCommit would never run, and nothing
-     * would be stranded at the issuer -- so the scenario becomes unreachable and
-     * this test should be RETIRED rather than made to pass.
-     *
-     * That is not hypothetical: adding the transaction is one of the two fixes
-     * proposed for #79, the credential the inner driver created before the failure
-     * surviving the Refused. This test takes no position on #79 -- it asserts
-     * nothing about that credential -- but whoever closes #79 by adding the
-     * transaction should delete this test in the same change and say why.
-     */
-    $factor = residualRetiringFactor('addFactor adding', [[$companion->id, 'late-companion']], throwsAfterCompanions: true);
-    residualRegistry($factor);
-
-    $result = residualEnroll('addFactor adding');
-
-    /*
-     * Premises first, and they matter more than usual here: Refused is also what
-     * this branch returns for an unknown factor and for a factor that threw before
-     * doing anything, and in both of those an empty list is correct.
-     */
-    expect($result->outcome)->toBe(SelfServiceOutcome::Refused);
-    expect($factor->mutated)->toBe([$companion->id], 'the companion mutation should have run before the failure');
-    expect($issuer->attempted)->toContain('late-companion');
-    // Committed, despite the later failure -- the write is what makes the stranded
-    // token real rather than hypothetical.
-    expect(AuthCredential::query()->whereKey($companion->id)->whereNull('disabled_at')->exists())->toBeFalse();
-    expect(DB::table('auth_token_assurances')->where('token_key', 'late-companion')->exists())->toBeFalse();
-
-    expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'late-companion']]);
-    expect(print_r($result, true))->not->toContain(RESIDUAL_SENTINEL);
-});
+/*
+ * RETIRED by #79, which is what this test said should happen to it.
+ *
+ * It asserted that a mutation the factor completed before failing had its driver
+ * failure reported, and it depended on addFactor()'s non-replacing branch wrapping
+ * the factor call in no transaction -- which is exactly the defect #79 names. With
+ * that transaction in place the mutation rolls back, afterCommit never runs, no
+ * token is stranded at any issuer, and the scenario is unreachable rather than
+ * wrong. Measured: adding the transaction left every other case in this file green
+ * and failed this one at a PREMISE, its issuer never having been asked.
+ *
+ * So the reporting it checked is not lost, it is moot: there is nothing to report.
+ * CredentialSelfServiceTest holds the replacement contract -- nothing the driver
+ * wrote survives, and the caller can retry the same call.
+ *
+ * The test below is NOT the same case and stays. Its trigger is an afterCommit
+ * listener, which runs past the point a transaction can undo, so its committed
+ * state is real and still has to be reported. That gap on this branch is #84.
+ */
 
 it('reports a committed mutation\'s driver failure when a post-commit listener then failed', function (): void {
     residualUser();
