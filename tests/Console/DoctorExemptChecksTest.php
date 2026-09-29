@@ -39,6 +39,16 @@ uses(RefreshDatabase::class);
  * too -- CaptchaVerifier is a binding rather than a key, which is why it keeps its
  * contract name.
  *
+ * ONE GAP NO TEST HERE CLOSES, said plainly rather than left to be discovered: a
+ * FIFTH doctor-exempt boot check, added later with no row, would pass everything
+ * below. Catching that means reading the provider's source and counting its
+ * exemptions, and such a census is coupled to how the exemptions are spelled -- it
+ * would fail against a refactor expressing them as one shared list, which is the
+ * shape that would make drift impossible and is therefore the shape to encourage.
+ * A guard that rejects the improvement it exists to promote is worse than none.
+ * What IS guarded is the adjacent drift: DoctorPrerequisiteDocsTest requires
+ * docs/operations.md and the reported rows to agree in both directions.
+ *
  * A row is present exactly when its check runs: the attempt window and the
  * issuance secret are checked unconditionally, so they are always reported, while
  * the CAPTCHA verifier and the strict-assurance map are checked only when their
@@ -51,15 +61,26 @@ uses(RefreshDatabase::class);
  *
  * Keyed by the row name, so a case cannot drift from the setting it configures.
  */
-function refuseExemptCheck(string $prerequisite): void
+function refuseExemptCheck(string $prerequisite, bool $secondSpelling = false): void
 {
     match ($prerequisite) {
-        // Zero, which is also what a set-but-blank VOUCH_ATTEMPT_TTL becomes.
-        'vouch.attempts.ttl_seconds' => Config::set('vouch.attempts.ttl_seconds', 0),
-        // Absent rather than short: the package ships no default, so this is the
-        // state a host that never set it is actually in.
-        'vouch.issuance_locks.secret' => Config::set('vouch.issuance_locks.secret', null),
-        'vouch.assurance_strict' => (function (): void {
+        /*
+         * Zero -- which is also what a set-but-blank VOUCH_ATTEMPT_TTL becomes -- or
+         * the STRING "600". Both are refused at boot, and the second spelling is not
+         * decoration: boot's condition is `! is_int($ttl) || $ttl < 1`, and zero fails
+         * both halves at once, so a row that checked only positivity would report a
+         * published config whose (int) cast was edited away as passing. That spelling
+         * is what `vendor:publish --tag=vouch-config` hands an operator to edit.
+         */
+        'vouch.attempts.ttl_seconds' => Config::set('vouch.attempts.ttl_seconds', $secondSpelling ? '600' : 0),
+        /*
+         * Absent, or present and too short. IssuanceLockBucket::secret() has two
+         * refusal branches and a row that only checked presence would call
+         * VOUCH_ISSUANCE_LOCKS_SECRET=x a pass -- reachable straight from .env, since
+         * that config entry is a bare env() with no cast and no default.
+         */
+        'vouch.issuance_locks.secret' => Config::set('vouch.issuance_locks.secret', $secondSpelling ? 'x' : null),
+        'vouch.declared_abilities' => (function (): void {
             Config::set('vouch.assurance_strict', true);
             Config::set('vouch.declared_abilities', ['invoices.approve']);
             Config::set('vouch.assurance_requirements', ['invoices.aprove' => 'aal2']);
@@ -119,27 +140,59 @@ it('reports a row for each boot check it is exempt from', function (): void {
      * verifier nobody enabled, or a strict map nobody turned on, would tell an
      * operator their configuration was checked when it was not.
      */
+    /*
+     * The shipped rows keep their positions. Two tests in VouchDoctorCommandTest
+     * index into this list -- [0] and [2] -- so prepending the new rows instead of
+     * appending them breaks them with nothing but "two arrays are identical" to go
+     * on. Stated here, where the row set is specified, rather than left to be
+     * rediscovered from that message.
+     */
+    expect(array_slice(array_keys($rows), 0, 4))
+        ->toBe(['verified_at', 'OtpDelivery', 'durable_queue', 'DeliveryEconomics']);
+
     expect($rows)->not->toHaveKey('CaptchaVerifier');
-    expect($rows)->not->toHaveKey('vouch.assurance_strict');
+    expect($rows)->not->toHaveKey('vouch.declared_abilities');
 });
 
 /* ---- and when it is ---------------------------------------------------- */
 
-it('marks an exempt check missing when boot would refuse it', function (string $prerequisite): void {
-    // The premise: this row is not already missing, so the change below is caused
-    // by the configuration and not by the fixture's starting state.
-    expect(doctorStatus($prerequisite))->not->toBe('missing');
+it('marks an exempt check missing when boot would refuse it', function (string $prerequisite, bool $reportedWhenHealthy): void {
+    /*
+     * The premise, stated per case rather than uniformly, because the two are
+     * different claims. The unconditional checks start REPORTED AND PASSING, so the
+     * assertion below is a change of status. The feature-gated ones start ABSENT,
+     * and `expect(null)->not->toBe('missing')` would hold trivially -- saying so
+     * rather than letting one line stand in for both.
+     */
+    expect(doctorStatus($prerequisite))->toBe($reportedWhenHealthy ? 'pass' : null);
 
     refuseExemptCheck($prerequisite);
 
     expect(doctorStatus($prerequisite))->toBe('missing');
 })->with([
-    'the attempt window' => ['vouch.attempts.ttl_seconds'],
-    'the issuance mutex secret' => ['vouch.issuance_locks.secret'],
-    'the strict assurance map' => ['vouch.assurance_strict'],
+    'the attempt window' => ['vouch.attempts.ttl_seconds', true],
+    'the issuance mutex secret' => ['vouch.issuance_locks.secret', true],
+    'the strict assurance map' => ['vouch.declared_abilities', false],
     // Already reported before #82, and included so the set is the whole exemption
     // list rather than only the parts that were missing.
-    'the CAPTCHA verifier' => ['CaptchaVerifier'],
+    'the CAPTCHA verifier' => ['CaptchaVerifier', false],
+]);
+
+it('marks an exempt check missing on every spelling boot refuses', function (string $prerequisite): void {
+    /*
+     * The second refusing spelling for the two checks whose boot condition is a
+     * conjunction. Measured, each is a live hole on its own: a secret check without
+     * the length floor, and a window check without the type half, each passed every
+     * test in this file while boot refused the host.
+     */
+    expect(doctorStatus($prerequisite))->toBe('pass');
+
+    refuseExemptCheck($prerequisite, secondSpelling: true);
+
+    expect(doctorStatus($prerequisite))->toBe('missing');
+})->with([
+    'a secret too short to be one' => ['vouch.issuance_locks.secret'],
+    'a window that is not an integer' => ['vouch.attempts.ttl_seconds'],
 ]);
 
 it('fails its own exit code on an exempt check it reports missing', function (string $prerequisite): void {
@@ -161,10 +214,14 @@ it('fails its own exit code on an exempt check it reports missing', function (st
     refuseExemptCheck($prerequisite);
 
     expect(Artisan::call('vouch:doctor', ['--json' => true]))->toBe(CommandExit::Failure->value);
+
+    // Exactly one, not merely non-zero: a row that also flipped something else
+    // would still fail the exit code while misdescribing the host.
+    expect(doctorMissingCount())->toBe(1);
 })->with([
     'the attempt window' => ['vouch.attempts.ttl_seconds'],
     'the issuance mutex secret' => ['vouch.issuance_locks.secret'],
-    'the strict assurance map' => ['vouch.assurance_strict'],
+    'the strict assurance map' => ['vouch.declared_abilities'],
 ]);
 
 /* ---- the exemption is still only for the doctor ------------------------ */
@@ -195,7 +252,7 @@ it('still refuses boot for a command that is not the doctor', function (string $
     }
 })->with([
     'the issuance mutex secret' => ['vouch.issuance_locks.secret', 'vouch.issuance_locks.secret'],
-    'the strict assurance map' => ['vouch.assurance_strict', 'does not declare mapped abilities'],
+    'the strict assurance map' => ['vouch.declared_abilities', 'does not declare mapped abilities'],
     'the CAPTCHA verifier' => ['CaptchaVerifier', 'CAPTCHA escalation is enabled'],
 ]);
 
@@ -214,6 +271,50 @@ it('still refuses boot for a command that is not the doctor on an unusable attem
                 InvalidArgumentException::class,
                 'Configuration "vouch.attempts.ttl_seconds" must be a positive integer; got 0.',
             );
+    } finally {
+        if ($original === null) {
+            unset($_SERVER['argv']);
+        } else {
+            $_SERVER['argv'] = $original;
+        }
+    }
+});
+
+it('boots the doctor itself on a configuration that refuses every other command', function (): void {
+    /*
+     * The other half of the pair, and the one the reporting cases cannot show. They
+     * run under pest's own argv, so boot was never actually exempted in those
+     * processes -- they prove the report, not that the command survives the
+     * configuration it is reporting on.
+     *
+     * The issuance secret specifically, because it is the one exempt check whose
+     * positive half had no assertion anywhere: the attempt window, the CAPTCHA
+     * verifier and the strict map each have one, and IssuanceLockCapacityTest says
+     * in prose that this exemption exists without ever exercising it.
+     */
+    Config::set('vouch.issuance_locks.secret', null);
+
+    $original = $_SERVER['argv'] ?? null;
+
+    try {
+        $_SERVER['argv'] = ['artisan', 'vouch:doctor'];
+
+        // Called directly: an exception here fails the test. The assertion after it
+        // is what proves boot ran to completion rather than merely not throwing
+        // something with a particular message.
+        (new VouchServiceProvider(app()))->boot();
+
+        expect(doctorStatus('vouch.issuance_locks.secret'))->toBe('missing');
+
+        /*
+         * And the control on the exemption itself: the identical configuration under
+         * any other command must still refuse. Without it, deleting the boot check
+         * would satisfy everything above.
+         */
+        $_SERVER['argv'] = ['artisan', 'vouch:other'];
+
+        expect(static fn (): null => (new VouchServiceProvider(app()))->boot())
+            ->toThrow(RuntimeException::class, 'vouch.issuance_locks.secret');
     } finally {
         if ($original === null) {
             unset($_SERVER['argv']);

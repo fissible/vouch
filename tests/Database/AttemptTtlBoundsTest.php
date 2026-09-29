@@ -260,14 +260,13 @@ it('lets vouch:doctor boot on an attempt ttl it otherwise refuses', function ():
      * Measured against an implementation with no exemption: boot throws under
      * vouch:doctor argv, and the whole suite stays green -- nothing else notices.
      *
-     * What the exemption does NOT do, said here so it is not mistaken for more than
-     * it is: the command has no row for this setting, so on a host with a blank TTL
-     * it runs and reports a clean bill of health while every login fails. That is
-     * not a regression -- before this check existed the command was equally silent,
-     * and the exemption preserves its behaviour rather than making it newly throw --
-     * but the exemption's premise is that an operator can still diagnose the
-     * problem, and for this setting they cannot. #82, with the issuance-mutex
-     * secret, which is exempted and unreported for the same reason.
+     * What the exemption buys, and it was not always this: the command reports a
+     * `vouch.attempts.ttl_seconds` row, so a host with a blank TTL is told which
+     * setting is wrong by the command the exemption exists to keep running. When
+     * this check was written the command had no such row and reported a clean bill
+     * of health on a host where every login failed; #82 closed that, for this
+     * setting and for the two others exempted the same way.
+     * DoctorExemptChecksTest holds the pair together.
      */
     $original = $_SERVER['argv'] ?? null;
 

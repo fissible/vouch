@@ -103,10 +103,13 @@ uses(RefreshDatabase::class);
  * pattern of exempting vouch:doctor, as the CAPTCHA and strict-assurance checks
  * already do. Otherwise the one command whose job is to TELL an operator what is
  * unconfigured is the command a missing secret stops from running, and the first
- * usable signal becomes a refused ceremony in production. Not asserted here:
- * Testbench boots the provider before a test body runs, so a test can set the
- * config to null and call the command and it passes either way -- measured. It is
- * stated because it is a requirement, not because it is covered.
+ * usable signal becomes a refused ceremony in production. Asserted now, though not
+ * here: the observation in this comment was right that a test body cannot see it,
+ * because Testbench boots the provider before the body runs and a test can set the
+ * config to null, call the command, and pass either way. DoctorExemptChecksTest
+ * spoofs argv and re-runs boot() so the exemption is actually exercised, with the
+ * refusal under any other command as its control -- and the command now reports a
+ * `vouch.issuance_locks.secret` row, so the exemption leaves something to read.
  */
 
 /*

@@ -810,3 +810,18 @@ function doctorStatus(string $prerequisite): ?string
 
     return is_string($status) ? $status : null;
 }
+
+/** How many prerequisites the doctor reported as missing. */
+function doctorMissingCount(): int
+{
+    \Illuminate\Support\Facades\Artisan::call('vouch:doctor', ['--json' => true]);
+
+    $report = json_decode(\Illuminate\Support\Facades\Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
+    $missing = is_array($report) ? ($report['missing'] ?? null) : null;
+
+    if (! is_int($missing)) {
+        throw new RuntimeException('Expected the doctor report to count its missing prerequisites.');
+    }
+
+    return $missing;
+}

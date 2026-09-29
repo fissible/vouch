@@ -165,6 +165,14 @@ it('renders the human-readable prerequisite table', function (): void {
         ->toContain('OtpDelivery')
         ->toContain('durable_queue')
         ->toContain('DeliveryEconomics')
+        /*
+         * The rows #82 added, in the TABLE and not only in --json. The table is what
+         * a bare `php artisan vouch:doctor` prints, so a report that named these only
+         * in the machine-readable form would still leave the operator reading the
+         * output they actually get with nothing about the setting that is broken.
+         */
+        ->toContain('vouch.attempts.ttl_seconds')
+        ->toContain('vouch.issuance_locks.secret')
         ->not()->toContain('{"missing"');
 });
 
