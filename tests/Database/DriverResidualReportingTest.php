@@ -1275,18 +1275,33 @@ it('reports an additive enrollment\'s committed failure when a post-commit liste
 
     /*
      * The one guard on the additive branch's FAILURE-path reporting, and it needs to
-     * exist independently of #79: measured, deleting the driverFailures argument from
-     * that branch's refusal return left every other test in tests/Database green.
+     * exist independently of #79.
+     *
+     * The edit it exists to catch is not a contrived one. Once that branch wraps the
+     * factor call in a transaction, its inner try/catch reads as redundant, and
+     * hoisting it outside collect() is the obvious tidy-up -- which silently loses
+     * the report on every failure path while leaving the success path untouched.
+     * Measured: that hoist fails this case and nothing else in tests/Database, all
+     * 1076 of them. It is the executable form of a warning the retired test carried
+     * only in prose -- collect() RETHROWS, so a scope the exception escapes never
+     * returns its report at all.
      *
      * An afterCommit listener rather than a driver throw, because that is the shape
-     * #79's rollback cannot reach. The commit happens first and the callbacks after,
-     * so by the time this one throws the credential is durable and the issuer has
-     * already been asked and already failed.
+     * #79's rollback cannot reach: the commit happens first and the callbacks after,
+     * so by the time this one throws the issuer has already been asked and failed.
      *
-     * The OUTCOME is deliberately not asserted. Whether a refusal is the right thing
-     * to say over committed state is #84's question, and pinning it here would decide
-     * it by accident. What is asserted is that the identity still travels, whatever
-     * the outcome ends up being called.
+     * Two things deliberately NOT asserted. The OUTCOME, because whether a refusal is
+     * the right thing to say over committed state is #84's question and pinning it
+     * here would decide it by accident. And the credential's durability, which the
+     * paragraph above describes but nothing below checks: #84 may resolve this by
+     * RECONCILING -- a best-effort undo plus a residual report -- rather than by
+     * renaming the outcome, and a durability pin would have to move if it did.
+     * Committedness is still established transitively, because the proof withdrawal
+     * asserted below happens in the same transaction as the companion's disable, so
+     * an absent assurance row can only mean that transaction committed.
+     *
+     * What is asserted is that the identity still travels, whatever the outcome ends
+     * up being called.
      */
     $factor = residualRetiringFactor(
         'addFactor adding',
