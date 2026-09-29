@@ -52,7 +52,9 @@ touch($path);
 
 $connection = new SQLiteConnection(
     new PDO('sqlite:' . $path, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]),
-    'main',
+    // The file, not 'main': the constructor's $database and the config's must not
+    // give two answers to one question.
+    $path,
     '',
     ['driver' => 'sqlite', 'database' => $path],
 );
@@ -60,7 +62,16 @@ $connection = new SQLiteConnection(
 try {
     $connection->statement(
         'create table auth_identifiers (id integer primary key autoincrement, '
-        . 'user_id integer not null, type varchar(32) not null, value varchar(255) not null)',
+        . 'user_id integer not null, type varchar(32) not null, value varchar(255) not null, '
+        /*
+         * The real unique index, and it is not decoration. The loose-class read is a
+         * correlated subquery, so without it SQLite full-scans the table once per
+         * row: measured on the same fixture and the same correct implementation,
+         * 10000 rows took 3.75s without it and 0.26s with -- fourteen times -- and
+         * 100000 rows are 1.37s with it. The schema is also simply honest this way,
+         * since that index is what the scan's own docblock says it relies on.
+         */
+        . 'unique (type, value))',
     );
     $connection->statement(
         'create table auth_identifier_verifications (id integer primary key autoincrement, '
