@@ -1252,14 +1252,64 @@ it('reports nothing from an enrollment whose driver revocations all succeeded', 
  * wrong. Measured: adding the transaction left every other case in this file green
  * and failed this one at a PREMISE, its issuer never having been asked.
  *
- * So the reporting it checked is not lost, it is moot: there is nothing to report.
- * CredentialSelfServiceTest holds the replacement contract -- nothing the driver
- * wrote survives, and the caller can retry the same call.
+ * So the reporting it checked is not lost, it is moot: after a DRIVER THROW there is
+ * nothing to report. CredentialSelfServiceTest holds that replacement contract.
  *
- * The test below is NOT the same case and stays. Its trigger is an afterCommit
- * listener, which runs past the point a transaction can undo, so its committed
- * state is real and still has to be reported. That gap on this branch is #84.
+ * Deliberately narrow wording, because the broader claim would be false: a failure
+ * in an afterCommit LISTENER still leaves the credential committed, since callbacks
+ * run after the commit and past the point any transaction can undo. The additive
+ * branch still reports on that path, and the case immediately below keeps it
+ * honest. What that branch's OUTCOME should say when it failed over committed state
+ * is #84, and nothing here pre-empts it.
+ *
+ * The other post-commit test further down this file exercises changePassword, a
+ * different branch, so it is not cover for this one.
  */
+
+it('reports an additive enrollment\'s committed failure when a post-commit listener threw', function (): void {
+    residualUser();
+
+    $companion = lateCredential(residualCompanionType('addFactor adding'), 'companion-only');
+
+    $issuer = residualIssuer(['late-companion']);
+
+    /*
+     * The one guard on the additive branch's FAILURE-path reporting, and it needs to
+     * exist independently of #79: measured, deleting the driverFailures argument from
+     * that branch's refusal return left every other test in tests/Database green.
+     *
+     * An afterCommit listener rather than a driver throw, because that is the shape
+     * #79's rollback cannot reach. The commit happens first and the callbacks after,
+     * so by the time this one throws the credential is durable and the issuer has
+     * already been asked and already failed.
+     *
+     * The OUTCOME is deliberately not asserted. Whether a refusal is the right thing
+     * to say over committed state is #84's question, and pinning it here would decide
+     * it by accident. What is asserted is that the identity still travels, whatever
+     * the outcome ends up being called.
+     */
+    $factor = residualRetiringFactor(
+        'addFactor adding',
+        [[$companion->id, 'late-companion']],
+        afterCompanions: static function (): void {
+            DB::connection()->afterCommit(static function (): void {
+                throw new RuntimeException('A post-commit listener failed after the credential write committed.');
+            });
+        },
+    );
+    residualRegistry($factor);
+
+    $result = residualEnroll('addFactor adding');
+
+    // Premises: the mutation ran, its revocation was attempted, and it failed.
+    expect($factor->mutated)->toBe([$companion->id], 'the companion mutation should have run');
+    expect($issuer->attempted)->toContain('late-companion');
+    expect(DB::table('auth_token_assurances')->where('token_key', 'late-companion')->exists())->toBeFalse();
+
+    // The conclusion: the identity reaches the caller, and carries no diagnostic.
+    expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'late-companion']]);
+    expect(print_r($result, true))->not->toContain(RESIDUAL_SENTINEL);
+});
 
 it('reports a committed mutation\'s driver failure when a post-commit listener then failed', function (): void {
     residualUser();
