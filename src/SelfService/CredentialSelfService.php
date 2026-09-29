@@ -87,14 +87,59 @@ final readonly class CredentialSelfService
         $replaces = ($data['replace'] ?? false) === true;
 
         if (! $replaces) {
+            /*
+             * The factor call gets a transaction of its own, which every other
+             * path in this class already had by going through
+             * mutateCredentials(). Without it a driver that wrote and then threw
+             * left the write behind, and that residue is not mere untidiness.
+             * Measured: the failing call returned Refused with no secret and one
+             * active credential, and the IDENTICAL call afterwards -- with the
+             * shipped driver restored -- was then refused for CAPACITY, because
+             * TotpFactor caps active credentials at 1 and EnrollmentGuard
+             * enforces that as a POST-condition over the whole serialized write.
+             * Only a replacing call recovered, and nothing in the refusal said
+             * so. Rolling back restores the retry.
+             *
+             * Deliberately NOT routed through mutateCredentials() instead, which
+             * would have supplied the same transaction: that helper revokes
+             * siblings either side of the mutation and reports a revocation
+             * pass, and an additive enrollment revokes nothing -- claiming
+             * otherwise would be a false report about the caller's other
+             * sessions. For the same reason the outcome stays Refused. This
+             * closes a residue; it does not change what the branch claims.
+             *
+             * The result is taken from transaction()'s RETURN VALUE rather than
+             * assigned from inside the closure. Laravel's
+             * handleCommitTransactionException() rethrows a failed commit with
+             * the write uncommitted, so assigning inside would read that as a
+             * success and hand the caller a secret for a write that never
+             * landed.
+             */
             $enrollment = SelfServiceOutcome::Refused;
             $report = $this->failureCollector->collect($this->connection, function () use ($factor, $authoritative, $data, &$enrollment): void {
                 try {
-                    $enrollment = $factor->enroll($authoritative->user_id, $data);
+                    $enrollment = $this->connection->transaction(
+                        fn (): EnrollmentResult => $factor->enroll($authoritative->user_id, $data),
+                    );
                 } catch (Throwable) {
-                    // A factor can commit a mutation and then throw. Catch here
-                    // so collect() still returns those committed failures; a
-                    // refusal does not mean the issuer revoked every token.
+                    /*
+                     * Still caught INSIDE the collected scope, and the
+                     * transaction above does not make that redundant. Two
+                     * reasons, in order of how easily they are lost:
+                     *
+                     * collect() RETHROWS, so an exception allowed to escape its
+                     * scope means the report never comes back at all -- hoisting
+                     * this catch outside collect() leaves the success path
+                     * untouched and silently empties every failure path.
+                     *
+                     * And a transaction cannot reach past its own commit. A
+                     * failure in an afterCommit listener arrives here from
+                     * transaction() with the write already committed and the
+                     * issuer already asked and already failed, so a refusal is
+                     * not evidence that nothing happened. That report is exactly
+                     * the one the caller still needs. (#84 asks what the outcome
+                     * should be called in that case; nothing here decides it.)
+                     */
                 }
             });
 

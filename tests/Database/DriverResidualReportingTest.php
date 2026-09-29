@@ -1241,7 +1241,32 @@ it('reports nothing from an enrollment whose driver revocations all succeeded', 
     expect($result->driverFailures)->toBe([]);
 });
 
-it('reports a committed mutation\'s driver failure when the enrollment then failed', function (): void {
+/*
+ * RETIRED by #79, which is what this test said should happen to it.
+ *
+ * It asserted that a mutation the factor completed before failing had its driver
+ * failure reported, and it depended on addFactor()'s non-replacing branch wrapping
+ * the factor call in no transaction -- which is exactly the defect #79 names. With
+ * that transaction in place the mutation rolls back, afterCommit never runs, no
+ * token is stranded at any issuer, and the scenario is unreachable rather than
+ * wrong. Measured: adding the transaction left every other case in this file green
+ * and failed this one at a PREMISE, its issuer never having been asked.
+ *
+ * So the reporting it checked is not lost, it is moot: after a DRIVER THROW there is
+ * nothing to report. CredentialSelfServiceTest holds that replacement contract.
+ *
+ * Deliberately narrow wording, because the broader claim would be false: a failure
+ * in an afterCommit LISTENER still leaves the credential committed, since callbacks
+ * run after the commit and past the point any transaction can undo. The additive
+ * branch still reports on that path, and the case immediately below keeps it
+ * honest. What that branch's OUTCOME should say when it failed over committed state
+ * is #84, and nothing here pre-empts it.
+ *
+ * The other post-commit test further down this file exercises changePassword, a
+ * different branch, so it is not cover for this one.
+ */
+
+it('reports an additive enrollment\'s committed failure when a post-commit listener threw', function (): void {
     residualUser();
 
     $companion = lateCredential(residualCompanionType('addFactor adding'), 'companion-only');
@@ -1249,53 +1274,54 @@ it('reports a committed mutation\'s driver failure when the enrollment then fail
     $issuer = residualIssuer(['late-companion']);
 
     /*
-     * The failure path of the same branch. addFactor() without `replace` wraps the
-     * factor call in no transaction of its own, so a mutation the factor completed
-     * has already COMMITTED -- and its driver revocation has already been attempted
-     * and already failed -- by the time the factor fails for its own reasons. The
-     * branch turns that into a bare Refused, so the identity is lost on exactly the
-     * path where the caller is least likely to go looking for it.
+     * The one guard on the additive branch's FAILURE-path reporting, and it needs to
+     * exist independently of #79.
      *
-     * mutateCredentials() already holds the other half of this: its catch returns
-     * CredentialChangeFailed carrying the pre-pass failures rather than an empty
-     * list, for the same reason. A refusal is not evidence that nothing happened.
+     * The edit it exists to catch is not a contrived one. Once that branch wraps the
+     * factor call in a transaction, its inner try/catch reads as redundant, and
+     * hoisting it outside collect() is the obvious tidy-up -- which silently loses
+     * the report on every failure path while leaving the success path untouched.
+     * Measured: that hoist fails this case and nothing else in tests/Database, all
+     * 1076 of them. It is the executable form of a warning the retired test carried
+     * only in prose -- collect() RETHROWS, so a scope the exception escapes never
+     * returns its report at all.
      *
-     * One dead end worth naming, because the failure message here will not: the
-     * caller's collection has to survive the factor's throw. collect() RETHROWS, so
-     * a scope the exception escapes never returns its report at all -- the report
-     * must be reachable from the failure path, whether by catching inside the
-     * collected closure or by holding the report before the write begins.
+     * An afterCommit listener rather than a driver throw, because that is the shape
+     * #79's rollback cannot reach: the commit happens first and the callbacks after,
+     * so by the time this one throws the issuer has already been asked and failed.
      *
-     * This test DEPENDS on that branch wrapping the factor call in no transaction,
-     * and says so rather than leaving it implicit. With a transaction there the
-     * companion mutation would roll back, afterCommit would never run, and nothing
-     * would be stranded at the issuer -- so the scenario becomes unreachable and
-     * this test should be RETIRED rather than made to pass.
+     * Two things deliberately NOT asserted. The OUTCOME, because whether a refusal is
+     * the right thing to say over committed state is #84's question and pinning it
+     * here would decide it by accident. And the credential's durability, which the
+     * paragraph above describes but nothing below checks: #84 may resolve this by
+     * RECONCILING -- a best-effort undo plus a residual report -- rather than by
+     * renaming the outcome, and a durability pin would have to move if it did.
+     * Committedness is still established transitively, because the proof withdrawal
+     * asserted below happens in the same transaction as the companion's disable, so
+     * an absent assurance row can only mean that transaction committed.
      *
-     * That is not hypothetical: adding the transaction is one of the two fixes
-     * proposed for #79, the credential the inner driver created before the failure
-     * surviving the Refused. This test takes no position on #79 -- it asserts
-     * nothing about that credential -- but whoever closes #79 by adding the
-     * transaction should delete this test in the same change and say why.
+     * What is asserted is that the identity still travels, whatever the outcome ends
+     * up being called.
      */
-    $factor = residualRetiringFactor('addFactor adding', [[$companion->id, 'late-companion']], throwsAfterCompanions: true);
+    $factor = residualRetiringFactor(
+        'addFactor adding',
+        [[$companion->id, 'late-companion']],
+        afterCompanions: static function (): void {
+            DB::connection()->afterCommit(static function (): void {
+                throw new RuntimeException('A post-commit listener failed after the credential write committed.');
+            });
+        },
+    );
     residualRegistry($factor);
 
     $result = residualEnroll('addFactor adding');
 
-    /*
-     * Premises first, and they matter more than usual here: Refused is also what
-     * this branch returns for an unknown factor and for a factor that threw before
-     * doing anything, and in both of those an empty list is correct.
-     */
-    expect($result->outcome)->toBe(SelfServiceOutcome::Refused);
-    expect($factor->mutated)->toBe([$companion->id], 'the companion mutation should have run before the failure');
+    // Premises: the mutation ran, its revocation was attempted, and it failed.
+    expect($factor->mutated)->toBe([$companion->id], 'the companion mutation should have run');
     expect($issuer->attempted)->toContain('late-companion');
-    // Committed, despite the later failure -- the write is what makes the stranded
-    // token real rather than hypothetical.
-    expect(AuthCredential::query()->whereKey($companion->id)->whereNull('disabled_at')->exists())->toBeFalse();
     expect(DB::table('auth_token_assurances')->where('token_key', 'late-companion')->exists())->toBeFalse();
 
+    // The conclusion: the identity reaches the caller, and carries no diagnostic.
     expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'late-companion']]);
     expect(print_r($result, true))->not->toContain(RESIDUAL_SENTINEL);
 });

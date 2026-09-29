@@ -11,8 +11,16 @@ use Fissible\Vouch\Sessions\SessionEvidence;
 use Fissible\Vouch\SelfService\SelfServiceOutcome;
 use Fissible\Vouch\Factors\FactorRegistry;
 use Fissible\Vouch\Sessions\RevokedReason;
+use Fissible\Vouch\Kernel\Factor\FactorKind;
+use Fissible\Vouch\Kernel\Factor\SatisfiedFactor;
+use Fissible\Vouch\Tests\Support\CompanionRetiringFactor;
 use Fissible\Vouch\Tests\Support\InterceptingFactor;
 use Fissible\Vouch\Tests\Support\InterceptingPasswordFactor;
+use Fissible\Vouch\Tests\Support\Tokens\RecordingIssuer;
+use Fissible\Vouch\Tokens\ActorKind;
+use Fissible\Vouch\Tokens\SubjectKey;
+use Fissible\Vouch\Tokens\TokenAssuranceRecord;
+use Fissible\Vouch\Tokens\TokenIssuerRegistry;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\Config;
@@ -709,8 +717,14 @@ it('still reports a successful change as completed', function (): void {
 
 /* ---- #35: rollback is the promise, and its two boundaries ------------- */
 
-/** A registry whose named factor throws AFTER its real write lands. */
-function factorFailingAfterWrite(string $factorId): void
+/**
+ * A registry whose named factor throws AFTER its real write lands.
+ *
+ * Returns the double so a caller can assert it was actually entered. Without that
+ * evidence a "nothing survives" assertion cannot be told apart from a factor that
+ * never wrote at all -- which is a different test, three above this one.
+ */
+function factorFailingAfterWrite(string $factorId): InterceptingFactor
 {
     $inner = match ($factorId) {
         'password' => app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class),
@@ -725,10 +739,13 @@ function factorFailingAfterWrite(string $factorId): void
     if ($factorId !== 'password') {
         $registry->register(app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class));
     }
-    $registry->register(new InterceptingFactor($inner, throwAfterRevoke: true, throwAfterEnroll: true));
+    $failing = new InterceptingFactor($inner, throwAfterRevoke: true, throwAfterEnroll: true);
+    $registry->register($failing);
 
     app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn () => $registry);
     app()->forgetInstance(CredentialSelfService::class);
+
+    return $failing;
 }
 
 it('rolls back a password written before the failure', function (): void {
@@ -891,6 +908,235 @@ it('keeps an additive enrollment failure an ordinary refusal', function (): void
         ->toBe(SelfServiceOutcome::Refused)
         ->and($sibling->refresh()->revoked_at)->toBeNull()
         ->and(AuthCredential::query()->where('user_id', 1)->where('type', 'totp')->exists())->toBeFalse();
+});
+
+/*
+ * #79. The fifth case in this section, and the one that was missing.
+ *
+ * The four above cover every path that goes through mutateCredentials(), whose
+ * mutation phase runs in its own transaction. Additive addFactor() does not go
+ * through it and wrapped the factor call in no transaction of its own, so a driver
+ * that wrote and then failed left the write behind -- measured, and worse than
+ * untidiness:
+ *
+ *   the failing call returns Refused with no secret, and an active credential
+ *   the caller never received one for;
+ *   the same call again is then Refused for CAPACITY, with a healthy driver,
+ *   because TotpFactor caps active credentials at 1 and EnrollmentGuard enforces
+ *   that as a post-condition;
+ *   only a replacing call recovers, which nothing in the refusal tells the caller.
+ *
+ * So the rollback promise this section holds for every other path must hold here
+ * too. The outcome stays Refused: the boundary recorded above is about whether a
+ * revocation happened, and an additive enrollment still revokes nothing, so
+ * nothing here widens it.
+ *
+ * NOT covered, and out of scope because it is a different trigger with a different
+ * answer: a failure in an afterCommit listener. Driver revocation and any host
+ * listener run past the point a transaction can undo, so a throw there leaves the
+ * credential committed and is genuinely not a rollback -- the comment at the top of
+ * this section says so. Wrapping the factor call in a transaction does not and
+ * cannot close that door, and pretending otherwise would be the false claim this
+ * section exists to prevent. #84.
+ */
+
+it('rolls back an additive enrollment that failed after writing', function (): void {
+    selfServiceUser();
+    $sibling = singleFactorSession(1, 'sibling');
+    $factor = factorFailingAfterWrite('totp');
+    $session = steppedUpSession();
+
+    $result = app(CredentialSelfService::class)
+        ->addFactor($session, 'totp', ['label' => 'ada@acme.example']);
+
+    // Premises first: the refusal, and the boundary it must not cross.
+    expect($result->outcome)->toBe(SelfServiceOutcome::Refused);
+    expect($result->secrets)->toBe([]);
+    /*
+     * The driver really was entered and really did write before throwing. Without
+     * this the assertion below is indistinguishable from the test three above, whose
+     * factor throws INSTEAD of writing -- the two have textually identical
+     * conclusions and entirely different subjects.
+     */
+    expect($factor->enrollCalls)->toBe(1);
+    // No revocation pass ran, so siblings are untouched -- the recorded boundary.
+    expect($sibling->refresh()->revoked_at)->toBeNull();
+    /*
+     * And the acting session survives. A rollback that logged the caller out would
+     * satisfy everything else here while still denying them the retry the next test
+     * requires -- measured, an implementation that revokes the acting session on
+     * failure passes every other test in this file.
+     */
+    expect($session->refresh()->revoked_at)->toBeNull();
+
+    // The promise: nothing the driver wrote before failing survives.
+    expect(AuthCredential::query()->where('user_id', 1)->where('type', 'totp')->exists())->toBeFalse();
+});
+
+it('lets a caller retry an additive enrollment that failed after writing', function (): void {
+    selfServiceUser();
+    factorFailingAfterWrite('totp');
+
+    /*
+     * The consequence that makes this more than tidiness, and the one a user
+     * actually meets. A surviving credential is not merely clutter: it exhausts the
+     * driver's capacity, so the identical call is refused from then on with nothing
+     * wrong anywhere. This test is the reason the rollback matters.
+     */
+    $session = steppedUpSession();
+
+    expect(app(CredentialSelfService::class)
+        ->addFactor($session, 'totp', ['label' => 'ada@acme.example'])->outcome)
+        ->toBe(SelfServiceOutcome::Refused);
+
+    // The shipped driver restored, so what follows measures the branch rather than
+    // the fixture continuing to fail.
+    $registry = new FactorRegistry();
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class));
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class));
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn (): FactorRegistry => $registry);
+    app()->forgetInstance(CredentialSelfService::class);
+
+    /*
+     * The SAME session, because that is what the caller still holds. Retrying from a
+     * fresh session would prove only that the row is gone -- an implementation that
+     * rolled back correctly and revoked the acting session would pass that, while the
+     * user it happened to has to authenticate again before the "identical call" is
+     * even available to them.
+     */
+    $retry = app(CredentialSelfService::class)
+        ->addFactor($session, 'totp', ['label' => 'ada@acme.example']);
+
+    expect($retry->outcome)->toBe(SelfServiceOutcome::Completed);
+    // A secret really was handed over, which is what the first call could not do.
+    expect($retry->secrets)->not->toBe([]);
+    expect(AuthCredential::query()->where('user_id', 1)->where('type', 'totp')->whereNull('disabled_at')->count())->toBe(1);
+});
+
+it('rolls back every write an additive enrollment made, not only the credential', function (): void {
+    selfServiceUser();
+
+    /*
+     * A driver may write more than the credential it returns. This one retires a
+     * companion in its own CredentialMutation before failing, which is an ordinary
+     * shape -- a superseded registration, a paired device -- and the rollback has to
+     * reach it too. A fix that deleted only the credential the factor returned would
+     * satisfy the tests above and leave this companion disabled forever.
+     */
+    $companion = AuthCredential::create([
+        'user_id' => 1, 'type' => 'recovery_code', 'secret' => 'digest', 'strength' => 'recovery',
+    ]);
+
+    $factor = new CompanionRetiringFactor(
+        app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class),
+        [['id' => $companion->id, 'before' => null]],
+        throwsAfterCompanions: true,
+    );
+
+    $registry = new FactorRegistry();
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class));
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor::class));
+    $registry->register($factor);
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn (): FactorRegistry => $registry);
+    app()->forgetInstance(CredentialSelfService::class);
+
+    $result = app(CredentialSelfService::class)
+        ->addFactor(steppedUpSession(), 'totp', ['label' => 'ada@acme.example']);
+
+    // Premises: the refusal, and that the companion mutation really ran -- without
+    // that this test would pass against a driver that never got that far.
+    expect($result->outcome)->toBe(SelfServiceOutcome::Refused);
+    expect($factor->mutated)->toBe([$companion->id], 'the companion mutation should have run before the failure');
+
+    // Neither write survives: not the credential, and not the companion's retirement.
+    expect(AuthCredential::query()->where('user_id', 1)->where('type', 'totp')->exists())->toBeFalse();
+    expect(AuthCredential::query()->whereKey($companion->id)->whereNull('disabled_at')->exists())->toBeTrue();
+});
+
+it('asks no issuer to revoke anything when an additive enrollment rolls back', function (): void {
+    selfServiceUser();
+
+    $companion = AuthCredential::create([
+        'user_id' => 1, 'type' => 'recovery_code', 'secret' => 'digest', 'strength' => 'recovery',
+    ]);
+
+    /*
+     * Driver revocation is registered with afterCommit, so a rollback must mean the
+     * issuer is never asked at all -- which is what makes the rollback a real fix
+     * rather than a tidier report. The proof cites the companion the factor retires,
+     * so an implementation that let that mutation commit would reach the issuer here.
+     */
+    $issuer = new RecordingIssuer('sanctum');
+    app()->instance(TokenIssuerRegistry::class, new TokenIssuerRegistry([$issuer]));
+    app()->forgetInstance(CredentialSelfService::class);
+
+    app(TokenAssuranceRecord::class)->store(
+        'sanctum',
+        'resting',
+        SubjectKey::forConfiguredUser(1),
+        null,
+        ActorKind::Human,
+        [new SatisfiedFactor(
+            'recovery_code',
+            (string) $companion->id,
+            FactorKind::Possession,
+            FactorStrength::Possession,
+            false, false, false, null,
+            new DateTimeImmutable('2026-09-28T10:00:00+00:00'),
+        )],
+    );
+
+    $factor = new CompanionRetiringFactor(
+        app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class),
+        [['id' => $companion->id, 'before' => null]],
+        throwsAfterCompanions: true,
+    );
+
+    $registry = new FactorRegistry();
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class));
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor::class));
+    $registry->register($factor);
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn (): FactorRegistry => $registry);
+    app()->forgetInstance(CredentialSelfService::class);
+
+    $failed = app(CredentialSelfService::class)
+        ->addFactor(steppedUpSession(), 'totp', ['label' => 'ada@acme.example']);
+
+    expect($failed->outcome)->toBe(SelfServiceOutcome::Refused);
+    expect($factor->mutated)->toBe([$companion->id], 'the companion mutation should have run before the failure');
+    // Nothing reached the issuer, and the proof is still standing.
+    expect($issuer->attempted)->toBe([]);
+    expect(DB::table('auth_token_assurances')->where('token_key', 'resting')->exists())->toBeTrue();
+
+    /*
+     * The positive control, and this test is worthless without it: the same fixture
+     * WITHOUT the failure must reach the issuer. Otherwise an implementation that
+     * never registers driver revocation at all -- or a registry this test wired up
+     * wrongly -- reports the contract as held.
+     *
+     * It is not independent of what it controls for: this enrollment can only
+     * complete because the rollback above freed the driver's one active slot, so a
+     * broken rollback breaks the control too. That costs no diagnosis -- the
+     * assertion above it fires first -- but the control is evidence about the
+     * observation path, not a second opinion on the rollback.
+     */
+    $succeeding = new CompanionRetiringFactor(
+        app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class),
+        [['id' => $companion->id, 'before' => null]],
+    );
+
+    $healthy = new FactorRegistry();
+    $healthy->register(app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class));
+    $healthy->register(app(\Fissible\Vouch\Factors\Drivers\RecoveryCodeFactor::class));
+    $healthy->register($succeeding);
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn (): FactorRegistry => $healthy);
+    app()->forgetInstance(CredentialSelfService::class);
+
+    expect(app(CredentialSelfService::class)
+        ->addFactor(steppedUpSession(1, 'control'), 'totp', ['label' => 'ada@acme.example'])->outcome)
+        ->toBe(SelfServiceOutcome::Completed);
+
+    expect($issuer->attempted)->toContain('resting');
 });
 
 it('surfaces a driver revocation that failed past the point of rollback', function (): void {
