@@ -870,43 +870,20 @@ it('ships no default secret to fall back on', function (): void {
      * Env repository reads: putenv's table, $_ENV and $_SERVER. Clearing one is not
      * enough, and clearing none makes this test fail against a CORRECT
      * implementation on any machine that actually exports the variable -- a
-     * developer with a real .env, or a CI job that sets it.
+     * developer with a real .env, or a CI job that sets it. That dance is in
+     * tests/Pest.php rather than here, because a second file needs it now.
      */
-    $name = 'VOUCH_ISSUANCE_LOCKS_SECRET';
-    $putenv = getenv($name);
-    $inEnv = array_key_exists($name, $_ENV) ? $_ENV[$name] : null;
-    $inServer = array_key_exists($name, $_SERVER) ? $_SERVER[$name] : null;
-
-    putenv($name);
-    unset($_ENV[$name], $_SERVER[$name]);
-
-    try {
-        $published = require dirname(__DIR__, 2) . '/config/vouch.php';
-
-        expect($published)->toBeArray();
-
-        $locks = is_array($published) ? ($published['issuance_locks'] ?? null) : null;
+    $secret = withEnvironmentVariable('VOUCH_ISSUANCE_LOCKS_SECRET', null, static function (): mixed {
+        $locks = publishedVouchConfig()['issuance_locks'] ?? null;
 
         expect($locks)->toBeArray();
 
-        $secret = is_array($locks) ? ($locks['secret'] ?? null) : null;
+        return is_array($locks) ? ($locks['secret'] ?? null) : null;
+    });
 
-        expect($secret === null || $secret === '')->toBeTrue(
-            'config/vouch.php must ship no issuance-lock secret: a default is a shared key',
-        );
-    } finally {
-        if (is_string($putenv)) {
-            putenv($name . '=' . $putenv);
-        }
-
-        if ($inEnv !== null) {
-            $_ENV[$name] = $inEnv;
-        }
-
-        if ($inServer !== null) {
-            $_SERVER[$name] = $inServer;
-        }
-    }
+    expect($secret === null || $secret === '')->toBeTrue(
+        'config/vouch.php must ship no issuance-lock secret: a default is a shared key',
+    );
 });
 
 it('refuses a secret too short to be one', function (): void {

@@ -9,6 +9,7 @@ use Fissible\Vouch\Assurance\AssuranceRequirement;
 use Fissible\Vouch\Assurance\AssuranceComparison;
 use Fissible\Vouch\Assurance\EvidenceComparator;
 use Fissible\Vouch\Contracts\TenantResolver;
+use Fissible\Vouch\Support\ConfigurationError;
 use Fissible\Vouch\Tokens\TokenAssuranceRecord;
 use Fissible\Vouch\Tokens\TokenIssuerRegistry;
 use Illuminate\Http\Request;
@@ -84,7 +85,7 @@ final readonly class RejectsUnrecordedTokens
 
         throw new InvalidArgumentException(sprintf(
             'Configuration "vouch.token_gate.mode" must be exactly "observe" or "enforce"; got %s.',
-            $this->describe($value),
+            ConfigurationError::describe($value),
         ));
     }
 
@@ -93,17 +94,6 @@ final readonly class RejectsUnrecordedTokens
         return $comparison->reason === \Fissible\Vouch\Assurance\AssuranceReason::NoAssuranceRecord
             ? 'no_assurance_record'
             : 'insufficient_assurance';
-    }
-
-    private function describe(mixed $value): string
-    {
-        return match (true) {
-            $value === '' => 'an empty string',
-            is_string($value) => 'string "' . $value . '"',
-            is_int($value) => (string) $value,
-            $value === null => 'null',
-            default => get_debug_type($value),
-        };
     }
 
     private function tenantId(): ?string

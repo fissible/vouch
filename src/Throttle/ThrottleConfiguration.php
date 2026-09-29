@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Throttle;
 
+use Fissible\Vouch\Support\ConfigurationError;
 use InvalidArgumentException;
 
 /**
@@ -170,11 +171,7 @@ final readonly class ThrottleConfiguration
             }
         }
 
-        throw new InvalidArgumentException(sprintf(
-            'Configuration "%s" must be a positive integer; got %s.',
-            $key,
-            self::describe($value),
-        ));
+        throw ConfigurationError::positiveInteger($value, $key);
     }
 
     private static function nonNegativeValue(mixed $value, string $key): int
@@ -194,7 +191,7 @@ final readonly class ThrottleConfiguration
         throw new InvalidArgumentException(sprintf(
             'Configuration "%s" must be a non-negative integer; got %s.',
             $key,
-            self::describe($value),
+            ConfigurationError::describe($value),
         ));
     }
 
@@ -219,7 +216,7 @@ final readonly class ThrottleConfiguration
             'Configuration "%s%s" must be exactly "observe" or "enforce"; got %s.',
             self::PREFIX,
             $path,
-            self::describe($value),
+            ConfigurationError::describe($value),
         ));
     }
 
@@ -244,7 +241,7 @@ final readonly class ThrottleConfiguration
             'Configuration "%s%s" must be boolean; got %s.',
             self::PREFIX,
             $path,
-            self::describe($value),
+            ConfigurationError::describe($value),
         ));
     }
 
@@ -395,16 +392,5 @@ final readonly class ThrottleConfiguration
         if (! $condition) {
             throw new InvalidArgumentException($message);
         }
-    }
-
-    private static function describe(mixed $value): string
-    {
-        return match (true) {
-            $value === '' => 'an empty string',
-            is_string($value) => 'string "' . $value . '"',
-            is_int($value) => (string) $value,
-            $value === null => 'null',
-            default => get_debug_type($value),
-        };
     }
 }

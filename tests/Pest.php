@@ -681,3 +681,81 @@ function comparesWithoutPadding(string $table, string $column): bool
 
     return stringValue(requiredRow($row)->pad) === 'NO PAD';
 }
+
+/**
+ * Run $body with an environment variable set to $value, or unset when null.
+ *
+ * Laravel's Env repository reads three places -- putenv's table, `$_ENV` and
+ * `$_SERVER` -- and writing or clearing only one of them is not enough. Getting
+ * that wrong does not make a test fail loudly; it makes it fail on whichever
+ * machine actually exports the variable, and pass on the one it was written on.
+ *
+ * Restoration is in `finally`, and restores ABSENCE as absence rather than as an
+ * empty string, because `Env::get()` distinguishes them and a variable left behind
+ * changes what every later test in the process reads. It does not distinguish an
+ * absent key from one holding a literal null, which environment values never are.
+ *
+ * @template TReturn
+ *
+ * @param  callable(): TReturn  $body
+ * @return TReturn
+ */
+function withEnvironmentVariable(string $name, ?string $value, callable $body): mixed
+{
+    $putenv = getenv($name);
+    $inEnv = array_key_exists($name, $_ENV) ? $_ENV[$name] : null;
+    $inServer = array_key_exists($name, $_SERVER) ? $_SERVER[$name] : null;
+
+    if ($value === null) {
+        putenv($name);
+        unset($_ENV[$name], $_SERVER[$name]);
+    } else {
+        putenv($name . '=' . $value);
+        $_ENV[$name] = $value;
+        $_SERVER[$name] = $value;
+    }
+
+    try {
+        return $body();
+    } finally {
+        if (is_string($putenv)) {
+            putenv($name . '=' . $putenv);
+        } else {
+            putenv($name);
+        }
+
+        if ($inEnv === null) {
+            unset($_ENV[$name]);
+        } else {
+            $_ENV[$name] = $inEnv;
+        }
+
+        if ($inServer === null) {
+            unset($_SERVER[$name]);
+        } else {
+            $_SERVER[$name] = $inServer;
+        }
+    }
+}
+
+/**
+ * The package's own config file, evaluated fresh against the current environment.
+ *
+ * `config()` reads what the application merged at boot, which is not the same
+ * question: a default the package ships can only be observed by evaluating the
+ * file itself, and an env expression can only be observed by evaluating it again
+ * after the environment changes.
+ *
+ * @return array<string, mixed>
+ */
+function publishedVouchConfig(): array
+{
+    $published = require dirname(__DIR__) . '/config/vouch.php';
+
+    if (! is_array($published)) {
+        throw new RuntimeException('config/vouch.php did not return an array.');
+    }
+
+    /** @var array<string, mixed> $published */
+    return $published;
+}

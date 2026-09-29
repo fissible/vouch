@@ -48,6 +48,7 @@ use Fissible\Vouch\Delivery\SmsIdentifierAudit;
 use Fissible\Vouch\Delivery\UnconfiguredCaptchaVerifier;
 use Fissible\Vouch\Delivery\UnconfiguredDeliveryEconomics;
 use Fissible\Vouch\Support\BoundedLockWait;
+use Fissible\Vouch\Support\ConfigurationError;
 use Fissible\Vouch\Support\IssuanceLockBucket;
 use Fissible\Vouch\Support\LockContention;
 use Fissible\Vouch\Support\SystemClock;
@@ -517,6 +518,23 @@ final class VouchServiceProvider extends ServiceProvider
         // Validation is eager: an invalid security budget must fail package boot,
         // not wait for the first attacker-controlled request to reach a store.
         $this->app->make(ThrottleConfiguration::class);
+
+        /*
+         * #55. Reject an unusable attempt window before every login fails. Unlike
+         * the throttle reader, AuthFlow's config()->integer() rejects numeric
+         * strings, so positivity alone would leave a request-time failure behind.
+         * Keep that read at construction: the clock-source tests change config
+         * and forget only AuthFlow; caching the TTL here broke six of them.
+         * DatabaseTime keeps its own guard for callers outside configuration.
+         * Doctor must still boot so an operator can diagnose misconfiguration.
+         */
+        if (! $this->isDoctorCommand()) {
+            $attemptTtl = config('vouch.attempts.ttl_seconds');
+
+            if (! is_int($attemptTtl) || $attemptTtl < 1) {
+                throw ConfigurationError::positiveInteger($attemptTtl, 'vouch.attempts.ttl_seconds');
+            }
+        }
 
         /*
          * #46. The issuance mutex's keying secret, at boot rather than at the first
