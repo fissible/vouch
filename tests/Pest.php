@@ -759,3 +759,69 @@ function publishedVouchConfig(): array
     /** @var array<string, mixed> $published */
     return $published;
 }
+
+/**
+ * Every prerequisite row the doctor reported, keyed by name.
+ *
+ * @return array<string, array<string, mixed>>
+ */
+function doctorRows(): array
+{
+    // Fully qualified rather than relying on Laravel's root-namespace facade
+    // aliases, which is what the unqualified facades elsewhere in this file lean on.
+    \Illuminate\Support\Facades\Artisan::call('vouch:doctor', ['--json' => true]);
+
+    $report = json_decode(\Illuminate\Support\Facades\Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
+
+    if (! is_array($report)) {
+        throw new RuntimeException('Expected a doctor report object.');
+    }
+
+    $rows = $report['prerequisites'] ?? null;
+
+    if (! is_array($rows)) {
+        throw new RuntimeException('Expected doctor prerequisite rows.');
+    }
+
+    $byName = [];
+
+    foreach ($rows as $row) {
+        if (! is_array($row)) {
+            throw new RuntimeException('Expected each prerequisite row to be an object.');
+        }
+
+        $name = $row['prerequisite'] ?? null;
+
+        if (! is_string($name)) {
+            throw new RuntimeException('Expected each prerequisite row to be named.');
+        }
+
+        $byName[$name] = $row;
+    }
+
+    return $byName;
+}
+
+/** The status the doctor reported for one prerequisite, or null when absent. */
+function doctorStatus(string $prerequisite): ?string
+{
+    $row = doctorRows()[$prerequisite] ?? null;
+    $status = is_array($row) ? ($row['status'] ?? null) : null;
+
+    return is_string($status) ? $status : null;
+}
+
+/** How many prerequisites the doctor reported as missing. */
+function doctorMissingCount(): int
+{
+    \Illuminate\Support\Facades\Artisan::call('vouch:doctor', ['--json' => true]);
+
+    $report = json_decode(\Illuminate\Support\Facades\Artisan::output(), true, flags: JSON_THROW_ON_ERROR);
+    $missing = is_array($report) ? ($report['missing'] ?? null) : null;
+
+    if (! is_int($missing)) {
+        throw new RuntimeException('Expected the doctor report to count its missing prerequisites.');
+    }
+
+    return $missing;
+}
