@@ -2,7 +2,18 @@
 
 declare(strict_types=1);
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
+
+/*
+ * The database trait is not decoration. This test runs the doctor command, which
+ * counts identifier rows, so without migrations the command exits 2 and prints a
+ * human error line where the test expects JSON. It passed without this only
+ * because another file had already migrated the shared scratch database -- found
+ * by running tests/Docs on its own, which is the run that has nobody to inherit
+ * from.
+ */
+uses(RefreshDatabase::class);
 
 /*
  * #82. The operator-facing prerequisite table and the command must agree.
