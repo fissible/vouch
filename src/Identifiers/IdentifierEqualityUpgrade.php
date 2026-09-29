@@ -48,11 +48,25 @@ use stdClass;
  * tables for the length of a full scan is a worse operational story than
  * pausing traffic, which is what docs/operations.md asks for.
  *
+ * #61. The scan is bounded in memory rather than proportional to the table. The
+ * first version read every row of all three tables into PHP before deciding
+ * anything -- measured at 857 bytes of array payload and about 1.8 KB resident
+ * per row, linear -- so roughly 157k auth_identifiers rows exhausted a 128 MB
+ * limit and the largest installations could not complete the upgrade at all.
+ * What replaces it is a per-table working table: rows go in id-ordered chunks,
+ * the engine picks out the groups worth looking at, and only those rows come
+ * back to PHP. The all-or-nothing contract is unchanged -- every table is
+ * scanned and every verdict reached before the first write.
+ *
  * This lives here rather than inside the migration for a measured reason: a
  * migration file is recompiled on every migrate, and the suite runs hundreds of
  * them. At this size that cost 32 MB of never-reclaimed compiled classes across
  * one suite run and exhausted the pinned memory limit. An autoloaded class is
  * compiled once.
+ *
+ * @phpstan-type IdentifierRow array{id: int, type: string, value: string, canonicalType: string, canonical: string, key: string, loose: string, terminal: bool}
+ * @phpstan-type TableSpec array{type: string, value: string, policy: string}
+ * @phpstan-type RewritePairs list<array{string, string}>
  */
 final readonly class IdentifierEqualityUpgrade
 {
@@ -65,19 +79,23 @@ final readonly class IdentifierEqualityUpgrade
      * Every column that holds an identifier, and what a collision there means.
      *
      * `refuse` is an account row, `transient` a short-lived credential.
+     *
+     * Every table here is keyed by `id`, which is what lets the scan below page
+     * through it. A fourth entry once described the issuance lock table, which
+     * had a scope and no identifier column; #46 replaced that table with a
+     * bucketed one, and the `keyed` and `scope` flags that existed only to
+     * describe it went with it rather than staying as configuration no entry
+     * uses and no test reaches.
      */
     private const TABLES = [
         'auth_identifiers' => [
-            'type' => 'type', 'value' => 'value',
-            'keyed' => true, 'scope' => null, 'policy' => 'refuse',
+            'type' => 'type', 'value' => 'value', 'policy' => 'refuse',
         ],
         'auth_identifier_verifications' => [
-            'type' => 'identifier_type', 'value' => 'identifier_value',
-            'keyed' => true, 'scope' => null, 'policy' => 'transient',
+            'type' => 'identifier_type', 'value' => 'identifier_value', 'policy' => 'transient',
         ],
         'auth_recovery_proofs' => [
-            'type' => 'identifier_type', 'value' => 'identifier_value',
-            'keyed' => true, 'scope' => null, 'policy' => 'transient',
+            'type' => 'identifier_type', 'value' => 'identifier_value', 'policy' => 'transient',
         ],
     ];
 
@@ -103,6 +121,33 @@ final readonly class IdentifierEqualityUpgrade
     /** Rows per statement in the rewrite. */
     private const CHUNK = 200;
 
+    /**
+     * Where the scan keeps its working set.
+     *
+     * TEMPORARY, and that is load-bearing rather than tidy. The refusal contract
+     * says a refused upgrade left no trace, and a permanent scratch table is a
+     * trace -- one a row-and-column assertion cannot see. A temporary table is
+     * absent from information_schema.tables, from pg_tables and from
+     * sqlite_master alike because it dies with the connection, so even a process
+     * killed mid-scan leaves nothing behind for the next operator to explain.
+     */
+    private const WORKING_TABLE = 'vouch_identifier_upgrade_scan';
+
+    /** Rows read from the source table per statement. */
+    private const SCAN_CHUNK = 500;
+
+    /**
+     * Rows written into the working table per statement.
+     *
+     * Smaller than the read chunk because this one is bounded by PLACEHOLDERS,
+     * not by rows: seven columns, so a hundred rows is seven hundred bindings
+     * and still clear of the 999 that older SQLite builds cap a statement at.
+     */
+    private const STORE_CHUNK = 100;
+
+    /** Group keys named per read-back statement, on the same placeholder budget. */
+    private const KEY_CHUNK = 200;
+
     public function apply(): void
     {
         /*
@@ -111,22 +156,19 @@ final readonly class IdentifierEqualityUpgrade
          * upgrade left no trace, which a table-at-a-time convert-then-check
          * cannot honour.
          */
-        $scanned = [];
-
-        foreach (self::TABLES as $table => $spec) {
-            $scanned[$table] = $this->scan($table, $spec);
-        }
-
         /** @var list<IdentifierCollision> $refusals */
         $refusals = [];
         /** @var array<string, list<int>> $doomed */
         $doomed = [];
+        /** @var array<string, array{types: RewritePairs, values: RewritePairs}> $rewrites */
+        $rewrites = [];
 
         foreach (self::TABLES as $table => $spec) {
-            $triage = $this->triage($table, $spec, $scanned[$table]);
+            $scanned = $this->scan($table, $spec);
 
-            $refusals = array_merge($refusals, $triage['refusals']);
-            $doomed[$table] = $triage['doomed'];
+            $refusals = array_merge($refusals, $scanned['refusals']);
+            $doomed[$table] = $scanned['doomed'];
+            $rewrites[$table] = ['types' => $scanned['types'], 'values' => $scanned['values']];
         }
 
         if ($refusals !== []) {
@@ -143,88 +185,384 @@ final readonly class IdentifierEqualityUpgrade
 
         foreach (self::TABLES as $table => $spec) {
             $this->discard($table, $doomed[$table]);
-            $this->rewrite($table, $spec, $scanned[$table], $doomed[$table]);
+
+            /*
+             * The rewrite is keyed on the STORED SPELLING rather than on a row
+             * id, which is what keeps it to a statement per chunk instead of one
+             * per row: the canonical form is a function of the spelling, so one
+             * CASE arm serves every row that shares one. It is also why the pairs
+             * survive a bounded scan at all -- their number is the count of
+             * DISTINCT changing spellings, not the count of rows.
+             *
+             * Spellings belonging only to rows just discarded are still in the
+             * list, and harmlessly so: the delete ran first, so those arms match
+             * nothing. Filtering them out would need an id-to-spelling map, which
+             * is exactly the per-row memory this scan exists to avoid. Rows that
+             * share a spelling share a canonical form and therefore a group, so a
+             * discarded spelling can never still be held by a surviving row.
+             */
+            $this->rewriteColumn($table, $spec['type'], $rewrites[$table]['types']);
+            $this->rewriteColumn($table, $spec['value'], $rewrites[$table]['values']);
         }
     }
 
     /**
-     * Every row of one identifier table, with its canonical form and the
-     * equality class the column's CURRENT collation puts it in.
+     * Everything one identifier table costs, decided without holding it in PHP.
      *
-     * The loose class is the only way a SPLIT is visible. Two rows an
-     * accent-insensitive collation considers one address canonicalize apart,
-     * and no amount of PHP can discover that equality -- only the engine knows
-     * it. So the engine is asked, in the same statement that reads the rows,
-     * via an index-backed correlated subquery rather than a query per pair.
+     * Three steps, and the split between them is what bounds the memory. The
+     * fill streams the table through a working table in id-ordered chunks,
+     * computing canonical forms in PHP as it goes. The engine then names the
+     * groups worth a second look. Only those rows come back, and the existing
+     * component walk and triage run over that small set.
      *
-     * @param  array{type: string, value: string, keyed: bool, scope: string|null, policy: string}  $spec
-     * @return list<array{id: int|null, scope: string, type: string, value: string, canonicalType: string, canonical: string, key: string, loose: string, terminal: bool}>
+     * @param  TableSpec  $spec
+     * @return array{refusals: list<IdentifierCollision>, doomed: list<int>, types: RewritePairs, values: RewritePairs}
      */
     private function scan(string $table, array $spec): array
+    {
+        $this->createWorkingTable();
+
+        try {
+            $rewrites = $this->fill($table, $spec);
+            $triage = $this->triage($table, $spec, $this->candidates());
+
+            return [
+                'refusals' => $triage['refusals'],
+                'doomed' => $triage['doomed'],
+                'types' => $rewrites['types'],
+                'values' => $rewrites['values'],
+            ];
+        } finally {
+            /*
+             * In a finally, so a refusal raised by a LATER table -- or a query
+             * that fails outright -- still leaves nothing behind.
+             */
+            $this->connection->statement(sprintf(
+                'drop table if exists %s',
+                $this->quote(self::WORKING_TABLE),
+            ));
+        }
+    }
+
+    /**
+     * The working table, with the collation the comparisons below depend on.
+     *
+     * Its OWN collation, and getting this wrong is the quietest way to break the
+     * whole migration. Left to the MySQL server default these columns are accent-
+     * and case-insensitive, so `count(distinct row_value)` folds Ada@ and ada@
+     * into one, every group looks uninteresting, and the scan reports NO
+     * collisions -- the defect this migration exists to prevent, reintroduced
+     * inside its own machinery, on one engine only and without an error.
+     * Measured. SQLite's BINARY default is already right and needs nothing.
+     */
+    private function createWorkingTable(): void
+    {
+        $driver = $this->connection->getDriverName();
+
+        $text = match ($driver) {
+            'mysql' => ' character set utf8mb4 collate ' . self::MYSQL_COLLATION,
+            'pgsql' => ' collate "C"',
+            'sqlite' => '',
+            default => throw new InvalidArgumentException(
+                'Vouch cannot build an identifier scan working table on driver "'
+                . $driver . '". Supported engines are MySQL, PostgreSQL and SQLite.',
+            ),
+        };
+
+        /*
+         * The canonical columns are twice the width of the ones they mirror.
+         * Case folding is not length-preserving -- U+0130 lowercases to two code
+         * points -- so a value sitting at its column's limit can canonicalize
+         * past it, and MySQL in strict mode would reject the INSERT rather than
+         * the row. The headroom costs nothing; a truncated canonical form would
+         * silently mis-group.
+         */
+        $this->connection->statement(sprintf(
+            'create temporary table %s ('
+            . 'row_id bigint not null, '
+            . 'row_type varchar(%d)%s not null, '
+            . 'row_value varchar(%d)%s not null, '
+            . 'canonical_type varchar(%d)%s not null, '
+            . 'canonical_value varchar(%d)%s not null, '
+            . 'loose_class bigint not null, '
+            . 'terminal integer not null)',
+            $this->quote(self::WORKING_TABLE),
+            self::LENGTHS['type'],
+            $text,
+            self::LENGTHS['value'],
+            $text,
+            self::LENGTHS['type'] * 2,
+            $text,
+            self::LENGTHS['value'] * 2,
+            $text,
+        ));
+    }
+
+    /**
+     * Stream one identifier table into the working table, id-ordered.
+     *
+     * Each row arrives with its canonical form and the equality class the
+     * column's CURRENT collation puts it in.
+     *
+     * The loose class is the only way a SPLIT is visible. Two rows an
+     * accent-insensitive collation considers one address canonicalize apart, and
+     * no amount of PHP can discover that equality -- only the engine knows it.
+     * So the engine is asked, in the same statement that reads the rows, via an
+     * index-backed correlated subquery rather than a query per pair.
+     *
+     * The rewrite pairs are collected here rather than from a second pass,
+     * because this is the only point at which every row is seen. They deduplicate
+     * by spelling, so they cost distinct changing spellings rather than rows.
+     *
+     * @param  TableSpec  $spec
+     * @return array{types: RewritePairs, values: RewritePairs}
+     */
+    private function fill(string $table, array $spec): array
     {
         $quoted = $this->quote($table);
         $type = $this->quote($spec['type']);
         $value = $this->quote($spec['value']);
 
         $select = [
+            't.id as row_id',
             sprintf('t.%s as row_type', $type),
             sprintf('t.%s as row_value', $value),
-        ];
-
-        if ($spec['keyed']) {
-            $select[] = 't.id as row_id';
-            $select[] = sprintf(
+            sprintf(
                 '(select min(o.id) from %s o where o.%s = t.%s and o.%s = t.%s) as loose_class',
                 $quoted,
                 $type,
                 $type,
                 $value,
                 $value,
-            );
-        }
-
-        if ($spec['scope'] !== null) {
-            $select[] = sprintf('t.%s as row_scope', $this->quote($spec['scope']));
-        }
+            ),
+        ];
 
         if ($spec['policy'] === 'transient') {
             $select[] = 't.consumed_at as consumed_at';
             $select[] = 't.burned_at as burned_at';
         }
 
-        $rows = [];
-        $index = 0;
+        /*
+         * Paged by the primary key rather than by OFFSET. An offset re-walks
+         * everything it skips, so the scan would cost O(n squared) row reads on
+         * exactly the installations this change is for.
+         */
+        $query = sprintf(
+            'select %s from %s t where t.id > ? order by t.id limit %d',
+            implode(', ', $select),
+            $quoted,
+            self::SCAN_CHUNK,
+        );
 
-        foreach ($this->connection->select(sprintf('select %s from %s t', implode(', ', $select), $quoted)) as $row) {
+        /** @var RewritePairs $types */
+        $types = [];
+        /** @var RewritePairs $values */
+        $values = [];
+        $seenType = [];
+        $seenValue = [];
+        $cursor = 0;
+
+        do {
+            $read = $this->connection->select($query, [$cursor]);
+            /** @var list<array{int, string, string, string, string, int, int}> $pending */
+            $pending = [];
+
+            foreach ($read as $row) {
+                if (! $row instanceof stdClass) {
+                    continue;
+                }
+
+                $id = $this->number($row, 'row_id');
+                $storedType = $this->text($row, 'row_type');
+                $storedValue = $this->text($row, 'row_value');
+                $canonicalType = $this->canonicalizer->canonicalize($storedType);
+                $canonicalValue = $this->canonicalizer->canonicalize($storedValue);
+
+                $cursor = $id;
+
+                $pending[] = [
+                    $id,
+                    $storedType,
+                    $storedValue,
+                    $canonicalType,
+                    $canonicalValue,
+                    $this->number($row, 'loose_class'),
+                    $this->flag($row, 'consumed_at') || $this->flag($row, 'burned_at') ? 1 : 0,
+                ];
+
+                if ($storedType !== $canonicalType && ! isset($seenType[$storedType])) {
+                    $seenType[$storedType] = true;
+                    $types[] = [$storedType, $canonicalType];
+                }
+
+                if ($storedValue !== $canonicalValue && ! isset($seenValue[$storedValue])) {
+                    $seenValue[$storedValue] = true;
+                    $values[] = [$storedValue, $canonicalValue];
+                }
+            }
+
+            $this->store($pending);
+        } while (count($read) >= self::SCAN_CHUNK);
+
+        return ['types' => $types, 'values' => $values];
+    }
+
+    /**
+     * @param  list<array{int, string, string, string, string, int, int}>  $rows
+     */
+    private function store(array $rows): void
+    {
+        foreach (array_chunk($rows, self::STORE_CHUNK) as $chunk) {
+            $tuples = [];
+            $bindings = [];
+
+            foreach ($chunk as $row) {
+                $tuples[] = '(?, ?, ?, ?, ?, ?, ?)';
+
+                foreach ($row as $field) {
+                    $bindings[] = $field;
+                }
+            }
+
+            $this->connection->insert(sprintf(
+                'insert into %s (row_id, row_type, row_value, canonical_type, canonical_value,'
+                . ' loose_class, terminal) values %s',
+                $this->quote(self::WORKING_TABLE),
+                implode(', ', $tuples),
+            ), $bindings);
+        }
+    }
+
+    /**
+     * Every row of every group that could possibly be a collision.
+     *
+     * A group is a set of rows with more than one SPELLING in it, reached
+     * through either relation: rows sharing a canonical form, and rows the
+     * current collation already equates. Asking the engine for the groups whose
+     * spellings disagree returns every row of every such component, not merely
+     * the rows the disagreement was noticed on.
+     *
+     * That is a claim worth stating. Identical bytes canonicalize identically
+     * AND compare equal under any collation, so a row whose canonical group and
+     * whose loose class are each of one spelling has a component of exactly one
+     * spelling -- its neighbours' neighbours are its own. Contrapositively,
+     * every row of a component with two spellings has a canonical group or a
+     * loose class that disagrees with itself, so nothing is left behind and the
+     * report names the whole group rather than the pair that gave it away.
+     *
+     * @return list<IdentifierRow>
+     */
+    private function candidates(): array
+    {
+        $working = $this->quote(self::WORKING_TABLE);
+        $disagrees = ' having count(distinct row_type) > 1 or count(distinct row_value) > 1';
+
+        /*
+         * Grouped by the two canonical COLUMNS, never by a composite key built
+         * in SQL. Joining them around a "\0" separator -- which is what the key
+         * looks like in PHP -- truncates at the separator on PostgreSQL, where
+         * text cannot hold a NUL: every row sharing a type collapses into one
+         * group and unrelated addresses are reported as colliding. Silent, and
+         * on that engine only.
+         */
+        $merges = $this->connection->select(sprintf(
+            'select canonical_type, canonical_value from %s group by canonical_type, canonical_value%s',
+            $working,
+            $disagrees,
+        ));
+
+        $splits = $this->connection->select(sprintf(
+            'select loose_class from %s group by loose_class%s',
+            $working,
+            $disagrees,
+        ));
+
+        /**
+         * Two statements and a read-back rather than one query with subqueries,
+         * because MySQL refuses to open a TEMPORARY table twice in the same
+         * statement -- "Can't reopen table" -- so the obvious
+         * `where ... in (select ... from working group by ...)` form does not run
+         * there at all.
+         *
+         * @var list<array{string, list<int|string>}> $conditions
+         */
+        $conditions = [];
+
+        foreach ($merges as $row) {
             if (! $row instanceof stdClass) {
                 continue;
             }
 
-            $storedType = $this->text($row, 'row_type');
-            $storedValue = $this->text($row, 'row_value');
-            $scope = $this->text($row, 'row_scope');
-            $canonicalType = $this->canonicalizer->canonicalize($storedType);
-            $canonicalValue = $this->canonicalizer->canonicalize($storedValue);
-
-            $rows[] = [
-                'id' => $spec['keyed'] ? $this->number($row, 'row_id') : null,
-                'scope' => $scope,
-                'type' => $storedType,
-                'value' => $storedValue,
-                'canonicalType' => $canonicalType,
-                'canonical' => $canonicalValue,
-                'key' => implode("\0", [$scope, $canonicalType, $canonicalValue]),
-                /*
-                 * An unkeyed table gets a class of its own per row, which is
-                 * correct rather than a shortcut: unique(ceremony, type, value)
-                 * means a loose collation REJECTS the second of two rows it
-                 * considers equal, so a split is unconstructible there.
-                 */
-                'loose' => $spec['keyed'] ? (string) $this->number($row, 'loose_class') : 'row-' . $index,
-                'terminal' => $this->present($row, 'consumed_at') || $this->present($row, 'burned_at'),
+            $conditions[] = [
+                '(canonical_type = ? and canonical_value = ?)',
+                [$this->text($row, 'canonical_type'), $this->text($row, 'canonical_value')],
             ];
+        }
 
-            $index++;
+        foreach ($splits as $row) {
+            if (! $row instanceof stdClass) {
+                continue;
+            }
+
+            $conditions[] = ['loose_class = ?', [$this->number($row, 'loose_class')]];
+        }
+
+        /** @var list<IdentifierRow> $rows */
+        $rows = [];
+        $seen = [];
+
+        foreach (array_chunk($conditions, self::KEY_CHUNK) as $chunk) {
+            $clauses = [];
+            $bindings = [];
+
+            foreach ($chunk as [$clause, $values]) {
+                $clauses[] = $clause;
+
+                foreach ($values as $binding) {
+                    $bindings[] = $binding;
+                }
+            }
+
+            $selected = $this->connection->select(sprintf(
+                'select row_id, row_type, row_value, canonical_type, canonical_value, loose_class,'
+                . ' terminal from %s where %s order by row_id',
+                $working,
+                implode(' or ', $clauses),
+            ), $bindings);
+
+            foreach ($selected as $row) {
+                if (! $row instanceof stdClass) {
+                    continue;
+                }
+
+                $id = $this->number($row, 'row_id');
+
+                /*
+                 * A row reached through both relations arrives once per chunk it
+                 * matches in, and the refusal report names ids rather than
+                 * counting them -- so an operator would be handed the same row
+                 * twice.
+                 */
+                if (isset($seen[$id])) {
+                    continue;
+                }
+
+                $seen[$id] = true;
+                $canonicalType = $this->text($row, 'canonical_type');
+                $canonical = $this->text($row, 'canonical_value');
+
+                $rows[] = [
+                    'id' => $id,
+                    'type' => $this->text($row, 'row_type'),
+                    'value' => $this->text($row, 'row_value'),
+                    'canonicalType' => $canonicalType,
+                    'canonical' => $canonical,
+                    // The NUL lives in PHP only; see the grouping note above.
+                    'key' => $canonicalType . "\0" . $canonical,
+                    'loose' => (string) $this->number($row, 'loose_class'),
+                    'terminal' => $this->flag($row, 'terminal'),
+                ];
+            }
         }
 
         return $rows;
@@ -233,8 +571,8 @@ final readonly class IdentifierEqualityUpgrade
     /**
      * What this table's collisions cost: rows to refuse over, rows to delete.
      *
-     * @param  array{type: string, value: string, keyed: bool, scope: string|null, policy: string}  $spec
-     * @param  list<array{id: int|null, scope: string, type: string, value: string, canonicalType: string, canonical: string, key: string, loose: string, terminal: bool}>  $rows
+     * @param  TableSpec  $spec
+     * @param  list<IdentifierRow>  $rows
      * @return array{refusals: list<IdentifierCollision>, doomed: list<int>}
      */
     private function triage(string $table, array $spec, array $rows): array
@@ -295,7 +633,7 @@ final readonly class IdentifierEqualityUpgrade
      * -- so this is a disjoint-set walk over the rows rather than a group-by on
      * either key.
      *
-     * @param  list<array{id: int|null, scope: string, type: string, value: string, canonicalType: string, canonical: string, key: string, loose: string, terminal: bool}>  $rows
+     * @param  list<IdentifierRow>  $rows
      * @return list<list<int>> positions in $rows
      */
     private function components(array $rows): array
@@ -358,7 +696,7 @@ final readonly class IdentifierEqualityUpgrade
     }
 
     /**
-     * @param  list<array{id: int|null, scope: string, type: string, value: string, canonicalType: string, canonical: string, key: string, loose: string, terminal: bool}>  $rows
+     * @param  list<IdentifierRow>  $rows
      * @param  list<int>  $component
      * @return list<int>
      */
@@ -367,11 +705,7 @@ final readonly class IdentifierEqualityUpgrade
         $ids = [];
 
         foreach ($component as $position) {
-            $id = $rows[$position]['id'];
-
-            if ($id !== null) {
-                $ids[] = $id;
-            }
+            $ids[] = $rows[$position]['id'];
         }
 
         sort($ids);
@@ -383,7 +717,7 @@ final readonly class IdentifierEqualityUpgrade
      * The canonical value a colliding group contends for, taken from its
      * lowest-numbered row so the report is stable between runs.
      *
-     * @param  list<array{id: int|null, scope: string, type: string, value: string, canonicalType: string, canonical: string, key: string, loose: string, terminal: bool}>  $rows
+     * @param  list<IdentifierRow>  $rows
      * @param  list<int>  $component
      */
     private function contested(array $rows, array $component): string
@@ -391,7 +725,7 @@ final readonly class IdentifierEqualityUpgrade
         $lowest = null;
 
         foreach ($component as $position) {
-            if ($lowest === null || ($rows[$position]['id'] ?? 0) < ($rows[$lowest]['id'] ?? 0)) {
+            if ($lowest === null || $rows[$position]['id'] < $rows[$lowest]['id']) {
                 $lowest = $position;
             }
         }
@@ -407,7 +741,7 @@ final readonly class IdentifierEqualityUpgrade
      * that two rows want one address when the truth is the opposite -- this
      * database considers them one address and the change makes them two.
      *
-     * @param  list<array{id: int|null, scope: string, type: string, value: string, canonicalType: string, canonical: string, key: string, loose: string, terminal: bool}>  $rows
+     * @param  list<IdentifierRow>  $rows
      * @param  list<int>  $component
      * @return list<string>
      */
@@ -444,51 +778,13 @@ final readonly class IdentifierEqualityUpgrade
     }
 
     /**
-     * Rewrite every surviving row that is not spelled canonically.
+     * Rewrite every row spelled one way into the canonical spelling of it.
      *
-     * Keyed on the STORED SPELLING rather than on a row id, which is what keeps
-     * this to a statement per chunk instead of one per row: the canonical form
-     * is a function of the spelling, so one CASE arm serves every row that
-     * shares a spelling. The canonical values come from PHP -- no SQL function
-     * normalizes Unicode, and lower() alone leaves a decomposed address in a
-     * spelling the application can no longer match.
+     * The canonical values come from PHP -- no SQL function normalizes Unicode,
+     * and lower() alone leaves a decomposed address in a spelling the
+     * application can no longer match.
      *
-     * @param  array{type: string, value: string, keyed: bool, scope: string|null, policy: string}  $spec
-     * @param  list<array{id: int|null, scope: string, type: string, value: string, canonicalType: string, canonical: string, key: string, loose: string, terminal: bool}>  $rows
-     * @param  list<int>  $doomed
-     */
-    private function rewrite(string $table, array $spec, array $rows, array $doomed): void
-    {
-        /** @var list<array{string, string}> $types */
-        $types = [];
-        /** @var list<array{string, string}> $values */
-        $values = [];
-        $seenType = [];
-        $seenValue = [];
-        $deleted = array_fill_keys($doomed, true);
-
-        foreach ($rows as $row) {
-            if ($row['id'] !== null && isset($deleted[$row['id']])) {
-                continue;
-            }
-
-            if ($row['type'] !== $row['canonicalType'] && ! isset($seenType[$row['type']])) {
-                $seenType[$row['type']] = true;
-                $types[] = [$row['type'], $row['canonicalType']];
-            }
-
-            if ($row['value'] !== $row['canonical'] && ! isset($seenValue[$row['value']])) {
-                $seenValue[$row['value']] = true;
-                $values[] = [$row['value'], $row['canonical']];
-            }
-        }
-
-        $this->rewriteColumn($table, $spec['type'], $types);
-        $this->rewriteColumn($table, $spec['value'], $values);
-    }
-
-    /**
-     * @param  list<array{string, string}>  $pairs
+     * @param  RewritePairs  $pairs
      */
     private function rewriteColumn(string $table, string $column, array $pairs): void
     {
@@ -632,8 +928,28 @@ final readonly class IdentifierEqualityUpgrade
         return is_numeric($value) ? (int) $value : 0;
     }
 
-    private function present(stdClass $row, string $column): bool
+    /**
+     * Whether a column says yes, in whatever way this engine spells yes.
+     *
+     * Three shapes, because two different columns come through here. A timestamp
+     * is present or NULL; the working table's own flag comes back as 1 or "1"
+     * from SQLite and MySQL, and PostgreSQL's drivers have been known to hand a
+     * bare boolean back. Reading only `is_numeric` would silently answer "not
+     * terminal" for the last of those, which under the transient policy DELETES
+     * the consumed proofs this upgrade is supposed to refuse over.
+     */
+    private function flag(stdClass $row, string $column): bool
     {
-        return ($row->{$column} ?? null) !== null;
+        $value = $row->{$column} ?? null;
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_numeric($value)) {
+            return (int) $value !== 0;
+        }
+
+        return $value !== null;
     }
 }
