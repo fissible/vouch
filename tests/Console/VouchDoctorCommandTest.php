@@ -46,7 +46,12 @@ it('reports all adoption prerequisites without accepting subject input', functio
         }
 
         expect($exit)->toBe(CommandExit::Failure->value)
-            ->and($prerequisites)->toHaveCount(5)
+            /*
+             * Seven, not five: #82 added rows for the boot checks this command is
+             * exempt from, so that an exemption whose premise is "the operator can
+             * still diagnose it" is matched by something that diagnoses it.
+             */
+            ->and($prerequisites)->toHaveCount(7)
             ->and($report['missing'])->toBe(4)
             ->and($prerequisites[0])->toBe([
                 'prerequisite' => 'verified_at',
@@ -114,8 +119,20 @@ it('exempts only vouch:doctor from the CAPTCHA boot guard', function (): void {
         expect(fn () => (new VouchServiceProvider(app()))->boot())
             ->toThrow('CAPTCHA escalation is enabled');
 
+        /*
+         * Called directly, and followed by a POSITIVE assertion. This previously read
+         * `expect(...)->not->toThrow(\Throwable::class)`, which proves nothing either
+         * way: Throwable is an interface, so Pest treats the argument as a message
+         * substring, and with `not` the assertion passes whether an exception was
+         * thrown or not. An exception here now fails the test by itself, and the
+         * report below shows boot ran to completion.
+         */
         $_SERVER['argv'] = ['artisan', 'vouch:doctor'];
-        expect(fn () => (new VouchServiceProvider(app()))->boot())->not->toThrow(\Throwable::class);
+        (new VouchServiceProvider(app()))->boot();
+
+        // And the exemption leaves something to read: the report names the very
+        // check boot skipped, rather than passing the host silently.
+        expect(doctorStatus('CaptchaVerifier'))->toBe('missing');
 
         $_SERVER['argv'] = 'not-an-argument-vector';
         expect(fn () => (new VouchServiceProvider(app()))->boot())
