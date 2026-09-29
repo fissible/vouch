@@ -190,6 +190,72 @@ function tableNames(): array
     return $names;
 }
 
+/**
+ * Every table the package itself declares, plus the ones the harness owns.
+ *
+ * An ABSOLUTE expectation rather than a before-and-after diff, because a diff
+ * cannot see this. DatabaseMigrations runs the migration under test in setUp,
+ * before any test body, so a working table the scan failed to drop is already
+ * present when a baseline is captured and the difference is empty by
+ * construction -- measured: an implementation that never drops its working table
+ * on the refusal path was green on the whole file, in sequence and in isolation,
+ * with the table still in information_schema afterwards.
+ *
+ * Derived from the migrations rather than listed here so that adding a table does
+ * not silently weaken it: a new Schema::create() extends this set on its own, and
+ * a table created by anything else fails here and has to be accounted for.
+ *
+ * Scope note: permanent objects only. A TEMPORARY working table is absent from
+ * sqlite_master, from information_schema.tables and from pg_tables alike, because
+ * it dies with the connection -- which is a legitimate way to leave no residue
+ * rather than a hole in this guard.
+ *
+ * @return list<string>
+ */
+function expectedTableNames(): array
+{
+    /*
+     * The harness's own table, plus the one the migrations create from a CLASS
+     * CONSTANT rather than a literal. The first version of this helper matched only
+     * quoted names and so failed against a perfectly clean database, naming the
+     * table it had not accounted for -- which is the right failure, and the reason
+     * this is a short explicit list rather than a cleverer regex: a future
+     * constant-named table fails here by name and gets accounted for deliberately.
+     */
+    $names = [
+        'migrations',
+        // Sanctum's, loaded by the provider when the package is installed rather than
+        // declared by any migration here.
+        'personal_access_tokens',
+        \Fissible\Vouch\Support\IssuanceLockBucket::TABLE,
+    ];
+
+    if (DB::connection()->getDriverName() === 'sqlite') {
+        $names[] = 'sqlite_sequence';
+    }
+
+    foreach (glob(dirname(__DIR__, 2) . '/database/migrations/*.php') ?: [] as $file) {
+        $source = file_get_contents($file);
+
+        if (! is_string($source)) {
+            throw new RuntimeException('A migration file is unreadable: ' . $file);
+        }
+
+        if (preg_match_all("/Schema::create\('([a-z_]+)'/", $source, $matches) === false) {
+            continue;
+        }
+
+        foreach ($matches[1] as $name) {
+            $names[] = $name;
+        }
+    }
+
+    $names = array_values(array_unique($names));
+    sort($names);
+
+    return $names;
+}
+
 /** Whether an index still exists, asked of the engine. */
 function indexExists(string $table, string $index): bool
 {
@@ -499,7 +565,6 @@ it('constructs and refuses a split in the proof tables', function (): void {
 
 it('changes neither rows nor schema when it refuses', function (): void {
     revertToLegacyCollation(except: ['auth_identifiers']);
-    $before = tableNames();
     $id = rawIdentifier('Ada@Acme.Example', 1);
     rawIdentifier('ada@acme.example', 2);
 
@@ -528,13 +593,14 @@ it('changes neither rows nor schema when it refuses', function (): void {
         ->toBe('Grace@Acme.Example');
 
     /*
-     * And no TABLE left behind either. A scan bounded by persisting its working
-     * set has somewhere to leave residue that a row-and-column assertion cannot
-     * see -- measured, an implementation that never drops its working table on the
-     * refusal path passes every other test in this file, on every engine, with the
-     * table still present in information_schema afterwards.
+     * And no TABLE left behind either. A scan bounded by persisting its working set
+     * has somewhere to leave residue that a row-and-column assertion cannot see.
+     *
+     * Against the declared set, not against a baseline taken here: the migration has
+     * already run in setUp, so residue from THAT run is in any baseline this body
+     * could capture and a diff is empty however much was left behind -- measured.
      */
-    expect(tableNames())->toBe($before);
+    expect(tableNames())->toBe(expectedTableNames());
 
     if (DB::connection()->getDriverName() === 'sqlite') {
         return;
@@ -852,10 +918,6 @@ it('closes a merge whose rows are a whole table apart', function (): void {
     straddleFiller(STRADDLE_GAP, 100);
     $second = rawIdentifier('ada@acme.example', 2);
 
-    /*
-     * The premise: the two really are far apart in id order, so any chunking
-     * smaller than the gap must reach across it to see them as one group.
-     */
     // The premises: far apart by id, AND separated in value order, so neither a
     // scan that pages by primary key nor one that pages by the unique index can
     // see the pair without reaching across a chunk.
@@ -920,6 +982,36 @@ it('closes a split whose rows are a whole table apart', function (): void {
  * with a third row and 1200 more filler rows, proving nothing the case above does
  * not, while its comment said otherwise.
  */
+
+it('names every row of a group of three', function (): void {
+    /*
+     * Group SIZE rather than straddling, and it needs no filler: three byte-distinct
+     * spellings of one canonical form, all accepted by unique(type, value) while the
+     * column is still deterministic.
+     *
+     * What it catches is a plausible way to bound a working set -- keep two rows per
+     * canonical key, on the reasoning that two different spellings is already a
+     * collision and the rest are redundant. Measured, that passes every other test in
+     * this file on SQLite and MySQL while reporting an incomplete id list: the
+     * operator reconciles the rows named, re-runs, and is refused again over a row the
+     * first report already knew about.
+     *
+     * Under the transient policy it is worse than a short report. A live group whose
+     * only terminal member is the row that got dropped reads as non-terminal, so rows
+     * that should have refused are DELETED instead.
+     */
+    revertToLegacyCollation(except: ['auth_identifiers']);
+
+    $first = rawIdentifier('Ada@Acme.Example', 1);
+    $second = rawIdentifier('ada@acme.example', 2);
+    $third = rawIdentifier('ADA@ACME.EXAMPLE', 3);
+
+    // The premise: all three really are stored distinctly, so a complete report has
+    // three rows to name rather than two the engine already folded.
+    expect(DB::table('auth_identifiers')->count())->toBe(3);
+
+    expect(refusedIds())->toBe([$first, $second, $third]);
+});
 
 it('keeps its statement count bounded when the table is large', function (): void {
     /*
