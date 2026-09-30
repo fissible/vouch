@@ -3,9 +3,12 @@
 declare(strict_types=1);
 
 use Fissible\Vouch\Identifiers\IdentifierCollisionsFound;
+use Fissible\Vouch\Identifiers\IdentifierEqualityUpgrade;
+use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Config;
 
 uses(DatabaseMigrations::class);
 
@@ -1099,4 +1102,168 @@ it('is given a memory limit that actually bites', function (): void {
 
     expect($result['status'])->not->toBe(0);
     expect($result['errors'] . $result['output'])->toContain('Allowed memory size');
+});
+
+/*
+ * #89, #90, #91. Four defects a second review found in the bounded scan after a
+ * first review had passed it, each reproduced against the real schema.
+ *
+ * They share a cause worth naming: the scan stopped reading rows directly and
+ * started reading them through a working table, and three assumptions came with
+ * that which nothing pinned -- that every row is reachable by paging on the primary
+ * key, that a value copied into the working table means what it meant in the source
+ * column, and that the session which wrote the working table is the session that
+ * reads it.
+ */
+
+it('refuses over a component whose terminal row sits at id zero', function (): void {
+    if (DB::connection()->getDriverName() !== 'sqlite') {
+        $this->markTestSkipped('Only SQLite accepts an explicit zero primary key; elsewhere the sequence hides it.');
+    }
+
+    revertToLegacyCollation();
+
+    /*
+     * The scan pages with `where id > ?` from a cursor of zero, so a row at id 0 is
+     * never read at all -- and a component whose only TERMINAL member is that row
+     * therefore looks live, which under the transient policy deletes it instead of
+     * refusing. An imported or restored table is where a zero key comes from.
+     */
+    DB::table('auth_recovery_proofs')->insert([
+        'id' => 0,
+        'identifier_type' => 'email',
+        'identifier_value' => 'Ada@Acme.Example',
+        'code_hash' => 'hash-zero',
+        'is_decoy' => false,
+        'attempts' => 0,
+        'expires_at' => now()->addMinutes(5),
+        'consumed_at' => (string) now(),
+        'created_at' => (string) now(),
+        'updated_at' => (string) now(),
+    ]);
+    $live = rawProof('ada@acme.example');
+
+    // The premise: the row really is at id 0, so what follows is about the cursor
+    // rather than about a fixture that failed to place it.
+    expect(DB::table('auth_recovery_proofs')->where('id', 0)->exists())->toBeTrue();
+
+    expect(refusedIds())->toBe([0, $live]);
+    // And nothing was deleted while the refusal was being missed.
+    expect(DB::table('auth_recovery_proofs')->count())->toBe(2);
+});
+
+it('treats a zero terminal timestamp as terminal', function (): void {
+    if (DB::connection()->getDriverName() !== 'sqlite') {
+        $this->markTestSkipped('Only SQLite stores a bare zero in a datetime column; strict modes reject it.');
+    }
+
+    revertToLegacyCollation();
+
+    /*
+     * `consumed_at = 0` is a real consumed proof: SQL sees a non-null value and the
+     * model casts it to 1970-01-01. The working table copies it, and the flag helper
+     * reads the copy numerically -- so zero came back as NOT terminal and the proof
+     * was deleted rather than refused over. The implementation this replaced asked
+     * only whether the column was non-null.
+     */
+    $consumed = DB::table('auth_recovery_proofs')->insertGetId([
+        'identifier_type' => 'email',
+        'identifier_value' => 'Ada@Acme.Example',
+        'code_hash' => 'hash-epoch',
+        'is_decoy' => false,
+        'attempts' => 0,
+        'expires_at' => now()->addMinutes(5),
+        'consumed_at' => 0,
+        'created_at' => (string) now(),
+        'updated_at' => (string) now(),
+    ]);
+    $live = rawProof('ada@acme.example');
+
+    // The premise: stored and non-null, which is what makes it terminal.
+    expect(DB::table('auth_recovery_proofs')->where('id', $consumed)->whereNotNull('consumed_at')->exists())
+        ->toBeTrue();
+
+    expect(refusedIds())->toBe([$consumed, $live]);
+    expect(DB::table('auth_recovery_proofs')->count())->toBe(2);
+});
+
+it('leaves a caller transaction for the caller to roll back', function (): void {
+    revertToLegacyCollation(except: ['auth_identifiers']);
+    rawIdentifier('Ada@Acme.Example', 1);
+    rawIdentifier('ada@acme.example', 2);
+
+    /*
+     * The working table is created and dropped with DDL, and on MySQL a plain
+     * `DROP TABLE` implicitly commits -- the TEMPORARY keyword is what exempts it.
+     * So an upgrade run inside a caller's transaction committed that transaction,
+     * and Laravel went on reporting transaction level 1 afterwards, so nothing in
+     * the framework noticed.
+     *
+     * Asserted on every engine because the property is general; it can only FAIL
+     * where the engine implicitly commits.
+     */
+    DB::beginTransaction();
+
+    DB::table('auth_policies')->insert([
+        'scope' => 'login',
+        'document' => '{"all_of":[]}',
+        'created_at' => (string) now(),
+        'updated_at' => (string) now(),
+    ]);
+
+    try {
+        runIdentifierMigration();
+    } catch (IdentifierCollisionsFound) {
+        // Expected; the point is what the rollback below can still undo.
+    }
+
+    DB::rollBack();
+
+    // The premise: the marker was written inside the transaction, so its absence is
+    // the rollback working rather than the insert having failed.
+    expect(DB::table('auth_policies')->count())->toBe(0);
+});
+
+it('reads its own working table when reads and writes are separate sessions', function (): void {
+    revertToLegacyCollation();
+    rawIdentifier('ada@acme.example', 1);
+
+    /*
+     * A temporary table belongs to the session that created it. The working table is
+     * written through the WRITE pdo -- statement() and insert() both use it -- and
+     * read back with Connection::select(), whose $useReadPdo parameter defaults to
+     * true. On any connection configured with a read/write split those are different
+     * sessions, so the read finds nothing and the upgrade dies with 1146.
+     *
+     * Three things hide it: a single-pdo connection, a sticky connection, and a run
+     * inside a transaction, which routes reads to the writer. Migrations open none of
+     * those on their own, and the suite's connections have one pdo each.
+     *
+     * Same database on both halves, so nothing here depends on replication.
+     */
+    $name = stringValue(DB::getDefaultConnection());
+    $config = config('database.connections.' . $name);
+
+    if (! is_array($config)) {
+        throw new RuntimeException('The default connection has no configuration to split.');
+    }
+
+    Config::set('database.connections.vouch_split', array_merge($config, [
+        'read' => [],
+        'write' => [],
+        // Sticky would send reads to the writer after the first write and hide this.
+        'sticky' => false,
+    ]));
+
+    DB::purge('vouch_split');
+    $split = DB::connection('vouch_split');
+
+    // The premise: the two halves really are distinct pdo objects, or this test is
+    // just the ordinary single-session path under another name.
+    expect($split->getReadPdo())->not->toBe($split->getPdo());
+
+    (new IdentifierEqualityUpgrade($split, app(IdentifierCanonicalizer::class)))->apply();
+
+    // It completed, and the row it was given is canonical afterwards.
+    expect(DB::table('auth_identifiers')->where('value', 'ada@acme.example')->exists())->toBeTrue();
 });
