@@ -353,6 +353,22 @@ function appClockNames(): array
             ...(is_array($extension) ? $extension : []),
             // Not date-extension functions: Carbon's and Laravel's own spellings.
             'now', 'today', 'tomorrow', 'yesterday', 'microtime', 'hrtime', 'gettimeofday',
+            /*
+             * And ext-intl's clock, procedurally. Hand-written on purpose: this scan
+             * is LEXICAL, so the list has to name a spelling whether or not the
+             * extension is loaded on the machine running the test. Asking
+             * get_extension_funcs('intl') would have made the guard quietly weaker
+             * on a host without intl, which is the failure mode this list is
+             * supposed to be immune to -- ext-date is asked because it is always
+             * compiled in.
+             *
+             * Measured, and this is the third time a hand-written half of this list
+             * has been short: adding IntlCalendar to the CLASS list below left
+             * `intlcal_get_now()` -- the same clock, procedurally -- passing the
+             * guard while breaking three behavioural tests under a five-second
+             * database-clock offset.
+             */
+            'intlcal_get_now',
         ],
     );
 
@@ -416,8 +432,6 @@ it('takes every fixture timestamp in this file from one clock', function (): voi
         throw new RuntimeException('This test file or its fixture is unreadable.');
     }
 
-    $source .= $fixtureSource;
-
     [$functions, $classes] = appClockNames();
 
     /*
@@ -436,12 +450,17 @@ it('takes every fixture timestamp in this file from one clock', function (): voi
 
     expect(ClockReads::in($sibling, $functions, $classes))->not->toBe([]);
 
-    // And both files really were scanned, so "no app clock" is not a statement about
-    // an empty read. The fixture half is named separately: concatenation means a
-    // single needle would be satisfied by either file alone.
-    expect($source)->toContain('DatabaseTime');
-    expect($fixtureSource)->toContain('DatabaseTime');
+    /*
+     * Scanned SEPARATELY rather than concatenated, and each half proved present by a
+     * needle only that half contains. Measured on the concatenated version: setting
+     * the command file's source to the empty string left the guard passing, because
+     * the fixture's copy of 'DatabaseTime' satisfied the control -- and with that
+     * omission a real now() planted in the command file went unreported. A control
+     * that either input can satisfy alone controls neither.
+     */
+    expect($source)->toContain('ThrottleReportFixture::seed');
     expect($fixtureSource)->toContain('auth_challenge_outbox');
 
     expect(ClockReads::in($source, $functions, $classes))->toBe([]);
+    expect(ClockReads::in($fixtureSource, $functions, $classes))->toBe([]);
 });
