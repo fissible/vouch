@@ -26,9 +26,10 @@ final class ClockReads
      *
      * @param  list<string>  $names  function names, lower case
      * @param  list<string>  $classes  class names whose construction or static call is a read, lower case
+     * @param  list<string>  $prefixes  name PREFIXES, lower case: a whole family closed at once
      * @return list<string>
      */
-    public static function in(string $source, array $names, array $classes): array
+    public static function in(string $source, array $names, array $classes, array $prefixes = []): array
     {
         $tokens = array_values(array_filter(
             token_get_all($source),
@@ -136,8 +137,34 @@ final class ClockReads
                 continue;
             }
     
+            /*
+             * By PREFIX as well as by name, because some families cannot be
+             * enumerated. ext-intl reaches machine time through at least
+             * intlcal_get_now(), intlcal_get_time(intlcal_create_instance()),
+             * intlcal_from_date_time(), intlgregcal_create_instance() and a
+             * calendar pulled out of datefmt_create() -- measured, each of them,
+             * and four successive additions to the name list were each followed by
+             * another spelling. A prefix closes the family by construction instead:
+             * these files touch no intl at all, so naming the family costs nothing
+             * and enumerating it never terminates.
+             *
+             * Prefixes are matched on TOKENS like everything else here, so the
+             * comment you are reading -- which spells several of them out -- is not
+             * itself a finding.
+             */
+            $callable = strtolower(ltrim($token[1], '\\'));
+            $prefixed = false;
+
+            foreach ($prefixes as $prefix) {
+                if (str_starts_with($callable, $prefix)) {
+                    $prefixed = true;
+
+                    break;
+                }
+            }
+
             if (($tokens[$index + 1] ?? null) === '('
-                && in_array(strtolower(ltrim($token[1], '\\')), $names, true)) {
+                && ($prefixed || in_array($callable, $names, true))) {
                 $found[] = $token[1] . '()';
             }
         }

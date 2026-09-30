@@ -326,10 +326,11 @@ it('removes expired aggregates from the report while leaving live rows visible',
 });
 
 /**
- * App-clock spellings this file must not use, and the classes whose construction
- * reads the machine clock.
+ * App-clock spellings this file must not use: function names, then the classes whose
+ * construction or static call reads the machine clock, then whole families banned by
+ * name prefix.
  *
- * @return array{0: list<string>, 1: list<string>}
+ * @return array{0: list<string>, 1: list<string>, 2: list<string>}
  */
 function appClockNames(): array
 {
@@ -353,22 +354,6 @@ function appClockNames(): array
             ...(is_array($extension) ? $extension : []),
             // Not date-extension functions: Carbon's and Laravel's own spellings.
             'now', 'today', 'tomorrow', 'yesterday', 'microtime', 'hrtime', 'gettimeofday',
-            /*
-             * And ext-intl's clock, procedurally. Hand-written on purpose: this scan
-             * is LEXICAL, so the list has to name a spelling whether or not the
-             * extension is loaded on the machine running the test. Asking
-             * get_extension_funcs('intl') would have made the guard quietly weaker
-             * on a host without intl, which is the failure mode this list is
-             * supposed to be immune to -- ext-date is asked because it is always
-             * compiled in.
-             *
-             * Measured, and this is the third time a hand-written half of this list
-             * has been short: adding IntlCalendar to the CLASS list below left
-             * `intlcal_get_now()` -- the same clock, procedurally -- passing the
-             * guard while breaking three behavioural tests under a five-second
-             * database-clock offset.
-             */
-            'intlcal_get_now',
         ],
     );
 
@@ -393,6 +378,28 @@ function appClockNames(): array
             'datetime', 'datetimeimmutable', 'carbon', 'carbonimmutable', 'date',
             'intlcalendar', 'intlgregoriancalendar', 'intldateformatter',
         ],
+        /*
+         * And ext-intl by FAMILY rather than by name, because enumerating it does
+         * not terminate. Four successive additions to the lists above were each
+         * followed by another spelling of the same clock: intlcal_get_now(), then
+         * intlcal_get_time(intlcal_create_instance()), then
+         * intlcal_from_date_time(), then a calendar pulled out of datefmt_create(),
+         * with the deprecated intlgregcal_create_instance() behind them. All
+         * measured, all reaching machine time with no alias and no indirection.
+         *
+         * A prefix closes it by construction. That is available here and not for
+         * ext-date because these files touch no intl AT ALL, so the family can be
+         * banned outright; ext-date's functions are asked of PHP instead, since the
+         * fixtures legitimately format and compare dates.
+         *
+         * Hand-written rather than derived, and deliberately: the scan is LEXICAL,
+         * so a spelling must be in the list whether or not the extension is loaded
+         * on the machine running the test. get_extension_funcs('intl') would have
+         * made this guard quietly weaker on a host without intl -- which is exactly
+         * the failure mode the list is meant to be immune to. ext-date can be asked
+         * because it is always compiled in.
+         */
+        ['intlcal_', 'intlgregcal_', 'intltz_', 'datefmt_', 'intldate'],
     ];
 }
 
@@ -432,7 +439,7 @@ it('takes every fixture timestamp in this file from one clock', function (): voi
         throw new RuntimeException('This test file or its fixture is unreadable.');
     }
 
-    [$functions, $classes] = appClockNames();
+    [$functions, $classes, $prefixes] = appClockNames();
 
     /*
      * The control, against a file that really does read the app clock, and this is
@@ -448,19 +455,41 @@ it('takes every fixture timestamp in this file from one clock', function (): voi
         throw new RuntimeException('The control file is unreadable.');
     }
 
-    expect(ClockReads::in($sibling, $functions, $classes))->not->toBe([]);
+    expect(ClockReads::in($sibling, $functions, $classes, $prefixes))->not->toBe([]);
 
     /*
-     * Scanned SEPARATELY rather than concatenated, and each half proved present by a
-     * needle only that half contains. Measured on the concatenated version: setting
-     * the command file's source to the empty string left the guard passing, because
-     * the fixture's copy of 'DatabaseTime' satisfied the control -- and with that
-     * omission a real now() planted in the command file went unreported. A control
-     * that either input can satisfy alone controls neither.
+     * Scanned SEPARATELY rather than concatenated, and each file identified by a
+     * needle the OTHER FILE IS ASSERTED NOT TO CONTAIN. Two measured failures are
+     * behind that shape. Concatenating them first let the fixture's copy of a needle
+     * satisfy a control meant for the command file: emptying the command source left
+     * the guard green while a real now() planted there went unreported. Splitting
+     * them was not enough either -- the fixture's needle was 'auth_challenge_outbox',
+     * which appears in this file too, in the assertion naming it. Measured: pointing
+     * the fixture read at __FILE__ scanned this file twice, skipped the fixture
+     * entirely, and passed with a forbidden clock read sitting in the fixture.
+     *
+     * So presence alone is not the property. What has to hold is that these are two
+     * DIFFERENT files and that each needle distinguishes one from the other; then
+     * losing a read cannot be silent, because the needle for the file that went
+     * missing is absent from whatever replaced it.
      */
-    expect($source)->toContain('ThrottleReportFixture::seed');
-    expect($fixtureSource)->toContain('auth_challenge_outbox');
+    expect($source)->not->toBe($fixtureSource);
 
-    expect(ClockReads::in($source, $functions, $classes))->toBe([]);
-    expect(ClockReads::in($fixtureSource, $functions, $classes))->toBe([]);
+    // Present here, absent from the fixture.
+    expect($source)->toContain('function appClockNames');
+    expect($fixtureSource)->not->toContain('function appClockNames');
+
+    /*
+     * And the other direction. The needle is BUILT rather than written out, because
+     * writing it would place it in the very file asserted not to contain it -- the
+     * same self-satisfying control this block exists to prevent, one level up.
+     * Measured: spelled literally, this pair failed on its own assertion.
+     */
+    $fixtureOnly = 'final class ' . 'ThrottleReportFixture';
+
+    expect($fixtureSource)->toContain($fixtureOnly);
+    expect($source)->not->toContain($fixtureOnly);
+
+    expect(ClockReads::in($source, $functions, $classes, $prefixes))->toBe([]);
+    expect(ClockReads::in($fixtureSource, $functions, $classes, $prefixes))->toBe([]);
 });
