@@ -931,7 +931,20 @@ function clockReadsIn(string $source, array $names, array $classes): array
             $owner = $tokens[$index - 2] ?? null;
             $ownerName = is_array($owner) ? $owner[1] : '';
 
-            if (in_array(strtolower(ltrim($ownerName, '\\')), $classes, true)) {
+            /*
+             * The LAST SEGMENT here too, and the omission was the same oversight
+             * one branch over: the `new` check above compares both and this one
+             * compared only the whole name, so `\Carbon\Carbon::now()` and
+             * `Date::now()` -- the idiomatic Laravel app clock -- went through.
+             * Measured, and a regression: two earlier versions of the calling guard
+             * caught `Date::now()` and the extraction lost it. The unconditional
+             * `continue` below is what makes it a silent miss rather than a partial
+             * one, because the function-name check never sees these names at all.
+             */
+            $bareOwner = strtolower(ltrim($ownerName, '\\'));
+            $ownerSegments = explode('\\', $bareOwner);
+
+            if (in_array($bareOwner, $classes, true) || in_array(end($ownerSegments), $classes, true)) {
                 $found[] = $ownerName . '::' . $token[1] . '()';
             }
 
@@ -971,7 +984,6 @@ function clockReadsIn(string $source, array $names, array $classes): array
     return $found;
 }
 
-/** @param list<array{0: int, 1: string, 2: int}|string> $tokens */
 
 /**
  * The class name a `new` token introduces, or '' when it introduces none.

@@ -481,7 +481,10 @@ function appClockNames(): array
 {
     return [
         ['now', 'today', 'tomorrow', 'yesterday', 'time', 'microtime', 'hrtime', 'gettimeofday', 'date_create', 'date_create_immutable', 'strtotime'],
-        ['datetime', 'datetimeimmutable', 'carbon', 'carbonimmutable'],
+        // 'date' for Laravel's Date facade, whose ::now() is the idiomatic app clock.
+        // Only this guard's list: adding it to the arch guard's would change what it
+        // reports about src/, which this change must not do.
+        ['datetime', 'datetimeimmutable', 'carbon', 'carbonimmutable', 'date'],
     ];
 }
 

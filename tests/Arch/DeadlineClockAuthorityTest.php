@@ -139,5 +139,4 @@ final class DeadlineClockAuthorityTest extends TestCase
     {
         return clockReadsIn($source, $nativeFunctions, self::NATIVE_CLOCK_CLASSES);
     }
-
 }
