@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Tests\Arch;
 
+use Fissible\Vouch\Tests\Support\ClockReads;
 use Fissible\Vouch\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -126,17 +127,20 @@ final class DeadlineClockAuthorityTest extends TestCase
     /**
      * Native clock reads in $source.
      *
-     * The scan itself lives in tests/Pest.php, because a second file needs it:
+     * The scan itself lives in Support\ClockReads, because a second file needs it:
      * ThrottleReportCommandTest guards its own fixtures against the APP clock with
      * the same token walk over a different name list. A second, weaker copy was
      * written first and reproduced a hole this one had already closed -- it scanned
-     * T_STRING only, so every `\DateTimeImmutable` spelling went through.
+     * T_STRING only, so every `\DateTimeImmutable` spelling went through. A class
+     * rather than a global in tests/Pest.php, because only Pest loads that file:
+     * measured, `vendor/bin/phpunit` on this test then failed with
+     * `Call to undefined function`.
      *
      * @param  list<string>  $nativeFunctions
      * @return list<string>
      */
     private function nativeClockReads(string $source, array $nativeFunctions): array
     {
-        return clockReadsIn($source, $nativeFunctions, self::NATIVE_CLOCK_CLASSES);
+        return ClockReads::in($source, $nativeFunctions, self::NATIVE_CLOCK_CLASSES);
     }
 }

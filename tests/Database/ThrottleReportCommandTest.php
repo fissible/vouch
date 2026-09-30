@@ -9,6 +9,7 @@ use Fissible\Vouch\Models\AuthChallengeOutbox;
 use Fissible\Vouch\Notifications\OtpOutboxStatus;
 use Fissible\Vouch\Notifications\OtpOutboxFailureReason;
 use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Tests\Support\ClockReads;
 use Fissible\Vouch\Throttle\ThrottleReporter;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -32,10 +33,16 @@ function reportCounter(string $dimension, int $count, int $sequence, bool $activ
          * seconds passes every test that touches ThrottleReporter, all 87 of them.
          *
          * Tight is safe here because both ends come from the same clock, which is the
-         * whole of what #69 was about. CURRENT_TIMESTAMP is the TRANSACTION timestamp
-         * on PostgreSQL and MySQL and RefreshDatabase wraps each test in one, so
-         * every DatabaseTime::current() call inside a test returns the identical
-         * instant; on SQLite it advances, but only forward and only by whole seconds.
+         * whole of what #69 was about -- and because elapsed time moves the cutoff
+         * AWAY from this row: it is excluded while now2 - now1 >= -2, and the clock
+         * only advances.
+         *
+         * Not because the clock is frozen. An earlier version of this comment said
+         * CURRENT_TIMESTAMP was the transaction timestamp on PostgreSQL and MySQL
+         * both; measured, that is true only of PostgreSQL. Inside one transaction a
+         * 2.1-second pause advanced MySQL's reading by two seconds and left
+         * PostgreSQL's identical, and SQLite advances too. The margins hold on all
+         * three for the reason above, not for the reason first given.
          */
         'window_started_at' => $active ? $now : $now->sub(new DateInterval('PT902S')),
         'count' => $count,
@@ -80,18 +87,30 @@ function reportOutbox(string $status, DateTimeInterface $expiresAt, int $sequenc
 {
     $now = app(DatabaseTime::class)->current();
 
+    /*
+     * created_at and updated_at are given explicitly on all three models below.
+     * Omitted, Eloquent stamps them from Carbon -- so the fixture kept an app-clock
+     * dependency that no lexical guard can see, because there is no call to find.
+     * Measured with Carbon a year ahead: the outbox row's created_at landed in 2027
+     * while database time stayed in 2026, and at larger skews MySQL rejected
+     * auth_attempts.updated_at outright with error 1292.
+     */
     $attempt = AuthAttempt::create([
         'handle' => str_pad("report-{$sequence}", 64, 'x'),
         'state' => AttemptState::FactorPending,
         'version' => 1,
         'bound_context' => str_repeat('r', 64),
         'expires_at' => $now->add(new DateInterval('PT1H')),
+        'created_at' => $now,
+        'updated_at' => $now,
     ]);
     $challenge = AuthChallenge::create([
         'attempt_id' => $attempt->id,
         'factor_type' => 'password',
         'code_hash' => 'not-a-live-code',
         'expires_at' => $expiresAt,
+        'created_at' => $now,
+        'updated_at' => $now,
     ]);
 
     AuthChallengeOutbox::create([
@@ -108,6 +127,8 @@ function reportOutbox(string $status, DateTimeInterface $expiresAt, int $sequenc
         'failure_reason' => $status === OtpOutboxStatus::Undeliverable->value
             ? OtpOutboxFailureReason::ProviderRejected->value
             : null,
+        'created_at' => $now,
+        'updated_at' => $now,
     ]);
 }
 
@@ -479,11 +500,34 @@ it('removes expired aggregates from the report while leaving live rows visible',
  */
 function appClockNames(): array
 {
+    /*
+     * ASKED of PHP rather than written by hand, which is the same decision the arch
+     * guard's own docblock records making after a hand-written list was wrong twice.
+     * Mine was wrong on its first outing too: it omitted date(), gmdate() and
+     * getdate(), and measured, `$now->setTimestamp((int) date('U') - 2)` passed the
+     * guard while breaking three behavioural tests under a five-second clock offset.
+     */
+    $extension = get_extension_funcs('date');
+
+    // Loudly rather than quietly: a guard that silently lost most of its list is
+    // worse than one that is absent.
+    expect($extension)->toBeArray();
+    expect(count(is_array($extension) ? $extension : []))->toBeGreaterThan(20);
+
+    $functions = array_map(
+        static fn (string $name): string => strtolower($name),
+        [
+            ...(is_array($extension) ? $extension : []),
+            // Not date-extension functions: Carbon's and Laravel's own spellings.
+            'now', 'today', 'tomorrow', 'yesterday', 'microtime', 'hrtime', 'gettimeofday',
+        ],
+    );
+
     return [
-        ['now', 'today', 'tomorrow', 'yesterday', 'time', 'microtime', 'hrtime', 'gettimeofday', 'date_create', 'date_create_immutable', 'strtotime'],
+        $functions,
         // 'date' for Laravel's Date facade, whose ::now() is the idiomatic app clock.
-        // Only this guard's list: adding it to the arch guard's would change what it
-        // reports about src/, which this change must not do.
+        // Only this guard's list: the arch guard's is untouched, so what it reports
+        // about src/ cannot change.
         ['datetime', 'datetimeimmutable', 'carbon', 'carbonimmutable', 'date'],
     ];
 }
@@ -526,11 +570,11 @@ it('takes every fixture timestamp in this file from one clock', function (): voi
         throw new RuntimeException('The control file is unreadable.');
     }
 
-    expect(clockReadsIn($sibling, $functions, $classes))->not->toBe([]);
+    expect(ClockReads::in($sibling, $functions, $classes))->not->toBe([]);
 
     // And the file really was scanned, so "no app clock" is not a statement about
     // an empty read.
     expect($source)->toContain('DatabaseTime');
 
-    expect(clockReadsIn($source, $functions, $classes))->toBe([]);
+    expect(ClockReads::in($source, $functions, $classes))->toBe([]);
 });
