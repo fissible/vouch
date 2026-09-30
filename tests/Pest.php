@@ -859,3 +859,132 @@ function phpUnderMemoryLimit(string $limit, string ...$arguments): array
 
     return ['status' => proc_close($process), 'output' => $output, 'errors' => $errors];
 }
+
+/**
+ * Clock reads in $source, over TOKENS rather than text so a mention in a
+ * comment or a docblock is not a finding.
+ *
+ * Shared by two guards with different name lists: the arch guard that forbids
+ * NATIVE clock reads on the redeem paths, and ThrottleReportCommandTest's guard
+ * that forbids APP clock reads in its own fixtures. It lives here because the
+ * second one was first written as a separate scanner and reproduced a hole this
+ * one documents having closed -- it looked at T_STRING only, so `\time()` and
+ * `new \DateTimeImmutable()` went straight through.
+ *
+ * @param  list<string>  $names  function names, lower case
+ * @param  list<string>  $classes  class names whose construction is a read, lower case
+ * @return list<string>
+ */
+function clockReadsIn(string $source, array $names, array $classes): array
+{
+    $tokens = array_values(array_filter(
+        token_get_all($source),
+        static fn (array|string $token): bool => is_string($token)
+            || ! in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true),
+    ));
+
+    $found = [];
+
+    foreach ($tokens as $index => $token) {
+        if (is_array($token) && $token[0] === T_NEW) {
+            $name = clockNameAfter($tokens, $index);
+
+            /*
+             * The LAST SEGMENT as well as the whole name. `new \Carbon\Carbon()`
+             * arrives as one fully-qualified token, so comparing the whole string
+             * against a list of bare class names let it through -- measured, by
+             * injection, after the qualified-name token types had already been
+             * accepted for functions.
+             */
+            $bare = strtolower(ltrim($name, '\\'));
+            $segments = explode('\\', $bare);
+
+            if (in_array($bare, $classes, true) || in_array(end($segments), $classes, true)) {
+                $found[] = 'new ' . $name;
+            }
+
+            continue;
+        }
+
+        /*
+         * T_NAME_FULLY_QUALIFIED as well as T_STRING. `\date(...)` is the
+         * ordinary spelling inside a namespaced file -- it needs no alias
+         * and no indirection -- and scanning only T_STRING let exactly that
+         * through.
+         */
+        if (! is_array($token) || ! in_array($token[0], [T_STRING, T_NAME_FULLY_QUALIFIED], true)) {
+            continue;
+        }
+
+        $previous = $tokens[$index - 1] ?? null;
+
+        /*
+         * A STATIC call on a native date class is a clock read in the other
+         * syntax: `\DateTimeImmutable::createFromFormat('', '')` returns
+         * machine time as surely as `new DateTimeImmutable('now')` does, and
+         * skipping every `::` let it through. The rule is the same one the
+         * constructor check enforces -- these files do not touch the native
+         * date classes -- so ask what the `::` is qualified BY rather than
+         * skipping on sight.
+         */
+        if (is_array($previous) && $previous[0] === T_DOUBLE_COLON) {
+            $owner = $tokens[$index - 2] ?? null;
+            $ownerName = is_array($owner) ? $owner[1] : '';
+
+            if (in_array(strtolower(ltrim($ownerName, '\\')), $classes, true)) {
+                $found[] = $ownerName . '::' . $token[1] . '()';
+            }
+
+            continue;
+        }
+
+        /*
+         * Any other qualified call belongs to somebody's injected authority
+         * rather than being a native read, so `$this->time->date(...)` and
+         * its nullsafe form are not findings. A declaration is not a call,
+         * and `function &date()` puts a reference token in between. An
+         * attribute name is not a call either.
+         */
+
+        // Compare the TEXT: PHP 8.4 emits a by-reference declaration's `&`
+        // as T_AMPERSAND_NOT_FOLLOWED_BY_VAR_OR_VARARG rather than the bare
+        // string, so matching the string alone missed `function &date()`.
+        $previousText = is_array($previous) ? $previous[1] : $previous;
+        $beforeReference = $previousText === '&' ? ($tokens[$index - 2] ?? null) : null;
+
+        $qualified = is_array($previous) && in_array(
+            $previous[0],
+            [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR, T_FUNCTION, T_ATTRIBUTE],
+            true,
+        );
+
+        if ($qualified || (is_array($beforeReference) && $beforeReference[0] === T_FUNCTION)) {
+            continue;
+        }
+
+        if (($tokens[$index + 1] ?? null) === '('
+            && in_array(strtolower(ltrim($token[1], '\\')), $names, true)) {
+            $found[] = $token[1] . '()';
+        }
+    }
+
+    return $found;
+}
+
+/** @param list<array{0: int, 1: string, 2: int}|string> $tokens */
+
+/**
+ * The class name a `new` token introduces, or '' when it introduces none.
+ *
+ * @param  list<array{0: int, 1: string}|string>  $tokens
+ */
+function clockNameAfter(array $tokens, int $index): string
+{
+    $next = $tokens[$index + 1] ?? null;
+
+    if (is_array($next) && in_array($next[0], [T_STRING, T_NAME_FULLY_QUALIFIED, T_NAME_QUALIFIED], true)) {
+        return $next[1];
+    }
+
+    return '';
+}

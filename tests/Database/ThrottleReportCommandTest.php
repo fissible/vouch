@@ -449,6 +449,15 @@ it('rejects every subject-level lookup option at the command boundary', function
 it('removes expired aggregates from the report while leaving live rows visible', function (): void {
     seedAggregateReport();
 
+    /*
+     * An EXIT CODE, not a deletion count: 2 is CommandExit::DeliveryHealth, which
+     * this command returns when it found undelivered outbox rows. What pins the
+     * deletion -- rows 2 and 3 gone, rows 1 and 4 spared -- is the outbox block
+     * below. Said here because the two read as one assertion and are not: measured,
+     * a prune that classifies every row as delivered still deletes correctly and
+     * fails on THIS line, while a prune with the wrong cutoff deletes the wrong rows
+     * and fails on the block below.
+     */
     expect(Artisan::call('vouch:prune'))->toBe(2);
 
     $report = app(ThrottleReporter::class)->report();
@@ -463,61 +472,17 @@ it('removes expired aggregates from the report while leaving live rows visible',
 });
 
 /**
- * App-clock reads in $source, over TOKENS rather than text.
+ * App-clock spellings this file must not use, and the classes whose construction
+ * reads the machine clock.
  *
- * Tokens because a text search reports a mention in a comment as a finding, and
- * this file's docblocks discuss the app clock at length -- the previous version of
- * this guard would have failed on the sentence describing it.
- *
- * The spellings are enumerated rather than reduced to one, because the previous
- * version searched for a single one and missed `time()`, `microtime()`,
- * `Carbon::today()`, `date_create()` and `new DateTimeImmutable()` -- all measured,
- * each injected into a fixture and each passing the guard. `Carbon::today()` is not
- * hypothetical here: this file formats a 'Y-m-d 00:00:00' window boundary.
- *
- * Two limits it does NOT close, stated rather than implied. A clock read hidden
- * behind a string -- `Carbon::parse('now')` -- is invisible to it. And a helper in
- * another file that reads the app clock and is called from here passes, because the
- * scan is of this file only; the same limit the arch guard for native clock reads
- * writes down about itself.
- *
- * @return list<string>
+ * @return array{0: list<string>, 1: list<string>}
  */
-function appClockReadsIn(string $source): array
+function appClockNames(): array
 {
-    $callables = [
-        'now', 'today', 'tomorrow', 'yesterday',
-        'time', 'microtime', 'hrtime',
-        'date_create', 'date_create_immutable', 'strtotime',
+    return [
+        ['now', 'today', 'tomorrow', 'yesterday', 'time', 'microtime', 'hrtime', 'gettimeofday', 'date_create', 'date_create_immutable', 'strtotime'],
+        ['datetime', 'datetimeimmutable', 'carbon', 'carbonimmutable'],
     ];
-    $classes = ['datetime', 'datetimeimmutable', 'carbon', 'carbonimmutable'];
-
-    $found = [];
-    $previous = null;
-
-    foreach (token_get_all($source) as $token) {
-        if (! is_array($token)) {
-            continue;
-        }
-
-        if ($token[0] === T_COMMENT || $token[0] === T_DOC_COMMENT || $token[0] === T_WHITESPACE) {
-            continue;
-        }
-
-        if ($token[0] === T_STRING) {
-            $name = strtolower($token[1]);
-
-            if ($previous === T_NEW && in_array($name, $classes, true)) {
-                $found[] = 'new ' . $name;
-            } elseif (in_array($name, $callables, true)) {
-                $found[] = $name . '()';
-            }
-        }
-
-        $previous = $token[0];
-    }
-
-    return array_values(array_unique($found));
 }
 
 it('takes every fixture timestamp in this file from one clock', function (): void {
@@ -542,6 +507,8 @@ it('takes every fixture timestamp in this file from one clock', function (): voi
         throw new RuntimeException('This test file is unreadable.');
     }
 
+    [$functions, $classes] = appClockNames();
+
     /*
      * The control, against a file that really does read the app clock, and this is
      * the second version of it. The first compared the needle against a string
@@ -556,11 +523,11 @@ it('takes every fixture timestamp in this file from one clock', function (): voi
         throw new RuntimeException('The control file is unreadable.');
     }
 
-    expect(appClockReadsIn($sibling))->not->toBe([]);
+    expect(clockReadsIn($sibling, $functions, $classes))->not->toBe([]);
 
     // And the file really was scanned, so "no app clock" is not a statement about
     // an empty read.
     expect($source)->toContain('DatabaseTime');
 
-    expect(appClockReadsIn($source))->toBe([]);
+    expect(clockReadsIn($source, $functions, $classes))->toBe([]);
 });
