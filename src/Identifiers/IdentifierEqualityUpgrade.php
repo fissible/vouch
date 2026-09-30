@@ -159,7 +159,11 @@ final readonly class IdentifierEqualityUpgrade
          * wraps this migration in a transaction; its DDL does not commit it.
          */
         if ($this->connection->getDriverName() === 'mysql' && $this->connection->transactionLevel() > 0) {
-            throw new LogicException('The identifier equality upgrade cannot run inside an active MySQL transaction.');
+            throw new LogicException(
+                'Vouch cannot run the identifier equality upgrade inside an active MySQL transaction. '
+                . 'Run the upgrade outside a transaction: MySQL implicitly commits its DDL, '
+                . 'so the upgrade cannot be transactional.',
+            );
         }
 
         /*
@@ -380,8 +384,9 @@ final readonly class IdentifierEqualityUpgrade
 
         do {
             /*
-             * Read the source on the writer too: replica lag could omit a
-             * terminal member from the decision about rows we will delete.
+             * Read the source on the writer too: this scan drives DELETEs on
+             * the writer, so its decisions must use the writer's rows. A replica
+             * could show different rows, including omitting a terminal member.
              */
             $read = $this->connection->select(
                 $query . ($cursor === null ? '' : ' where t.id > ?')
@@ -959,8 +964,9 @@ final readonly class IdentifierEqualityUpgrade
 
     /**
      * A non-null terminal timestamp records consumption or burning, even when
-     * SQLite returns it as integer zero. Boolean decoding loses that record;
-     * using presence for the working table's flag instead makes even 0 true.
+     * SQLite returns it as integer zero. Boolean decoding loses that record.
+     * Keep this separate from flag(): widening that helper to test presence
+     * would incorrectly treat the working table's zero flag as true.
      */
     private function present(stdClass $row, string $column): bool
     {
@@ -970,10 +976,10 @@ final readonly class IdentifierEqualityUpgrade
     /**
      * Whether the working table's boolean column says yes.
      *
-     * The working table's own flag comes back as 1 or "1"
-     * from SQLite and MySQL, and PostgreSQL's drivers have been known to hand a
-     * bare boolean back. Reading only `is_numeric` would silently answer "not
-     * terminal" for the last of those, which under the transient policy DELETES
+     * The working table's own flag comes back as 1 or "1" from SQLite and MySQL,
+     * and PostgreSQL's drivers have been known to hand a bare boolean back.
+     * Reading only `is_numeric` would silently answer "not terminal" for the
+     * last of those, which under the transient policy DELETES
      * the consumed proofs this upgrade is supposed to refuse over.
      */
     private function flag(stdClass $row, string $column): bool
@@ -988,6 +994,8 @@ final readonly class IdentifierEqualityUpgrade
             return (int) $value !== 0;
         }
 
+        // Deliberately treat an unexpected non-null engine value as terminal:
+        // refusing the upgrade is safer than deleting a potentially consumed proof.
         return $value !== null;
     }
 }
