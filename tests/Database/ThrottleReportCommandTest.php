@@ -26,13 +26,18 @@ function reportCounter(string $dimension, int $count, int $sequence, bool $activ
         'dimension' => $dimension,
         'subject_digest' => str_pad(dechex($sequence), 64, '0', STR_PAD_LEFT),
         /*
-         * An hour outside the window rather than one second outside it. The window
-         * is 900 seconds, so 901 was a one-second margin -- taken from the database
-         * clock and compared against the database clock, so it was never the likely
-         * flake, but a margin that narrow is load-bearing about the clock rather
-         * than about the thing under test.
+         * Two seconds outside a 900-second window, and the tightness is the point.
+         * Measured: this is the ONLY behavioural pin on that window anywhere in the
+         * suite -- widen it to an hour and a reporter whose window is doubled to 1800
+         * seconds passes every test that touches ThrottleReporter, all 87 of them.
+         *
+         * Tight is safe here because both ends come from the same clock, which is the
+         * whole of what #69 was about. CURRENT_TIMESTAMP is the TRANSACTION timestamp
+         * on PostgreSQL and MySQL and RefreshDatabase wraps each test in one, so
+         * every DatabaseTime::current() call inside a test returns the identical
+         * instant; on SQLite it advances, but only forward and only by whole seconds.
          */
-        'window_started_at' => $active ? $now : $now->sub(new DateInterval('PT1H')),
+        'window_started_at' => $active ? $now : $now->sub(new DateInterval('PT902S')),
         'count' => $count,
         'created_at' => $now,
         'updated_at' => $now,
@@ -120,20 +125,29 @@ function seedAggregateReport(): void
     reportIpWindow('ipv4', 2, 600);
     reportIpWindow('ipv6', 30, 700);
     /*
-     * One clock for the whole block, and an hour either side of it rather than a
-     * second. Rows 2 and 3 have to read as already expired and rows 1 and 4 as
-     * still live -- against the DATABASE clock, which is what the reporter and
-     * vouch:prune both compare with -- and the margins are what decide that.
+     * ONE clock for the whole block. That is the fix; the margins stay tight.
      *
-     * They were a second and a minute from Carbon's app clock, three lines above a
-     * $now taken from the database's. Measured on this machine the two are within
-     * 150ms, so the file passes ten consecutive PostgreSQL runs as it stands; the
-     * mechanism that would break it is a container clock drifting more than a
-     * second behind the host, which is ordinary after the host sleeps.
+     * Rows 2 and 3 must read as already expired and rows 1 and 4 as still live,
+     * against the DATABASE clock, which is what both the reporter and vouch:prune
+     * compare with. These were written from Carbon's app clock three lines above a
+     * $now taken from the database's -- and a margin measured in seconds across two
+     * clock sources says nothing except how far apart the clocks are.
+     *
+     * Widening them was tried and reverted: measured, an hour either side lets four
+     * mutants escape that a two-second margin catches -- the prune's outbox cutoff
+     * moved thirty seconds either way, and the reporter's moved thirty seconds or
+     * its window doubled. What made the old fixtures fragile was the second clock,
+     * not the size of the gap.
+     *
+     * Measured on this machine: PostgreSQL's CURRENT_TIMESTAMP is within a
+     * millisecond of PHP's, and MySQL reads about 200ms behind because it truncates
+     * to seconds rather than because it drifts. So the file passed ten consecutive
+     * PostgreSQL runs before this change too; what breaks it is a container clock
+     * more than a second behind the host, which is ordinary after the host sleeps.
      */
     $now = app(DatabaseTime::class)->current();
-    $live = $now->add(new DateInterval('PT1H'));
-    $expired = $now->sub(new DateInterval('PT1H'));
+    $live = $now->add(new DateInterval('PT60S'));
+    $expired = $now->sub(new DateInterval('PT2S'));
 
     reportOutbox(OtpOutboxStatus::Pending->value, $live, 1);
     reportOutbox(OtpOutboxStatus::Pending->value, $expired, 2);
@@ -448,6 +462,64 @@ it('removes expired aggregates from the report while leaving live rows visible',
     ]);
 });
 
+/**
+ * App-clock reads in $source, over TOKENS rather than text.
+ *
+ * Tokens because a text search reports a mention in a comment as a finding, and
+ * this file's docblocks discuss the app clock at length -- the previous version of
+ * this guard would have failed on the sentence describing it.
+ *
+ * The spellings are enumerated rather than reduced to one, because the previous
+ * version searched for a single one and missed `time()`, `microtime()`,
+ * `Carbon::today()`, `date_create()` and `new DateTimeImmutable()` -- all measured,
+ * each injected into a fixture and each passing the guard. `Carbon::today()` is not
+ * hypothetical here: this file formats a 'Y-m-d 00:00:00' window boundary.
+ *
+ * Two limits it does NOT close, stated rather than implied. A clock read hidden
+ * behind a string -- `Carbon::parse('now')` -- is invisible to it. And a helper in
+ * another file that reads the app clock and is called from here passes, because the
+ * scan is of this file only; the same limit the arch guard for native clock reads
+ * writes down about itself.
+ *
+ * @return list<string>
+ */
+function appClockReadsIn(string $source): array
+{
+    $callables = [
+        'now', 'today', 'tomorrow', 'yesterday',
+        'time', 'microtime', 'hrtime',
+        'date_create', 'date_create_immutable', 'strtotime',
+    ];
+    $classes = ['datetime', 'datetimeimmutable', 'carbon', 'carbonimmutable'];
+
+    $found = [];
+    $previous = null;
+
+    foreach (token_get_all($source) as $token) {
+        if (! is_array($token)) {
+            continue;
+        }
+
+        if ($token[0] === T_COMMENT || $token[0] === T_DOC_COMMENT || $token[0] === T_WHITESPACE) {
+            continue;
+        }
+
+        if ($token[0] === T_STRING) {
+            $name = strtolower($token[1]);
+
+            if ($previous === T_NEW && in_array($name, $classes, true)) {
+                $found[] = 'new ' . $name;
+            } elseif (in_array($name, $callables, true)) {
+                $found[] = $name . '()';
+            }
+        }
+
+        $previous = $token[0];
+    }
+
+    return array_values(array_unique($found));
+}
+
 it('takes every fixture timestamp in this file from one clock', function (): void {
     /*
      * #69, and the reason it is a guard rather than a comment: this is the fourth
@@ -458,13 +530,11 @@ it('takes every fixture timestamp in this file from one clock', function (): voi
      *
      * Scoped to this file deliberately. Seventeen test files reference both clocks
      * and several exist precisely to measure the difference -- AttemptDeadlineClock
-     * SourceTest skews one against the other on purpose -- so a suite-wide rule
-     * would reject the tests that matter most. Here the app clock is never the right
-     * answer: everything this file asserts is compared by the reporter or by
-     * vouch:prune against DatabaseTime, so a fixture on any other clock is measuring
-     * the gap between them.
-     *
-     * The needle is assembled at runtime so that this guard is not itself a match.
+     * SourceTest, DeadlineClockSourceTest and OtpExpiryClockSourceTest all skew one
+     * against the other on purpose -- so a suite-wide rule would reject the tests
+     * that matter most. Here the app clock is never the right answer: everything
+     * this file asserts is compared by the reporter or by vouch:prune against
+     * DatabaseTime, so a fixture on any other clock measures the gap between them.
      */
     $source = file_get_contents(__FILE__);
 
@@ -472,11 +542,25 @@ it('takes every fixture timestamp in this file from one clock', function (): voi
         throw new RuntimeException('This test file is unreadable.');
     }
 
-    $needle = 'no' . 'w(';
+    /*
+     * The control, against a file that really does read the app clock, and this is
+     * the second version of it. The first compared the needle against a string
+     * built from the needle itself, which holds for ANY needle -- including one
+     * matching nothing in PHP -- so it controlled nothing at all. Measured: with
+     * that control in place and a real app-clock call planted in a fixture, a needle
+     * of 'zzz(' passed.
+     */
+    $sibling = file_get_contents(__DIR__ . '/PruneCommandTest.php');
 
-    // The premise: the needle really would find an app-clock call, so a count of
-    // zero below means none is present rather than that the search is broken.
-    expect(substr_count('seeded at ' . $needle . ')', $needle))->toBe(1);
+    if (! is_string($sibling)) {
+        throw new RuntimeException('The control file is unreadable.');
+    }
 
-    expect(substr_count($source, $needle))->toBe(0);
+    expect(appClockReadsIn($sibling))->not->toBe([]);
+
+    // And the file really was scanned, so "no app clock" is not a statement about
+    // an empty read.
+    expect($source)->toContain('DatabaseTime');
+
+    expect(appClockReadsIn($source))->toBe([]);
 });
