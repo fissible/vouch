@@ -10,6 +10,7 @@ use Fissible\Vouch\Notifications\OtpOutboxStatus;
 use Fissible\Vouch\Notifications\OtpOutboxFailureReason;
 use Fissible\Vouch\Support\DatabaseTime;
 use Fissible\Vouch\Tests\Support\ClockReads;
+use Fissible\Vouch\Tests\Support\ThrottleReportFixture;
 use Fissible\Vouch\Throttle\ThrottleReporter;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,176 +20,8 @@ use Symfony\Component\Console\Exception\InvalidOptionException;
 
 uses(RefreshDatabase::class);
 
-function reportCounter(string $dimension, int $count, int $sequence, bool $active = true): void
-{
-    $now = app(DatabaseTime::class)->current();
-
-    DB::table('auth_throttle_counters')->insert([
-        'dimension' => $dimension,
-        'subject_digest' => str_pad(dechex($sequence), 64, '0', STR_PAD_LEFT),
-        /*
-         * Two seconds outside a 900-second window, and the tightness is the point.
-         * Measured: this is the ONLY behavioural pin on that window anywhere in the
-         * suite -- widen it to an hour and a reporter whose window is doubled to 1800
-         * seconds passes every test that touches ThrottleReporter, all 87 of them.
-         *
-         * Tight is safe here because both ends come from the same clock, which is the
-         * whole of what #69 was about -- and because elapsed time moves the cutoff
-         * AWAY from this row: it is excluded while now2 - now1 >= -2, and the clock
-         * only advances.
-         *
-         * Not because the clock is frozen. An earlier version of this comment said
-         * CURRENT_TIMESTAMP was the transaction timestamp on PostgreSQL and MySQL
-         * both; measured, that is true only of PostgreSQL. Inside one transaction a
-         * 2.1-second pause advanced MySQL's reading by two seconds and left
-         * PostgreSQL's identical, and SQLite advances too. The margins hold on all
-         * three for the reason above, not for the reason first given.
-         */
-        'window_started_at' => $active ? $now : $now->sub(new DateInterval('PT902S')),
-        'count' => $count,
-        'created_at' => $now,
-        'updated_at' => $now,
-    ]);
-}
-
-function reportIpWindow(string $dimension, int $markers, int $sequence): void
-{
-    $now = app(DatabaseTime::class)->current();
-    $parent = DB::table('auth_throttle_ip_windows')->insertGetId([
-        'dimension' => $dimension,
-        'ip_digest' => str_pad(dechex($sequence), 64, 'a', STR_PAD_LEFT),
-        'window_started_at' => $now,
-        'created_at' => $now,
-        'updated_at' => $now,
-    ]);
-
-    for ($marker = 1; $marker <= $markers; $marker++) {
-        DB::table('auth_throttle_tuples')->insert([
-            'ip_window_id' => $parent,
-            'window_started_at' => $now,
-            'tuple_digest' => str_pad(dechex(($sequence * 1000) + $marker), 64, 'b', STR_PAD_LEFT),
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
-    }
-}
-
-/**
- * Seed one outbox row, with every timestamp from the DATABASE clock.
- *
- * The caller passes $expiresAt because that is the value under test; everything
- * else here is taken from the same clock the reporter compares against. This
- * function used to take three of its timestamps from Carbon's app clock while its
- * caller derived $expiresAt from the database's, which made a one-second margin
- * span two clock sources -- and a margin that small across two clocks says nothing
- * except how far apart the clocks are.
- */
-function reportOutbox(string $status, DateTimeInterface $expiresAt, int $sequence): void
-{
-    $now = app(DatabaseTime::class)->current();
-
-    /*
-     * created_at and updated_at are given explicitly on all three models below.
-     * Omitted, Eloquent stamps them from Carbon -- so the fixture kept an app-clock
-     * dependency that no lexical guard can see, because there is no call to find.
-     * Measured with Carbon a year ahead: the outbox row's created_at landed in 2027
-     * while database time stayed in 2026, and at larger skews MySQL rejected
-     * auth_attempts.updated_at outright with error 1292.
-     */
-    $attempt = AuthAttempt::create([
-        'handle' => str_pad("report-{$sequence}", 64, 'x'),
-        'state' => AttemptState::FactorPending,
-        'version' => 1,
-        'bound_context' => str_repeat('r', 64),
-        'expires_at' => $now->add(new DateInterval('PT1H')),
-        'created_at' => $now,
-        'updated_at' => $now,
-    ]);
-    $challenge = AuthChallenge::create([
-        'attempt_id' => $attempt->id,
-        'factor_type' => 'password',
-        'code_hash' => 'not-a-live-code',
-        'expires_at' => $expiresAt,
-        'created_at' => $now,
-        'updated_at' => $now,
-    ]);
-
-    AuthChallengeOutbox::create([
-        'opaque_id' => str_pad(dechex($sequence), 64, 'c', STR_PAD_LEFT),
-        'challenge_id' => $challenge->id,
-        'payload' => $status === OtpOutboxStatus::Pending->value
-            ? ['target' => null, 'code' => 'report-secret', 'decoy' => true]
-            : null,
-        'status' => $status,
-        'expires_at' => $expiresAt,
-        'delivered_at' => $status === OtpOutboxStatus::Delivered->value ? $now : null,
-        'provider_attempted_at' => $status === OtpOutboxStatus::Undeliverable->value ? $now : null,
-        'undeliverable_at' => $status === OtpOutboxStatus::Undeliverable->value ? $now : null,
-        'failure_reason' => $status === OtpOutboxStatus::Undeliverable->value
-            ? OtpOutboxFailureReason::ProviderRejected->value
-            : null,
-        'created_at' => $now,
-        'updated_at' => $now,
-    ]);
-}
-
-function seedAggregateReport(): void
-{
-    foreach ([0, 1, 3, 7, 12, 42, 150, 301] as $sequence => $count) {
-        reportCounter('identifier', $count, 100 + $sequence);
-    }
-
-    reportCounter('identifier', 999, 199, active: false);
-    reportCounter('recovery', 5, 200);
-    reportCounter('issuance', 5, 300);
-    reportCounter('tenant', 2, 400);
-    reportCounter('global', 3, 500);
-    reportIpWindow('ipv4', 2, 600);
-    reportIpWindow('ipv6', 30, 700);
-    /*
-     * ONE clock for the whole block. That is the fix; the margins stay tight.
-     *
-     * Rows 2 and 3 must read as already expired and rows 1 and 4 as still live,
-     * against the DATABASE clock, which is what both the reporter and vouch:prune
-     * compare with. These were written from Carbon's app clock three lines above a
-     * $now taken from the database's -- and a margin measured in seconds across two
-     * clock sources says nothing except how far apart the clocks are.
-     *
-     * Widening them was tried and reverted: measured, an hour either side lets four
-     * mutants escape that a two-second margin catches -- the prune's outbox cutoff
-     * moved thirty seconds either way, and the reporter's moved thirty seconds or
-     * its window doubled. What made the old fixtures fragile was the second clock,
-     * not the size of the gap.
-     *
-     * Measured on this machine: PostgreSQL's CURRENT_TIMESTAMP is within a
-     * millisecond of PHP's, and MySQL reads about 200ms behind because it truncates
-     * to seconds rather than because it drifts. So the file passed ten consecutive
-     * PostgreSQL runs before this change too; what breaks it is a container clock
-     * more than a second behind the host, which is ordinary after the host sleeps.
-     */
-    $now = app(DatabaseTime::class)->current();
-    $live = $now->add(new DateInterval('PT60S'));
-    $expired = $now->sub(new DateInterval('PT2S'));
-
-    reportOutbox(OtpOutboxStatus::Pending->value, $live, 1);
-    reportOutbox(OtpOutboxStatus::Pending->value, $expired, 2);
-    reportOutbox(OtpOutboxStatus::Delivered->value, $expired, 3);
-    reportOutbox(OtpOutboxStatus::Undeliverable->value, $live, 4);
-
-    $old = $now->sub(new DateInterval('P1D'));
-    DB::table('auth_delivery_spend')->insert([
-        ['scope' => 'global', 'subject_digest' => str_pad('1', 64, 'd'), 'window_started_at' => $now->format('Y-m-d 00:00:00'), 'spent_minor' => 10, 'created_at' => $now, 'updated_at' => $now],
-        ['scope' => 'tenant', 'subject_digest' => str_pad('2', 64, 'd'), 'window_started_at' => $now->format('Y-m-d 00:00:00'), 'spent_minor' => 0, 'created_at' => $now, 'updated_at' => $now],
-    ]);
-    DB::table('auth_delivery_spend_reservations')->insert([
-        ['reservation_key' => str_pad(dechex(3), 64, 'c', STR_PAD_LEFT), 'scope' => 'global', 'amount_minor' => 10, 'window_started_at' => $now->format('Y-m-d 00:00:00'), 'created_at' => $now, 'released_at' => null],
-        ['reservation_key' => str_pad(dechex(4), 64, 'c', STR_PAD_LEFT), 'scope' => 'tenant', 'amount_minor' => 20, 'window_started_at' => $now->format('Y-m-d 00:00:00'), 'created_at' => $now, 'released_at' => $now],
-        ['reservation_key' => str_repeat('e', 64), 'scope' => 'tenant', 'amount_minor' => 30, 'window_started_at' => $old->format('Y-m-d 00:00:00'), 'created_at' => $old, 'released_at' => $now],
-    ]);
-}
-
 it('reports active aggregate distributions and configured threshold crossings without subjects', function (): void {
-    seedAggregateReport();
+    ThrottleReportFixture::seed();
 
     $report = app(ThrottleReporter::class)->report();
     $dimensions = collect($report['dimensions'])->keyBy('dimension');
@@ -294,7 +127,7 @@ it('counts released reservations that never reached a provider', function (): vo
     $now = app(DatabaseTime::class)->current();
     $reservationKey = str_pad(dechex($sequence), 64, 'c', STR_PAD_LEFT);
 
-    reportOutbox(OtpOutboxStatus::Pending->value, $now->add(new DateInterval('PT1H')), $sequence);
+    ThrottleReportFixture::outbox(OtpOutboxStatus::Pending->value, $now->add(new DateInterval('PT1H')), $sequence);
     DB::table('auth_delivery_spend_reservations')->insert([
         'reservation_key' => $reservationKey,
         'scope' => 'global',
@@ -375,8 +208,8 @@ it('reports explicitly armed tenant and global thresholds', function (): void {
     ]);
     app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
     app()->forgetInstance(ThrottleReporter::class);
-    reportCounter('tenant', 2, 901);
-    reportCounter('global', 2, 902);
+    ThrottleReportFixture::counter('tenant', 2, 901);
+    ThrottleReportFixture::counter('global', 2, 902);
     $dimensions = collect(app(ThrottleReporter::class)->report()['dimensions'])
         ->keyBy('dimension');
 
@@ -388,7 +221,7 @@ it('reports explicitly armed tenant and global thresholds', function (): void {
 });
 
 it('accepts each supported PDO driver aggregate type and normalizes it', function (): void {
-    reportCounter('identifier', 1, 950);
+    ThrottleReportFixture::counter('identifier', 1, 950);
     $row = DB::table('auth_throttle_counters')
         ->selectRaw('COUNT(*) AS aggregate_count')
         ->selectRaw('SUM(CASE WHEN count >= 0 THEN 1 ELSE 0 END) AS aggregate_sum')
@@ -407,7 +240,7 @@ it('accepts each supported PDO driver aggregate type and normalizes it', functio
 });
 
 it('emits the same aggregate shape as JSON and human output', function (): void {
-    seedAggregateReport();
+    ThrottleReportFixture::seed();
 
     expect(Artisan::call('vouch:throttle:report', ['--json' => true]))->toBe(0);
     $json = json_decode(trim(Artisan::output()), true, flags: JSON_THROW_ON_ERROR);
@@ -468,7 +301,7 @@ it('rejects every subject-level lookup option at the command boundary', function
 ]);
 
 it('removes expired aggregates from the report while leaving live rows visible', function (): void {
-    seedAggregateReport();
+    ThrottleReportFixture::seed();
 
     /*
      * An EXIT CODE, not a deletion count: 2 is CommandExit::DeliveryHealth, which
@@ -525,10 +358,25 @@ function appClockNames(): array
 
     return [
         $functions,
-        // 'date' for Laravel's Date facade, whose ::now() is the idiomatic app clock.
-        // Only this guard's list: the arch guard's is untouched, so what it reports
-        // about src/ cannot change.
-        ['datetime', 'datetimeimmutable', 'carbon', 'carbonimmutable', 'date'],
+        /*
+         * The class half cannot be asked of PHP -- there is no "classes that read the
+         * clock" list to enumerate -- so it stays hand-written, and a hand-written
+         * list is exactly what was wrong twice before. What bounds the promise is
+         * therefore stated rather than implied: this guard catches the spellings a
+         * fixture in THIS codebase would plausibly use, not every way PHP can reach
+         * machine time.
+         *
+         * The intl entries are here because they were missing and reachable:
+         * measured, `IntlCalendar::getNow()` sourced an expired timestamp, passed the
+         * guard, and broke three behavioural tests under a five-second database-clock
+         * offset. 'date' is Laravel's Date facade, whose ::now() is the idiomatic app
+         * clock. Only this guard's list -- the arch guard's is untouched, so what it
+         * reports about src/ cannot change.
+         */
+        [
+            'datetime', 'datetimeimmutable', 'carbon', 'carbonimmutable', 'date',
+            'intlcalendar', 'intlgregoriancalendar', 'intldateformatter',
+        ],
     ];
 }
 
@@ -548,11 +396,27 @@ it('takes every fixture timestamp in this file from one clock', function (): voi
      * this file asserts is compared by the reporter or by vouch:prune against
      * DatabaseTime, so a fixture on any other clock measures the gap between them.
      */
-    $source = file_get_contents(__FILE__);
+    /*
+     * Both files, because the fixture moved out. It now lives in
+     * Support\ThrottleReportFixture so a second test file can seed the same rows
+     * without depending on this one having been loaded -- and a guard that scanned
+     * only __FILE__ after that move would have been scanning the assertions while
+     * the timestamps it exists to police sat in a file it never read.
+     */
+    $fixture = (new ReflectionClass(ThrottleReportFixture::class))->getFileName();
 
-    if (! is_string($source)) {
-        throw new RuntimeException('This test file is unreadable.');
+    if (! is_string($fixture)) {
+        throw new RuntimeException('The throttle report fixture has no file to scan.');
     }
+
+    $source = file_get_contents(__FILE__);
+    $fixtureSource = file_get_contents($fixture);
+
+    if (! is_string($source) || ! is_string($fixtureSource)) {
+        throw new RuntimeException('This test file or its fixture is unreadable.');
+    }
+
+    $source .= $fixtureSource;
 
     [$functions, $classes] = appClockNames();
 
@@ -572,9 +436,12 @@ it('takes every fixture timestamp in this file from one clock', function (): voi
 
     expect(ClockReads::in($sibling, $functions, $classes))->not->toBe([]);
 
-    // And the file really was scanned, so "no app clock" is not a statement about
-    // an empty read.
+    // And both files really were scanned, so "no app clock" is not a statement about
+    // an empty read. The fixture half is named separately: concatenation means a
+    // single needle would be satisfied by either file alone.
     expect($source)->toContain('DatabaseTime');
+    expect($fixtureSource)->toContain('DatabaseTime');
+    expect($fixtureSource)->toContain('auth_challenge_outbox');
 
     expect(ClockReads::in($source, $functions, $classes))->toBe([]);
 });
