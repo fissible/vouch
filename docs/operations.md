@@ -64,9 +64,12 @@ to reconcile what it reports and run it again. That read-then-write shape is als
 why traffic must be paused: a row written between the two keeps a non-canonical
 spelling and is not seen by the collision check.
 
-Deciding first also means the scan holds every identifier row in memory at once,
-at roughly a kilobyte per row. Raise `memory_limit` for the run on an
-installation carrying more than a few hundred thousand of them.
+Deciding first no longer means holding every identifier row in memory. The scan
+streams each table through a temporary working table, asks the engine which
+groups have more than one spelling in them, and reads back only those rows, so
+peak memory tracks the page size rather than the installation. Measured flat at
+roughly 6 MB from a thousand rows to four hundred thousand. No `memory_limit`
+change is needed for the run.
 
 One outcome needs no decision from the operator. A collision between live
 recovery proofs or identifier verifications deletes every row in it: those are
