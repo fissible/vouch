@@ -21,12 +21,18 @@ uses(RefreshDatabase::class);
 function reportCounter(string $dimension, int $count, int $sequence, bool $active = true): void
 {
     $now = app(DatabaseTime::class)->current();
-    $old = $now->sub(new DateInterval('P1D'));
 
     DB::table('auth_throttle_counters')->insert([
         'dimension' => $dimension,
         'subject_digest' => str_pad(dechex($sequence), 64, '0', STR_PAD_LEFT),
-        'window_started_at' => $active ? $now : $now->sub(new DateInterval('PT901S')),
+        /*
+         * An hour outside the window rather than one second outside it. The window
+         * is 900 seconds, so 901 was a one-second margin -- taken from the database
+         * clock and compared against the database clock, so it was never the likely
+         * flake, but a margin that narrow is load-bearing about the clock rather
+         * than about the thing under test.
+         */
+        'window_started_at' => $active ? $now : $now->sub(new DateInterval('PT1H')),
         'count' => $count,
         'created_at' => $now,
         'updated_at' => $now,
@@ -55,14 +61,26 @@ function reportIpWindow(string $dimension, int $markers, int $sequence): void
     }
 }
 
+/**
+ * Seed one outbox row, with every timestamp from the DATABASE clock.
+ *
+ * The caller passes $expiresAt because that is the value under test; everything
+ * else here is taken from the same clock the reporter compares against. This
+ * function used to take three of its timestamps from Carbon's app clock while its
+ * caller derived $expiresAt from the database's, which made a one-second margin
+ * span two clock sources -- and a margin that small across two clocks says nothing
+ * except how far apart the clocks are.
+ */
 function reportOutbox(string $status, DateTimeInterface $expiresAt, int $sequence): void
 {
+    $now = app(DatabaseTime::class)->current();
+
     $attempt = AuthAttempt::create([
         'handle' => str_pad("report-{$sequence}", 64, 'x'),
         'state' => AttemptState::FactorPending,
         'version' => 1,
         'bound_context' => str_repeat('r', 64),
-        'expires_at' => now()->addHour(),
+        'expires_at' => $now->add(new DateInterval('PT1H')),
     ]);
     $challenge = AuthChallenge::create([
         'attempt_id' => $attempt->id,
@@ -79,9 +97,9 @@ function reportOutbox(string $status, DateTimeInterface $expiresAt, int $sequenc
             : null,
         'status' => $status,
         'expires_at' => $expiresAt,
-        'delivered_at' => $status === OtpOutboxStatus::Delivered->value ? now() : null,
-        'provider_attempted_at' => $status === OtpOutboxStatus::Undeliverable->value ? now() : null,
-        'undeliverable_at' => $status === OtpOutboxStatus::Undeliverable->value ? now() : null,
+        'delivered_at' => $status === OtpOutboxStatus::Delivered->value ? $now : null,
+        'provider_attempted_at' => $status === OtpOutboxStatus::Undeliverable->value ? $now : null,
+        'undeliverable_at' => $status === OtpOutboxStatus::Undeliverable->value ? $now : null,
         'failure_reason' => $status === OtpOutboxStatus::Undeliverable->value
             ? OtpOutboxFailureReason::ProviderRejected->value
             : null,
@@ -101,12 +119,27 @@ function seedAggregateReport(): void
     reportCounter('global', 3, 500);
     reportIpWindow('ipv4', 2, 600);
     reportIpWindow('ipv6', 30, 700);
-    reportOutbox(OtpOutboxStatus::Pending->value, now()->addMinute(), 1);
-    reportOutbox(OtpOutboxStatus::Pending->value, now()->subSecond(), 2);
-    reportOutbox(OtpOutboxStatus::Delivered->value, now()->subSecond(), 3);
-    reportOutbox(OtpOutboxStatus::Undeliverable->value, now()->addMinute(), 4);
-
+    /*
+     * One clock for the whole block, and an hour either side of it rather than a
+     * second. Rows 2 and 3 have to read as already expired and rows 1 and 4 as
+     * still live -- against the DATABASE clock, which is what the reporter and
+     * vouch:prune both compare with -- and the margins are what decide that.
+     *
+     * They were a second and a minute from Carbon's app clock, three lines above a
+     * $now taken from the database's. Measured on this machine the two are within
+     * 150ms, so the file passes ten consecutive PostgreSQL runs as it stands; the
+     * mechanism that would break it is a container clock drifting more than a
+     * second behind the host, which is ordinary after the host sleeps.
+     */
     $now = app(DatabaseTime::class)->current();
+    $live = $now->add(new DateInterval('PT1H'));
+    $expired = $now->sub(new DateInterval('PT1H'));
+
+    reportOutbox(OtpOutboxStatus::Pending->value, $live, 1);
+    reportOutbox(OtpOutboxStatus::Pending->value, $expired, 2);
+    reportOutbox(OtpOutboxStatus::Delivered->value, $expired, 3);
+    reportOutbox(OtpOutboxStatus::Undeliverable->value, $live, 4);
+
     $old = $now->sub(new DateInterval('P1D'));
     DB::table('auth_delivery_spend')->insert([
         ['scope' => 'global', 'subject_digest' => str_pad('1', 64, 'd'), 'window_started_at' => $now->format('Y-m-d 00:00:00'), 'spent_minor' => 10, 'created_at' => $now, 'updated_at' => $now],
@@ -413,4 +446,37 @@ it('removes expired aggregates from the report while leaving live rows visible',
         'undeliverable' => 1,
         'undeliverable_reasons' => ['provider_rejected' => 1],
     ]);
+});
+
+it('takes every fixture timestamp in this file from one clock', function (): void {
+    /*
+     * #69, and the reason it is a guard rather than a comment: this is the fourth
+     * time this project has shipped a test whose margin spanned two clocks. The
+     * first three were PostgreSQL's CURRENT_TIMESTAMP(0) rounding where PHP
+     * truncates; this one is plainer -- fixtures written from Carbon's app clock and
+     * required to read as expired against the database's, three lines apart.
+     *
+     * Scoped to this file deliberately. Seventeen test files reference both clocks
+     * and several exist precisely to measure the difference -- AttemptDeadlineClock
+     * SourceTest skews one against the other on purpose -- so a suite-wide rule
+     * would reject the tests that matter most. Here the app clock is never the right
+     * answer: everything this file asserts is compared by the reporter or by
+     * vouch:prune against DatabaseTime, so a fixture on any other clock is measuring
+     * the gap between them.
+     *
+     * The needle is assembled at runtime so that this guard is not itself a match.
+     */
+    $source = file_get_contents(__FILE__);
+
+    if (! is_string($source)) {
+        throw new RuntimeException('This test file is unreadable.');
+    }
+
+    $needle = 'no' . 'w(';
+
+    // The premise: the needle really would find an app-clock call, so a count of
+    // zero below means none is present rather than that the search is broken.
+    expect(substr_count('seeded at ' . $needle . ')', $needle))->toBe(1);
+
+    expect(substr_count($source, $needle))->toBe(0);
 });
