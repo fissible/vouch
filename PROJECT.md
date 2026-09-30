@@ -29,13 +29,21 @@ different provenance is now the standard for this queue.
 | 2 | **#90** — `drop table if exists` omits `TEMPORARY`, so MySQL implicit-commits a caller's open transaction. A marker survived rollback while Laravel still reported transaction level 1 | XS | same method as 1 | queued |
 | 3 | **#91** — `Connection::select()` defaults to the read PDO, so the working table is invisible on any read/write-split connection (`1146`) | XS | same method as 1 | queued |
 | 4 | **#92** — the memory bound does not hold when identifiers need rewriting: 45 MiB at 100k rows, OOM at 400k under 128 MB, and those are the hosts the migration exists for | M | 1–3 landing first | queued |
-| 5 | Findings from the #79/#82 re-review | ? | review in flight | pending |
-| 6 | **#69** (PR #88) — fixed and verified, held open until its re-review landed. Ready to merge | — | — | **ready** |
+| 5 | **#93** — an enrollment's failure report can name ANOTHER SUBJECT'S token. A regression from #85: the new outer transaction defers issuer revocation past the point the collector's depth unwinds, so a mutation started in a deferred callback lands at the caller's depth | S | independent of 1–4 | queued |
+| 6 | **#94** — `vouch:doctor` reports a resolution failure as a missing declaration, suppressing the exit-2 diagnostic failure | XS | independent | queued |
+| 7 | **#95** — the doctor documentation guard skips prose-named rows instead of rejecting them, so one of its two claimed directions is unenforced | XS | with 6 | queued |
+| 8 | **#69** (PR #88) — fixed and verified, held open until its re-review landed. Ready to merge | — | — | **ready** |
 
-Grouped into two pull requests, because all of 1–4 touch `IdentifierEqualityUpgrade::decide()` and separate branches would conflict:
+#93 is the one to look at first if time is short: the others are refusals that do
+not happen or reports that mislead, while that one puts a second subject's token
+identifier into a result a host may render or log.
+
+Grouped into pull requests, because all of 1–4 touch `IdentifierEqualityUpgrade::decide()` and separate branches would conflict:
 
 - **PR A — items 1–3.** Three surgical corrections plus their fixtures. Highest urgency: #89 is data loss and #90 breaks a contract the class documents.
 - **PR B — item 4.** Streams the rewrite pairs out of the working table instead of accumulating them in PHP, which is where the remaining growth lives. Rebases on PR A.
+- **PR C — item 5.** Its own branch: a different class, and the exclusion contract it touches is the one #53, #77 and #79 all negotiated, so it wants its own review rather than riding along.
+- **PR D — items 6 and 7.** Both in the doctor and its documentation guard, both XS.
 
 **Not sprint work, and still waiting on a decision rather than on code:** #14, #15, #16, #17 (retention and mutex-anchor capacity — each asks for a recorded decision, and #16/#17 are capacity questions where "old" is not the same as "unused"), #81 (an attempt-TTL upper bound that no sibling TTL has), #84 (what the additive enrollment branch should say when it failed over committed state), #11 (rebaseline the mutation chunks 2.4 affected), and the design set #9, #19, #24. The retention cluster wants one conversation rather than four separate answers.
 
