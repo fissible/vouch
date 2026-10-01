@@ -208,10 +208,17 @@ final class VouchDoctorCommand extends Command
 
     private function declaredAbilitiesStatus(): string
     {
+        /*
+         * #94. Only the comparison refusing means a declaration is missing. If
+         * either input cannot be built, handle() must report the cause and exit 2.
+         * Narrowing the exception type cannot distinguish these stages: a binding
+         * can throw RuntimeException just as the comparison can.
+         */
+        $requirements = app(AssuranceRequirements::class);
+        $declared = AssuranceRequirements::declaredFrom(config('vouch.declared_abilities'));
+
         try {
-            app(AssuranceRequirements::class)->assertDeclared(
-                AssuranceRequirements::declaredFrom(config('vouch.declared_abilities')),
-            );
+            $requirements->assertDeclared($declared);
 
             return 'pass';
         } catch (Throwable) {
