@@ -6,6 +6,7 @@ use Fissible\Vouch\Identifiers\IdentifierCollisionsFound;
 use Fissible\Vouch\Identifiers\IdentifierEqualityUpgrade;
 use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 use Illuminate\Database\QueryException;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Config;
@@ -1071,6 +1072,10 @@ it('decides in memory that does not grow with the table', function (): void {
      * loose-class subquery needs: the whole run is a fraction of a second, where
      * ten thousand rows without that index took nearly four.
      */
+    if (! upgradeFixtureIsMeasurable()) {
+        $this->markTestSkipped('The upgrade fixture is standalone SQLite; another engine would measure it again.');
+    }
+
     $run = upgradeFixtureRun('16M', 100000, 'canonical');
 
     /*
@@ -1086,12 +1091,42 @@ it('decides in memory that does not grow with the table', function (): void {
 });
 
 /**
+ * Whether running the standalone fixture here would measure anything new.
+ *
+ * It builds its OWN SQLite connection and never touches the configured one, so under
+ * VOUCH_TEST_DB=mysql or pgsql it measured exactly the same number a second and third
+ * time -- about five minutes per engine for one result. #101's saving, not a limitation.
+ */
+function upgradeFixtureIsMeasurable(): bool
+{
+    return DB::connection()->getDriverName() === 'sqlite';
+}
+
+/**
  * Run the upgrade fixture and return what it reported.
  *
- * @return array{rows: int, expected: int, peak: int}
+ * Skipped unless the suite is on SQLite, and that is the #101 saving rather than a
+ * limitation: the fixture builds its OWN standalone SQLite connection and never touches
+ * the configured one, so running it under VOUCH_TEST_DB=mysql measured exactly the same
+ * number a third time. Three engines paid about five minutes each for one measurement.
+ *
+ * @return array{rows: int, expected: int, peak: int, milliseconds: int}
  */
 function upgradeFixtureRun(string $limit, int $rows, string $shape): array
 {
+    /*
+     * Cached per process, because two cases assert on the SAME pair of runs -- one about
+     * memory, one about time -- and each 400 000-row run costs minutes. Caching rather
+     * than merging the cases keeps each runnable under --filter on its own.
+     */
+    static $runs = [];
+
+    $key = $limit . '/' . $rows . '/' . $shape;
+
+    if (isset($runs[$key])) {
+        return $runs[$key];
+    }
+
     $result = phpUnderMemoryLimit(
         $limit,
         dirname(__DIR__) . '/Fixtures/identifier-upgrade-scan.php',
@@ -1104,12 +1139,13 @@ function upgradeFixtureRun(string $limit, int $rows, string $shape): array
 
     $reported = explode(' ', trim($result['output']));
 
-    expect($reported)->toHaveCount(3);
+    expect($reported)->toHaveCount(4);
 
-    return [
+    return $runs[$key] = [
         'rows' => (int) $reported[0],
         'expected' => (int) $reported[1],
         'peak' => (int) $reported[2],
+        'milliseconds' => (int) $reported[3],
     ];
 }
 
@@ -1155,6 +1191,10 @@ it('rewrites a whole table of non-canonical identifiers in memory that does not 
      * the wrong subject. An identifier moved to another owner is worse than one left
      * un-canonicalized.
      */
+    if (! upgradeFixtureIsMeasurable()) {
+        $this->markTestSkipped('The upgrade fixture is standalone SQLite; another engine would measure it again.');
+    }
+
     $small = upgradeFixtureRun('16M', 100000, 'uppercase');
     $large = upgradeFixtureRun('16M', 400000, 'uppercase');
 
@@ -1168,6 +1208,448 @@ it('rewrites a whole table of non-canonical identifiers in memory that does not 
     expect($small['peak'])->toBeGreaterThan(0);
 
     expect($large['peak'])->toBeLessThanOrEqual($small['peak'] + 2 * 1024 * 1024);
+});
+
+it('rewrites a whole table in time that grows no worse than the table', function (): void {
+    /*
+     * #101. #92 made the memory flat and left the TIME super-linear, which is the same
+     * category of overclaim it set out to remove: measured then, 24 s at 100 000 rows and
+     * 247 s at 400 000 -- four times the rows, ten times the time. Extrapolated, a
+     * four-million-row host is in hours for an upgrade whose documentation reads as routine.
+     *
+     * The cause was the rewrite matching rows by spelling alone. The deterministic unique
+     * index is on (type, value), so a predicate on the value cannot use it -- `explain query
+     * plan` reports SCAN for `where value in (…)` and SEARCH … USING INDEX for the
+     * type-qualified form -- so every chunk full-scanned, and the chunks grow with the table.
+     *
+     * THREE sizes, each a doubling, rather than one ratio across a quadrupling: a single 4x
+     * ratio needs a loose bound to survive noise, and the bound then admits real work.
+     * Linear predicts 2 per doubling and quadratic 4, so 3 separates them, and it has to
+     * hold for BOTH doublings rather than on average. Ratios rather than absolute times,
+     * because absolute timings on a shared machine are a flake waiting to happen.
+     *
+     * WHAT THIS DOES NOT CATCH, measured rather than guessed. An implementation whose
+     * updates are correctly indexed but which issues a `select distinct type` per page -- a
+     * covering scan per page, so quadratic in reads -- measured 2.655x and 2.900x per
+     * doubling and passes. Tightening the bound to catch it would leave almost nothing over
+     * linear's 2 and make this a flake. No wall-clock bound at these sizes separates it
+     * either: it takes 60 s at 400 000 rows against about 36 s for the fully indexed path
+     * and 247 s for the defect this issue is about.
+     *
+     * So the bound catches the FILED defect, by a wide margin, and does not pretend to
+     * certify optimality. A milder inefficiency of that shape is a code-review finding, and
+     * saying so here is better than a number that looks like it rules one out.
+     */
+    if (! upgradeFixtureIsMeasurable()) {
+        $this->markTestSkipped('The upgrade fixture is standalone SQLite; another engine would measure it again.');
+    }
+
+    $runs = [];
+
+    foreach ([100000, 200000, 400000] as $rows) {
+        $runs[$rows] = upgradeFixtureRun('16M', $rows, 'uppercase');
+
+        // The premise: each run did the whole job, for every subject and every type.
+        expect($runs[$rows]['expected'])->toBe($rows);
+    }
+
+    /*
+     * And the smallest run took long enough that the ratios mean something rather than
+     * dividing by noise.
+     */
+    expect($runs[100000]['milliseconds'])->toBeGreaterThan(500);
+
+    $growth = [];
+
+    foreach ([[100000, 200000], [200000, 400000]] as [$smaller, $larger]) {
+        $ratio = $runs[$larger]['milliseconds'] / max(1, $runs[$smaller]['milliseconds']);
+
+        if ($ratio >= 3) {
+            $growth[] = sprintf('%d to %d rows took %.2fx', $smaller, $larger, $ratio);
+        }
+    }
+
+    expect($growth)->toBe([]);
+});
+
+/**
+ * The UPDATE target of $sql: which of the upgrade's tables it writes, and the names a plan
+ * step may use for it.
+ *
+ * The TARGET specifically, not every relation the statement mentions, and that distinction
+ * is the whole point. Collecting every table and alias let a SOURCE relation's indexed
+ * access satisfy the non-empty check while the target's own scan went unattributed:
+ * measured, `update main.auth_identifiers from … as matched` reported
+ * `SEARCH matched … (type=? AND value=?)` beside `SCAN main.auth_identifiers`, and passed.
+ *
+ * Schema qualification counts in both directions. `main.` alone made a correct
+ * implementation's 36 indexed updates read as "no readable target access path", because
+ * SQLite reports `SEARCH main.auth_identifiers …` and the matcher wanted the bare name.
+ *
+ * @return array{table: string, names: list<string>}|null
+ */
+function planUpdateTarget(string $sql): ?array
+{
+    $quoted = '[`"\[]?';
+    $endQuote = '[`"\]]?';
+    $pattern = '/^\s*update\s+(?:' . $quoted . '(\w+)' . $endQuote . '\s*\.\s*)?'
+        . $quoted . '(\w+)' . $endQuote . '(?:\s+(?:as\s+)?' . $quoted . '(\w+)' . $endQuote . ')?/i';
+
+    if (preg_match($pattern, $sql, $matches) !== 1) {
+        return null;
+    }
+
+    $schema = $matches[1];
+    $table = strtolower($matches[2]);
+    $alias = strtolower($matches[3] ?? '');
+
+    if (! array_key_exists($table, UPGRADE_TABLES)) {
+        return null;
+    }
+
+    $names = [$table];
+
+    if ($schema !== '') {
+        $names[] = strtolower($schema) . '.' . $table;
+    }
+
+    /*
+     * An alias only if it is not a keyword: `update auth_identifiers set …` would otherwise
+     * read `set` as the alias, and anything named `set` in a plan would then count.
+     */
+    if ($alias !== '' && ! in_array($alias, ['set', 'where', 'from', 'as'], true)) {
+        $names[] = $alias;
+    }
+
+    return ['table' => $table, 'names' => $names];
+}
+
+/** What planDetails() reports for a step it cannot read; callers must fail on it. */
+const UNREADABLE_PLAN_STEP = 'a step with no readable detail';
+
+/**
+ * The plan TREE SQLite reports for a captured statement, as id/parent/detail rows.
+ *
+ * An unreadable step is reported as such rather than skipped: a detail this cannot read is
+ * a result it cannot interpret, and reading it as agreement is how an absence-based version
+ * of these assertions let `+value` through.
+ *
+ * The tree, not a flat list, because the SHAPE carries the distinction that matters: a
+ * two-column lookup inside a `LIST SUBQUERY` says nothing about how the UPDATE reaches its
+ * target rows. Measured -- an update whose target full-scans while a nested subquery does
+ * the indexed lookup satisfied a flat any-step match and passed the whole file.
+ *
+ * @param  array{sql: string, bindings: array<array-key, mixed>}  $statement
+ * @return list<array{id: int, parent: int, detail: string}>
+ */
+function planDetails(array $statement): array
+{
+    $steps = [];
+
+    foreach (DB::select('explain query plan ' . $statement['sql'], $statement['bindings']) as $step) {
+        $detail = is_object($step) && property_exists($step, 'detail') ? $step->detail : null;
+        $id = is_object($step) && property_exists($step, 'id') ? $step->id : null;
+        $parent = is_object($step) && property_exists($step, 'parent') ? $step->parent : null;
+
+        $steps[] = [
+            'id' => is_numeric($id) ? (int) $id : -1,
+            'parent' => is_numeric($parent) ? (int) $parent : -1,
+            'detail' => is_string($detail) ? $detail : UNREADABLE_PLAN_STEP,
+        ];
+    }
+
+    return $steps;
+}
+
+/**
+ * The access paths the statement itself uses to reach its TARGET rows.
+ *
+ * An access is a step that actually reads something -- SCAN or SEARCH -- and it belongs to
+ * the target unless some ancestor marks a subquery. Everything else in a plan is structure:
+ * `MULTI-INDEX OR`, `INDEX 1`, `CO-ROUTINE`, `LIST SUBQUERY`.
+ *
+ * Classified by what a step IS rather than by how deep it sits, and that is a correction.
+ * Treating parent 0 as "the target" returned SQLite's `INDEX 1` and `INDEX 2` wrapper nodes
+ * for a batched OR and missed the searches beneath them -- rejecting, measured, exactly the
+ * correct form it was written to admit, with 72 wrapper-node violations. It also read a
+ * parent-0 `LIST SUBQUERY` marker as an access. Depth says nothing; the kind of step and
+ * whether a subquery encloses it say everything.
+ *
+ * Restricted to accesses naming the TARGET relation, resolved through the statement's
+ * aliases, because an unnested read is not necessarily a read of the target: measured,
+ * `update … from (values …)` reports `SCAN 200-ROW VALUES CLAUSE` at parent zero beside a
+ * perfectly indexed target search, and rejecting that rejected a correct implementation.
+ *
+ * Callers must also require the result to be NON-EMPTY. Narrowing by name reintroduces the
+ * risk that an alias spelling this cannot read makes a genuine target scan invisible -- a
+ * bracket-quoted `[t]` did exactly that once -- and failing when no access can be attributed
+ * is what keeps that from passing quietly.
+ *
+ * @param  list<array{id: int, parent: int, detail: string}>  $plan
+ * @param  list<string>  $relations
+ * @return list<string>
+ */
+function planTargetAccess(array $plan, array $relations): array
+{
+    $byId = [];
+
+    foreach ($plan as $step) {
+        $byId[$step['id']] = $step;
+    }
+
+    $access = [];
+
+    foreach ($plan as $step) {
+        if (preg_match('/^(SCAN|SEARCH)\b/', $step['detail']) !== 1) {
+            continue;
+        }
+
+        // Walk to the root; any subquery marker on the way means this read belongs to the
+        // subquery rather than to the update's own target.
+        $nested = false;
+        $parent = $step['parent'];
+        $guard = 0;
+
+        while ($parent > 0 && isset($byId[$parent]) && $guard < 32) {
+            if (preg_match('/SUBQUERY|CO-ROUTINE/', $byId[$parent]['detail']) === 1) {
+                $nested = true;
+
+                break;
+            }
+
+            $parent = $byId[$parent]['parent'];
+            $guard++;
+        }
+
+        if ($nested) {
+            continue;
+        }
+
+        foreach ($relations as $relation) {
+            if (preg_match('/^(SCAN|SEARCH)\\s+(?:\\w+\\.)?[`"\\[]?' . preg_quote($relation, '/') . '[`"\\]]?\\b/i', $step['detail']) === 1) {
+                $access[] = $step['detail'];
+
+                break;
+            }
+        }
+    }
+
+    return $access;
+}
+
+/**
+ * The three tables the upgrade reads and rewrites, each with its own column pair.
+ *
+ * The pair is not the same in all three, and assuming it was would have REJECTED a correct
+ * implementation: measured against an indexed control, 24 valid plans reported
+ * `(identifier_type=? AND identifier_value=?)` and failed an assertion demanding
+ * `type=? AND value=?`. Excluding a correct fix is as much a defect in a spec as admitting
+ * a wrong one.
+ *
+ * @var array<string, array{string, string}>
+ */
+const UPGRADE_TABLES = [
+    'auth_identifiers' => ['type', 'value'],
+    'auth_identifier_verifications' => ['identifier_type', 'identifier_value'],
+    'auth_recovery_proofs' => ['identifier_type', 'identifier_value'],
+];
+
+/**
+ * Seed every table the upgrade touches with non-canonical rows, cycling three types.
+ *
+ * All THREE, because an implementation indexed only for the account table left both
+ * credential tables scanning and nothing noticed -- the listener looked at one table and the
+ * standalone fixture created the other two without seeding them.
+ */
+function upgradeFillerAcrossTables(int $count, int $firstUserId): void
+{
+    $now = (string) now();
+    $types = ['email', 'EMAIL', 'Username'];
+
+    uppercaseFiller($count, $firstUserId);
+
+    foreach (array_chunk(range(0, $count - 1), 250) as $batch) {
+        $verifications = [];
+        $proofs = [];
+
+        foreach ($batch as $offset) {
+            $type = $types[$offset % count($types)];
+            $value = sprintf('AAA-%d@ACME.EXAMPLE', $firstUserId + $offset);
+            $row = [
+                'identifier_type' => $type,
+                'identifier_value' => $value,
+                'is_decoy' => false,
+                'attempts' => 0,
+                'expires_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+
+            $verifications[] = $row + ['code_hash' => 'v-' . $firstUserId . '-' . $offset];
+            $proofs[] = $row + ['code_hash' => 'p-' . $firstUserId . '-' . $offset];
+        }
+
+        DB::table('auth_identifier_verifications')->insert($verifications);
+        DB::table('auth_recovery_proofs')->insert($proofs);
+    }
+}
+
+it('rewrites through the deterministic index rather than scanning for each chunk', function (): void {
+    /*
+     * The mechanism behind the ratio above, asserted directly, because a ratio can be met
+     * by a merely faster scan and the point is that the index is used at all. Captured from
+     * the statements the migration actually ran rather than read from the source, and then
+     * handed back to the ENGINE as an EXPLAIN: a predicate naming the type proves the
+     * intent, and only the plan proves the effect.
+     *
+     * Five measured corrections are in this shape, and each one let something through.
+     * Recognising a value rewrite by the statement STARTING with `set "value"` missed
+     * `set id = id, value = …`, leaving both loops inspecting nothing. Asserting the
+     * ABSENCE of `SCAN` was satisfied by `where +value in (…) and "type" = ?`, which SQLite
+     * plans as `SEARCH … (type=?)` -- every row of the type, per chunk. A single-type
+     * filler admitted a rewrite qualified by the first row's type. Capturing only UPDATEs
+     * admitted a `select distinct type` per page, which is a covering-index scan per page
+     * and quadratic, yet measured 7.01x and passed a ratio of eight. And looking at one
+     * table left the two credential tables unguarded.
+     */
+    revertToLegacyCollation();
+
+    /*
+     * FOUR pages of 500, because the property is that unbounded scans do not grow with
+     * the number of pages. Two pages cannot tell one scan per table from one per page.
+     */
+    upgradeFillerAcrossTables(2000, 100);
+
+    $observed = [];
+    DB::listen(function (QueryExecuted $query) use (&$observed): void {
+        $observed[] = ['sql' => $query->sql, 'bindings' => $query->bindings];
+    });
+
+    runIdentifierMigration();
+
+    /*
+     * FROZEN here, and that is not tidiness. The listener is still attached while the
+     * assertions below run their own EXPLAINs, so reading the live array fed those
+     * statements back into themselves: measured, `explain query plan explain query plan
+     * update …` and a syntax error. What is under test is what the MIGRATION ran.
+     */
+    $statements = $observed;
+
+    // The premise: the migration ran and the work landed, on every table.
+    expect($statements)->not->toBe([]);
+    expect(DB::table('auth_identifiers')->where('value', 'aaa-100@acme.example')->exists())->toBeTrue();
+    expect(DB::table('auth_recovery_proofs')->where('identifier_value', 'aaa-100@acme.example')->exists())->toBeTrue();
+    expect(DB::table('auth_identifier_verifications')->where('identifier_value', 'aaa-100@acme.example')->exists())->toBeTrue();
+
+    /*
+     * A value rewrite is any update ASSIGNING a value column, wherever in the SET clause it
+     * appears. Counting them is the control: a matcher recognising none leaves every
+     * assertion below vacuous, which is how `set id = id, value = …` passed.
+     */
+    $valueRewrites = array_values(array_filter($statements, static function (array $statement): bool {
+        $sql = strtolower($statement['sql']);
+
+        return str_starts_with(ltrim($sql), 'update')
+            && (str_contains($sql, 'value" =') || str_contains($sql, 'value` ='));
+    }));
+
+    expect(count($valueRewrites))->toBeGreaterThan(3);
+
+    /*
+     * The SQL-text predicate check that used to live here is GONE, and why belongs in the
+     * file because it cost three rounds of review to learn.
+     *
+     * It tried to establish "the lookup is index-served" by reading the statement, and every
+     * version of it rejected correct SQL. Demanding `type = ? and value in (…)` rejected the
+     * same statement with its conjuncts reversed. Banning OR rejected a batched
+     * `(type = ? AND value IN (…)) OR (type = ? AND value IN (…))`, which plans as
+     * MULTI-INDEX OR with both columns on every branch. Splitting on OR and requiring each
+     * branch to be complete then rejected `(type = ? OR type = ?) AND value IN (…)`, where
+     * the value constraint is shared rather than per branch.
+     *
+     * Each of those is a different spelling of the same correct thing, and the test was
+     * prescribing a spelling. The property is what the PLANNER does with the statement, so
+     * that is what is asserted, and only on the engine whose plan this can read.
+     */
+    if (DB::connection()->getDriverName() !== 'sqlite') {
+        return;
+    }
+
+    /*
+     * And the engine agrees. Two claims, both positive rather than the absence of a word.
+     *
+     * Each value rewrite's plan must name the two-column lookup, which is what separates an
+     * index seek on (type, value) from a scan of one type's rows.
+     *
+     * And across EVERY statement, the number that scan a source table must not grow with
+     * the page count. One unbounded read per table is expected -- the first page has no
+     * lower bound -- so four pages admit at most three per table and reject one per page.
+     */
+    $plans = [];
+
+    foreach ($valueRewrites as $statement) {
+        $plan = planDetails($statement);
+        $target = planUpdateTarget($statement['sql']);
+
+        if ($target === null) {
+            $plans[] = $statement['sql'] . ' (its update target is not one of the upgrade\'s tables)';
+
+            continue;
+        }
+
+        [$typeColumn, $valueColumn] = UPGRADE_TABLES[$target['table']];
+        $wanted = [$typeColumn . '=? AND ' . $valueColumn . '=?'];
+        $access = planTargetAccess($plan, $target['names']);
+
+        $unreadable = array_filter(
+            $plan,
+            static fn (array $step): bool => $step['detail'] === UNREADABLE_PLAN_STEP,
+        );
+
+        if ($unreadable !== [] || $access === []) {
+            $plans[] = $statement['sql'] . ' (no readable target access path)';
+
+            continue;
+        }
+
+        /*
+         * EVERY target access path, not any step of the plan. Measured: an update whose
+         * target full-scanned while a nested subquery did the indexed lookup satisfied an
+         * any-step match -- `SCAN auth_recovery_proofs` at the top with
+         * `LIST SUBQUERY / SEARCH … (identifier_type=? AND identifier_value=?)` beneath it --
+         * and passed the whole file. A lookup inside a subquery says nothing about how the
+         * UPDATE reaches the rows it writes.
+         */
+        foreach ($access as $path) {
+            $matched = array_filter(
+                $wanted,
+                static fn (string $lookup): bool => str_contains($path, $lookup),
+            );
+
+            if ($matched === []) {
+                $plans[] = $path . ' (wanted one of: ' . implode(', ', $wanted) . ')';
+            }
+        }
+    }
+
+    expect($plans)->toBe([]);
+
+    /*
+     * The scan budget that used to live here is GONE, and the reason belongs in the file.
+     *
+     * It tried to establish an asymptotic property from plan shapes on one small run, and
+     * three successive reviews found a P1 in it: a bounded intermediate (`select * from (…)
+     * as page`) counted as a source scan and rejected a correct implementation; a
+     * bracket-quoted alias (`[t]`) hid a genuine per-page scan from it; and -- decisively --
+     * a repeated full traversal written as `where id > 0` reports `SEARCH t USING INTEGER
+     * PRIMARY KEY (rowid>?)`, which no scan-shape rule can see. Two of those three rejected
+     * CORRECT code, which is the worse direction to be wrong in.
+     *
+     * So the asymptotic claim sits where it can be measured rather than inferred: in
+     * 'it rewrites a whole table in time that grows no worse than the table', which samples
+     * three sizes and bounds each doubling. What stays here is the one thing a plan can
+     * honestly establish -- that each value rewrite is an index lookup on both columns.
+     */
 });
 
 it('is given a memory limit that actually bites', function (): void {
@@ -1444,9 +1926,17 @@ function uppercaseFiller(int $count, int $firstUserId): void
         $rows = [];
 
         foreach ($batch as $offset) {
+            /*
+             * Three types, cycled, two of them needing canonicalization themselves. A
+             * single-type filler admitted a rewrite that qualified every value update by
+             * the FIRST ROW's type: measured, it rewrote every email row and no username
+             * row while passing the whole file on all three engines.
+             */
+            $types = ['email', 'EMAIL', 'Username'];
+
             $rows[] = [
                 'user_id' => $firstUserId + $offset,
-                'type' => 'email',
+                'type' => $types[$offset % count($types)],
                 'value' => sprintf('AAA-%d@ACME.EXAMPLE', $firstUserId + $offset),
                 'verified_at' => $now,
                 'created_at' => $now,
@@ -1514,9 +2004,13 @@ it('keeps its statement count bounded when the large table needs rewriting', fun
      * a shape-only predicate passed at 39 statements.
      */
     $expected = [];
+    $types = ['email', 'EMAIL', 'Username'];
 
     for ($userId = 100; $userId < 1300; $userId++) {
-        $expected[] = $userId . ' ' . sprintf('aaa-%d@acme.example', $userId);
+        // The canonical TYPE as well, since the filler carries three and two of them need
+        // rewriting: a value correct under the wrong type is still the wrong row.
+        $expected[] = $userId . ' ' . strtolower($types[($userId - 100) % count($types)])
+            . ' ' . sprintf('aaa-%d@acme.example', $userId);
     }
 
     /*
@@ -1530,8 +2024,10 @@ it('keeps its statement count bounded when the large table needs rewriting', fun
      */
     $actual = DB::table('auth_identifiers')
         ->orderBy('id')
-        ->get(['user_id', 'value'])
-        ->map(static fn (object $row): string => stringValue($row->user_id) . ' ' . stringValue($row->value))
+        ->get(['user_id', 'type', 'value'])
+        ->map(static fn (object $row): string => stringValue($row->user_id)
+            . ' ' . stringValue($row->type)
+            . ' ' . stringValue($row->value))
         ->all();
 
     sort($actual);

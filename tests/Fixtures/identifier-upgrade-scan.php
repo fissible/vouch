@@ -52,6 +52,11 @@ declare(strict_types=1);
  * expression can derive it. The join at the end is bounded; holding 400 000
  * expected values in PHP would not be.
  *
+ * Prints four numbers: surviving rows, rows whose value matches the expectation seeded
+ * for their own subject, peak allocation, and the milliseconds apply() took. The last is
+ * for #101 -- memory being flat says nothing about the time, and the two have to be
+ * measured separately because fixing one has cost the other before.
+ *
  * Usage: php -d memory_limit=16M identifier-upgrade-scan.php <package-root> <rows> [shape]
  *        shape: canonical (default) | uppercase | control
  */
@@ -121,7 +126,7 @@ try {
      */
     $connection->statement(
         'create table upgrade_expected (user_id integer not null primary key, '
-        . 'value varchar(255) not null)',
+        . 'type varchar(32) not null, value varchar(255) not null)',
     );
 
     $connection->beginTransaction();
@@ -142,15 +147,30 @@ try {
             $local = substr(sha1((string) $i), 0, 20);
             $canonical = $local . '@acme.example';
 
+            /*
+             * THREE types, cycled per row, so every page of the scan and of the rewrite
+             * contains more than one -- and two of them are themselves non-canonical, so
+             * the type column needs rewriting as well as the value column.
+             *
+             * Measured against a single-type fixture: a rewrite that qualified every
+             * value update by the FIRST ROW's type passed the whole file on all three
+             * engines, and rewrote 300 of 300 email rows and 0 of 300 username rows.
+             * One type cannot catch that, whatever else the fixture varies.
+             */
+            $types = ['email', 'EMAIL', 'Username'];
+            $type = $types[$i % count($types)];
+            $canonicalType = strtolower($type);
+
             $tuples[] = '(?, ?, ?)';
             $bindings[] = $i + 1;
-            $bindings[] = 'email';
+            $bindings[] = $type;
             $bindings[] = $shape === 'uppercase'
                 ? strtoupper($local) . '@ACME.EXAMPLE'
                 : $canonical;
 
-            $expectedTuples[] = '(?, ?)';
+            $expectedTuples[] = '(?, ?, ?)';
             $expectedBindings[] = $i + 1;
+            $expectedBindings[] = $canonicalType;
             $expectedBindings[] = $canonical;
         }
 
@@ -159,14 +179,18 @@ try {
             $bindings,
         );
         $connection->insert(
-            'insert into upgrade_expected (user_id, value) values ' . implode(', ', $expectedTuples),
+            'insert into upgrade_expected (user_id, type, value) values ' . implode(', ', $expectedTuples),
             $expectedBindings,
         );
     }
 
     $connection->commit();
 
+    $started = microtime(true);
+
     (new IdentifierEqualityUpgrade($connection, new IdentifierCanonicalizer()))->apply();
+
+    $finished = microtime(true);
 
     /*
      * The surviving row count rather than a bare "ok": an upgrade that answered by
@@ -187,9 +211,15 @@ try {
      * framework-free; the cross-engine equivalent lives in the migration tests, which
      * compare in PHP over a table small enough to hold.
      */
+    /*
+     * All THREE columns, because a rewrite can get the value right for the wrong type: a
+     * mutant qualifying by the first row's type left two of three types untouched while
+     * every value it did rewrite was correct.
+     */
     $expected = (int) $connection->table('auth_identifiers')
         ->join('upgrade_expected', function ($join): void {
             $join->on('upgrade_expected.user_id', '=', 'auth_identifiers.user_id')
+                ->on('upgrade_expected.type', '=', 'auth_identifiers.type')
                 ->on('upgrade_expected.value', '=', 'auth_identifiers.value');
         })
         ->count();
@@ -205,8 +235,16 @@ try {
      * Real allocation rather than the emalloc figure: the limit is applied to the
      * former, and it is the one that makes a run fail.
      */
+    /*
+     * And the ELAPSED time of apply() alone, excluding the seeding above, so a caller can
+     * compare two row counts. #92 bounded memory and left the time super-linear: the
+     * rewrite matched rows by spelling, which the unique index on (type, value) cannot
+     * serve from the value alone, so every chunk full-scanned the table. Measured before
+     * #101: 24 s at 100 000 rows and 247 s at 400 000 -- four times the rows, ten times
+     * the time.
+     */
     echo (int) $connection->table('auth_identifiers')->count(), ' ', $expected,
-        ' ', memory_get_peak_usage(true), PHP_EOL;
+        ' ', memory_get_peak_usage(true), ' ', (int) round(($finished - $started) * 1000), PHP_EOL;
 } finally {
     @unlink($path);
 }
