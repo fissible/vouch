@@ -29,8 +29,8 @@ different provenance is now the standard for this queue.
 | 2 | **#90** — `drop table if exists` omits `TEMPORARY`, so MySQL implicit-commits a caller's open transaction. A marker survived rollback while Laravel still reported transaction level 1 | XS | same method as 1 | done |
 | 3 | **#91** — `Connection::select()` defaults to the read PDO, so the working table is invisible on any read/write-split connection (`1146`) | XS | same method as 1 | done |
 | 4 | **#92** — the memory bound does not hold when identifiers need rewriting: 45 MiB at 100k rows, OOM at 400k under 128 MB, and those are the hosts the migration exists for | M | 1–3 landing first | queued |
-| 5 | **#93** — an enrollment's failure report can name ANOTHER SUBJECT'S token. A regression from #85: the new outer transaction defers issuer revocation past the point the collector's depth unwinds, so a mutation started in a deferred callback lands at the caller's depth | S | independent of 1–4 | **next** |
-| 6 | **#94** — `vouch:doctor` reports a resolution failure as a missing declaration, suppressing the exit-2 diagnostic failure | XS | independent | queued |
+| 5 | **#93** — an enrollment's failure report can name ANOTHER SUBJECT'S token. A regression from #85: the new outer transaction defers issuer revocation past the point the collector's depth unwinds, so a mutation started in a deferred callback lands at the caller's depth | S | independent of 1–4 | done |
+| 6 | **#94** — `vouch:doctor` reports a resolution failure as a missing declaration, suppressing the exit-2 diagnostic failure | XS | independent | **next** |
 | 7 | **#95** — the doctor documentation guard skips prose-named rows instead of rejecting them, so one of its two claimed directions is unenforced | XS | with 6 | queued |
 | 8 | **#69** (PR #88) — the fixture's one-clock property is now held behaviourally as well as lexically; three further defects closed, re-review ends at MERGE, all eight CI checks green. Ready to merge | — | — | **ready** |
 

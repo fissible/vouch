@@ -114,39 +114,53 @@ final readonly class CredentialMutation
 
             foreach ($revoked as $row) {
                 $this->connection->afterCommit(function () use ($row, $result, $reports): void {
-                    foreach ($this->issuers->issuers() as $issuer) {
-                        if ($issuer->issuerKey() !== $row->issuer_key) {
-                            continue;
-                        }
-
-                        try {
-                            $issuer->revoke($row->token_key);
-                        } catch (Throwable $failure) {
-                            $driverFailure = new CredentialDriverFailure(
-                                $row->issuer_key, $row->token_key, $failure->getMessage(),
-                            );
-                            $result->recordDriverFailure($driverFailure);
-                            foreach ($reports as $report) {
-                                $report->record($row->issuer_key, $row->token_key);
+                    /*
+                     * A nested mutation's during() has returned by the outer commit.
+                     * Measured by the deferred residual cases: all five service
+                     * routes then attributed an issuer's own mutation to the
+                     * caller. Enter a fresh frame for the callback, retaining the
+                     * reports captured by the originating mutation for its failure.
+                     *
+                     * Reuse the depth stack rather than suppress reporting: a
+                     * collection opened here must hear every mutation it starts.
+                     * A boolean context cannot distinguish a further callback;
+                     * transaction level cannot either when an issuer opens one.
+                     */
+                    $this->failureCollector->during($this->connection, function () use ($row, $result, $reports): void {
+                        foreach ($this->issuers->issuers() as $issuer) {
+                            if ($issuer->issuerKey() !== $row->issuer_key) {
+                                continue;
                             }
 
-                            // Callers commonly do not retain the result. Record
-                            // this here, at the shared post-commit boundary, so
-                            // a failed driver revoke remains discoverable even
-                            // while the token gate is intentionally observing.
                             try {
-                                Log::warning('Vouch driver token revocation failed.', [
-                                    'issuer_key' => $driverFailure->issuerKey,
-                                    'token_key' => $driverFailure->tokenKey,
-                                ]);
-                            } catch (Throwable) {
-                                // Reporting must not turn best-effort cleanup
-                                // into a failure of the caller's commit.
-                            }
-                        }
+                                $issuer->revoke($row->token_key);
+                            } catch (Throwable $failure) {
+                                $driverFailure = new CredentialDriverFailure(
+                                    $row->issuer_key, $row->token_key, $failure->getMessage(),
+                                );
+                                $result->recordDriverFailure($driverFailure);
+                                foreach ($reports as $report) {
+                                    $report->record($row->issuer_key, $row->token_key);
+                                }
 
-                        break;
-                    }
+                                // Callers commonly do not retain the result. Record
+                                // this here, at the shared post-commit boundary, so
+                                // a failed driver revoke remains discoverable even
+                                // while the token gate is intentionally observing.
+                                try {
+                                    Log::warning('Vouch driver token revocation failed.', [
+                                        'issuer_key' => $driverFailure->issuerKey,
+                                        'token_key' => $driverFailure->tokenKey,
+                                    ]);
+                                } catch (Throwable) {
+                                    // Reporting must not turn best-effort cleanup
+                                    // into a failure of the caller's commit.
+                                }
+                            }
+
+                            break;
+                        }
+                    });
                 });
             }
 

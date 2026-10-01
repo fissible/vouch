@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Fissible\Vouch\Contracts\Factor;
 use Fissible\Vouch\Credentials\CredentialDriverFailure;
+use Fissible\Vouch\Credentials\CredentialDriverFailureCollector;
 use Fissible\Vouch\Credentials\CredentialDriverFailureIdentity;
 use Fissible\Vouch\Credentials\CredentialMutation;
 use Fissible\Vouch\Factors\Drivers\PasswordFactor;
@@ -19,6 +20,7 @@ use Fissible\Vouch\SelfService\CredentialSelfService;
 use Fissible\Vouch\SelfService\SelfServiceOutcome;
 use Fissible\Vouch\SelfService\SelfServiceResult;
 use Fissible\Vouch\Tests\Support\CompanionRetiringFactor;
+use Fissible\Vouch\Tests\Support\DeferredIssuerProbe;
 use Fissible\Vouch\Tests\Support\CompanionRevokingFactor;
 use Fissible\Vouch\Tests\Support\InterceptingFactor;
 use Fissible\Vouch\Tests\Support\InterceptingPasswordFactor;
@@ -1374,4 +1376,668 @@ it('reports a committed mutation\'s driver failure when a post-commit listener t
 
     expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'late-companion']]);
     expect(print_r($result, true))->not->toContain(RESIDUAL_SENTINEL);
+});
+
+/* ---- shape four: depth has unwound by the time deferred work runs ------ */
+
+/**
+ * An issuer that fails for each of $failing, and runs a hook when asked to revoke
+ * the token that keys it.
+ *
+ * Each hook fires at most ONCE, because the mutation a hook starts revokes tokens of
+ * its own and re-entering would recurse. Keyed on the token as well, so a hook cannot
+ * run from some other revocation and leave the test asserting about the wrong window.
+ *
+ * More than one hook because the contract is recursive: a collection opened inside a
+ * deferred callback has the same claim on its own mutations, and excluding a mutation
+ * one level down needs a second deferred callback to start it.
+ *
+ * @param  list<string>  $failing
+ * @param  array<string, Closure>  $hooks  token key => what to run while revoking it
+ */
+function residualDeferredIssuer(array $failing, array $hooks, DeferredIssuerProbe $probe): RecordingIssuer
+{
+    $ran = [];
+    $issuer = new RecordingIssuer('sanctum');
+    $issuer->onRevoke = function () use (&$issuer, &$ran, $failing, $hooks, $probe): null {
+        $tokenKey = end($issuer->attempted);
+
+        if (isset($hooks[$tokenKey]) && ! isset($ran[$tokenKey])) {
+            $ran[$tokenKey] = true;
+            $probe->fired = true;
+
+            /*
+             * Zero here is the whole point of the shape. Driver revocation is
+             * registered with afterCommit, so for a mutation nested inside the
+             * service's transaction it runs at the OUTER commit -- by which time
+             * the transaction is closed and the collector's mutation depth has
+             * unwound to the caller's. An observer's nested mutation, which the
+             * frozen exclusions cover, sees a level of 1 or more instead.
+             */
+            $probe->transactionLevel = DB::transactionLevel();
+
+            /*
+             * Snapshotted here, not read at the end of the test. The flag is set by a
+             * factor hook that runs after the originating mutation returns, so by the
+             * time a test body reads it it is true whatever the ordering was --
+             * measured, that is exactly how a premise asserting the field itself
+             * passed under a counter-implementation it was written to reject.
+             */
+            $probe->returnedWhenCallbackRan = $probe->originatingMutationReturned;
+
+            ($hooks[$tokenKey])();
+        }
+
+        if (in_array($tokenKey, $failing, true)) {
+            throw new RuntimeException(RESIDUAL_SENTINEL);
+        }
+
+        return null;
+    };
+
+    app()->instance(TokenIssuerRegistry::class, new TokenIssuerRegistry([$issuer]));
+    app()->forgetInstance(CredentialSelfService::class);
+
+    return $issuer;
+}
+
+it('keeps a mutation started from a deferred issuer callback out of the enrollment residual', function (string $path): void {
+    residualUser();
+    residualUser(2);
+    residualPredecessor($path);
+
+    $type = residualCompanionType($path);
+    $companion = lateCredential($type, 'companion-one');
+    $foreign = lateCredential($type, 'foreign-credential', 2);
+
+    /*
+     * ANOTHER SUBJECT's token, which is what raises this above a reporting
+     * nicety: the identifier reaches a result the caller may render or log, and
+     * the caller is told to reconcile a token belonging to someone else.
+     */
+    residualToken('foreign-user-token', $type, $foreign->id, 2);
+
+    $probe = new DeferredIssuerProbe;
+
+    $issuer = residualDeferredIssuer(
+        ['companion-token', 'foreign-user-token'],
+        ['companion-token' => function () use ($probe, $foreign): void {
+            /*
+             * A real write, not a null one: the point of the shape is an independent
+             * mutation doing its own work for its own subject, and a null write
+             * withdraws the proof while leaving the credential enabled -- which
+             * would make the premise below unassertable.
+             */
+            $probe->nested = app(CredentialMutation::class)->revoking(
+                SubjectKey::forConfiguredUser(2),
+                [(string) $foreign->id],
+                static function () use ($foreign): null {
+                    AuthCredential::query()->whereKey($foreign->id)->firstOrFail()
+                        ->update(['disabled_at' => now()]);
+
+                    return null;
+                },
+            );
+        }],
+        $probe,
+    );
+
+    $factor = residualRetiringFactor(
+        $path,
+        [[$companion->id, 'companion-token']],
+        afterCompanions: static function () use ($probe): void {
+            $probe->originatingMutationReturned = true;
+        },
+    );
+    residualRegistry($factor);
+
+    $result = residualEnroll($path);
+
+    /*
+     * Premises first, each on its own expectation, because every way this test can
+     * be wrong looks like success from the conclusion alone. An empty caller list
+     * would pass a conclusion-first chain whether the exclusion worked or the
+     * enrollment never revoked anything at all.
+     */
+    expect($result->outcome)->toBe(SelfServiceOutcome::Completed);
+    expect($factor->enrollCalls)->toBe(1);
+    expect($probe->fired)->toBeTrue();
+
+    /*
+     * The window, in two parts, because the first part alone does not establish it.
+     * Level zero rules out a transactional observer. What rules out "still inside
+     * during()" is that the companion mutation had already RETURNED when the
+     * callback ran -- measured, with the service's transaction wrappers removed the
+     * callback fires inside a top-level mutation's open during() and the level is
+     * zero there too, so a test resting on the level alone passes in a shape it
+     * does not describe.
+     */
+    expect($probe->transactionLevel)->toBe(0);
+    expect($probe->returnedWhenCallbackRan)->toBeTrue();
+
+    // Both revocations were ATTEMPTED and both were configured to fail, so neither
+    // can appear among the successes. toContain is variadic; no message argument.
+    expect($issuer->attempted)->toContain('companion-token');
+    expect($issuer->attempted)->toContain('foreign-user-token');
+
+    // The foreign mutation did its own work and kept its own failure.
+    $nested = $probe->nested ?? throw new RuntimeException('The deferred callback started no mutation.');
+    expect(internalPairs($nested->driverFailures))->toBe([['sanctum', 'foreign-user-token']]);
+    expect(DB::table('auth_token_assurances')->where('token_key', 'foreign-user-token')->exists())->toBeFalse();
+    expect(AuthCredential::query()->whereKey($foreign->id)->whereNull('disabled_at')->exists())->toBeFalse();
+
+    // And the enrollment's own work happened, so its inclusion below is a report
+    // rather than an absence.
+    expect(AuthCredential::query()->whereKey($companion->id)->whereNull('disabled_at')->exists())->toBeFalse();
+    expect(DB::table('auth_token_assurances')->where('token_key', 'companion-token')->exists())->toBeFalse();
+
+    /*
+     * The claim, both halves at once. The companion is the caller's own work and
+     * must be named; the foreign token is not and must not be. Asserting the whole
+     * list rather than an absence is what makes over-correction visible -- a fix
+     * that silenced deferred reporting outright would empty this.
+     */
+    expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'companion-token']]);
+
+    /*
+     * And nowhere else on the result either. The identity assertion above reads one
+     * list; a host renders or logs the whole object, so the foreign key must not be
+     * reachable through any other property. json_encode and print_r disagree about
+     * what they walk, so both.
+     */
+    expect(print_r($result, true))->not->toContain('foreign-user-token');
+    expect(json_encode($result, JSON_THROW_ON_ERROR))->not->toContain('foreign-user-token');
+})->with([
+    'changePassword',
+    'addFactor replacing',
+    'addFactor adding',
+    'regenerateRecoveryCodes',
+]);
+
+it('keeps a mutation started from a deferred issuer callback out of a removal residual', function (): void {
+    residualUser();
+    residualUser(2);
+
+    $target = lateCredential('totp', 'JBSWY3DPEHPK3PXP');
+    $foreign = lateCredential('totp', 'foreign-credential', 2);
+
+    residualToken('foreign-user-token', 'totp', $foreign->id, 2);
+
+    $probe = new DeferredIssuerProbe;
+
+    $issuer = residualDeferredIssuer(
+        ['target-late', 'foreign-user-token'],
+        ['target-late' => function () use ($probe, $foreign): void {
+            /*
+             * A real write, not a null one: the point of the shape is an independent
+             * mutation doing its own work for its own subject, and a null write
+             * withdraws the proof while leaving the credential enabled -- which
+             * would make the premise below unassertable.
+             */
+            $probe->nested = app(CredentialMutation::class)->revoking(
+                SubjectKey::forConfiguredUser(2),
+                [(string) $foreign->id],
+                static function () use ($foreign): null {
+                    AuthCredential::query()->whereKey($foreign->id)->firstOrFail()
+                        ->update(['disabled_at' => now()]);
+
+                    return null;
+                },
+            );
+        }],
+        $probe,
+    );
+
+    /*
+     * The removal path, because mutateCredentials() has the same shape the
+     * enrollment branch acquired: collect() OUTSIDE the transaction that wraps the
+     * factor call, so the factor's mutation is nested and its driver work defers to
+     * a commit that happens inside the collection but after during() has returned.
+     * A fix confined to the additive enrollment branch leaves this live.
+     */
+    $factor = new InterceptingFactor(
+        app(TotpFactor::class),
+        beforeRevoke: function () use ($target): null {
+            residualToken('target-late', $target->type, $target->id);
+
+            return null;
+        },
+        afterRevoke: static function () use ($probe): void {
+            $probe->originatingMutationReturned = true;
+        },
+    );
+    residualRegistry($factor);
+
+    $result = app(CredentialSelfService::class)->removeFactor(residualSession(), $target->id);
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::Completed);
+    expect($probe->fired)->toBeTrue();
+    expect($probe->transactionLevel)->toBe(0);
+    expect($probe->returnedWhenCallbackRan)->toBeTrue();
+    expect($issuer->attempted)->toContain('target-late');
+    expect($issuer->attempted)->toContain('foreign-user-token');
+
+    $nested = $probe->nested ?? throw new RuntimeException('The deferred callback started no mutation.');
+    expect(internalPairs($nested->driverFailures))->toBe([['sanctum', 'foreign-user-token']]);
+    expect(DB::table('auth_token_assurances')->where('token_key', 'foreign-user-token')->exists())->toBeFalse();
+    expect(AuthCredential::query()->whereKey($foreign->id)->whereNull('disabled_at')->exists())->toBeFalse();
+
+    expect(AuthCredential::query()->whereKey($target->id)->whereNull('disabled_at')->exists())->toBeFalse();
+    expect(DB::table('auth_token_assurances')->where('token_key', 'target-late')->exists())->toBeFalse();
+
+    expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'target-late']]);
+    expect(print_r($result, true))->not->toContain('foreign-user-token');
+    expect(json_encode($result, JSON_THROW_ON_ERROR))->not->toContain('foreign-user-token');
+});
+
+it('keeps a deferred callback\'s mutation out of the residual when it is the same subject', function (): void {
+    residualUser();
+
+    $companion = lateCredential('recovery_code', 'companion-one');
+    $sibling = lateCredential('recovery_code', 'sibling-credential');
+
+    /*
+     * ONE subject, and that is the point. The filed defect reached a token belonging
+     * to somebody else, which is the worst consequence but not the mechanism: the
+     * collector discriminates on mutation DEPTH, and the reason it does is recorded
+     * in its own docblock -- adding the subject does not help, because both
+     * operations can belong to one user.
+     *
+     * So a fix that excluded foreign work by comparing subjects would turn every
+     * other test in this shape green while leaving this one failing, and would leave
+     * the caller reporting a token its own enrollment never touched. Measured
+     * against the unfixed class, this contaminates exactly as the cross-subject
+     * cases do.
+     */
+    residualToken('sibling-token', 'recovery_code', $sibling->id);
+
+    $probe = new DeferredIssuerProbe;
+
+    $issuer = residualDeferredIssuer(
+        ['companion-token', 'sibling-token'],
+        ['companion-token' => function () use ($probe, $sibling): void {
+            $probe->nested = app(CredentialMutation::class)->revoking(
+                SubjectKey::forConfiguredUser(1),
+                [(string) $sibling->id],
+                static function () use ($sibling): null {
+                    AuthCredential::query()->whereKey($sibling->id)->firstOrFail()
+                        ->update(['disabled_at' => now()]);
+
+                    return null;
+                },
+            );
+        }],
+        $probe,
+    );
+
+    $factor = residualRetiringFactor(
+        'addFactor adding',
+        [[$companion->id, 'companion-token']],
+        afterCompanions: static function () use ($probe): void {
+            $probe->originatingMutationReturned = true;
+        },
+    );
+    residualRegistry($factor);
+
+    $result = residualEnroll('addFactor adding');
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::Completed);
+    expect($probe->fired)->toBeTrue();
+    expect($probe->transactionLevel)->toBe(0);
+    expect($probe->returnedWhenCallbackRan)->toBeTrue();
+    expect($issuer->attempted)->toContain('companion-token');
+    expect($issuer->attempted)->toContain('sibling-token');
+
+    $nested = $probe->nested ?? throw new RuntimeException('The deferred callback started no mutation.');
+    expect(internalPairs($nested->driverFailures))->toBe([['sanctum', 'sibling-token']]);
+    expect(AuthCredential::query()->whereKey($sibling->id)->whereNull('disabled_at')->exists())->toBeFalse();
+    expect(DB::table('auth_token_assurances')->where('token_key', 'sibling-token')->exists())->toBeFalse();
+
+    expect(AuthCredential::query()->whereKey($companion->id)->whereNull('disabled_at')->exists())->toBeFalse();
+    expect(DB::table('auth_token_assurances')->where('token_key', 'companion-token')->exists())->toBeFalse();
+
+    expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'companion-token']]);
+    expect(print_r($result, true))->not->toContain('sibling-token');
+});
+
+it('keeps a deferred callback\'s mutation out of the residual when the callback opens its own transaction', function (): void {
+    residualUser();
+    residualUser(2);
+
+    $companion = lateCredential('recovery_code', 'companion-one');
+    $foreign = lateCredential('recovery_code', 'foreign-credential', 2);
+    residualToken('foreign-user-token', 'recovery_code', $foreign->id, 2);
+
+    $probe = new DeferredIssuerProbe;
+
+    /*
+     * Opening a transaction inside an issuer callback does not make its mutations
+     * part of the enrollment.
+     *
+     * The callback owns a transaction of its own, and this case exists because the
+     * cheapest wrong fix passes every other test in this shape. Measured: a guard in
+     * reportsFor() returning no scopes while `transactionLevel() === 0` turned the
+     * whole file green -- 38 passed -- because a deferred callback ordinarily runs
+     * with no transaction open. It is the depth that has unwound, not the
+     * transaction stack, and the two coincide only by habit. Opening a transaction
+     * here separates them: the level is 1 while the depth is still the caller's, the
+     * contamination is identical, and the guard no longer hides it.
+     */
+    $issuer = residualDeferredIssuer(
+        ['companion-token', 'foreign-user-token'],
+        ['companion-token' => function () use ($probe, $foreign): void {
+            DB::transaction(function () use ($probe, $foreign): void {
+                $probe->nested = app(CredentialMutation::class)->revoking(
+                    SubjectKey::forConfiguredUser(2),
+                    [(string) $foreign->id],
+                    static function () use ($foreign): null {
+                        AuthCredential::query()->whereKey($foreign->id)->firstOrFail()
+                            ->update(['disabled_at' => now()]);
+
+                        return null;
+                    },
+                );
+            });
+        }],
+        $probe,
+    );
+
+    $factor = residualRetiringFactor(
+        'addFactor adding',
+        [[$companion->id, 'companion-token']],
+        afterCompanions: static function () use ($probe): void {
+            $probe->originatingMutationReturned = true;
+        },
+    );
+    residualRegistry($factor);
+
+    $result = residualEnroll('addFactor adding');
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::Completed);
+    expect($factor->enrollCalls)->toBe(1);
+    expect($probe->fired)->toBeTrue();
+    expect($probe->returnedWhenCallbackRan)->toBeTrue();
+
+    // Entered at level zero, as every deferred callback does; the transaction this
+    // one opens is inside that, and is what the level-based guard would have read.
+    expect($probe->transactionLevel)->toBe(0);
+
+    expect($issuer->attempted)->toContain('companion-token');
+    expect($issuer->attempted)->toContain('foreign-user-token');
+
+    $nested = $probe->nested ?? throw new RuntimeException('The deferred callback started no mutation.');
+    expect(internalPairs($nested->driverFailures))->toBe([['sanctum', 'foreign-user-token']]);
+    expect(AuthCredential::query()->whereKey($foreign->id)->whereNull('disabled_at')->exists())->toBeFalse();
+    expect(DB::table('auth_token_assurances')->where('token_key', 'foreign-user-token')->exists())->toBeFalse();
+
+    expect(AuthCredential::query()->whereKey($companion->id)->whereNull('disabled_at')->exists())->toBeFalse();
+    expect(DB::table('auth_token_assurances')->where('token_key', 'companion-token')->exists())->toBeFalse();
+
+    expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'companion-token']]);
+    expect(print_r($result, true))->not->toContain('foreign-user-token');
+    expect(json_encode($result, JSON_THROW_ON_ERROR))->not->toContain('foreign-user-token');
+});
+
+it('keeps both of a deferred callback\'s sequential mutations out of the residual', function (bool $firstFails): void {
+    residualUser();
+    residualUser(2);
+
+    $companion = lateCredential('recovery_code', 'companion-one');
+    $first = lateCredential('recovery_code', 'foreign-first', 2);
+    $second = lateCredential('recovery_code', 'foreign-second', 2);
+    residualToken('foreign-first-token', 'recovery_code', $first->id, 2);
+    residualToken('foreign-second-token', 'recovery_code', $second->id, 2);
+
+    $probe = new DeferredIssuerProbe;
+
+    /*
+     * TWO mutations in the one callback, sequentially, and this case exists because
+     * the single-mutation cases alone accept a guard that cannot hold.
+     *
+     * Measured: a boolean "inside deferred work" flag -- set around each issuer
+     * revocation and cleared in a finally -- turns the whole file green at 39
+     * passed. It fails only here, because the FIRST nested mutation's own driver
+     * callbacks run and finish inside this one, clearing the flag while this
+     * callback is still going, so the second mutation asks with the flag down and
+     * lands on the caller's report. Depth does not have that failure mode: the
+     * second mutation begins at the same depth the first did, and both are a level
+     * below nothing -- which is the point, since neither is the caller's work.
+     */
+    /*
+     * Whether the FIRST revocation fails is a dimension, not a detail. A
+     * discriminator that unwinds its context only on the failing path -- in a catch
+     * rather than a finally, or the reverse -- is correct on whichever path the test
+     * happens to take and leaks on the other. Measured, unwinding only in catch
+     * passed all 41 cases while the first revocation always threw; with the first
+     * succeeding and the second failing, the collection loses the second identity.
+     * Successful cleanup must not hide a later failure from the operation that asked
+     * for it.
+     */
+    $failing = $firstFails
+        ? ['companion-token', 'foreign-first-token', 'foreign-second-token']
+        : ['companion-token', 'foreign-second-token'];
+
+    $issuer = residualDeferredIssuer(
+        $failing,
+        ['companion-token' => function () use ($probe, $first, $second): void {
+            $revoke = static function (AuthCredential $credential) use ($probe): void {
+                $probe->nestedMutations[] = app(CredentialMutation::class)->revoking(
+                    SubjectKey::forConfiguredUser(2),
+                    [(string) $credential->id],
+                    static function () use ($credential): null {
+                        AuthCredential::query()->whereKey($credential->id)->firstOrFail()
+                            ->update(['disabled_at' => now()]);
+
+                        return null;
+                    },
+                );
+            };
+
+            /*
+             * BOTH mutations inside one collection the callback opens, which carries
+             * two claims at once.
+             *
+             * The inclusion half: a collection opened inside deferred work must hear
+             * its own mutations. Measured, a flag that suppresses reporting while
+             * deferred work runs -- saving and restoring the previous value, so a
+             * sequential mutation cannot clear it early -- passes every exclusion case
+             * in this file and fails this, because suppression cannot tell "the
+             * enclosing caller must not hear this" from "whoever opened a collection
+             * around this mutation must".
+             *
+             * And a LIFETIME claim, which is why both run in here rather than one.
+             * The first mutation's issuer throws. Measured, an implementation that
+             * tracks callback context correctly but unwinds it outside a `finally`
+             * passes all 41 cases when only the second mutation is collected -- the
+             * collection captures the already-leaked context and agrees with it. With
+             * both inside, the leak costs the second identity and the case fails. A
+             * discriminator has to survive the exception, not merely compute the right
+             * answer when nothing throws.
+             *
+             * What is required is the separation, not any one way of expressing it. An
+             * earlier version of this comment said raising the nesting depth was the
+             * only answer; that overstates it -- a per-connection stack of callback
+             * contexts, or suspending only the collections that predate the callback,
+             * express the same ownership rule. The assertions do not prefer between
+             * them.
+             */
+            $probe->ownCollection = app(CredentialDriverFailureCollector::class)->collect(
+                DB::connection(),
+                static function () use ($revoke, $first, $second): null {
+                    $revoke($first);
+                    $revoke($second);
+
+                    return null;
+                },
+            );
+        }],
+        $probe,
+    );
+
+    $factor = residualRetiringFactor(
+        'addFactor adding',
+        [[$companion->id, 'companion-token']],
+        afterCompanions: static function () use ($probe): void {
+            $probe->originatingMutationReturned = true;
+        },
+    );
+    residualRegistry($factor);
+
+    $result = residualEnroll('addFactor adding');
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::Completed);
+    expect($factor->enrollCalls)->toBe(1);
+    expect($probe->fired)->toBeTrue();
+    expect($probe->transactionLevel)->toBe(0);
+    expect($probe->returnedWhenCallbackRan)->toBeTrue();
+
+    // BOTH mutations ran, in order, and each attempted its own revocation.
+    expect($probe->nestedMutations)->toHaveCount(2);
+    expect($issuer->attempted)->toContain('companion-token');
+    expect($issuer->attempted)->toContain('foreign-first-token');
+    expect($issuer->attempted)->toContain('foreign-second-token');
+
+    /*
+     * Each kept its own failure, which is where these belong -- and when the first
+     * revocation was configured to succeed it really did, so the row below is a
+     * success rather than a revocation that never happened.
+     */
+    expect(internalPairs($probe->nestedMutations[0]->driverFailures))
+        ->toBe($firstFails ? [['sanctum', 'foreign-first-token']] : []);
+    expect(internalPairs($probe->nestedMutations[1]->driverFailures))->toBe([['sanctum', 'foreign-second-token']]);
+
+    if (! $firstFails) {
+        expect($issuer->revoked)->toContain('foreign-first-token');
+    }
+
+    /*
+     * And the collection opened INSIDE the deferred callback hears BOTH of its own
+     * mutations. Without the inclusion half the spec accepts suppression, which keeps
+     * the caller clean by silencing everyone -- including a caller who asked, in
+     * here, for exactly this. Without the SECOND identity it accepts a discriminator
+     * that leaks its context when the first issuer throws.
+     */
+    $own = $probe->ownCollection ?? throw new RuntimeException('The deferred callback opened no collection.');
+    expect(residualPairs($own->driverFailures))->toBe($firstFails
+        ? [['sanctum', 'foreign-first-token'], ['sanctum', 'foreign-second-token']]
+        : [['sanctum', 'foreign-second-token']]);
+
+    expect(AuthCredential::query()->whereKey($first->id)->whereNull('disabled_at')->exists())->toBeFalse();
+    expect(AuthCredential::query()->whereKey($second->id)->whereNull('disabled_at')->exists())->toBeFalse();
+    expect(AuthCredential::query()->whereKey($companion->id)->whereNull('disabled_at')->exists())->toBeFalse();
+
+    // And neither reaches the caller, which names only its own companion.
+    expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'companion-token']]);
+    expect(print_r($result, true))->not->toContain('foreign-first-token');
+    expect(print_r($result, true))->not->toContain('foreign-second-token');
+})->with([
+    'first revocation fails' => [true],
+    'first revocation succeeds' => [false],
+]);
+
+it('keeps a mutation one level further down out of a collection opened inside deferred work', function (): void {
+    residualUser();
+    residualUser(2);
+
+    $companion = lateCredential('recovery_code', 'companion-one');
+    $inner = lateCredential('recovery_code', 'inner-credential', 2);
+    $deep = lateCredential('recovery_code', 'deep-credential', 2);
+    residualToken('inner-token', 'recovery_code', $inner->id, 2);
+    residualToken('deep-token', 'recovery_code', $deep->id, 2);
+
+    $probe = new DeferredIssuerProbe;
+
+    $revoke = static function (AuthCredential $credential, DeferredIssuerProbe $probe): void {
+        $probe->nestedMutations[] = app(CredentialMutation::class)->revoking(
+            SubjectKey::forConfiguredUser(2),
+            [(string) $credential->id],
+            static function () use ($credential): null {
+                AuthCredential::query()->whereKey($credential->id)->firstOrFail()
+                    ->update(['disabled_at' => now()]);
+
+                return null;
+            },
+        );
+    };
+
+    /*
+     * The contract one level down, which is the same contract. A collection opened
+     * inside a deferred callback owns the mutations the callback itself starts -- and
+     * owns them no more than the enclosing caller owned the ones IT did not start.
+     *
+     * Measured: a flag bound into each collection, so that a collection and a
+     * mutation must agree about being inside deferred work, passes all forty cases
+     * above. It fails here, because both of these callbacks are inside deferred work
+     * and agreeing about that does not distinguish them. The inner collection's own
+     * mutation defers an issuer callback of its own; the mutation THAT starts is a
+     * level below the inner collection and must stay out of it.
+     */
+    $issuer = residualDeferredIssuer(
+        ['companion-token', 'inner-token', 'deep-token'],
+        [
+            'companion-token' => function () use ($probe, $inner, $revoke): void {
+                $probe->ownCollection = app(CredentialDriverFailureCollector::class)->collect(
+                    DB::connection(),
+                    static function () use ($probe, $inner, $revoke): null {
+                        /*
+                         * A transaction opened INSIDE the collection, so the mutation
+                         * within it is nested: its driver callbacks defer to this
+                         * commit, which lands inside the collection but after the
+                         * mutation's own during() returned. That is the state the
+                         * whole file is about, reproduced one level down.
+                         */
+                        DB::transaction(static function () use ($probe, $inner, $revoke): void {
+                            $revoke($inner, $probe);
+                        });
+
+                        return null;
+                    },
+                );
+            },
+            'inner-token' => function () use ($probe, $deep, $revoke): void {
+                $revoke($deep, $probe);
+            },
+        ],
+        $probe,
+    );
+
+    $factor = residualRetiringFactor(
+        'addFactor adding',
+        [[$companion->id, 'companion-token']],
+        afterCompanions: static function () use ($probe): void {
+            $probe->originatingMutationReturned = true;
+        },
+    );
+    residualRegistry($factor);
+
+    $result = residualEnroll('addFactor adding');
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::Completed);
+    expect($probe->fired)->toBeTrue();
+    expect($probe->returnedWhenCallbackRan)->toBeTrue();
+
+    // All three revocations were attempted, so nothing below is an absence.
+    expect($issuer->attempted)->toContain('companion-token');
+    expect($issuer->attempted)->toContain('inner-token');
+    expect($issuer->attempted)->toContain('deep-token');
+
+    // Two mutations ran inside the callbacks, each keeping its own failure.
+    expect($probe->nestedMutations)->toHaveCount(2);
+    expect(internalPairs($probe->nestedMutations[0]->driverFailures))->toBe([['sanctum', 'inner-token']]);
+    expect(internalPairs($probe->nestedMutations[1]->driverFailures))->toBe([['sanctum', 'deep-token']]);
+
+    expect(AuthCredential::query()->whereKey($inner->id)->whereNull('disabled_at')->exists())->toBeFalse();
+    expect(AuthCredential::query()->whereKey($deep->id)->whereNull('disabled_at')->exists())->toBeFalse();
+
+    /*
+     * Both claims. The inner collection hears its own mutation and not the one a
+     * level below it; the enclosing caller hears neither, and names only its own
+     * companion.
+     */
+    $own = $probe->ownCollection ?? throw new RuntimeException('The deferred callback opened no collection.');
+    expect(residualPairs($own->driverFailures))->toBe([['sanctum', 'inner-token']]);
+
+    expect(residualPairs($result->driverFailures))->toBe([['sanctum', 'companion-token']]);
+    expect(print_r($result, true))->not->toContain('inner-token');
+    expect(print_r($result, true))->not->toContain('deep-token');
 });
