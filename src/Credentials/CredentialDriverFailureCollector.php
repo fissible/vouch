@@ -13,9 +13,9 @@ final class CredentialDriverFailureCollector
     private array $active = [];
 
     /**
-     * The connection of every mutation currently in flight, innermost last. A
-     * connection appears once per enclosing mutation, so counting its entries
-     * is that connection's mutation nesting depth.
+     * The connection of every mutation body or driver callback currently in
+     * flight, innermost last. Counting its entries gives that connection's
+     * nesting depth, including callbacks whose mutation body already returned.
      *
      * Held as the connections themselves rather than a per-connection tally:
      * a Connection is not a valid array key, and keying on spl_object_id()
@@ -50,10 +50,13 @@ final class CredentialDriverFailureCollector
     }
 
     /**
-     * Run a mutation's body with that mutation marked in flight.
+     * Run a mutation body or its driver callback at a deeper nesting level.
      *
      * CredentialMutation wraps itself in this AFTER asking for its reports: a
      * mutation must not be counted among the mutations enclosing it.
+     * Its afterCommit callbacks enter separately: an outer transaction may run
+     * them after the body's frame has unwound. The stack restores the previous
+     * depth on both return and throw, including when callbacks nest.
      *
      * @template TMutation
      *
@@ -106,7 +109,7 @@ final class CredentialDriverFailureCollector
         return $reports;
     }
 
-    /** How many mutations on $connection are in flight. */
+    /** How many mutation bodies or driver callbacks on $connection are in flight. */
     private function depth(Connection $connection): int
     {
         $depth = 0;
