@@ -32,7 +32,7 @@ different provenance is now the standard for this queue.
 | 5 | **#93** — an enrollment's failure report can name ANOTHER SUBJECT'S token. A regression from #85: the new outer transaction defers issuer revocation past the point the collector's depth unwinds, so a mutation started in a deferred callback lands at the caller's depth | S | independent of 1–4 | **next** |
 | 6 | **#94** — `vouch:doctor` reports a resolution failure as a missing declaration, suppressing the exit-2 diagnostic failure | XS | independent | queued |
 | 7 | **#95** — the doctor documentation guard skips prose-named rows instead of rejecting them, so one of its two claimed directions is unenforced | XS | with 6 | queued |
-| 8 | **#69** (PR #88) — fixed and verified, held open until its re-review landed. Ready to merge | — | — | **ready** |
+| 8 | **#69** (PR #88) — the fixture's one-clock property is now held behaviourally as well as lexically; three further defects closed, re-review ends at MERGE, all eight CI checks green. Ready to merge | — | — | **ready** |
 
 #93 is the one to look at first if time is short: the others are refusals that do
 not happen or reports that mislead, while that one puts a second subject's token
@@ -44,6 +44,8 @@ Grouped into pull requests, because all of 1–4 touch `IdentifierEqualityUpgrad
 - **PR B — item 4.** Streams the rewrite pairs out of the working table instead of accumulating them in PHP, which is where the remaining growth lives. Rebases on PR A.
 - **PR C — item 5.** Its own branch: a different class, and the exclusion contract it touches is the one #53, #77 and #79 all negotiated, so it wants its own review rather than riding along.
 - **PR D — items 6 and 7.** Both in the doctor and its documentation guard, both XS.
+
+**Follow-up filed, not sprint work:** #97 — skew the DATABASE clock in the throttle report fixture test, not only the app clock. Carbon's test-now does not move `time()`, `unixtojd()` or `new DatePoint()`, so a fixture read straight from the machine clock is invisible to the behavioural test and rests on the lexical guard, which cannot be closed over installed packages. Shifting the database clock instead closes it by construction. SQLite (`sqliteCreateFunction('current_timestamp', ...)`) and MySQL (`SET SESSION timestamp`) mechanisms measured; no PostgreSQL equivalent established.
 
 **Not sprint work, and still waiting on a decision rather than on code:** #14, #15, #16, #17 (retention and mutex-anchor capacity — each asks for a recorded decision, and #16/#17 are capacity questions where "old" is not the same as "unused"), #81 (an attempt-TTL upper bound that no sibling TTL has), #84 (what the additive enrollment branch should say when it failed over committed state), #11 (rebaseline the mutation chunks 2.4 affected), and the design set #9, #19, #24. The retention cluster wants one conversation rather than four separate answers.
 
