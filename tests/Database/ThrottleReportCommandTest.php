@@ -377,6 +377,14 @@ function appClockNames(): array
         [
             'datetime', 'datetimeimmutable', 'carbon', 'carbonimmutable', 'date',
             'intlcalendar', 'intlgregoriancalendar', 'intldateformatter',
+            /*
+             * DatePoint is Symfony's, and it is here because it is INSTALLED: its
+             * bare constructor reads machine time, and measured, it sourced an
+             * expired fixture timestamp past this guard and broke three report tests
+             * under a five-second database-clock offset. It is also the entry that
+             * settles what this list can promise -- see below.
+             */
+            'datepoint',
         ],
         /*
          * And ext-intl by FAMILY rather than by name, because enumerating it does
@@ -399,7 +407,12 @@ function appClockNames(): array
          * the failure mode the list is meant to be immune to. ext-date can be asked
          * because it is always compiled in.
          */
-        ['intlcal_', 'intlgregcal_', 'intltz_', 'datefmt_', 'intldate'],
+        [
+            'intlcal_', 'intlgregcal_', 'intltz_', 'datefmt_', 'intldate',
+            // ext-calendar: unixtojd() defaults to the machine's current day, and
+            // jdtounix() turns it back. Measured, that pair passed this guard.
+            'unixtojd', 'jdtounix', 'caltojd', 'jdtocal',
+        ],
     ];
 }
 
@@ -432,13 +445,6 @@ it('takes every fixture timestamp in this file from one clock', function (): voi
         throw new RuntimeException('The throttle report fixture has no file to scan.');
     }
 
-    $source = file_get_contents(__FILE__);
-    $fixtureSource = file_get_contents($fixture);
-
-    if (! is_string($source) || ! is_string($fixtureSource)) {
-        throw new RuntimeException('This test file or its fixture is unreadable.');
-    }
-
     [$functions, $classes, $prefixes] = appClockNames();
 
     /*
@@ -458,38 +464,51 @@ it('takes every fixture timestamp in this file from one clock', function (): voi
     expect(ClockReads::in($sibling, $functions, $classes, $prefixes))->not->toBe([]);
 
     /*
-     * Scanned SEPARATELY rather than concatenated, and each file identified by a
-     * needle the OTHER FILE IS ASSERTED NOT TO CONTAIN. Two measured failures are
-     * behind that shape. Concatenating them first let the fixture's copy of a needle
-     * satisfy a control meant for the command file: emptying the command source left
-     * the guard green while a real now() planted there went unreported. Splitting
-     * them was not enough either -- the fixture's needle was 'auth_challenge_outbox',
-     * which appears in this file too, in the assertion naming it. Measured: pointing
-     * the fixture read at __FILE__ scanned this file twice, skipped the fixture
-     * entirely, and passed with a forbidden clock read sitting in the fixture.
+     * Read and scanned in ONE loop, keyed by path, and each file identified from the
+     * SAME value that is scanned. Three measured failures are behind that shape.
      *
-     * So presence alone is not the property. What has to hold is that these are two
-     * DIFFERENT files and that each needle distinguishes one from the other; then
-     * losing a read cannot be silent, because the needle for the file that went
-     * missing is absent from whatever replaced it.
+     * Concatenating the two sources let the fixture's copy of a needle satisfy a
+     * control meant for the command file: emptying the command source left the guard
+     * green while a real now() planted there went unreported. Splitting them was not
+     * enough -- the fixture's needle was 'auth_challenge_outbox', which appears in
+     * this file too, in the assertion naming it, so pointing the fixture read at
+     * __FILE__ scanned this file twice and passed with a forbidden read in the
+     * fixture. Fixing the needles was still not enough: with both files READ
+     * correctly, passing $source to the second scan instead of the fixture's text
+     * scanned this file twice and passed with `time()` planted in the fixture, because
+     * every identity assertion was about the reads rather than about the scans.
+     *
+     * So the identity and the scan are now the same value. A duplicated path makes the
+     * two texts identical, which the comparison below rejects; a text that is not the
+     * file it claims to be fails its own needle.
      */
-    expect($source)->not->toBe($fixtureSource);
+    $scanned = [];
 
-    // Present here, absent from the fixture.
-    expect($source)->toContain('function appClockNames');
-    expect($fixtureSource)->not->toContain('function appClockNames');
+    foreach ([__FILE__, $fixture] as $path) {
+        $text = file_get_contents($path);
 
-    /*
-     * And the other direction. The needle is BUILT rather than written out, because
-     * writing it would place it in the very file asserted not to contain it -- the
-     * same self-satisfying control this block exists to prevent, one level up.
-     * Measured: spelled literally, this pair failed on its own assertion.
-     */
+        if (! is_string($text)) {
+            throw new RuntimeException('A file this guard must scan is unreadable: ' . $path);
+        }
+
+        expect(ClockReads::in($text, $functions, $classes, $prefixes))->toBe([]);
+
+        $scanned[] = $text;
+    }
+
+    // Two files, and two DIFFERENT ones: a duplicated path cannot hide here.
+    expect($scanned)->toHaveCount(2);
+    expect($scanned[0])->not->toBe($scanned[1]);
+
+    // And each is the file it was supposed to be. The fixture's needle is BUILT
+    // rather than written out, because spelling it would place it in the very file
+    // asserted not to contain it -- the same self-satisfying control, one level up.
+    // Measured: written literally, that pair failed on its own assertion.
     $fixtureOnly = 'final class ' . 'ThrottleReportFixture';
 
-    expect($fixtureSource)->toContain($fixtureOnly);
-    expect($source)->not->toContain($fixtureOnly);
+    expect($scanned[0])->toContain('function appClockNames');
+    expect($scanned[0])->not->toContain($fixtureOnly);
 
-    expect(ClockReads::in($source, $functions, $classes, $prefixes))->toBe([]);
-    expect(ClockReads::in($fixtureSource, $functions, $classes, $prefixes))->toBe([]);
+    expect($scanned[1])->toContain($fixtureOnly);
+    expect($scanned[1])->not->toContain('function appClockNames');
 });
