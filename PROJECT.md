@@ -9,6 +9,46 @@ fresh session with no prior context.
 sub-projects; 2.1, 2.2, 2.3, 2.3b and 2.3d are complete. **2.4 (token gate) is the
 current sub-project**: implementation Tasks 0-5b are shipped, Tasks 6-7 are open.
 
+### Current sprint — 2026-09-30: post-review hardening
+
+**A second reviewer on a different model found defects in every change a first
+reviewer had already passed.** Four are filed against code already merged to `main`;
+two of those delete data. This sprint closes them. It is not new feature work and it
+does not advance 2.4 — Tasks 6 and 7 below are still the open phase work.
+
+Where the sprint came from: #46 through #87 were shipped with tests frozen before
+implementation and an adversarial review of those tests. Re-reviewing the last four
+of them with a second model produced ten findings the first reviews missed, five of
+them on merged code. The lesson is recorded rather than implied: **a review by the
+same model family as the author shares the author's blind spots.** Two reviewers of
+different provenance is now the standard for this queue.
+
+| # | Item | Effort | Depends on | Status |
+|---|---|---|---|---|
+| 1 | **#89** — the identifier upgrade deletes rows it should refuse over, on two paths: ids at or below zero are never scanned (`$cursor = 0` with `id > ?`), and `flag()` reads a numeric-zero timestamp as non-terminal | XS | — | done |
+| 2 | **#90** — `drop table if exists` omits `TEMPORARY`, so MySQL implicit-commits a caller's open transaction. A marker survived rollback while Laravel still reported transaction level 1 | XS | same method as 1 | done |
+| 3 | **#91** — `Connection::select()` defaults to the read PDO, so the working table is invisible on any read/write-split connection (`1146`) | XS | same method as 1 | done |
+| 4 | **#92** — the memory bound does not hold when identifiers need rewriting: 45 MiB at 100k rows, OOM at 400k under 128 MB, and those are the hosts the migration exists for | M | 1–3 landing first | queued |
+| 5 | **#93** — an enrollment's failure report can name ANOTHER SUBJECT'S token. A regression from #85: the new outer transaction defers issuer revocation past the point the collector's depth unwinds, so a mutation started in a deferred callback lands at the caller's depth | S | independent of 1–4 | **next** |
+| 6 | **#94** — `vouch:doctor` reports a resolution failure as a missing declaration, suppressing the exit-2 diagnostic failure | XS | independent | queued |
+| 7 | **#95** — the doctor documentation guard skips prose-named rows instead of rejecting them, so one of its two claimed directions is unenforced | XS | with 6 | queued |
+| 8 | **#69** (PR #88) — the fixture's one-clock property is now held behaviourally as well as lexically; three further defects closed, re-review ends at MERGE, all eight CI checks green. Ready to merge | — | — | **ready** |
+
+#93 is the one to look at first if time is short: the others are refusals that do
+not happen or reports that mislead, while that one puts a second subject's token
+identifier into a result a host may render or log.
+
+Grouped into pull requests, because all of 1–4 touch `IdentifierEqualityUpgrade::decide()` and separate branches would conflict:
+
+- **PR A — items 1–3.** Three surgical corrections plus their fixtures. Highest urgency: #89 is data loss and #90 breaks a contract the class documents.
+- **PR B — item 4.** Streams the rewrite pairs out of the working table instead of accumulating them in PHP, which is where the remaining growth lives. Rebases on PR A.
+- **PR C — item 5.** Its own branch: a different class, and the exclusion contract it touches is the one #53, #77 and #79 all negotiated, so it wants its own review rather than riding along.
+- **PR D — items 6 and 7.** Both in the doctor and its documentation guard, both XS.
+
+**Follow-up filed, not sprint work:** #97 — skew the DATABASE clock in the throttle report fixture test, not only the app clock. Carbon's test-now does not move `time()`, `unixtojd()` or `new DatePoint()`, so a fixture read straight from the machine clock is invisible to the behavioural test and rests on the lexical guard, which cannot be closed over installed packages. Shifting the database clock instead closes it by construction. SQLite (`sqliteCreateFunction('current_timestamp', ...)`) and MySQL (`SET SESSION timestamp`) mechanisms measured; no PostgreSQL equivalent established.
+
+**Not sprint work, and still waiting on a decision rather than on code:** #14, #15, #16, #17 (retention and mutex-anchor capacity — each asks for a recorded decision, and #16/#17 are capacity questions where "old" is not the same as "unused"), #81 (an attempt-TTL upper bound that no sibling TTL has), #84 (what the additive enrollment branch should say when it failed over committed state), #11 (rebaseline the mutation chunks 2.4 affected), and the design set #9, #19, #24. The retention cluster wants one conversation rather than four separate answers.
+
 ### Current handoff — 2026-08-31
 
 **2.4 implementation is shipped; the phase is not closed.** The plan

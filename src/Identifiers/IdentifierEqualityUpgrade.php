@@ -7,6 +7,7 @@ namespace Fissible\Vouch\Identifiers;
 use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 use Illuminate\Database\Connection;
 use InvalidArgumentException;
+use LogicException;
 use stdClass;
 
 /**
@@ -150,6 +151,21 @@ final readonly class IdentifierEqualityUpgrade
 
     public function apply(): void
     {
+        /*
+         * #90. MySQL's plain DROP TABLE commits the caller's transaction even
+         * for a temporary table, leaving Laravel's depth counter unchanged.
+         * DROP TEMPORARY TABLE alone would protect the scan but not the later
+         * ALTER TABLE, so refuse before either can run. PostgreSQL's migrator
+         * wraps this migration in a transaction; its DDL does not commit it.
+         */
+        if ($this->connection->getDriverName() === 'mysql' && $this->connection->transactionLevel() > 0) {
+            throw new LogicException(
+                'Vouch cannot run the identifier equality upgrade inside an active MySQL transaction. '
+                . 'Run the upgrade outside a transaction: MySQL implicitly commits its DDL, '
+                . 'so the upgrade cannot be transactional.',
+            );
+        }
+
         /*
          * Read every table BEFORE deciding anything, and decide everything
          * before writing anything. The refusal contract is that a refused
@@ -346,12 +362,16 @@ final readonly class IdentifierEqualityUpgrade
          * Paged by the primary key rather than by OFFSET. An offset re-walks
          * everything it skips, so the scan would cost O(n squared) row reads on
          * exactly the installations this change is for.
+         *
+         * #89. The first page has no lower bound: explicit zero and negative
+         * keys survive on SQLite and PostgreSQL. Starting at -1 only fixes
+         * zero. NULL marks an unstarted scan, independently of number()'s zero
+         * fallback; a real zero key is a cursor, never a reason to skip a row.
          */
         $query = sprintf(
-            'select %s from %s t where t.id > ? order by t.id limit %d',
+            'select %s from %s t',
             implode(', ', $select),
             $quoted,
-            self::SCAN_CHUNK,
         );
 
         /** @var RewritePairs $types */
@@ -360,10 +380,20 @@ final readonly class IdentifierEqualityUpgrade
         $values = [];
         $seenType = [];
         $seenValue = [];
-        $cursor = 0;
+        $cursor = null;
 
         do {
-            $read = $this->connection->select($query, [$cursor]);
+            /*
+             * Read the source on the writer too: this scan drives DELETEs on
+             * the writer, so its decisions must use the writer's rows. A replica
+             * could show different rows, including omitting a terminal member.
+             */
+            $read = $this->connection->select(
+                $query . ($cursor === null ? '' : ' where t.id > ?')
+                . sprintf(' order by t.id limit %d', self::SCAN_CHUNK),
+                $cursor === null ? [] : [$cursor],
+                useReadPdo: false,
+            );
             /** @var list<array{int, string, string, string, string, int, int}> $pending */
             $pending = [];
 
@@ -387,7 +417,7 @@ final readonly class IdentifierEqualityUpgrade
                     $canonicalType,
                     $canonicalValue,
                     $this->number($row, 'loose_class'),
-                    $this->flag($row, 'consumed_at') || $this->flag($row, 'burned_at') ? 1 : 0,
+                    $this->present($row, 'consumed_at') || $this->present($row, 'burned_at') ? 1 : 0,
                 ];
 
                 if ($storedType !== $canonicalType && ! isset($seenType[$storedType])) {
@@ -464,18 +494,22 @@ final readonly class IdentifierEqualityUpgrade
          * text cannot hold a NUL: every row sharing a type collapses into one
          * group and unrelated addresses are reported as colliding. Silent, and
          * on that engine only.
+         *
+         * #91. All three reads use the writer: the temporary table belongs to
+         * the session that created it. Routing only the grouped reads there
+         * still fails when a collision reaches the candidate read-back below.
          */
         $merges = $this->connection->select(sprintf(
             'select canonical_type, canonical_value from %s group by canonical_type, canonical_value%s',
             $working,
             $disagrees,
-        ));
+        ), useReadPdo: false);
 
         $splits = $this->connection->select(sprintf(
             'select loose_class from %s group by loose_class%s',
             $working,
             $disagrees,
-        ));
+        ), useReadPdo: false);
 
         /**
          * Two statements and a read-back rather than one query with subqueries,
@@ -528,7 +562,7 @@ final readonly class IdentifierEqualityUpgrade
                 . ' terminal from %s where %s order by row_id',
                 $working,
                 implode(' or ', $clauses),
-            ), $bindings);
+            ), $bindings, useReadPdo: false);
 
             foreach ($selected as $row) {
                 if (! $row instanceof stdClass) {
@@ -929,13 +963,23 @@ final readonly class IdentifierEqualityUpgrade
     }
 
     /**
-     * Whether a column says yes, in whatever way this engine spells yes.
+     * A non-null terminal timestamp records consumption or burning, even when
+     * SQLite returns it as integer zero. Boolean decoding loses that record.
+     * Keep this separate from flag(): widening that helper to test presence
+     * would incorrectly treat the working table's zero flag as true.
+     */
+    private function present(stdClass $row, string $column): bool
+    {
+        return ($row->{$column} ?? null) !== null;
+    }
+
+    /**
+     * Whether the working table's boolean column says yes.
      *
-     * Three shapes, because two different columns come through here. A timestamp
-     * is present or NULL; the working table's own flag comes back as 1 or "1"
-     * from SQLite and MySQL, and PostgreSQL's drivers have been known to hand a
-     * bare boolean back. Reading only `is_numeric` would silently answer "not
-     * terminal" for the last of those, which under the transient policy DELETES
+     * The working table's own flag comes back as 1 or "1" from SQLite and MySQL,
+     * and PostgreSQL's drivers have been known to hand a bare boolean back.
+     * Reading only `is_numeric` would silently answer "not terminal" for the
+     * last of those, which under the transient policy DELETES
      * the consumed proofs this upgrade is supposed to refuse over.
      */
     private function flag(stdClass $row, string $column): bool
@@ -950,6 +994,8 @@ final readonly class IdentifierEqualityUpgrade
             return (int) $value !== 0;
         }
 
+        // Deliberately treat an unexpected non-null engine value as terminal:
+        // refusing the upgrade is safer than deleting a potentially consumed proof.
         return $value !== null;
     }
 }
