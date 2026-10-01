@@ -44,6 +44,14 @@ final class InterceptingFactor implements Factor
         // rolls the write back.
         private readonly bool $throwAfterRevoke = false,
         private readonly bool $throwAfterEnroll = false,
+        /*
+         * Run once the inner driver's revoke() has RETURNED, so a test can prove
+         * ordering it otherwise has to assume. The mutation lives inside that call,
+         * so this is the first point at which the collector's depth has unwound --
+         * and a deferred driver callback that runs before this has not left during()
+         * at all, whatever the transaction level says.
+         */
+        private readonly ?Closure $afterRevoke = null,
     ) {}
 
     public function revoke(AuthCredential $credential): void
@@ -59,6 +67,10 @@ final class InterceptingFactor implements Factor
         }
 
         $this->inner->revoke($credential);
+
+        if ($this->afterRevoke instanceof Closure) {
+            ($this->afterRevoke)($credential);
+        }
 
         if ($this->throwAfterRevoke) {
             throw new RuntimeException('Credential mutation failed after the credential was revoked.');
