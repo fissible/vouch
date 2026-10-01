@@ -44,10 +44,13 @@ use stdClass;
  *
  * Not serializable against concurrent writers, and deliberately so. Deciding
  * everything before writing anything is what makes a refusal leave no trace;
- * the cost is that a row inserted between the scan and the rewrite keeps its
- * non-canonical spelling and is invisible to the collision check. Locking three
- * tables for the length of a full scan is a worse operational story than
- * pausing traffic, which is what docs/operations.md asks for.
+ * the cost is that a row inserted between the scan and the rewrite is invisible
+ * to the collision check, even if the rewrite sees it. Canonicalizing that row
+ * can collide with a surviving row and fail the migration on the unique
+ * (type, value) index. Without transactional rollback, earlier collation changes,
+ * deletes, and rewrites can remain applied. Locking three tables for the length
+ * of a full scan is a worse operational story than pausing traffic, which is
+ * what docs/operations.md asks for.
  *
  * #61. The scan is bounded in memory rather than proportional to the table. The
  * first version read every row of all three tables into PHP before deciding
@@ -67,7 +70,7 @@ use stdClass;
  *
  * @phpstan-type IdentifierRow array{id: int, type: string, value: string, canonicalType: string, canonical: string, key: string, loose: string, terminal: bool}
  * @phpstan-type TableSpec array{type: string, value: string, policy: string}
- * @phpstan-type RewritePairs list<array{string, string}>
+ * @phpstan-type RewriteChunk list<array{string, string}>
  */
 final readonly class IdentifierEqualityUpgrade
 {
@@ -176,15 +179,12 @@ final readonly class IdentifierEqualityUpgrade
         $refusals = [];
         /** @var array<string, list<int>> $doomed */
         $doomed = [];
-        /** @var array<string, array{types: RewritePairs, values: RewritePairs}> $rewrites */
-        $rewrites = [];
 
         foreach (self::TABLES as $table => $spec) {
             $scanned = $this->scan($table, $spec);
 
             $refusals = array_merge($refusals, $scanned['refusals']);
             $doomed[$table] = $scanned['doomed'];
-            $rewrites[$table] = ['types' => $scanned['types'], 'values' => $scanned['values']];
         }
 
         if ($refusals !== []) {
@@ -202,23 +202,7 @@ final readonly class IdentifierEqualityUpgrade
         foreach (self::TABLES as $table => $spec) {
             $this->discard($table, $doomed[$table]);
 
-            /*
-             * The rewrite is keyed on the STORED SPELLING rather than on a row
-             * id, which is what keeps it to a statement per chunk instead of one
-             * per row: the canonical form is a function of the spelling, so one
-             * CASE arm serves every row that shares one. It is also why the pairs
-             * survive a bounded scan at all -- their number is the count of
-             * DISTINCT changing spellings, not the count of rows.
-             *
-             * Spellings belonging only to rows just discarded are still in the
-             * list, and harmlessly so: the delete ran first, so those arms match
-             * nothing. Filtering them out would need an id-to-spelling map, which
-             * is exactly the per-row memory this scan exists to avoid. Rows that
-             * share a spelling share a canonical form and therefore a group, so a
-             * discarded spelling can never still be held by a surviving row.
-             */
-            $this->rewriteColumn($table, $spec['type'], $rewrites[$table]['types']);
-            $this->rewriteColumn($table, $spec['value'], $rewrites[$table]['values']);
+            $this->rewrite($table, $spec);
         }
     }
 
@@ -232,22 +216,16 @@ final readonly class IdentifierEqualityUpgrade
      * component walk and triage run over that small set.
      *
      * @param  TableSpec  $spec
-     * @return array{refusals: list<IdentifierCollision>, doomed: list<int>, types: RewritePairs, values: RewritePairs}
+     * @return array{refusals: list<IdentifierCollision>, doomed: list<int>}
      */
     private function scan(string $table, array $spec): array
     {
         $this->createWorkingTable();
 
         try {
-            $rewrites = $this->fill($table, $spec);
-            $triage = $this->triage($table, $spec, $this->candidates());
+            $this->fill($table, $spec);
 
-            return [
-                'refusals' => $triage['refusals'],
-                'doomed' => $triage['doomed'],
-                'types' => $rewrites['types'],
-                'values' => $rewrites['values'],
-            ];
+            return $this->triage($table, $spec, $this->candidates());
         } finally {
             /*
              * In a finally, so a refusal raised by a LATER table -- or a query
@@ -326,14 +304,9 @@ final readonly class IdentifierEqualityUpgrade
      * So the engine is asked, in the same statement that reads the rows, via an
      * index-backed correlated subquery rather than a query per pair.
      *
-     * The rewrite pairs are collected here rather than from a second pass,
-     * because this is the only point at which every row is seen. They deduplicate
-     * by spelling, so they cost distinct changing spellings rather than rows.
-     *
      * @param  TableSpec  $spec
-     * @return array{types: RewritePairs, values: RewritePairs}
      */
-    private function fill(string $table, array $spec): array
+    private function fill(string $table, array $spec): void
     {
         $quoted = $this->quote($table);
         $type = $this->quote($spec['type']);
@@ -374,12 +347,6 @@ final readonly class IdentifierEqualityUpgrade
             $quoted,
         );
 
-        /** @var RewritePairs $types */
-        $types = [];
-        /** @var RewritePairs $values */
-        $values = [];
-        $seenType = [];
-        $seenValue = [];
         $cursor = null;
 
         do {
@@ -419,22 +386,10 @@ final readonly class IdentifierEqualityUpgrade
                     $this->number($row, 'loose_class'),
                     $this->present($row, 'consumed_at') || $this->present($row, 'burned_at') ? 1 : 0,
                 ];
-
-                if ($storedType !== $canonicalType && ! isset($seenType[$storedType])) {
-                    $seenType[$storedType] = true;
-                    $types[] = [$storedType, $canonicalType];
-                }
-
-                if ($storedValue !== $canonicalValue && ! isset($seenValue[$storedValue])) {
-                    $seenValue[$storedValue] = true;
-                    $values[] = [$storedValue, $canonicalValue];
-                }
             }
 
             $this->store($pending);
         } while (count($read) >= self::SCAN_CHUNK);
-
-        return ['types' => $types, 'values' => $values];
     }
 
     /**
@@ -812,13 +767,85 @@ final readonly class IdentifierEqualityUpgrade
     }
 
     /**
+     * Recompute rewrite pairs one source page at a time, after every verdict.
+     *
+     * #92. Distinct changing spellings can mean one pair per row: the previous
+     * accumulator peaked at 45 MiB for 100k rows and exhausted 128M at 400k.
+     * Deduplication is not a bound. scan() drops its working table in finally,
+     * so those pairs cannot simply be read back when apply() reaches this point.
+     *
+     * A second source pass keeps that lifetime and refusal cleanup intact. Keeping
+     * all three working tables would broaden their lifetime through DDL and writes;
+     * spooling would add file ownership and failure handling. Here the cost is
+     * another bounded read and canonicalization per page, with no new resource.
+     * Both reads and pair lists are bounded, including on already-canonical tables.
+     * The hash-derived uppercase fixture now peaks at 6 MiB at both 100k and
+     * 400k rows under 16M; the 1200-row SQLite case uses 45 statements including
+     * its four assertion queries, rather than spending one update per pair.
+     *
+     * Page by the unchanged primary key, not by a spelling we are rewriting, and
+     * read on the writer as in fill(). NULL again includes zero and negative ids.
+     * Discarding precedes this pass, so deleted credentials need no rewrite pairs.
+     *
+     * @param  TableSpec  $spec
+     */
+    private function rewrite(string $table, array $spec): void
+    {
+        $query = sprintf(
+            'select id as row_id, %s as row_type, %s as row_value from %s',
+            $this->quote($spec['type']),
+            $this->quote($spec['value']),
+            $this->quote($table),
+        );
+        $cursor = null;
+
+        do {
+            $read = $this->connection->select(
+                $query . ($cursor === null ? '' : ' where id > ?')
+                . sprintf(' order by id limit %d', self::SCAN_CHUNK),
+                $cursor === null ? [] : [$cursor],
+                useReadPdo: false,
+            );
+            $types = [];
+            $values = [];
+
+            foreach ($read as $row) {
+                if (! $row instanceof stdClass) {
+                    continue;
+                }
+
+                $cursor = $this->number($row, 'row_id');
+                $storedType = $this->text($row, 'row_type');
+                $storedValue = $this->text($row, 'row_value');
+                $canonicalType = $this->canonicalizer->canonicalize($storedType);
+                $canonicalValue = $this->canonicalizer->canonicalize($storedValue);
+
+                if ($storedType !== $canonicalType) {
+                    $types[] = [$storedType, $canonicalType];
+                }
+
+                if ($storedValue !== $canonicalValue) {
+                    $values[] = [$storedValue, $canonicalValue];
+                }
+            }
+
+            $this->rewriteColumn($table, $spec['type'], $types);
+            $this->rewriteColumn($table, $spec['value'], $values);
+        } while (count($read) >= self::SCAN_CHUNK);
+    }
+
+    /**
      * Rewrite every row spelled one way into the canonical spelling of it.
+     *
+     * Each list belongs to one source page. A CASE arm can reach a matching row
+     * on a later page too; canonicalization is idempotent, so that row then needs
+     * no pair. No global set of seen spellings needs to survive between pages.
      *
      * The canonical values come from PHP -- no SQL function normalizes Unicode,
      * and lower() alone leaves a decomposed address in a spelling the
      * application can no longer match.
      *
-     * @param  RewritePairs  $pairs
+     * @param  RewriteChunk  $pairs
      */
     private function rewriteColumn(string $table, string $column, array $pairs): void
     {
