@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Fissible\Vouch\Tests\Support\PrerequisiteTable;
 use Illuminate\Support\Facades\Config;
 
 /*
@@ -58,7 +59,7 @@ it('describes every prerequisite the doctor can report', function (): void {
         throw new RuntimeException('docs/operations.md is unreadable.');
     }
 
-    $table = prerequisiteTableOf($operations);
+    $table = PrerequisiteTable::names($operations);
 
     // The premise: the table was found and parsed, so a difference below is a real
     // disagreement rather than a regex that matched nothing.
@@ -78,31 +79,119 @@ it('describes every prerequisite the doctor can report', function (): void {
     expect($documentedNames)->toBe($reportedNames);
 });
 
-/**
- * The prerequisite names the operations table documents.
+/*
+ * #95. The helper above claims a row written as prose "is invisible here and fails the
+ * comparison". Only the first half was true.
  *
- * Read from the code spans in the first column, which is a REQUIREMENT rather than a
- * tolerance: every row's name must be a code span, so that the name an operator
- * reads in the document is the name the command prints and can be searched for. A
- * row written as prose is invisible here and fails the comparison -- measured, and
- * that is how the queue row was found describing itself as "Durable asynchronous
- * queue" while the command printed `durable_queue`.
+ * A row whose first cell is not a code span was SKIPPED, so the extracted names were
+ * unchanged and the sorted comparison still passed. That catches a row the command
+ * reports and the document omits -- the name is then missing from the documented list
+ * -- but not a row the document INVENTS, which is advice about a check nobody runs.
+ * One of the two claimed directions was unenforced, and the docblock asserting
+ * otherwise was written in response to a review finding, which makes it the more
+ * misleading for being deliberate.
  *
- * @return list<string>
+ * The cases below run the helper against synthetic documents rather than the shipped
+ * one: the requirement is about what the helper REJECTS, and the shipped file is
+ * (correctly) not an example of any of it.
  */
-function prerequisiteTableOf(string $operations): array
+
+/** A prerequisite table in the shape the helper looks for, with $rows between the pipes. */
+function prerequisiteDocument(string ...$rows): string
 {
-    if (preg_match('/\| Prerequisite \| Host responsibility \|\n\|[-|]+\|\n((?:\|.*\n)+)/', $operations, $matches) !== 1) {
-        throw new RuntimeException('docs/operations.md has no prerequisite table in the expected shape.');
-    }
-
-    $names = [];
-
-    foreach (explode("\n", trim($matches[1])) as $line) {
-        if (preg_match('/^\| `([^`]+)`/', $line, $cell) === 1) {
-            $names[] = $cell[1];
-        }
-    }
-
-    return $names;
+    return "Preamble.\n\n| Prerequisite | Host responsibility |\n|---|---|\n" . implode("\n", $rows) . "\n\nTrailer.\n";
 }
+
+it('parses a well-formed prerequisite table', function (): void {
+    /*
+     * The positive control, and it is not decoration: every rejection below has to be
+     * the helper refusing a bad row rather than the synthetic document missing the
+     * shape the helper looks for at all, which would throw for the wrong reason and
+     * read identically.
+     */
+    expect(PrerequisiteTable::names(prerequisiteDocument(
+        '| `durable_queue` | Configure a non-sync queue. |',
+        '| `vouch.declared_abilities` | Declare every mapped ability. |',
+    )))->toBe(['durable_queue', 'vouch.declared_abilities']);
+});
+
+/**
+ * Render $document the way an operator's Markdown viewer does.
+ *
+ * Asked of a renderer rather than asserted from the shape of the string, because the
+ * question each case below asks is whether a READER sees the row. Markdown has more
+ * ways to spell a table row than a regular expression tends to anticipate -- a leading
+ * pipe is optional, up to three spaces of indentation are ignored -- and a guard that
+ * disagrees with the renderer about what is in the table is the defect, not the test.
+ */
+function renderedMarkdown(string $document): string
+{
+    $environment = new \League\CommonMark\Environment\Environment;
+    $environment->addExtension(new \League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension);
+    $environment->addExtension(new \League\CommonMark\Extension\Table\TableExtension);
+
+    return (new \League\CommonMark\MarkdownConverter($environment))->convert($document)->getContent();
+}
+
+it('rejects every row the renderer puts in the table whose name is not a code span', function (string $row, string $visible, string $named): void {
+    /*
+     * #95, stated as the class rather than as a list of spellings.
+     *
+     * The original helper SKIPPED a row it could not parse, so an invented
+     * prerequisite left the extracted names unchanged and the sorted comparison still
+     * passed. Three further spellings were then found one at a time, each slipping
+     * past the fix for the last: text beside the code span, a row indented by one
+     * space, and a row with no leading pipe at all. The first was a parsing
+     * tolerance; the other two ended the captured block early, so the row was never
+     * offered to the first-cell rule at all.
+     *
+     * So the requirement is not "reject these four". It is that every row the RENDERER
+     * treats as part of the prerequisite table must be accounted for, and any such row
+     * whose first cell is not a code span must be refused by name. Each case proves
+     * both halves: that an operator sees the row, and that the guard names it.
+     */
+    $document = prerequisiteDocument(
+        '| `durable_queue` | Configure a non-sync queue. |',
+        $row,
+    );
+
+    // The premise: a reader really does see this row, so refusing it is not pedantry
+    // about Markdown style.
+    expect(renderedMarkdown($document))->toContain('<td>' . $visible . '</td>');
+
+    expect(fn (): array => PrerequisiteTable::names($document))
+        ->toThrow(RuntimeException::class, $named);
+})->with([
+    'a prose first cell' => [
+        '| Unreported prerequisite | Must configure this too. |',
+        'Unreported prerequisite',
+        'Unreported prerequisite',
+    ],
+    'text beside the code span' => [
+        '| `durable_queue` and friends | Configure a non-sync queue. |',
+        '<code>durable_queue</code> and friends',
+        'and friends',
+    ],
+    'an indented row' => [
+        ' | Unreported prerequisite | Must configure this too. |',
+        'Unreported prerequisite',
+        'Unreported prerequisite',
+    ],
+    'no leading pipe' => [
+        'Unreported prerequisite | Must configure this too. |',
+        'Unreported prerequisite',
+        'Unreported prerequisite',
+    ],
+]);
+
+it('names the offending row in full rather than only refusing', function (): void {
+    /*
+     * Asserted separately from the rejections above, where the needle is only the part
+     * of the row that made it invalid. A guard that fails without quoting the row sends
+     * a reader to diff the table by eye.
+     */
+    expect(fn (): array => PrerequisiteTable::names(prerequisiteDocument(
+        '| `durable_queue` | Configure a non-sync queue. |',
+        '| Invented row | Nothing reports this. |',
+    )))->toThrow(RuntimeException::class, '| Invented row | Nothing reports this. |');
+});
