@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Tokens;
 
+use Fissible\Vouch\Kernel\Factor\CredentialId;
 use Illuminate\Database\ConnectionInterface;
 use Fissible\Vouch\Support\DatabaseRowLock;
 
@@ -21,12 +22,21 @@ class CredentialLockManager
     /**
      * @param list<string> $credentialIds
      *
-     * Credential identities are opaque strings: for example, `9` and `09`
-     * name different credentials. Every path that locks credentials must use
-     * canonicalCredentialIds(), rather than database primary-key order.
+     * Credential identities are positive signed bigints carried as canonical
+     * decimal strings. The schema treats `9` and `09` as the same row, so the
+     * latter must be refused before a query can coerce it. Validate the whole
+     * list before taking even the subject lock: a refusal must not leave locks
+     * held for an otherwise valid prefix of the request.
+     *
+     * Every locking path uses canonicalCredentialIds() for deterministic string
+     * order, rather than database primary-key order; it does not define identity.
      */
     public function acquire(ConnectionInterface $connection, SubjectKey $subject, array $credentialIds): void
     {
+        foreach ($credentialIds as $credentialId) {
+            CredentialId::validate($credentialId);
+        }
+
         $this->connection = $connection;
         $credentialIds = self::canonicalCredentialIds($credentialIds);
 
@@ -38,7 +48,9 @@ class CredentialLockManager
     }
 
     /**
-     * The protocol's single credential-lock order.
+     * The protocol's single deterministic order over decimal strings: `10`
+     * precedes `9`. Deduplication and SORT_STRING establish lock order only;
+     * acquire() checks the domain before any lock is taken.
      *
      * @param list<string> $credentialIds
      * @return list<string>
