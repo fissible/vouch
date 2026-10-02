@@ -1496,27 +1496,38 @@ function upgradeFillerAcrossTables(int $count, int $firstUserId): void
 
 it('rewrites through the deterministic index rather than scanning for each chunk', function (): void {
     /*
-     * The mechanism behind the ratio above, asserted directly, because a ratio can be met
-     * by a merely faster scan and the point is that the index is used at all. Captured from
-     * the statements the migration actually ran rather than read from the source, and then
-     * handed back to the ENGINE as an EXPLAIN: a predicate naming the type proves the
-     * intent, and only the plan proves the effect.
+     * #101's mechanism, and the SCOPE of this case is part of its contract.
      *
-     * Five measured corrections are in this shape, and each one let something through.
-     * Recognising a value rewrite by the statement STARTING with `set "value"` missed
-     * `set id = id, value = …`, leaving both loops inspecting nothing. Asserting the
-     * ABSENCE of `SCAN` was satisfied by `where +value in (…) and "type" = ?`, which SQLite
-     * plans as `SEARCH … (type=?)` -- every row of the type, per chunk. A single-type
-     * filler admitted a rewrite qualified by the first row's type. Capturing only UPDATEs
-     * admitted a `select distinct type` per page, which is a covering-index scan per page
-     * and quadratic, yet measured 7.01x and passed a ratio of eight. And looking at one
-     * table left the two credential tables unguarded.
+     * It is a REGRESSION GUARD on the shipped implementation's SQLite target lookups, not a
+     * certificate that every correct implementation passes. A future rewrite in a different
+     * legitimate shape may need this assertion updated, and that is expected rather than a
+     * failure of the guard. What it protects is the thing #101 is about: `where value in (…)`
+     * cannot use an index on (type, value), the plan proves the shipped fix does, and a
+     * regression shows up here.
+     *
+     * That scope is not modesty, it is the measured boundary. Trying to decide "this UPDATE
+     * is index-served" by reading one engine's plan rejected SEVEN legitimate spellings over
+     * as many rounds of review, each admitted in turn and followed by another:
+     *
+     *   reversed conjuncts; a batched `(type = ? AND value IN (…)) OR (…)`; a shared value
+     *   constraint as `(type = ? OR type = ?) AND value IN (…)`; MULTI-INDEX OR's `INDEX n`
+     *   wrapper nodes; an indexed lookup inside a LIST SUBQUERY while the target scanned; a
+     *   bounded `UPDATE … FROM (VALUES …)` input; and a schema-qualified `main.` target.
+     *
+     * There are unboundedly many ways to write a correctly indexed update, so an eighth fix
+     * would not have ended that. The list is here so the next reader sees the boundary
+     * rather than rediscovering it.
+     *
+     * The implementation-agnostic claims carry the rest and needed no narrowing: every
+     * subject's exact type and value on all three engines, flat memory, the statement
+     * ceiling, and time growth per doubling.
      */
     revertToLegacyCollation();
 
     /*
-     * FOUR pages of 500, because the property is that unbounded scans do not grow with
-     * the number of pages. Two pages cannot tell one scan per table from one per page.
+     * Four pages of 500 across all three tables, so the captured statements include more
+     * than one chunk per table and the plan assertion sees every one of them rather than a
+     * single lucky statement.
      */
     upgradeFillerAcrossTables(2000, 100);
 
@@ -1576,14 +1587,13 @@ it('rewrites through the deterministic index rather than scanning for each chunk
     }
 
     /*
-     * And the engine agrees. Two claims, both positive rather than the absence of a word.
+     * And the engine agrees, positively rather than by the absence of a word: every access
+     * path the statement uses to reach its TARGET must name the two-column lookup, which is
+     * what separates an index seek on (type, value) from a scan of one type's rows.
      *
-     * Each value rewrite's plan must name the two-column lookup, which is what separates an
-     * index seek on (type, value) from a scan of one type's rows.
-     *
-     * And across EVERY statement, the number that scan a source table must not grow with
-     * the page count. One unbounded read per table is expected -- the first page has no
-     * lower bound -- so four pages admit at most three per table and reject one per page.
+     * Asserting the absence of `SCAN` instead was satisfied by `where +value in (…) and
+     * "type" = ?`, which SQLite plans as `SEARCH … (type=?)` -- every row of the type, per
+     * chunk.
      */
     $plans = [];
 
@@ -1647,8 +1657,9 @@ it('rewrites through the deterministic index rather than scanning for each chunk
      *
      * So the asymptotic claim sits where it can be measured rather than inferred: in
      * 'it rewrites a whole table in time that grows no worse than the table', which samples
-     * three sizes and bounds each doubling. What stays here is the one thing a plan can
-     * honestly establish -- that each value rewrite is an index lookup on both columns.
+     * three sizes and bounds each doubling. What stays here is the target-lookup check, under
+     * the scope this case opens with -- a regression guard on the shipped implementation
+     * rather than a verifier of every correct one.
      */
 });
 
