@@ -779,9 +779,13 @@ final readonly class IdentifierEqualityUpgrade
      * spooling would add file ownership and failure handling. Here the cost is
      * another bounded read and canonicalization per page, with no new resource.
      * Both reads and pair lists are bounded, including on already-canonical tables.
-     * The hash-derived uppercase fixture now peaks at 6 MiB at both 100k and
-     * 400k rows under 16M; the 1200-row SQLite case uses 45 statements including
-     * its four assertion queries, rather than spending one update per pair.
+     *
+     * #101. A value-only predicate cannot seek the (type, value) index: the
+     * bounded-memory rewrite took 24 s at 100k rows and 247 s at 400k because
+     * every chunk scanned the table. Retain each pair's stored type and group
+     * within this page, so every update seeks both index columns. A per-page
+     * SELECT DISTINCT type would still traverse the table repeatedly; using
+     * the first row's type would silently miss the other types in that page.
      *
      * Page by the unchanged primary key, not by a spelling we are rewriting, and
      * read on the writer as in fill(). NULL again includes zero and negative ids.
@@ -806,8 +810,7 @@ final readonly class IdentifierEqualityUpgrade
                 $cursor === null ? [] : [$cursor],
                 useReadPdo: false,
             );
-            $types = [];
-            $values = [];
+            $groups = [];
 
             foreach ($read as $row) {
                 if (! $row instanceof stdClass) {
@@ -820,44 +823,55 @@ final readonly class IdentifierEqualityUpgrade
                 $canonicalType = $this->canonicalizer->canonicalize($storedType);
                 $canonicalValue = $this->canonicalizer->canonicalize($storedValue);
 
-                if ($storedType !== $canonicalType) {
-                    $types[] = [$storedType, $canonicalType];
+                if ($storedType === $canonicalType && $storedValue === $canonicalValue) {
+                    continue;
                 }
 
-                if ($storedValue !== $canonicalValue) {
-                    $values[] = [$storedValue, $canonicalValue];
+                // Prefix the key so a numeric type stays a string in the group.
+                $key = 'type:' . $storedType;
+
+                if (! isset($groups[$key])) {
+                    $groups[$key] = ['type' => $storedType, 'pairs' => []];
                 }
+
+                $groups[$key]['pairs'][] = [$storedValue, $canonicalValue];
             }
 
-            $this->rewriteColumn($table, $spec['type'], $types);
-            $this->rewriteColumn($table, $spec['value'], $values);
+            foreach ($groups as $group) {
+                $this->rewriteType($table, $spec, $group['type'], $group['pairs']);
+            }
         } while (count($read) >= self::SCAN_CHUNK);
     }
 
     /**
-     * Rewrite every row spelled one way into the canonical spelling of it.
+     * Rewrite one stored type's pairs through the table's two-column index.
      *
-     * Each list belongs to one source page. A CASE arm can reach a matching row
+     * Each list belongs to one source page. An update can reach a matching row
      * on a later page too; canonicalization is idempotent, so that row then needs
      * no pair. No global set of seen spellings needs to survive between pages.
+     *
+     * Assign both columns together, matching the OLD type. Rewriting types
+     * separately first would invalidate the types retained with these pairs.
+     * Type-only changes also carry their unchanged value, so even those updates
+     * seek both columns instead of revisiting every row of a type per page.
+     * At 200 pairs this uses 602 bindings, below older SQLite's 999 limit.
      *
      * The canonical values come from PHP -- no SQL function normalizes Unicode,
      * and lower() alone leaves a decomposed address in a spelling the
      * application can no longer match.
      *
+     * @param  TableSpec  $spec
      * @param  RewriteChunk  $pairs
      */
-    private function rewriteColumn(string $table, string $column, array $pairs): void
+    private function rewriteType(string $table, array $spec, string $storedType, array $pairs): void
     {
-        if ($pairs === []) {
-            return;
-        }
-
-        $quoted = $this->quote($column);
+        $type = $this->quote($spec['type']);
+        $value = $this->quote($spec['value']);
+        $canonicalType = $this->canonicalizer->canonicalize($storedType);
 
         foreach (array_chunk($pairs, self::CHUNK) as $chunk) {
             $arms = '';
-            $bindings = [];
+            $bindings = [$canonicalType];
             $stored = [];
 
             foreach ($chunk as [$from, $to]) {
@@ -868,15 +882,17 @@ final readonly class IdentifierEqualityUpgrade
             }
 
             $this->connection->update(sprintf(
-                'update %s set %s = case %s%s else %s end where %s in (%s)',
+                'update %s set %s = ?, %s = case %s%s else %s end where %s = ? and %s in (%s)',
                 $this->quote($table),
-                $quoted,
-                $quoted,
+                $type,
+                $value,
+                $value,
                 $arms,
-                $quoted,
-                $quoted,
+                $value,
+                $type,
+                $value,
                 implode(', ', array_fill(0, count($stored), '?')),
-            ), array_merge($bindings, $stored));
+            ), array_merge($bindings, [$storedType], $stored));
         }
     }
 
