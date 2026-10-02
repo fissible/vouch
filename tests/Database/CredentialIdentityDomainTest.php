@@ -34,6 +34,52 @@ uses(RefreshDatabase::class);
  *
  * @return array<string, string>
  */
+/**
+ * Credential queries ATTEMPTED while $work runs that carry one of $credentialIds.
+ *
+ * Attempted, not completed: Laravel throws before logQuery() runs, so the query log cannot see a
+ * statement the database rejected. Measured -- an implementation that sent 'cred-1' to PostgreSQL
+ * inside a savepoint, caught 22P02 and translated it satisfied a query-log assertion completely.
+ *
+ * Scoped to the supplied ids rather than to the table, because the table alone forbids correct
+ * work: an unrelated, non-locking credential count for another user is legitimate on this path and
+ * failed 17 assertions when the filter was the table name.
+ *
+ * @param  list<string>  $credentialIds
+ * @return list<string>
+ */
+function attemptedCredentialQueriesFor(array $credentialIds, Closure $work): array
+{
+    $seen = [];
+
+    DB::connection()->beforeExecuting(static function (string $query, array $bindings) use ($credentialIds, &$seen): void {
+        if (! str_contains($query, 'auth_credentials')) {
+            return;
+        }
+
+        foreach ($bindings as $binding) {
+            if (in_array((string) $binding, $credentialIds, true)) {
+                $seen[] = $query;
+
+                return;
+            }
+        }
+    });
+
+    try {
+        $work();
+    } catch (InvalidArgumentException $e) {
+        $seen[] = 'REFUSED: ' . $e->getMessage();
+    }
+
+    return $seen;
+}
+
+/**
+ * Every spelling of a credential id the credential table cannot mean.
+ *
+ * @return array<string, string>
+ */
 function nonCanonicalCredentialIds(): array
 {
     return [
@@ -162,13 +208,13 @@ it('refuses a proof when any one of its factors carries a bad credential id', fu
 
 it('leaves an existing proof intact when its replacement is refused', function (): void {
     /*
-     * store() replaces by deleting then inserting. Measured: an implementation that validates
-     * AFTER the delete rejects the bad replacement and takes the previous proof with it -- the
-     * assurance count went 1 -> 0 -- and every assertion above still passed, because they all start
-     * from an empty table.
+     * store() replaces by deleting then inserting. Measured: validating AFTER the delete rejects a
+     * bad replacement and takes the previous proof with it.
      *
-     * The enclosing transaction is what exposes it: without one, store() opens its own and the
-     * rollback hides the damage.
+     * Counts cannot establish this. A mutant that cleared assurance_proof before throwing passed,
+     * and so did one that silently returned instead of refusing -- the first because only rows were
+     * counted, the second because the refusal was swallowed. So the row is compared by content and
+     * the refusal is required.
      */
     app(TokenAssuranceRecord::class)->store(
         'sanctum',
@@ -179,94 +225,85 @@ it('leaves an existing proof intact when its replacement is refused', function (
         [satisfiedFactorWithCredential('7')],
     );
 
-    expect(DB::table('auth_token_assurances')->count())->toBe(1);
+    $before = DB::table('auth_token_assurances')->orderBy('token_key')->get()->map(fn (object $row): array => (array) $row)->all();
+    $beforeMappings = DB::table('auth_token_credentials')->orderBy('credential_id')->pluck('credential_id')->all();
 
-    DB::transaction(function (): void {
-        try {
-            app(TokenAssuranceRecord::class)->store(
-                'sanctum',
-                'token-1',
-                SubjectKey::forConfiguredUser(1),
-                null,
-                ActorKind::Human,
-                [satisfiedFactorWithCredential('09')],
-            );
-        } catch (InvalidArgumentException) {
-            // The refusal is asserted elsewhere; what matters here is what survives it.
-        }
-    });
+    expect($before)->toHaveCount(1);
+    expect($beforeMappings)->toBe(['7']);
 
-    expect(DB::table('auth_token_assurances')->count())->toBe(1);
-    expect(DB::table('auth_token_credentials')->where('credential_id', '7')->count())->toBe(1);
+    expect(fn () => app(TokenAssuranceRecord::class)->store(
+        'sanctum',
+        'token-1',
+        SubjectKey::forConfiguredUser(1),
+        null,
+        ActorKind::Human,
+        [satisfiedFactorWithCredential('09')],
+    ))->toThrow(InvalidArgumentException::class);
+
+    $after = DB::table('auth_token_assurances')->orderBy('token_key')->get()->map(fn (object $row): array => (array) $row)->all();
+
+    expect($after)->toBe($before);
+    expect(DB::table('auth_token_credentials')->orderBy('credential_id')->pluck('credential_id')->all())->toBe($beforeMappings);
 });
 
 it('refuses a non-canonical credential id before it reaches the database', function (string $credentialId): void {
     /*
-     * The second boundary, and the exception type alone cannot establish it. Measured: an
-     * implementation that queries first and then translates the database's own error into
-     * InvalidArgumentException satisfies a type assertion completely, with "09" reaching
-     * auth_credentials before the refusal. So the property asserted is that the value never gets
-     * there.
+     * The second boundary, and neither the exception type nor the query log alone establishes it.
+     * Measured: translating PostgreSQL's own 22P02 into InvalidArgumentException satisfies a type
+     * assertion, and does so invisibly to the query log because Laravel throws before logging.
      *
-     * Subject-lock SQL is allowed through: the acquisition order is a protocol contract and this
-     * has no business constraining it.
+     * So: the value must never be carried into a credential query, and a refusal must happen.
      */
-    DB::flushQueryLog();
-    DB::enableQueryLog();
-
-    expect(fn () => app(CredentialLockManager::class)->acquire(
+    $attempted = attemptedCredentialQueriesFor([$credentialId], fn () => app(CredentialLockManager::class)->acquire(
         DB::connection(),
         SubjectKey::forConfiguredUser(1),
         [$credentialId],
-    ))->toThrow(InvalidArgumentException::class);
-
-    $credentialQueries = array_values(array_filter(
-        array_map(static fn (array $entry): string => (string) $entry['query'], DB::getQueryLog()),
-        static fn (string $sql): bool => str_contains($sql, 'auth_credentials'),
     ));
 
-    DB::disableQueryLog();
-
-    expect($credentialQueries)->toBe([]);
+    expect($attempted)->toHaveCount(1);
+    expect($attempted[0])->toStartWith('REFUSED: ');
 })->with(nonCanonicalCredentialIds());
 
-it('validates every credential id before locking any of them', function (): void {
+it('locks nothing when any one credential id in the list is bad', function (): void {
     /*
-     * Measured: an implementation that checks only the first id accepts and persists ['1', '09'].
-     * And locking some of a list before refusing the rest would leave locks held for a call that
-     * failed, so the whole list has to clear before anything is taken.
+     * Measured: an implementation checking only the first id accepts ['1', '09']. And locking part
+     * of a list before refusing the rest leaves locks held for a call that failed, so the whole
+     * list must clear before anything is taken -- including the id that was fine.
      */
-    DB::flushQueryLog();
-    DB::enableQueryLog();
-
-    expect(fn () => app(CredentialLockManager::class)->acquire(
+    $attempted = attemptedCredentialQueriesFor(['1', '09'], fn () => app(CredentialLockManager::class)->acquire(
         DB::connection(),
         SubjectKey::forConfiguredUser(1),
         ['1', '09'],
-    ))->toThrow(InvalidArgumentException::class);
-
-    $credentialQueries = array_values(array_filter(
-        array_map(static fn (array $entry): string => (string) $entry['query'], DB::getQueryLog()),
-        static fn (string $sql): bool => str_contains($sql, 'auth_credentials'),
     ));
 
-    DB::disableQueryLog();
-
-    // Not even the valid one, because the list is refused as a whole.
-    expect($credentialQueries)->toBe([]);
+    expect($attempted)->toHaveCount(1);
+    expect($attempted[0])->toStartWith('REFUSED: ');
 });
 
-it('locks canonical credential ids without complaint', function (): void {
-    // Positive control for the lock path, inside a transaction because that is where locks live.
-    DB::transaction(function (): void {
-        app(CredentialLockManager::class)->acquire(
-            DB::connection(),
-            SubjectKey::forConfiguredUser(1),
-            ['1', '9', '1234567890'],
-        );
+it('accepts and locks every canonical credential id, including the portable maximum', function (): void {
+    /*
+     * The positive control, and the previous form proved nothing: it created no credential rows and
+     * omitted the maximum, so mutants that rejected the maximum inside acquire(), or that omitted
+     * every lockCredential() call, both passed. Real rows now exist and the maximum is among them.
+     *
+     * This asserts ACCEPTANCE of the domain, which is what #19 is about. That the lock itself
+     * excludes a competing writer is asserted by the concurrency tests, not here.
+     */
+    $ids = ['1', '9', '1234567890', '9223372036854775807'];
+    seedCredentials($ids);
+
+    $attempted = attemptedCredentialQueriesFor($ids, function () use ($ids): void {
+        DB::transaction(function () use ($ids): void {
+            app(CredentialLockManager::class)->acquire(DB::connection(), SubjectKey::forConfiguredUser(1), $ids);
+        });
     });
 
-    expect(true)->toBeTrue();
+    // One lookup per id, no refusal: the ids were accepted and each was reached.
+    expect($attempted)->toHaveCount(count($ids));
+
+    foreach ($attempted as $query) {
+        expect($query)->not->toStartWith('REFUSED: ');
+    }
 });
 
 it('orders credential ids as decimal strings, which is the lock order and not an identity claim', function (): void {
@@ -281,6 +318,21 @@ it('orders credential ids as decimal strings, which is the lock order and not an
     expect(CredentialLockManager::canonicalCredentialIds(['9', '10', '9', '100']))
         ->toBe(['10', '100', '9']);
 });
+
+/** @param list<string> $ids */
+function seedCredentials(array $ids): void
+{
+    DB::table('auth_credentials')->insert(array_map(static fn (string $id): array => [
+        'id' => $id,
+        'user_id' => 1,
+        'type' => 'password',
+        'secret' => 'irrelevant',
+        'strength' => 'knowledge',
+        'is_multi_factor' => 0,
+        'user_verified' => 0,
+        'phishing_resistant' => 0,
+    ], $ids));
+}
 
 function satisfiedFactorWithCredential(string $credentialId): SatisfiedFactor
 {
