@@ -14,6 +14,7 @@ use Fissible\Vouch\Throttle\ThrottleDimension;
 use Fissible\Vouch\Throttle\ThrottleSubject;
 use Illuminate\Database\Connection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
@@ -160,6 +161,31 @@ it('derives the exact cumulative identifier backoff schedule', function (
     int $remaining,
     ?int $offset,
 ): void {
+    /*
+     * #104, the same hazard as 'stops incrementing during backoff' and found by the same probe.
+     * My first sweep judged this case immune because it derives retryAfter from the STORED
+     * window rather than from "now" -- which protects the arithmetic and not the DECISION.
+     * Measured: a 1.1 s pause before the preflight made the count-5 dataset return Permitted
+     * instead of BackedOff, because its one-second deadline had already elapsed. The other two
+     * datasets survived only because their cumulative deadlines are longer.
+     *
+     * A TEN-second initial backoff, and the dataset's offsets are restated for it rather than
+     * scaled -- they are literals, and an earlier version of this comment wrongly claimed they
+     * would follow the configuration.
+     *
+     * Three was tried first, to keep every step under the 60-second cap. Measured, it left two
+     * to three seconds after whole-second truncation and a 3.1 s pause still failed count 5, so
+     * it widened the race rather than removing it. At ten the margin is ten seconds and a 1.1 s
+     * pause is nowhere near it.
+     *
+     * The offsets are MEASURED rather than derived, because at ten the last two steps cross the
+     * cap: the store reports 10 at count 5 and 190 at count 9, which is 10+20+40+60+60 with the
+     * cap applied per step. That is a side benefit -- the default schedule never reaches the
+     * cap, so this case now exercises it.
+     */
+    Config::set('vouch.throttle.identifier.initial_backoff_seconds', 10);
+    app()->forgetInstance(ThrottleConfiguration::class);
+
     $subject = scalarThrottleSubject();
     seedScalarCounter($subject, $count);
 
@@ -180,8 +206,8 @@ it('derives the exact cumulative identifier backoff schedule', function (
         ->toBe(scalarTimestamp($window)->modify("+{$offset} seconds")->getTimestamp());
 })->with([
     'count 4 has no backoff' => [4, ThrottleDecision::Permitted, 6, null],
-    'count 5 backs off to second 1' => [5, ThrottleDecision::BackedOff, 5, 1],
-    'count 9 backs off to second 31' => [9, ThrottleDecision::BackedOff, 1, 31],
+    'count 5 backs off to second 10' => [5, ThrottleDecision::BackedOff, 5, 10],
+    'count 9 backs off to second 190, two steps capped' => [9, ThrottleDecision::BackedOff, 1, 190],
 ]);
 
 it('applies the configured backoff cap at the deterministic schedule boundary', function (): void {
@@ -215,19 +241,63 @@ it('applies the configured backoff cap at the deterministic schedule boundary', 
 });
 
 it('stops incrementing during backoff and resumes only after its database deadline', function (): void {
+    /*
+     * #104. A TEN-second initial backoff, and the configuration is the fix rather than a
+     * convenience.
+     *
+     * At the shipped default of one second this case rested on a one-second band, which is why
+     * it failed once in a full MySQL run. CURRENT_TIMESTAMP resolves to the second, so a window
+     * seeded at 12:00:00.9 put the count-5 deadline at 12:00:01 -- which the very next statement
+     * can already be past, letting the count reach 6 while the decision stayed BackedOff
+     * because count 6 is backed off too. Measured: a 1.1 s pause reproduced that every time.
+     *
+     * The second half is narrower still, and narrow BY CONSTRUCTION. Backoff is CUMULATIVE, so
+     * the window must be old enough that count 5's deadline has elapsed and recent enough that
+     * count 6's has not: at the default those are +1 s and +3 s, a two-second band of
+     * (now-3, now-1]. The original -1 sat inside it by luck. Measured, moving the window ten
+     * seconds back incremented the count correctly and returned Permitted, because count 6's
+     * three-second deadline had also passed. No offset makes a two-second band reliable.
+     *
+     * At an initial of ten the deadlines are +10 s and +30 s, so the band is (now-30, now-10]
+     * and -15 sits in it with five seconds of margin below and fifteen above. Measured: a 6.1 s
+     * pause still passes and a 15.1 s pause fails, which is the band behaving as described.
+     */
+    Config::set('vouch.throttle.identifier.initial_backoff_seconds', 10);
+    app()->forgetInstance(ThrottleConfiguration::class);
+
     $subject = scalarThrottleSubject();
     seedScalarCounter($subject, 5);
 
+    $connection = DB::connection();
+
+    /*
+     * The window is left exactly as seeded -- freshly started, this second -- and the widened
+     * backoff is what makes that safe. Two measured mistakes are behind leaving it alone.
+     *
+     * Dating it FORWARD turned this into "a window in the future blocks an increment", a
+     * different claim: a mutant that increments during ordinary backoff while still honouring a
+     * future window passed that version and was killed by the original.
+     *
+     * Ageing it three seconds instead lost the freshly-started window entirely, and a mutant
+     * adding `window_started_at < now` to the blocking guard -- so increments are allowed during
+     * the window's opening second -- passed every case. Removing the ageing kills it: count 6
+     * instead of 5.
+     *
+     * So the margin comes only from the configuration. At an initial of ten the deadline is ten
+     * seconds out from a window seeded this second, which is the headroom the default's one
+     * second never had.
+     */
     $blocked = scalarThrottleStore()->recordIdentifierFailure($subject);
 
     expect($blocked->decision)->toBe(ThrottleDecision::BackedOff)
         ->and(scalarCount($subject))->toBe(5);
 
+    // Fifteen seconds old: five past count 5's deadline, fifteen short of count 6's.
     DB::update(
         'UPDATE auth_throttle_counters SET window_started_at = '
-        . (new DatabaseTime(DB::connection()))->deadlineSqlHere()
+        . (new DatabaseTime($connection))->deadlineSqlHere()
         . ' WHERE subject_digest = ?',
-        [-1, $subject->digest],
+        [-15, $subject->digest],
     );
 
     $resumed = scalarThrottleStore()->recordIdentifierFailure($subject);
