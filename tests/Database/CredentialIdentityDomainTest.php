@@ -136,6 +136,36 @@ function nonCanonicalCredentialIds(): array
     ];
 }
 
+it('refuses a credential id the credential table cannot mean, at the value every proof is built from', function (string $credentialId): void {
+    /*
+     * The invariant, in the one place that cannot be bypassed by finding another writer.
+     *
+     * Four separate persistence sites carry a credential id into the database: a token proof
+     * (auth_token_assurances / auth_token_credentials), a session proof
+     * (auth_sessions.assurance_proof), attempt evidence (auth_attempts.satisfied_factors, written by
+     * AuthFlow), and the lock path, which takes raw strings rather than factors. The first three were
+     * each discovered one at a time while this test was being written, which is the argument for
+     * asserting the domain on SatisfiedFactor instead of at each site: a fifth writer inherits it.
+     *
+     * The bound is a storage fact living on a kernel value, and that is deliberate. The alternative
+     * is a validation site per writer and an open-ended search for the next one.
+     *
+     * It also removes a class of gap rather than testing for it: an implementation that validated
+     * only the FIRST factor of a session proof passed a full gate run while persisting ['1', '09'],
+     * and that case cannot be constructed at all once the value itself refuses.
+     */
+    expect(fn () => satisfiedFactorWithCredential($credentialId))->toThrow(InvalidArgumentException::class);
+})->with(nonCanonicalCredentialIds());
+
+it('accepts a canonical credential id at that value', function (string $credentialId): void {
+    expect(satisfiedFactorWithCredential($credentialId)->credentialId)->toBe($credentialId);
+})->with([
+    'one' => '1',
+    'single digit' => '9',
+    'many digits' => '1234567890',
+    'the portable maximum' => '9223372036854775807',
+]);
+
 it('refuses to persist a proof carrying a credential id the credential table cannot mean', function (string $credentialId): void {
     /*
      * Through store(), not through whatever validates for it: the boundary is "a proof is
@@ -279,15 +309,28 @@ it('refuses to persist a session proof carrying a bad credential id', function (
 
     $factors = [satisfiedFactorWithCredential($credentialId)];
 
-    expect(fn () => app(SessionLifecycle::class)->establish(new AuthSuccess(
-        7,
-        $factors,
-        AssuranceFacts::fromFactors($factors),
-        'aal1',
-        'ignored',
-        null,
-    )))->toThrow(InvalidArgumentException::class);
+    /*
+     * Either the refusal itself, or it wrapped in the rotation failure this path already raises.
+     * Measured: validating inside establish()'s existing try produces SessionRotationFailed carrying
+     * the InvalidArgumentException, with zero session rows and no ownership marker -- a correct
+     * implementation that an unwrapped-only assertion rejected 16 times.
+     */
+    $refusal = null;
 
+    try {
+        app(SessionLifecycle::class)->establish(new AuthSuccess(
+            7,
+            $factors,
+            AssuranceFacts::fromFactors($factors),
+            'aal1',
+            'ignored',
+            null,
+        ));
+    } catch (Throwable $e) {
+        $refusal = $e;
+    }
+
+    expect(refusesCredentialId($refusal))->toBeTrue();
     expect(DB::table('auth_sessions')->count())->toBe(0);
 })->with(nonCanonicalCredentialIds());
 
@@ -307,9 +350,15 @@ it('persists a session proof whose credential id is canonical', function (): voi
     ));
 
     expect(DB::table('auth_sessions')->count())->toBe(1);
+    /*
+     * Decoded, not matched as a substring: MySQL renders the column as `"credential_id": "7"` with a
+     * space and SQLite does not, so a substring assertion passes on one engine and fails on the other.
+     */
     $proof = DB::table('auth_sessions')->value('assurance_proof');
+    $decoded = json_decode(is_string($proof) ? $proof : '', true, 512, JSON_THROW_ON_ERROR);
+    $factors = is_array($decoded) && is_array($decoded['factors'] ?? null) ? $decoded['factors'] : [];
 
-    expect(is_string($proof) ? $proof : '')->toContain('"credential_id":"7"');
+    expect(array_column($factors, 'credential_id'))->toBe(['7']);
 });
 
 it('refuses a non-canonical credential id before it reaches the database', function (string $credentialId): void {
@@ -382,6 +431,18 @@ it('orders credential ids as decimal strings, which is the lock order and not an
     expect(CredentialLockManager::canonicalCredentialIds(['9', '10', '9', '100']))
         ->toBe(['10', '100', '9']);
 });
+
+/** Whether $refusal is a credential-id refusal, raised directly or wrapped by a caller. */
+function refusesCredentialId(?Throwable $refusal): bool
+{
+    for ($e = $refusal; $e !== null; $e = $e->getPrevious()) {
+        if ($e instanceof InvalidArgumentException) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 /** @param list<string> $ids */
 function seedCredentials(array $ids): void
