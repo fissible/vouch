@@ -1224,9 +1224,21 @@ it('rewrites a whole table in time that grows no worse than the table', function
      *
      * THREE sizes, each a doubling, rather than one ratio across a quadrupling: a single 4x
      * ratio needs a loose bound to survive noise, and the bound then admits real work.
-     * Linear predicts 2 per doubling and quadratic 4, so 3 separates them, and it has to
-     * hold for BOTH doublings rather than on average. Ratios rather than absolute times,
-     * because absolute timings on a shared machine are a flake waiting to happen.
+     * Linear predicts 2 per doubling and quadratic 4, so 3 sits between, and it has to hold
+     * for BOTH doublings. Ratios rather than absolute times, because absolute timings on a
+     * shared machine are a flake waiting to happen.
+     *
+     * Which doubling actually discriminates is measured, and it is only the second. The
+     * defect ran 24.0 s / 64.2 s / 247 s -- ratios of 2.67 and 3.85 -- while the fix runs
+     * about 6 s / 15 s / 35 s, ratios of 2.36 to 2.58 and 2.29 to 2.35 over three rounds. So
+     * the first doubling separates nothing: at 100 000 rows the per-chunk scan has not come
+     * to dominate, and 2.67 against 2.58 is noise. The second doubling is the test, 3.85
+     * against 2.35, and the bound sits in the middle of that gap with about 16% of headroom
+     * over the worst run observed.
+     *
+     * Both doublings are still required, because a defect of a different shape need not put
+     * its growth in the same place, and a bound that holds twice costs nothing extra when it
+     * holds.
      *
      * WHAT THIS DOES NOT CATCH, measured rather than guessed. An implementation whose
      * updates are correctly indexed but which issues a `select distinct type` per page -- a
