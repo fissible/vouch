@@ -1071,17 +1071,103 @@ it('decides in memory that does not grow with the table', function (): void {
      * loose-class subquery needs: the whole run is a fraction of a second, where
      * ten thousand rows without that index took nearly four.
      */
+    $run = upgradeFixtureRun('16M', 100000, 'canonical');
+
+    /*
+     * The surviving row count and each row's own expected value, so an upgrade that
+     * "succeeded" by emptying the table, by refusing without working, or by moving
+     * identifiers between subjects is a different answer rather than the same one.
+     * Both come back through the same helper the uppercase case below uses; here they
+     * agree trivially because these rows were already canonical, which is the point
+     * of keeping this shape separate from that one.
+     */
+    expect($run['rows'])->toBe(100000);
+    expect($run['expected'])->toBe(100000);
+});
+
+/**
+ * Run the upgrade fixture and return what it reported.
+ *
+ * @return array{rows: int, expected: int, peak: int}
+ */
+function upgradeFixtureRun(string $limit, int $rows, string $shape): array
+{
     $result = phpUnderMemoryLimit(
-        '16M',
+        $limit,
         dirname(__DIR__) . '/Fixtures/identifier-upgrade-scan.php',
         dirname(__DIR__, 2),
-        '100000',
+        (string) $rows,
+        $shape,
     );
 
-    expect($result['status'])->toBe(0, 'the upgrade must complete under a limit the old scan exhausted');
-    // The surviving row count, so an upgrade that "succeeded" by emptying the table
-    // or by refusing without working is a different answer rather than the same one.
-    expect(trim($result['output']))->toBe('100000');
+    expect($result['status'])->toBe(0, 'the upgrade must complete at ' . $rows . ' rows under ' . $limit);
+
+    $reported = explode(' ', trim($result['output']));
+
+    expect($reported)->toHaveCount(3);
+
+    return [
+        'rows' => (int) $reported[0],
+        'expected' => (int) $reported[1],
+        'peak' => (int) $reported[2],
+    ];
+}
+
+it('rewrites a whole table of non-canonical identifiers in memory that does not grow', function (): void {
+    /*
+     * #92, and the half of the bound that was missing. #61 stopped the SCAN holding
+     * the table; the rewrite still accumulated one (stored, canonical) pair per
+     * distinct changing spelling, and when no identifier is canonical that is one
+     * pair per row. The fixture used to record that growth as "by design", which was
+     * true of the deduplication and false of the conclusion: a host whose identifiers
+     * are not yet canonical is precisely the host the migration is for. Measured
+     * against the accumulating rewrite: 100 000 rows peaked at 45 MiB over a 6 MiB
+     * baseline and succeeded only at 128 MB, and 400 000 exhausted even that.
+     *
+     * GROWTH is the property, so the two runs are COMPARED rather than each merely
+     * fitting under the limit. One size cannot tell bounded from cheaper: an
+     * accumulator holding every pair in length-prefixed compressed batches retained
+     * 0.765 MiB at 100 000 rows and 3.128 MiB at 400 000, passed both, and died only
+     * at 1.6M -- linear with a smaller constant, which is what #61 already did once
+     * for the scan.
+     *
+     * Two megabytes of slack, one step of this allocator's granularity, since the
+     * observed peaks move in 2 MiB increments. A spooled implementation reports the
+     * same peak at both sizes.
+     *
+     * What makes that comparison work is the fixture's HASH-DERIVED values, and the
+     * limit of it is worth stating because an earlier version of this comment
+     * overclaimed. memory_get_peak_usage(true) is an allocator high-water mark, not a
+     * measure of retained data: measured, pairs retained in a compressed php://memory
+     * stream quadrupled their retained bytes between these two sizes while reporting
+     * 8 MiB for both, and passed this comparison with ZERO slack. The fixture's
+     * entropy is what forces retained growth to show up as allocation at these sizes
+     * -- hex and a shared domain still compress somewhat, so the claim is "far less
+     * compressible", not "incompressible".
+     *
+     * And even then: two finite sizes are a regression guard, not a proof of
+     * asymptotic boundedness. Whether the implementation actually streams is settled
+     * by reading it, which is where that claim belongs.
+     *
+     * The second number is each row's OWN expected value, derived from the identity it
+     * was seeded with. A count of canonical-LOOKING rows passed a mutant that rotated
+     * targets within each batch: every row lower-case, 99 500 of 100 000 belonging to
+     * the wrong subject. An identifier moved to another owner is worse than one left
+     * un-canonicalized.
+     */
+    $small = upgradeFixtureRun('16M', 100000, 'uppercase');
+    $large = upgradeFixtureRun('16M', 400000, 'uppercase');
+
+    expect($small['rows'])->toBe(100000);
+    expect($small['expected'])->toBe(100000);
+    expect($large['rows'])->toBe(400000);
+    expect($large['expected'])->toBe(400000);
+
+    // The premise: the fixture really did report a peak, so the comparison below is
+    // not between two zeros.
+    expect($small['peak'])->toBeGreaterThan(0);
+
+    expect($large['peak'])->toBeLessThanOrEqual($small['peak'] + 2 * 1024 * 1024);
 });
 
 it('is given a memory limit that actually bites', function (): void {
@@ -1347,4 +1433,111 @@ it('leaves no working table behind after a successful run', function (): void {
     expect(DB::table('auth_identifiers')->where('value', 'ada@acme.example')->exists())->toBeTrue();
 
     expect(tableNames())->not->toContain('vouch_identifier_upgrade_scan');
+});
+
+/** Non-canonical filler: every row distinct, and every row needing a rewrite. */
+function uppercaseFiller(int $count, int $firstUserId): void
+{
+    $now = (string) now();
+
+    foreach (array_chunk(range(0, $count - 1), 250) as $batch) {
+        $rows = [];
+
+        foreach ($batch as $offset) {
+            $rows[] = [
+                'user_id' => $firstUserId + $offset,
+                'type' => 'email',
+                'value' => sprintf('AAA-%d@ACME.EXAMPLE', $firstUserId + $offset),
+                'verified_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        DB::table('auth_identifiers')->insert($rows);
+    }
+}
+
+it('keeps its statement count bounded when the large table needs rewriting', function (): void {
+    /*
+     * The companion to the memory bound, and the reason it is a separate case: the
+     * existing ceiling is measured on filler that is already CANONICAL, so it bounds
+     * the scan and never touches the rewrite at all. Trading the accumulated pairs
+     * for chunked reads buys bounded memory WITH statements, and nothing in the file
+     * stopped it spending them one pair at a time.
+     *
+     * Twelve hundred rows, all distinct and none canonical, so a per-pair
+     * implementation costs at least twelve hundred statements.
+     *
+     * The ceiling is derived from measurements rather than chosen, and the arithmetic
+     * is stated because a first version of this comment double-counted the updates
+     * the accumulating rewrite already performs.
+     *
+     * Measured totals for the accumulating rewrite, including this test's own four
+     * assertion queries: 39 on SQLite, 42 on MySQL and PostgreSQL; the migration
+     * alone is 35 / 38 / 38. A streamed rewrite REPLACES its six existing chunked
+     * updates with a read and an update per pair-chunk, so at a chunk of 25 it costs
+     * roughly 129 / 132 / 132 before any bookkeeping -- which is why the ceiling is
+     * 150 and not 120. It admits a pair-chunk down to about 22 and rejects a per-pair
+     * implementation by 8x: one built that way spent 1 233 statements.
+     *
+     * The existing canonical-filler bound next door is 120 on the same row count and
+     * bounds a different thing: it never rewrites anything at all.
+     */
+    revertToLegacyCollation();
+    uppercaseFiller(1200, 100);
+
+    $queries = 0;
+    DB::listen(function () use (&$queries): void {
+        $queries++;
+    });
+
+    runIdentifierMigration();
+
+    // The control: a listener that never fired, or an up() that did nothing, would
+    // satisfy any ceiling.
+    expect($queries)->toBeGreaterThan(0);
+    // And the work really happened, which is what makes the ceiling a bound on
+    // rewriting rather than on refusing.
+    expect(DB::table('auth_identifiers')->count())->toBe(1200);
+    expect(DB::table('auth_identifiers')->where('value', 'aaa-100@acme.example')->exists())->toBeTrue();
+    expect(DB::table('auth_identifiers')->where('value', 'AAA-100@ACME.EXAMPLE')->exists())->toBeFalse();
+    /*
+     * EVERY row against its OWN expected value, compared in PHP so the predicate is
+     * the same on all three engines -- SQLite and PostgreSQL concatenate with `||`
+     * where MySQL reads it as OR.
+     *
+     * Two things this catches that a canonical-looking count does not. A streamed
+     * rewrite that lost one chunk of pairs leaves a contiguous run untouched, which a
+     * spot check passes. And a mutant that rotated targets within each batch left
+     * every row lower-case with 1 194 of 1 200 belonging to the wrong subject, which
+     * a shape-only predicate passed at 39 statements.
+     */
+    $expected = [];
+
+    for ($userId = 100; $userId < 1300; $userId++) {
+        $expected[] = $userId . ' ' . sprintf('aaa-%d@acme.example', $userId);
+    }
+
+    /*
+     * The whole (owner, value) set, compared as one list rather than row by row with a
+     * filter. Two mutants passed the filtered version: setting every owner to 0 made
+     * `where user_id >= 100` exclude every row, so nothing was counted; and a
+     * non-numeric owner fell through an is_numeric fallback onto a sentinel that its
+     * corrupted value happened to match. Comparing the set has no predicate to slip
+     * past -- a changed owner, a changed value, a lost row and a duplicated one are
+     * all simply a different list.
+     */
+    $actual = DB::table('auth_identifiers')
+        ->orderBy('id')
+        ->get(['user_id', 'value'])
+        ->map(static fn (object $row): string => stringValue($row->user_id) . ' ' . stringValue($row->value))
+        ->all();
+
+    sort($actual);
+    sort($expected);
+
+    expect($actual)->toBe($expected);
+
+    expect($queries)->toBeLessThan(150);
 });

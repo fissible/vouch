@@ -20,11 +20,40 @@ declare(strict_types=1);
  * that run on all three engines. What this fixture measures is the SHAPE of the
  * scan's memory, which does not depend on the columns it ignores.
  *
- * The rows are seeded already canonical. The rewrite deduplicates by spelling,
- * so rows that all need rewriting cost memory proportional to distinct spellings
- * by design, and that is a different property from the one under test.
+ * Two SHAPES, because they measure different properties and only one of them used
+ * to be measured here.
  *
- * Usage: php -d memory_limit=16M identifier-upgrade-scan.php <package-root> <rows> [control]
+ * `canonical` seeds values the upgrade leaves alone, which isolates the cost of
+ * the scan itself -- #61's defect, where every row was read into PHP before
+ * anything was decided.
+ *
+ * `uppercase` seeds values every one of which must be REWRITTEN, which is
+ * #92. This file used to record the resulting growth as being "by design",
+ * since the rewrite deduplicates by spelling to keep itself to a statement per
+ * chunk. That reasoning is sound and the conclusion was still wrong: when every
+ * spelling is distinct, one pair per spelling is one pair per row, and a host
+ * whose identifiers are not yet canonical is exactly the host this migration
+ * exists for. Measured against the accumulating rewrite: 100 000 rows peaked at
+ * 45 MiB against a 6 MiB baseline and 400 000 exhausted a 128 MB limit.
+ *
+ * Both shapes seed HASH-DERIVED values, which is load-bearing rather than
+ * decoration. With predictable `user-N@...` values, an implementation that
+ * retained every pair in a compressed stream quadrupled its retained bytes
+ * between 100 000 and 400 000 rows while reporting the same 8 MiB peak, and
+ * passed a growth comparison with zero slack -- compression, not bounding, is
+ * what kept it inside. A hash-derived local part carries enough entropy to
+ * expose that accumulator at these sizes, which is the claim the evidence
+ * supports: hex encoding and a shared domain still compress somewhat, so this
+ * is not "incompressible", only compressible far less than `user-N@`.
+ * Deterministic, so a failure is reproducible.
+ *
+ * The expectations are seeded into a table of their own rather than recomputed
+ * at the end, because the point of a hash-derived value is that no SQL
+ * expression can derive it. The join at the end is bounded; holding 400 000
+ * expected values in PHP would not be.
+ *
+ * Usage: php -d memory_limit=16M identifier-upgrade-scan.php <package-root> <rows> [shape]
+ *        shape: canonical (default) | uppercase | control
  */
 
 require $argv[1] . '/vendor/autoload.php';
@@ -40,7 +69,9 @@ $rows = (int) $argv[2];
  * without it, a guard asserting "the upgrade completed under 16M" would pass
  * just as happily in a process whose limit was never applied.
  */
-if (($argv[3] ?? '') === 'control') {
+$shape = $argv[3] ?? 'canonical';
+
+if ($shape === 'control') {
     $ballast = str_repeat('x', 64 * 1024 * 1024);
     echo strlen($ballast), PHP_EOL;
 
@@ -83,23 +114,53 @@ try {
         . 'identifier_type varchar(32) not null, identifier_value varchar(255) not null, '
         . 'consumed_at datetime null, burned_at datetime null)',
     );
+    /*
+     * Not one of the upgrade's tables, so it reads and writes nothing here. It records
+     * what each subject's identifier must become, so the check at the end can be a
+     * join rather than a predicate over values no SQL function can derive.
+     */
+    $connection->statement(
+        'create table upgrade_expected (user_id integer not null primary key, '
+        . 'value varchar(255) not null)',
+    );
 
     $connection->beginTransaction();
 
     for ($start = 0; $start < $rows; $start += 500) {
         $tuples = [];
         $bindings = [];
+        $expectedTuples = [];
+        $expectedBindings = [];
 
         for ($i = $start; $i < min($start + 500, $rows); $i++) {
+            /*
+             * Distinct per row in BOTH shapes, so the row count and the distinct
+             * spelling count are the same number and no measurement here can be
+             * satisfied by accidental deduplication -- and incompressible, so
+             * retained pairs cannot hide inside a constant peak.
+             */
+            $local = substr(sha1((string) $i), 0, 20);
+            $canonical = $local . '@acme.example';
+
             $tuples[] = '(?, ?, ?)';
             $bindings[] = $i + 1;
             $bindings[] = 'email';
-            $bindings[] = sprintf('user-%d@acme.example', $i);
+            $bindings[] = $shape === 'uppercase'
+                ? strtoupper($local) . '@ACME.EXAMPLE'
+                : $canonical;
+
+            $expectedTuples[] = '(?, ?)';
+            $expectedBindings[] = $i + 1;
+            $expectedBindings[] = $canonical;
         }
 
         $connection->insert(
             'insert into auth_identifiers (user_id, type, value) values ' . implode(', ', $tuples),
             $bindings,
+        );
+        $connection->insert(
+            'insert into upgrade_expected (user_id, value) values ' . implode(', ', $expectedTuples),
+            $expectedBindings,
         );
     }
 
@@ -112,7 +173,40 @@ try {
      * deleting the table, or that refused and left the rows alone having done no
      * work, prints a different number rather than the same success.
      */
-    echo (int) $connection->table('auth_identifiers')->count(), PHP_EOL;
+    /*
+     * The second number is each row's OWN expected value, derived from the identity it
+     * was seeded with, not merely a canonical-looking one.
+     *
+     * Measured against a mutant that kept each batch's first target and rotated the
+     * rest: every row came out lower-case and 99 500 of 100 000 belonged to the wrong
+     * owner, and a count of canonical-looking rows passed it. An identifier moved to
+     * another subject is worse than one left un-canonicalized, so the predicate has to
+     * tie the value back to user_id.
+     *
+     * SQLite's `||`, because this fixture is deliberately SQLite-only and
+     * framework-free; the cross-engine equivalent lives in the migration tests, which
+     * compare in PHP over a table small enough to hold.
+     */
+    $expected = (int) $connection->table('auth_identifiers')
+        ->join('upgrade_expected', function ($join): void {
+            $join->on('upgrade_expected.user_id', '=', 'auth_identifiers.user_id')
+                ->on('upgrade_expected.value', '=', 'auth_identifiers.value');
+        })
+        ->count();
+
+    /*
+     * And the PEAK, so a caller can compare two row counts instead of only asking
+     * whether each fitted. "Completes under 16M" is satisfied by any implementation
+     * whose constant is small enough for the sizes tested -- measured, pairs held as
+     * length-prefixed COMPRESSED batches retained 0.765 MiB at 100 000 rows and
+     * 3.128 MiB at 400 000 and passed both, dying only at 1.6M. Growth is the
+     * property; a limit is only ever a proxy for it.
+     *
+     * Real allocation rather than the emalloc figure: the limit is applied to the
+     * former, and it is the one that makes a run fail.
+     */
+    echo (int) $connection->table('auth_identifiers')->count(), ' ', $expected,
+        ' ', memory_get_peak_usage(true), PHP_EOL;
 } finally {
     @unlink($path);
 }

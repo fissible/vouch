@@ -61,15 +61,30 @@ removes, and does so silently.
 The migration reads every identifier table and decides the whole upgrade before
 it writes anything, so a refusal changes neither rows nor schema and it is safe
 to reconcile what it reports and run it again. That read-then-write shape is also
-why traffic must be paused: a row written between the two keeps a non-canonical
-spelling and is not seen by the collision check.
+why traffic must be paused: a row written between the two is not seen by the
+collision check, even though the rewrite does reach it. Canonicalizing such a row
+can collide with a surviving one and fail the migration on the deterministic
+unique index — and because the upgrade is not wrapped in a transaction, the
+collation change, the deletions and the rewrites already applied stay applied.
 
 Deciding first no longer means holding every identifier row in memory. The scan
 streams each table through a temporary working table, asks the engine which
 groups have more than one spelling in them, and reads back only those rows, so
-peak memory tracks the page size rather than the installation. Measured flat at
-roughly 6 MB from a thousand rows to four hundred thousand. No `memory_limit`
-change is needed for the run.
+peak memory tracks the page size rather than the installation. The rewrite is
+bounded the same way: it recomputes each page's canonical spellings from the rows
+themselves rather than accumulating one pair per distinct spelling, which on a
+host whose identifiers are all non-canonical was one pair per row. Measured flat
+at roughly 6 MB from a thousand rows to four hundred thousand, whether or not the
+identifiers need rewriting — that last clause is new, and before it the same
+figure held only for a table already canonical. No `memory_limit` change is
+needed for the run.
+
+Plan the window on time rather than on memory. The rewrite matches rows by
+spelling, which the deterministic unique index on `(type, value)` cannot serve
+from the value alone, so the work per page grows with the table: measured on
+SQLite, 100 000 non-canonical rows took about 24 seconds and 400 000 took about
+four minutes. Four times the rows, ten times the time. Memory is flat; the
+duration is not.
 
 One outcome needs no decision from the operator. A collision between live
 recovery proofs or identifier verifications deletes every row in it: those are
