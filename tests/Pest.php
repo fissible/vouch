@@ -104,7 +104,7 @@ function evidenceFactor(
     string $id = 'password',
     string $at = '2026-08-29T10:00:00+00:00',
     \Fissible\Vouch\Kernel\Factor\FactorStrength $strength = \Fissible\Vouch\Kernel\Factor\FactorStrength::Knowledge,
-    string $credentialId = 'cred-1',
+    string $credentialId = '900',
 ): \Fissible\Vouch\Kernel\Factor\SatisfiedFactor {
     return new \Fissible\Vouch\Kernel\Factor\SatisfiedFactor(
         factorId: $id,
@@ -164,7 +164,7 @@ function sessionProof(int $userId = 7, string $level = 'aal2', string $at = '202
     if ($level === 'aal2') {
         // A second DISTINCT credential, which is what raises the derived level.
         // Two factors sharing one credentialId are one authenticator.
-        $factors[] = evidenceFactor('totp', $at, \Fissible\Vouch\Kernel\Factor\FactorStrength::Possession, 'cred-2');
+        $factors[] = evidenceFactor('totp', $at, \Fissible\Vouch\Kernel\Factor\FactorStrength::Possession, '901');
     }
 
     return sessionProofFrom($userId, $factors);

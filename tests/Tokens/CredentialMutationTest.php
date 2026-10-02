@@ -66,7 +66,7 @@ final class CredentialMutationTest extends TestCase
      * but auth_credentials.id is a bigint, so a non-numeric id cannot exist and
      * locking one fails outright on PostgreSQL:
      *
-     *   SQLSTATE[22P02] invalid input syntax for type bigint: "cred-1"
+     *   SQLSTATE[22P02] invalid input syntax for type bigint: "900"
      *
      * Measured against a real PostgreSQL 16 rather than discovered in CI.
      *

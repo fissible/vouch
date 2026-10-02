@@ -71,9 +71,9 @@ final class TokenEvidenceTest extends TestCase
     private function proof(): array
     {
         return [
-            new SatisfiedFactor('password', 'cred-1', FactorKind::Knowledge, FactorStrength::Knowledge,
+            new SatisfiedFactor('password', '900', FactorKind::Knowledge, FactorStrength::Knowledge,
                 false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00')),
-            new SatisfiedFactor('totp', 'cred-2', FactorKind::Possession, FactorStrength::Possession,
+            new SatisfiedFactor('totp', '901', FactorKind::Possession, FactorStrength::Possession,
                 false, false, false, null, new DateTimeImmutable('2026-08-13T10:05:00+00:00')),
         ];
     }
@@ -277,7 +277,7 @@ final class TokenEvidenceTest extends TestCase
          * record legitimately has none, an implementation could satisfy every
          * other test by writing humans the same way.
          */
-        $recovery = new SatisfiedFactor('recovery_code', 'cred-r', FactorKind::Knowledge, FactorStrength::Recovery,
+        $recovery = new SatisfiedFactor('recovery_code', '903', FactorKind::Knowledge, FactorStrength::Recovery,
             false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'));
 
         foreach ([[], [$recovery]] as $factors) {

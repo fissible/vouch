@@ -93,7 +93,7 @@ final class TokenGateEnforcementTest extends TestCase
 
         app(TokenAssuranceRecord::class)->store(
             'sanctum', stringValue($new->accessToken->getKey()), $this->subject(), null, ActorKind::Human,
-            [new SatisfiedFactor('password', 'cred-1', FactorKind::Knowledge, FactorStrength::Knowledge,
+            [new SatisfiedFactor('password', '900', FactorKind::Knowledge, FactorStrength::Knowledge,
                 false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'))],
         );
 
@@ -379,7 +379,7 @@ final class TokenGateEnforcementTest extends TestCase
         $new = $user->createToken('api');
         app(TokenAssuranceRecord::class)->store('sanctum', stringValue($new->accessToken->getKey()),
             $this->subject(), null, ActorKind::Human,
-            [new SatisfiedFactor('password', 'cred-1', FactorKind::Knowledge, FactorStrength::Knowledge,
+            [new SatisfiedFactor('password', '900', FactorKind::Knowledge, FactorStrength::Knowledge,
                 false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'))]);
 
         $this->withToken($new->plainTextToken)->getJson('/guard-after')
@@ -438,7 +438,7 @@ final class TokenGateEnforcementTest extends TestCase
         $new = $user->createToken('api', ['orders:read']);
         app(TokenAssuranceRecord::class)->store('sanctum', stringValue($new->accessToken->getKey()),
             $this->subject(), null, ActorKind::Human,
-            [new SatisfiedFactor('password', 'cred-1', FactorKind::Knowledge, FactorStrength::Knowledge,
+            [new SatisfiedFactor('password', '900', FactorKind::Knowledge, FactorStrength::Knowledge,
                 false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'))]);
 
         $this->withToken($new->plainTextToken)->getJson('/abilities')

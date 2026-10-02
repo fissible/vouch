@@ -137,7 +137,7 @@ it('removes the cached-level comparison rather than leaving it callable', functi
 it('lets a session through on the strength of its proof', function (): void {
     establishSession(proofSuccess([
         proofFactor('password', '2026-08-13T10:00:00+00:00'),
-        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, '901'),
     ]));
 
     expect(app(RequireAssurance::class)->handle(enforcedRequest(), reachedHandler(), 'aal2')->getContent())
@@ -149,7 +149,7 @@ it('still lets a stronger session satisfy a weaker requirement', function (): vo
     // a lockout that reads as a security win.
     establishSession(proofSuccess([
         proofFactor('password', '2026-08-13T10:00:00+00:00'),
-        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, '901'),
     ]));
 
     expect(app(RequireAssurance::class)->handle(enforcedRequest(), reachedHandler(), 'aal1')->getContent())
@@ -244,7 +244,7 @@ it('allows credential self-service on a proven session', function (): void {
     // from self-service having been broken wholesale.
     $session = establishSession(proofSuccess([
         proofFactor('password', '2026-08-13T10:00:00+00:00'),
-        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, '901'),
     ]));
 
     expect(app(CredentialSelfService::class)->changePassword($session, 'a-new-password')->outcome)
@@ -356,7 +356,7 @@ it('admits a mapped ability on a session that genuinely proves the level', funct
     config(['vouch.assurance_requirements' => ['invoices.approve' => 'aal2']]);
     establishSession(proofSuccess([
         proofFactor('password', '2026-08-13T10:00:00+00:00'),
-        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, '901'),
     ]));
 
     $request = abilityRequest();

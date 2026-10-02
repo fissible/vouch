@@ -42,7 +42,7 @@ function proofFactor(
     string $id = 'password',
     string $at = '2026-08-13T10:00:00+00:00',
     FactorStrength $strength = FactorStrength::Knowledge,
-    string $credentialId = 'cred-1',
+    string $credentialId = '900',
 ): SatisfiedFactor {
     return new SatisfiedFactor(
         factorId: $id,
@@ -93,7 +93,7 @@ it('persists the proof at the login-success boundary', function (): void {
 it('reconstructs the exact factors the flow presented', function (): void {
     $factors = [
         proofFactor('password', '2026-08-13T10:00:00+00:00'),
-        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, '901'),
     ];
 
     $evidence = usableEvidence(establishSession(proofSuccess($factors)));
@@ -188,7 +188,7 @@ it('anchors the persisted recency column to the oldest factor', function (): voi
      */
     $session = establishSession(proofSuccess([
         proofFactor('password', '2026-07-01T10:00:00+00:00'),
-        proofFactor('totp', '2026-08-13T10:00:00+00:00', FactorStrength::Possession, 'cred-2'),
+        proofFactor('totp', '2026-08-13T10:00:00+00:00', FactorStrength::Possession, '901'),
     ]));
 
     expect($session->weakest_satisfied_at)->not->toBeNull()
@@ -222,7 +222,7 @@ it('carries the raised proof on the live row after rotation', function (): void 
     $lifecycle->establish(proofSuccess([proofFactor('password', '2026-08-13T10:00:00+00:00')]));
     $lifecycle->establish(proofSuccess([
         proofFactor('password', '2026-08-13T10:00:00+00:00'),
-        proofFactor('totp', '2026-08-13T11:00:00+00:00', FactorStrength::Possession, 'cred-2'),
+        proofFactor('totp', '2026-08-13T11:00:00+00:00', FactorStrength::Possession, '901'),
     ]));
 
     $live = AuthSession::query()->whereNull('revoked_at')->get();
@@ -270,7 +270,7 @@ it('leaves the prior session untouched when a rotation fails', function (): void
     $lifecycle = app(SessionLifecycle::class);
     $lifecycle->establish(proofSuccess([
         proofFactor('password', '2026-08-13T10:00:00+00:00'),
-        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, '901'),
     ]));
 
     $before = AuthSession::query()->firstOrFail()->only([
@@ -301,7 +301,7 @@ it('does not leave valid proof on a session revoked alongside it', function (): 
     $lifecycle = app(SessionLifecycle::class);
     $lifecycle->establish(proofSuccess([
         proofFactor('password', '2026-08-13T10:00:00+00:00'),
-        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, '901'),
     ]));
 
     $session = AuthSession::query()->firstOrFail();
@@ -325,7 +325,7 @@ it('judges a live session through the shared comparator', function (): void {
     // here, with only one adapter in existence, would be asserting nothing.
     $session = establishSession(proofSuccess([
         proofFactor('password', '2026-08-13T10:00:00+00:00'),
-        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, '901'),
     ]));
 
     $comparator = app(EvidenceComparator::class);
@@ -613,7 +613,7 @@ it('authorizes from the proof even when the stored level is LOWER', function ():
      */
     $session = establishSession(proofSuccess([
         proofFactor('password', '2026-08-13T10:00:00+00:00'),
-        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+        proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, '901'),
     ]));
     DB::table('auth_sessions')->where('id', $session->id)->update(['acr' => 'aal1']);
 
@@ -719,7 +719,7 @@ it('refuses a proof that belongs to somebody else', function (): void {
         null,
         [
             proofFactor('password', '2026-08-13T10:00:00+00:00'),
-            proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+            proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, '901'),
         ],
     );
 
@@ -741,7 +741,7 @@ it('refuses a foreign proof at the authorization boundary too', function (): voi
             null,
             [
                 proofFactor('password', '2026-08-13T10:00:00+00:00'),
-                proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+                proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, '901'),
             ],
         ))->toArray(), JSON_THROW_ON_ERROR),
     ]);
@@ -781,7 +781,7 @@ it('refuses a proof from a different user provider', function (): void {
         null,
         [
             proofFactor('password', '2026-08-13T10:00:00+00:00'),
-            proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+            proofFactor('totp', '2026-08-13T10:05:00+00:00', FactorStrength::Possession, '901'),
         ],
     );
 
