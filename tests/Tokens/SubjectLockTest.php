@@ -159,14 +159,19 @@ final class SubjectLockTest extends TestCase
             }
         };
 
+        /*
+         * Ids chosen so STRING order and numeric order disagree: '10' and '100' both precede '9'.
+         * This used to make the same point with '09' against '9', which the schema cannot tell
+         * apart -- a credential id is a positive bigint, so '09' is not one.
+         */
         $manager->acquire(
             DB::connection(),
             SubjectKey::of('App\\Models\\User', '7'),
-            ['9', '09', '10'],
+            ['9', '100', '10'],
         );
 
         self::assertSame(
-            ['subject:App\\Models\\User:7', 'credential:09', 'credential:10', 'credential:9'],
+            ['subject:App\\Models\\User:7', 'credential:10', 'credential:100', 'credential:9'],
             $order,
         );
     }

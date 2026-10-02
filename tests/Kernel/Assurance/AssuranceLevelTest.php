@@ -233,7 +233,7 @@ it('derives no assurance at all from a recovery-code-only satisfaction set', fun
     // than trusting the caller to have passed a verdict's usedFactors. Without the
     // filter this set derives one credential and the NIST vocabulary names it aal1.
     $facts = AssuranceFacts::fromFactors([
-        satisfied('904ecovery', FactorStrength::Recovery, false, '2026-08-11T10:00:00+00:00'),
+        satisfied('909', FactorStrength::Recovery, false, '2026-08-11T10:00:00+00:00'),
     ]);
 
     expect($facts->distinctCredentialCount)->toBe(0)
@@ -248,7 +248,7 @@ it('fails recency for a recovery-code-only satisfaction set', function (): void 
     // The recovery code was redeemed one second ago, and it still must not count as
     // fresh evidence — there is no eligible evidence at all.
     $level = new AssuranceLevel('aal0', AssuranceFacts::fromFactors([
-        satisfied('904ecovery', FactorStrength::Recovery, false, '2026-08-11T10:59:59+00:00'),
+        satisfied('909', FactorStrength::Recovery, false, '2026-08-11T10:59:59+00:00'),
     ]));
 
     expect($level->satisfiesRecency(
@@ -262,7 +262,7 @@ it('lets the real factor alone determine facts when a recovery code is mixed in'
     // If it leaked through, it would drag recency back to 08:00 and push the count
     // to 2 (which the NIST vocabulary would name aal2). Only the passkey counts.
     $mixed = AssuranceFacts::fromFactors([
-        satisfied('904ecovery', FactorStrength::Recovery, false, '2026-08-11T08:00:00+00:00'),
+        satisfied('909', FactorStrength::Recovery, false, '2026-08-11T08:00:00+00:00'),
         satisfied('903', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
     ]);
 
