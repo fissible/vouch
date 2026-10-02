@@ -200,7 +200,7 @@ it('measures recency from the OLDEST factor in the proof', function (): void {
     expect(compareEvidence(
         evidenceFor([
             evidenceFactor('password', '2026-07-01T10:00:00+00:00'),
-            evidenceFactor('totp', '2026-08-29T10:00:00+00:00', FactorStrength::Possession, 'cred-2'),
+            evidenceFactor('totp', '2026-08-29T10:00:00+00:00', FactorStrength::Possession, '901'),
         ]),
         ['level' => 'aal1', 'max_age' => 'PT1H'],
         now: '2026-08-29T10:30:00+00:00',
@@ -248,7 +248,7 @@ it('classes a tenant mismatch as invalid evidence, not as a weak level', functio
      */
     $strong = evidenceFor([
         evidenceFactor('password', '2026-08-29T10:00:00+00:00'),
-        evidenceFactor('totp', '2026-08-29T10:00:00+00:00', FactorStrength::Possession, 'cred-2'),
+        evidenceFactor('totp', '2026-08-29T10:00:00+00:00', FactorStrength::Possession, '901'),
     ], 'acme');
 
     expect(nameOf($strong))->toBe('aal2')
@@ -342,7 +342,7 @@ it('orders every derivable level against every requirement', function (): void {
      */
     $derivable = [
         'aal1' => [evidenceFactor()],
-        'aal2' => [evidenceFactor(), evidenceFactor('totp', '2026-08-29T10:00:00+00:00', FactorStrength::Possession, 'cred-2')],
+        'aal2' => [evidenceFactor(), evidenceFactor('totp', '2026-08-29T10:00:00+00:00', FactorStrength::Possession, '901')],
     ];
     $order = ['aal0' => 0, 'aal1' => 1, 'aal2' => 2, 'aal3' => 3];
 
@@ -378,6 +378,6 @@ it('refuses a proof made only of recovery factors', function (): void {
      * requirement. Refusing the value outright closes that path at the type
      * level rather than relying on every requirement being aal1 or stronger.
      */
-    expect(fn () => evidenceFor([evidenceFactor('recovery_code', '2026-08-29T10:00:00+00:00', FactorStrength::Recovery, 'cred-r')]))
+    expect(fn () => evidenceFor([evidenceFactor('recovery_code', '2026-08-29T10:00:00+00:00', FactorStrength::Recovery, '904')]))
         ->toThrow(Fissible\Vouch\Assurance\MalformedEvidence::class);
 });

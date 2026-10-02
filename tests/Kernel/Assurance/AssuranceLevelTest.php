@@ -50,9 +50,9 @@ function satisfied(
 
 it('counts distinct credentials, not satisfactions', function (): void {
     $facts = AssuranceFacts::fromFactors([
-        satisfied('cred-1', FactorStrength::Knowledge, false, '2026-08-11T10:00:00+00:00'),
-        satisfied('cred-1', FactorStrength::Knowledge, false, '2026-08-11T10:01:00+00:00'),
-        satisfied('cred-2', FactorStrength::Possession, false, '2026-08-11T10:02:00+00:00'),
+        satisfied('900', FactorStrength::Knowledge, false, '2026-08-11T10:00:00+00:00'),
+        satisfied('900', FactorStrength::Knowledge, false, '2026-08-11T10:01:00+00:00'),
+        satisfied('901', FactorStrength::Possession, false, '2026-08-11T10:02:00+00:00'),
     ]);
 
     expect($facts->distinctCredentialCount)->toBe(2);
@@ -60,8 +60,8 @@ it('counts distinct credentials, not satisfactions', function (): void {
 
 it('reports the strongest factor', function (): void {
     $facts = AssuranceFacts::fromFactors([
-        satisfied('cred-1', FactorStrength::Knowledge, false, '2026-08-11T10:00:00+00:00'),
-        satisfied('cred-2', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
+        satisfied('900', FactorStrength::Knowledge, false, '2026-08-11T10:00:00+00:00'),
+        satisfied('901', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
     ]);
 
     expect($facts->strongest)->toBe(FactorStrength::PossessionStrong);
@@ -69,8 +69,8 @@ it('reports the strongest factor', function (): void {
 
 it('is phishing resistant only when every factor is', function (): void {
     $mixed = AssuranceFacts::fromFactors([
-        satisfied('cred-1', FactorStrength::Knowledge, false, '2026-08-11T10:00:00+00:00'),
-        satisfied('cred-2', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
+        satisfied('900', FactorStrength::Knowledge, false, '2026-08-11T10:00:00+00:00'),
+        satisfied('901', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
     ]);
 
     expect($mixed->allPhishingResistant)->toBeFalse();
@@ -78,8 +78,8 @@ it('is phishing resistant only when every factor is', function (): void {
 
 it('takes recency from the oldest factor, not the newest', function (): void {
     $facts = AssuranceFacts::fromFactors([
-        satisfied('cred-1', FactorStrength::Knowledge, false, '2026-08-11T08:00:00+00:00'),
-        satisfied('cred-2', FactorStrength::Possession, false, '2026-08-11T10:00:00+00:00'),
+        satisfied('900', FactorStrength::Knowledge, false, '2026-08-11T08:00:00+00:00'),
+        satisfied('901', FactorStrength::Possession, false, '2026-08-11T10:00:00+00:00'),
     ]);
 
     expect($facts->weakestSatisfiedAt?->format('H:i'))->toBe('08:00');
@@ -92,8 +92,8 @@ it('keeps the first of two equal-instant factors as the oldest', function (): vo
     // weakestSatisfiedAt's timezone is deterministic rather than an accident of
     // iteration order.
     $facts = AssuranceFacts::fromFactors([
-        satisfied('cred-1', FactorStrength::Possession, false, '2026-08-11T10:00:00+00:00'),
-        satisfied('cred-2', FactorStrength::Possession, false, '2026-08-11T12:00:00+02:00'),
+        satisfied('900', FactorStrength::Possession, false, '2026-08-11T10:00:00+00:00'),
+        satisfied('901', FactorStrength::Possession, false, '2026-08-11T12:00:00+02:00'),
     ]);
 
     expect($facts->weakestSatisfiedAt?->format('c'))->toBe('2026-08-11T10:00:00+00:00');
@@ -101,7 +101,7 @@ it('keeps the first of two equal-instant factors as the oldest', function (): vo
 
 it('fails recency when the oldest factor is beyond max age', function (): void {
     $level = new AssuranceLevel('aal2', AssuranceFacts::fromFactors([
-        satisfied('cred-1', FactorStrength::Possession, false, '2026-08-11T08:00:00+00:00'),
+        satisfied('900', FactorStrength::Possession, false, '2026-08-11T08:00:00+00:00'),
     ]));
 
     $withinTwoHours = $level->satisfiesRecency(
@@ -114,7 +114,7 @@ it('fails recency when the oldest factor is beyond max age', function (): void {
 
 it('passes recency inside max age', function (): void {
     $level = new AssuranceLevel('aal2', AssuranceFacts::fromFactors([
-        satisfied('cred-1', FactorStrength::Possession, false, '2026-08-11T10:00:00+00:00'),
+        satisfied('900', FactorStrength::Possession, false, '2026-08-11T10:00:00+00:00'),
     ]));
 
     $withinTwoHours = $level->satisfiesRecency(
@@ -127,8 +127,8 @@ it('passes recency inside max age', function (): void {
 
 it('names two distinct credentials aal2 under the NIST vocabulary', function (): void {
     $facts = AssuranceFacts::fromFactors([
-        satisfied('cred-1', FactorStrength::Knowledge, false, '2026-08-11T10:00:00+00:00'),
-        satisfied('cred-2', FactorStrength::Possession, false, '2026-08-11T10:00:00+00:00'),
+        satisfied('900', FactorStrength::Knowledge, false, '2026-08-11T10:00:00+00:00'),
+        satisfied('901', FactorStrength::Possession, false, '2026-08-11T10:00:00+00:00'),
     ]);
 
     expect((new NistAssuranceVocabulary())->name($facts))->toBe('aal2');
@@ -139,7 +139,7 @@ it('caps at aal2 for a phishing-resistant strong passkey', function (): void {
     // passkey is phishing-resistant but not AAL3-eligible, and the kernel records
     // no hardware-binding evidence either way — so the default must never emit it.
     $facts = AssuranceFacts::fromFactors([
-        satisfied('cred-1', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00', multiFactor: true),
+        satisfied('900', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00', multiFactor: true),
     ]);
 
     expect((new NistAssuranceVocabulary())->name($facts))->toBe('aal2');
@@ -181,12 +181,12 @@ it('lets an application supply a vocabulary that reads phishing resistance', fun
     };
 
     $resistant = AssuranceFacts::fromFactors([
-        satisfied('cred-1', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
+        satisfied('900', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
     ]);
 
     $mixed = AssuranceFacts::fromFactors([
-        satisfied('cred-1', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
-        satisfied('cred-2', FactorStrength::Knowledge, false, '2026-08-11T10:00:00+00:00'),
+        satisfied('900', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
+        satisfied('901', FactorStrength::Knowledge, false, '2026-08-11T10:00:00+00:00'),
     ]);
 
     expect($strict->name($resistant))->toBe('acme:strong')
@@ -197,7 +197,7 @@ it('names one multi-factor credential aal2 rather than aal1', function (): void 
     // A user-verified passkey is possession plus a biometric or PIN: one
     // credential, two factors. Counting credentials alone would call this aal1.
     $facts = AssuranceFacts::fromFactors([
-        satisfied('cred-1', FactorStrength::Possession, false, '2026-08-11T10:00:00+00:00', multiFactor: true),
+        satisfied('900', FactorStrength::Possession, false, '2026-08-11T10:00:00+00:00', multiFactor: true),
     ]);
 
     expect($facts->hasMultiFactorCredential)->toBeTrue()
@@ -206,7 +206,7 @@ it('names one multi-factor credential aal2 rather than aal1', function (): void 
 
 it('names one single-factor credential aal1', function (): void {
     $facts = AssuranceFacts::fromFactors([
-        satisfied('cred-1', FactorStrength::Possession, false, '2026-08-11T10:00:00+00:00'),
+        satisfied('900', FactorStrength::Possession, false, '2026-08-11T10:00:00+00:00'),
     ]);
 
     expect((new NistAssuranceVocabulary())->name($facts))->toBe('aal1');
@@ -233,7 +233,7 @@ it('derives no assurance at all from a recovery-code-only satisfaction set', fun
     // than trusting the caller to have passed a verdict's usedFactors. Without the
     // filter this set derives one credential and the NIST vocabulary names it aal1.
     $facts = AssuranceFacts::fromFactors([
-        satisfied('cred-recovery', FactorStrength::Recovery, false, '2026-08-11T10:00:00+00:00'),
+        satisfied('904ecovery', FactorStrength::Recovery, false, '2026-08-11T10:00:00+00:00'),
     ]);
 
     expect($facts->distinctCredentialCount)->toBe(0)
@@ -248,7 +248,7 @@ it('fails recency for a recovery-code-only satisfaction set', function (): void 
     // The recovery code was redeemed one second ago, and it still must not count as
     // fresh evidence — there is no eligible evidence at all.
     $level = new AssuranceLevel('aal0', AssuranceFacts::fromFactors([
-        satisfied('cred-recovery', FactorStrength::Recovery, false, '2026-08-11T10:59:59+00:00'),
+        satisfied('904ecovery', FactorStrength::Recovery, false, '2026-08-11T10:59:59+00:00'),
     ]));
 
     expect($level->satisfiesRecency(
@@ -262,12 +262,12 @@ it('lets the real factor alone determine facts when a recovery code is mixed in'
     // If it leaked through, it would drag recency back to 08:00 and push the count
     // to 2 (which the NIST vocabulary would name aal2). Only the passkey counts.
     $mixed = AssuranceFacts::fromFactors([
-        satisfied('cred-recovery', FactorStrength::Recovery, false, '2026-08-11T08:00:00+00:00'),
-        satisfied('cred-passkey', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
+        satisfied('904ecovery', FactorStrength::Recovery, false, '2026-08-11T08:00:00+00:00'),
+        satisfied('903', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
     ]);
 
     $passkeyOnly = AssuranceFacts::fromFactors([
-        satisfied('cred-passkey', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
+        satisfied('903', FactorStrength::PossessionStrong, true, '2026-08-11T10:00:00+00:00'),
     ]);
 
     expect($mixed)->toEqual($passkeyOnly)
@@ -308,7 +308,7 @@ it('passes recency exactly at the max-age boundary', function (): void {
     // >=, so the boundary itself still passes; it only fails once evidence is
     // strictly older than the allowed window.
     $level = new AssuranceLevel('aal2', AssuranceFacts::fromFactors([
-        satisfied('cred-1', FactorStrength::Possession, false, '2026-08-11T09:00:00+00:00'),
+        satisfied('900', FactorStrength::Possession, false, '2026-08-11T09:00:00+00:00'),
     ]));
 
     $atBoundary = $level->satisfiesRecency(

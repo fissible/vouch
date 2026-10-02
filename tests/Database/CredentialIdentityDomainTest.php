@@ -307,9 +307,10 @@ it('refuses to persist a session proof carrying a bad credential id', function (
      */
     session()->start();
 
-    $factors = [satisfiedFactorWithCredential($credentialId)];
-
     /*
+     * The factor is built INSIDE the try, because the value itself refuses: constructing it outside
+     * would throw before the session path was ever entered, which is a different claim.
+     *
      * Either the refusal itself, or it wrapped in the rotation failure this path already raises.
      * Measured: validating inside establish()'s existing try produces SessionRotationFailed carrying
      * the InvalidArgumentException, with zero session rows and no ownership marker -- a correct
@@ -318,6 +319,8 @@ it('refuses to persist a session proof carrying a bad credential id', function (
     $refusal = null;
 
     try {
+        $factors = [satisfiedFactorWithCredential($credentialId)];
+
         app(SessionLifecycle::class)->establish(new AuthSuccess(
             7,
             $factors,
