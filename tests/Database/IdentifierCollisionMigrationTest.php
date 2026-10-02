@@ -1223,11 +1223,18 @@ it('rewrites a whole table of non-canonical identifiers in memory that does not 
  * that linear predicts 2 and quadratic 4. Locally that held: three rounds measured 2.36-2.58
  * and 2.29-2.35 against the defect's 2.67 and 3.85.
  *
- * On CI it measured **4.56x** on the first doubling, for the correct implementation -- worse
- * than quadratic predicts, and worse than the defect ever measured locally. A shared runner's
- * variance is larger than the signal the assertion was reading, so the bound could not be
- * widened into usefulness either: anything above 4 admits quadratic outright, and the case had
- * already begun failing unrelated pull requests on main.
+ * On CI it measured **4.56x** on macOS and **3.54x** on Ubuntu, both on the first doubling and
+ * both for the correct implementation -- one of them worse than quadratic predicts, and worse
+ * than the defect ever measured locally. Two independent runners, two ratios, neither near the
+ * local 2.4-2.6.
+ *
+ * Both inflated on 100 000 -> 200 000 rather than 200 000 -> 400 000, which is the tell: the
+ * 100 000 run is the shortest and the most exposed to fixed overhead and cache state, so a
+ * ratio taken from it is the least stable of the two. The gate rested on the weaker number.
+ *
+ * A shared runner's variance is therefore larger than the signal the assertion was reading, and
+ * the bound could not be widened into usefulness either: anything above 4 admits quadratic
+ * outright. Meanwhile the case had begun failing unrelated pull requests on main.
  *
  * What replaced it is not nothing. The plan assertion below is deterministic and checks the
  * mechanism #101 is actually about -- that the update seeks the (type, value) index rather than
