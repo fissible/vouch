@@ -1110,6 +1110,11 @@ function upgradeFixtureIsMeasurable(): bool
  * the configured one, so running it under VOUCH_TEST_DB=mysql measured exactly the same
  * number a third time. Three engines paid about five minutes each for one measurement.
  *
+ * `milliseconds` is reported but no longer ASSERTED on: the time-growth case that read it was
+ * removed after measuring 4.56x on CI for a correct implementation. It is kept because
+ * docs/operations.md quotes runtime figures an operator plans a window from, and this is where
+ * those numbers come from — a measurement to read, not a gate to pass.
+ *
  * @return array{rows: int, expected: int, peak: int, milliseconds: int}
  */
 function upgradeFixtureRun(string $limit, int $rows, string $shape): array
@@ -1210,79 +1215,30 @@ it('rewrites a whole table of non-canonical identifiers in memory that does not 
     expect($large['peak'])->toBeLessThanOrEqual($small['peak'] + 2 * 1024 * 1024);
 });
 
-it('rewrites a whole table in time that grows no worse than the table', function (): void {
-    /*
-     * #101. #92 made the memory flat and left the TIME super-linear, which is the same
-     * category of overclaim it set out to remove: measured then, 24 s at 100 000 rows and
-     * 247 s at 400 000 -- four times the rows, ten times the time. Extrapolated, a
-     * four-million-row host is in hours for an upgrade whose documentation reads as routine.
-     *
-     * The cause was the rewrite matching rows by spelling alone. The deterministic unique
-     * index is on (type, value), so a predicate on the value cannot use it -- `explain query
-     * plan` reports SCAN for `where value in (…)` and SEARCH … USING INDEX for the
-     * type-qualified form -- so every chunk full-scanned, and the chunks grow with the table.
-     *
-     * THREE sizes, each a doubling, rather than one ratio across a quadrupling: a single 4x
-     * ratio needs a loose bound to survive noise, and the bound then admits real work.
-     * Linear predicts 2 per doubling and quadratic 4, so 3 sits between, and it has to hold
-     * for BOTH doublings. Ratios rather than absolute times, because absolute timings on a
-     * shared machine are a flake waiting to happen.
-     *
-     * Which doubling actually discriminates is measured, and it is only the second. The
-     * defect ran 24.0 s / 64.2 s / 247 s -- ratios of 2.67 and 3.85 -- while the fix runs
-     * about 6 s / 15 s / 35 s, ratios of 2.36 to 2.58 and 2.29 to 2.35 over three rounds. So
-     * the first doubling separates nothing: at 100 000 rows the per-chunk scan has not come
-     * to dominate, and 2.67 against 2.58 is noise. The second doubling is the test, 3.85
-     * against 2.35, and the bound sits in the middle of that gap with about 16% of headroom
-     * over the worst run observed.
-     *
-     * Both doublings are still required, because a defect of a different shape need not put
-     * its growth in the same place, and a bound that holds twice costs nothing extra when it
-     * holds.
-     *
-     * WHAT THIS DOES NOT CATCH, measured rather than guessed. An implementation whose
-     * updates are correctly indexed but which issues a `select distinct type` per page -- a
-     * covering scan per page, so quadratic in reads -- measured 2.655x and 2.900x per
-     * doubling and passes. Tightening the bound to catch it would leave almost nothing over
-     * linear's 2 and make this a flake. No wall-clock bound at these sizes separates it
-     * either: it takes 60 s at 400 000 rows against about 36 s for the fully indexed path
-     * and 247 s for the defect this issue is about.
-     *
-     * So the bound catches the FILED defect, by a wide margin, and does not pretend to
-     * certify optimality. A milder inefficiency of that shape is a code-review finding, and
-     * saying so here is better than a number that looks like it rules one out.
-     */
-    if (! upgradeFixtureIsMeasurable()) {
-        $this->markTestSkipped('The upgrade fixture is standalone SQLite; another engine would measure it again.');
-    }
-
-    $runs = [];
-
-    foreach ([100000, 200000, 400000] as $rows) {
-        $runs[$rows] = upgradeFixtureRun('16M', $rows, 'uppercase');
-
-        // The premise: each run did the whole job, for every subject and every type.
-        expect($runs[$rows]['expected'])->toBe($rows);
-    }
-
-    /*
-     * And the smallest run took long enough that the ratios mean something rather than
-     * dividing by noise.
-     */
-    expect($runs[100000]['milliseconds'])->toBeGreaterThan(500);
-
-    $growth = [];
-
-    foreach ([[100000, 200000], [200000, 400000]] as [$smaller, $larger]) {
-        $ratio = $runs[$larger]['milliseconds'] / max(1, $runs[$smaller]['milliseconds']);
-
-        if ($ratio >= 3) {
-            $growth[] = sprintf('%d to %d rows took %.2fx', $smaller, $larger, $ratio);
-        }
-    }
-
-    expect($growth)->toBe([]);
-});
+/*
+ * #101's time-growth case USED TO BE HERE, and removing it is a correction rather than a
+ * retreat from the property.
+ *
+ * It sampled 100 000 / 200 000 / 400 000 rows and bounded each doubling at 3, on the reasoning
+ * that linear predicts 2 and quadratic 4. Locally that held: three rounds measured 2.36-2.58
+ * and 2.29-2.35 against the defect's 2.67 and 3.85.
+ *
+ * On CI it measured **4.56x** on the first doubling, for the correct implementation -- worse
+ * than quadratic predicts, and worse than the defect ever measured locally. A shared runner's
+ * variance is larger than the signal the assertion was reading, so the bound could not be
+ * widened into usefulness either: anything above 4 admits quadratic outright, and the case had
+ * already begun failing unrelated pull requests on main.
+ *
+ * What replaced it is not nothing. The plan assertion below is deterministic and checks the
+ * mechanism #101 is actually about -- that the update seeks the (type, value) index rather than
+ * scanning -- and `rewrites a whole table of non-canonical identifiers in memory that does not
+ * grow` still compares peak allocation across two sizes, which is a measurement a runner does
+ * not perturb. The runtime claim lives in docs/operations.md, where it is an operator's
+ * planning number rather than a gate.
+ *
+ * The lesson is worth the lines: a wall-clock ratio is not a property you can assert on
+ * hardware you do not control, however carefully the bound is derived.
+ */
 
 /**
  * The UPDATE target of $sql: which of the upgrade's tables it writes, and the names a plan
