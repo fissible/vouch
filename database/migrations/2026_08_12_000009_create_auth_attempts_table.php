@@ -31,8 +31,8 @@ return new class extends Migration
             $table->string('bound_context', 255)->nullable();
 
             $table->json('satisfied_factors')->nullable();
-            $table->timestamp('expires_at')->index();
-            $table->timestamps();
+            $table->dateTime('expires_at')->index();
+            $table->datetimes();
         });
     }
 

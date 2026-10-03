@@ -24,10 +24,10 @@ return new class extends Migration
             $table->foreignId('ip_window_id')
                 ->constrained('auth_throttle_ip_windows')
                 ->cascadeOnDelete();
-            $table->timestamp('window_started_at');
+            $table->dateTime('window_started_at');
             $table->char('tuple_digest', 64);
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->dateTime('created_at');
+            $table->dateTime('updated_at');
 
             /*
              * Besides enforcing uniqueness, this ordering is the indexed COUNT

@@ -25,9 +25,9 @@ return new class extends Migration
             $table->unsignedInteger('attempts')->default(0);
             $table->string('bound_ip', 45)->nullable();
             $table->string('bound_user_agent', 512)->nullable();
-            $table->timestamp('expires_at')->index();
-            $table->timestamp('consumed_at')->nullable();
-            $table->timestamps();
+            $table->dateTime('expires_at')->index();
+            $table->dateTime('consumed_at')->nullable();
+            $table->datetimes();
         });
     }
 

@@ -33,9 +33,9 @@ return new class extends Migration
             $table->boolean('phishing_resistant')->default(false);
             $table->string('authenticator_id', 255)->nullable();
 
-            $table->timestamp('last_used_at')->nullable();
-            $table->timestamp('disabled_at')->nullable();
-            $table->timestamps();
+            $table->dateTime('last_used_at')->nullable();
+            $table->dateTime('disabled_at')->nullable();
+            $table->datetimes();
 
             $table->index(['user_id', 'type']);
         });

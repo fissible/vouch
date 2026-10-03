@@ -23,9 +23,9 @@ return new class extends Migration
             $table->id();
             $table->string('dimension', 32);
             $table->char('ip_digest', 64);
-            $table->timestamp('window_started_at');
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->dateTime('window_started_at');
+            $table->dateTime('created_at');
+            $table->dateTime('updated_at');
 
             $table->unique(
                 ['dimension', 'ip_digest'],

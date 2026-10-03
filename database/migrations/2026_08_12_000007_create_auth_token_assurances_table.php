@@ -28,8 +28,8 @@ return new class extends Migration
             $table->json('amr');
             $table->json('credential_ids');
             $table->string('issuing_session_id', 255)->index();
-            $table->timestamp('issued_at');
-            $table->timestamps();
+            $table->dateTime('issued_at');
+            $table->datetimes();
         });
     }
 

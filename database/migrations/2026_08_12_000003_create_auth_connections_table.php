@@ -26,7 +26,7 @@ return new class extends Migration
             $table->boolean('trust_email_verified')->default(false);
             $table->boolean('auto_link')->default(false);
 
-            $table->timestamps();
+            $table->datetimes();
         });
     }
 

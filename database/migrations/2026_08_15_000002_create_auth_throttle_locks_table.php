@@ -21,9 +21,9 @@ return new class extends Migration
         Schema::create('auth_throttle_locks', function (Blueprint $table): void {
             $table->id();
             $table->char('subject_digest', 64)->unique('auth_throttle_lock_subject_unique');
-            $table->timestamp('locked_until');
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->dateTime('locked_until');
+            $table->dateTime('created_at');
+            $table->dateTime('updated_at');
 
             $table->index('locked_until', 'auth_throttle_lock_deadline_index');
             $table->index('updated_at', 'auth_throttle_lock_updated_index');

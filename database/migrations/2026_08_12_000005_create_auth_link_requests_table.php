@@ -16,9 +16,9 @@ return new class extends Migration
             $table->foreignId('federated_identity_id')
                 ->constrained('auth_federated_identities')
                 ->cascadeOnDelete();
-            $table->timestamp('proven_at')->nullable();
-            $table->timestamp('expires_at');
-            $table->timestamps();
+            $table->dateTime('proven_at')->nullable();
+            $table->dateTime('expires_at');
+            $table->datetimes();
         });
     }
 

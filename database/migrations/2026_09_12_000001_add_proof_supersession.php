@@ -17,7 +17,7 @@ return new class extends Migration
             }
 
             Schema::table($name, function (Blueprint $table): void {
-                $table->timestamp('superseded_at')->nullable()->index();
+                $table->dateTime('superseded_at')->nullable()->index();
             });
         }
 

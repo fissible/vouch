@@ -38,8 +38,8 @@ return new class extends Migration
             $table->string('actor_kind', 16);
             $table->string('acr', 64)->nullable();
             $table->json('assurance_proof')->nullable();
-            $table->timestamp('weakest_satisfied_at')->nullable();
-            $table->timestamps();
+            $table->dateTime('weakest_satisfied_at')->nullable();
+            $table->datetimes();
             });
             DB::statement("ALTER TABLE auth_token_assurances ADD CONSTRAINT auth_token_assurance_issuer_not_empty CHECK (issuer_key <> '')");
             DB::statement("ALTER TABLE auth_token_assurances ADD CONSTRAINT auth_token_assurance_token_not_empty CHECK (token_key <> '')");
