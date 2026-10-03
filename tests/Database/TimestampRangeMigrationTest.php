@@ -30,10 +30,28 @@ uses(DatabaseMigrations::class);
  * WHAT THE CONVERSION MUST NOT DO, and it is the subtle half. TIMESTAMP stores an instant and
  * renders it in the session time zone; DATETIME stores the literal it is given and converts
  * nothing. So `ALTER ... MODIFY ... DATETIME` writes each value as its rendering in whatever time
- * zone the conversion runs under. Run under the session's own zone, every stored value keeps the
- * literal the application will later compare against CURRENT_TIMESTAMP in that same zone, and
- * nothing moves. Run under a FORCED UTC on a host whose session is +02:00, every expiry silently
- * gains two hours -- every security window lengthens. The time-zone test below is that case.
+ * zone the conversion runs under, and the zone is therefore part of the decision rather than an
+ * implementation detail.
+ *
+ * MEASURED, AND IT SETTLES THE SHAPE OF THE MIGRATION:
+ *
+ * Converting under the session's own zone keeps every rendering, which is what the time-zone test
+ * below asserts -- and that is NOT sufficient. On a host whose session is a named zone with
+ * daylight saving, two instants an hour apart can render identically: the UTC instants
+ * 2030-10-27 00:30 and 01:30, epochs 1919291400 and 1919295000, both render in Europe/Berlin as
+ * 02:30, and an ambient conversion leaves ONE distinct value where there were two. The hour is
+ * gone, silently; over a column with a unique index the ALTER instead fails outright with 1062.
+ *
+ * Converting under a forced UTC preserves the epoch exactly, and changes the rendering: on a
+ * +02:00 host 05:06:07 becomes 03:06:07, so every window is read two hours EARLIER unless the
+ * runtime connection moves to UTC with it. Earlier, not later -- an earlier draft of this comment
+ * had the direction backwards.
+ *
+ * So the two options are a fixed-offset storage convention preserved by an ambient conversion,
+ * which cannot be safe on a named zone, or a UTC storage contract with a coordinated cutover,
+ * which is safe but changes what a non-UTC host's existing rows render as. The test below encodes
+ * the first. Which contract the package adopts is a decision with operator consequences and is
+ * pending; the assertions here will follow it rather than lead it.
  */
 
 /**
@@ -125,8 +143,11 @@ beforeEach(function (): void {
     if (DB::connection()->getDriverName() !== 'mysql') {
         /*
          * MySQL is the only engine that can carry this. SQLite stores a date as text and
-         * PostgreSQL's timestamp reaches year 294276, so there is nothing to convert and the
-         * migration is a no-op there -- asserted once, at the end of this file.
+         * PostgreSQL's timestamp reaches year 294276, so there is nothing to convert there.
+         *
+         * That the migration is a genuine no-op on those engines -- schema and rows unchanged
+         * rather than merely not erroring -- is NOT asserted yet. Both engines currently report
+         * zero assertions for this file, so nothing here establishes it.
          */
         $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
     }
