@@ -115,6 +115,25 @@ function vouchDateIndexes(): array
     return $indexes;
 }
 
+/**
+ * Every Vouch table, including those with no date column at all.
+ *
+ * @return list<string>
+ */
+function vouchTables(): array
+{
+    $rows = DB::select(
+        'select table_name as t from information_schema.tables'
+        . ' where table_schema = database() and table_name like ?',
+        [VOUCH_TABLE_PATTERN],
+    );
+
+    $tables = array_map(static fn (object $row): string => (string) ((array) $row)['t'], $rows);
+    sort($tables);
+
+    return $tables;
+}
+
 /** The migration this adds, by the path the suite freezes. */
 function runTimestampRangeMigration(): void
 {
@@ -431,8 +450,25 @@ it('builds a fresh installation with no date column that ends in 2038', function
         $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
     }
 
-    foreach (array_keys(vouchDateColumns()) as $key) {
-        Schema::dropIfExists(explode('.', $key, 2)[0]);
+    /*
+     * Foreign keys off while dropping. These tables reference each other -- auth_challenges points
+     * at auth_attempts -- and dropping them in the order information_schema happens to return
+     * fails with MySQL error 3730, which is a property of the teardown rather than of anything
+     * being tested.
+     */
+    Schema::disableForeignKeyConstraints();
+
+    try {
+        /*
+         * Every Vouch table, not only the ones carrying a date: auth_enrollment_locks has no date
+         * column, so a drop list derived from the date columns left it standing and the replay
+         * collided with it.
+         */
+        foreach (vouchTables() as $table) {
+            Schema::drop($table);
+        }
+    } finally {
+        Schema::enableForeignKeyConstraints();
     }
 
     $files = glob(dirname(__DIR__, 2) . '/database/migrations/*.php') ?: [];
