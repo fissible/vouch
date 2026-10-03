@@ -24,9 +24,13 @@ function lifecycle(): SessionLifecycle
 
 function lifecycleFactor(string $id = 'password'): SatisfiedFactor
 {
-    // A DISTINCT credential per factor id: the derived level counts distinct
-    // credentials, so two factors sharing one credential are one authenticator.
-    return new SatisfiedFactor($id, 'cred-' . $id, FactorKind::Knowledge, FactorStrength::Knowledge,
+    /*
+     * A DISTINCT credential per factor id: the derived level counts distinct credentials, so two
+     * factors sharing one credential are one authenticator. Derived numerically because a persisted
+     * credential id has to be a canonical decimal string -- the column it is matched against is a
+     * bigint.
+     */
+    return new SatisfiedFactor($id, (string) crc32($id), FactorKind::Knowledge, FactorStrength::Knowledge,
         false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'));
 }
 

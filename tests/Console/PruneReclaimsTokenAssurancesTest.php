@@ -54,7 +54,7 @@ final class PruneReclaimsTokenAssurancesTest extends TestCase
             null,
             ActorKind::Human,
             [new SatisfiedFactor(
-                'password', 'cred-1', FactorKind::Knowledge, FactorStrength::Knowledge,
+                'password', '900', FactorKind::Knowledge, FactorStrength::Knowledge,
                 false, false, false, null, new DateTimeImmutable('2019-01-01T00:00:00+00:00'),
             )],
         );

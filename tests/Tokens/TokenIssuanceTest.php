@@ -90,7 +90,7 @@ final class TokenIssuanceTest extends TestCase
      *
      * Issuance revalidates and locks the credentials named in the proof, so a
      * proof carrying invented ids can only ever be refused. An earlier draft
-     * used 'cred-1'/'cred-2' literals, which would have made every success test
+     * used '900'/'901' literals, which would have made every success test
      * unsatisfiable against a correct implementation.
      *
      * @return array<string, AuthCredential>

@@ -107,10 +107,9 @@ final readonly class AssuranceEvidence
         if (! is_array($value) || array_is_list($value) || array_diff(array_keys($value), $keys) !== [] || array_diff($keys, array_keys($value)) !== []) {
             throw new MalformedEvidence('Evidence factor is malformed.');
         }
-        foreach (['factor_id', 'credential_id'] as $key) {
-            if (! is_string($value[$key]) || $value[$key] === '' || trim($value[$key]) !== $value[$key]) {
-                throw new MalformedEvidence('Evidence factor key is malformed.');
-            }
+        if (! is_string($value['factor_id']) || $value['factor_id'] === '' || trim($value['factor_id']) !== $value['factor_id']
+            || ! is_string($value['credential_id'])) {
+            throw new MalformedEvidence('Evidence factor key is malformed.');
         }
         if (! is_string($value['kind']) || ! is_string($value['strength'])
             || ! is_bool($value['is_multi_factor']) || ! is_bool($value['user_verified']) || ! is_bool($value['phishing_resistant'])
@@ -126,7 +125,14 @@ final readonly class AssuranceEvidence
         } catch (\Exception|\ValueError) {
             throw new MalformedEvidence('Evidence factor fields are malformed.');
         }
-        return new SatisfiedFactor($value['factor_id'], $value['credential_id'], $kind, $strength, $value['is_multi_factor'], $value['user_verified'], $value['phishing_resistant'], $value['authenticator_id'], $at);
+        try {
+            return new SatisfiedFactor($value['factor_id'], $value['credential_id'], $kind, $strength, $value['is_multi_factor'], $value['user_verified'], $value['phishing_resistant'], $value['authenticator_id'], $at);
+        } catch (\InvalidArgumentException $e) {
+            // Keep the kernel independent of persisted-proof errors, while
+            // strict readers refuse and tolerant diagnostics return null for
+            // an invalid identity just as they do for other malformed evidence.
+            throw new MalformedEvidence($e->getMessage(), 0, $e);
+        }
     }
 
     private static function strength(string $value): FactorStrength

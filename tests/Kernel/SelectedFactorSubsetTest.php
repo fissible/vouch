@@ -51,9 +51,9 @@ it('selects only the branch that satisfied an any_of policy', function (): void 
     ]];
 
     $satisfied = [
-        subsetFactor('password', 'cred-1'),
-        subsetFactor('email_otp', 'cred-2'),
-        subsetFactor('sms_otp', 'cred-3'),
+        subsetFactor('password', '900'),
+        subsetFactor('email_otp', '901'),
+        subsetFactor('sms_otp', '902'),
     ];
 
     $verdict = (new SatisfiabilityEvaluator())->evaluate((new PolicyParser())->parse($document), $satisfied);

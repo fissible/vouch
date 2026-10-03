@@ -13,6 +13,11 @@ use DateTimeImmutable;
  * authenticator plus a biometric or PIN, which NIST treats as AAL2 on its own.
  * `authenticatorId` distinguishes two credentials living on the same device,
  * which are not independent authenticators.
+ *
+ * Credential identity is checked here because token proofs, session proofs,
+ * and attempt evidence all carry this value. A check at each writer would
+ * leave the next writer unprotected; rebuilding stored evidence must refuse
+ * the same invalid identities as constructing fresh evidence.
  */
 final readonly class SatisfiedFactor
 {
@@ -26,5 +31,7 @@ final readonly class SatisfiedFactor
         public bool $phishingResistant,
         public ?string $authenticatorId,
         public DateTimeImmutable $satisfiedAt,
-    ) {}
+    ) {
+        CredentialId::validate($credentialId);
+    }
 }

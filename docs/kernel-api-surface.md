@@ -56,6 +56,8 @@ Fissible\Vouch\Kernel\Enumeration\Outcome::Locked (case)
 Fissible\Vouch\Kernel\Enumeration\Outcome::cases()
 Fissible\Vouch\Kernel\Enumeration\Outcome::from()
 Fissible\Vouch\Kernel\Enumeration\Outcome::tryFrom()
+Fissible\Vouch\Kernel\Factor\CredentialId (class)
+Fissible\Vouch\Kernel\Factor\CredentialId::validate()
 Fissible\Vouch\Kernel\Factor\FactorKind (enum)
 Fissible\Vouch\Kernel\Factor\FactorKind::$name
 Fissible\Vouch\Kernel\Factor\FactorKind::$value

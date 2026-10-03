@@ -35,7 +35,7 @@ function factor(
 it('satisfies a single leaf requirement', function (): void {
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         new AllOf([new FactorRequirement('password')]),
-        [factor('password', 'cred-1')],
+        [factor('password', '900')],
     );
 
     expect($verdict->satisfied)->toBeTrue()
@@ -45,7 +45,7 @@ it('satisfies a single leaf requirement', function (): void {
 it('fails when the required factor is absent', function (): void {
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         new AllOf([new FactorRequirement('totp')]),
-        [factor('password', 'cred-1')],
+        [factor('password', '900')],
     );
 
     expect($verdict->satisfied)->toBeFalse()
@@ -53,7 +53,7 @@ it('fails when the required factor is absent', function (): void {
 });
 
 it('refuses to count one credential as two factors', function (): void {
-    $passkey = factor('passkey', 'cred-1', userVerified: true);
+    $passkey = factor('passkey', '900', userVerified: true);
 
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         new AllOf([new FactorRequirement('passkey'), new FactorRequirement('passkey')]),
@@ -66,7 +66,7 @@ it('refuses to count one credential as two factors', function (): void {
 it('accepts two distinct credentials of the same factor', function (): void {
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         new AllOf([new FactorRequirement('passkey'), new FactorRequirement('passkey')]),
-        [factor('passkey', 'cred-1'), factor('passkey', 'cred-2')],
+        [factor('passkey', '900'), factor('passkey', '901')],
     );
 
     expect($verdict->satisfied)->toBeTrue()
@@ -79,15 +79,15 @@ it('allows one credential to serve twice when distinctness is waived', function 
             [new FactorRequirement('passkey'), new FactorRequirement('passkey')],
             requireDistinctCredentials: false,
         ),
-        [factor('passkey', 'cred-1')],
+        [factor('passkey', '900')],
     );
 
     expect($verdict->satisfied)->toBeTrue();
 });
 
 it('backtracks rather than greedily consuming the only match for another requirement', function (): void {
-    // 'cred-strong' matches both requirements; 'cred-weak' matches only the first.
-    // A greedy first-match pass hands 'cred-strong' to requirement one and then has
+    // '907' matches both requirements; '908' matches only the first.
+    // A greedy first-match pass hands '907' to requirement one and then has
     // nothing strong enough left for requirement two.
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         new AllOf([
@@ -95,8 +95,8 @@ it('backtracks rather than greedily consuming the only match for another require
             new FactorRequirement('totp', minimumStrength: FactorStrength::PossessionStrong),
         ]),
         [
-            factor('totp', 'cred-strong', FactorStrength::PossessionStrong),
-            factor('totp', 'cred-weak', FactorStrength::Possession),
+            factor('totp', '907', FactorStrength::PossessionStrong),
+            factor('totp', '908', FactorStrength::Possession),
         ],
     );
 
@@ -110,8 +110,8 @@ it('rejects two credentials on the same authenticator when independence is requi
             requireIndependentAuthenticators: true,
         ),
         [
-            factor('passkey', 'cred-1', authenticatorId: 'device-1'),
-            factor('passkey', 'cred-2', authenticatorId: 'device-1'),
+            factor('passkey', '900', authenticatorId: 'device-1'),
+            factor('passkey', '901', authenticatorId: 'device-1'),
         ],
     );
 
@@ -125,8 +125,8 @@ it('accepts credentials on different authenticators', function (): void {
             requireIndependentAuthenticators: true,
         ),
         [
-            factor('passkey', 'cred-1', authenticatorId: 'device-1'),
-            factor('passkey', 'cred-2', authenticatorId: 'device-2'),
+            factor('passkey', '900', authenticatorId: 'device-1'),
+            factor('passkey', '901', authenticatorId: 'device-2'),
         ],
     );
 
@@ -136,7 +136,7 @@ it('accepts credentials on different authenticators', function (): void {
 it('never lets a recovery code satisfy a policy', function (): void {
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         new AllOf([new FactorRequirement('recovery_code')]),
-        [factor('recovery_code', 'cred-1', FactorStrength::Recovery)],
+        [factor('recovery_code', '900', FactorStrength::Recovery)],
     );
 
     expect($verdict->satisfied)->toBeFalse();
@@ -153,7 +153,7 @@ it('accepts a user-verified passkey alone under the mfa preset', function (): vo
 
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         $mfa,
-        [factor('passkey', 'cred-1', FactorStrength::PossessionStrong, userVerified: true)],
+        [factor('passkey', '900', FactorStrength::PossessionStrong, userVerified: true)],
     );
 
     expect($verdict->satisfied)->toBeTrue()
@@ -168,7 +168,7 @@ it('rejects a passkey without user verification under the mfa preset', function 
 
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         $mfa,
-        [factor('passkey', 'cred-1', FactorStrength::PossessionStrong, userVerified: false)],
+        [factor('passkey', '900', FactorStrength::PossessionStrong, userVerified: false)],
     );
 
     expect($verdict->satisfied)->toBeFalse();
@@ -183,8 +183,8 @@ it('accepts password plus totp under the mfa preset', function (): void {
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         $mfa,
         [
-            factor('password', 'cred-1', FactorStrength::Knowledge),
-            factor('totp', 'cred-2', FactorStrength::Possession),
+            factor('password', '900', FactorStrength::Knowledge),
+            factor('totp', '901', FactorStrength::Possession),
         ],
     );
 
@@ -198,7 +198,7 @@ it('treats an unrecognised requirement type as unsatisfiable', function (): void
     // match, and be solved as if it were that shape.
     $unknown = new class implements Requirement {};
 
-    $verdict = (new SatisfiabilityEvaluator())->evaluate($unknown, [factor('password', 'cred-1')]);
+    $verdict = (new SatisfiabilityEvaluator())->evaluate($unknown, [factor('password', '900')]);
 
     expect($verdict->satisfied)->toBeFalse()
         ->and($verdict->usedFactors)->toBeEmpty();
@@ -207,7 +207,7 @@ it('treats an unrecognised requirement type as unsatisfiable', function (): void
 it('accepts a phishing-resistant factor when the policy demands one', function (): void {
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         new AllOf([new FactorRequirement('passkey', phishingResistant: true)]),
-        [factor('passkey', 'cred-1', phishingResistant: true)],
+        [factor('passkey', '900', phishingResistant: true)],
     );
 
     expect($verdict->satisfied)->toBeTrue();
@@ -216,7 +216,7 @@ it('accepts a phishing-resistant factor when the policy demands one', function (
 it('rejects a factor that is not phishing resistant when the policy demands one', function (): void {
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         new AllOf([new FactorRequirement('passkey', phishingResistant: true)]),
-        [factor('passkey', 'cred-1', phishingResistant: false)],
+        [factor('passkey', '900', phishingResistant: false)],
     );
 
     expect($verdict->satisfied)->toBeFalse();
@@ -227,7 +227,7 @@ it('treats phishing resistance as an exact match, not a threshold', function ():
     // "no constraint": a resistant factor does not match it.
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         new AllOf([new FactorRequirement('passkey', phishingResistant: false)]),
-        [factor('passkey', 'cred-1', phishingResistant: true)],
+        [factor('passkey', '900', phishingResistant: true)],
     );
 
     expect($verdict->satisfied)->toBeFalse();
@@ -237,14 +237,14 @@ it('ignores phishing resistance when the requirement leaves it unconstrained', f
     $evaluator = new SatisfiabilityEvaluator();
     $policy = new AllOf([new FactorRequirement('passkey')]);
 
-    expect($evaluator->evaluate($policy, [factor('passkey', 'cred-1', phishingResistant: true)])->satisfied)->toBeTrue()
-        ->and($evaluator->evaluate($policy, [factor('passkey', 'cred-2', phishingResistant: false)])->satisfied)->toBeTrue();
+    expect($evaluator->evaluate($policy, [factor('passkey', '900', phishingResistant: true)])->satisfied)->toBeTrue()
+        ->and($evaluator->evaluate($policy, [factor('passkey', '901', phishingResistant: false)])->satisfied)->toBeTrue();
 });
 
 it('rejects a factor weaker than the required minimum strength', function (): void {
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         new AllOf([new FactorRequirement('totp', minimumStrength: FactorStrength::PossessionStrong)]),
-        [factor('totp', 'cred-1', FactorStrength::Possession)],
+        [factor('totp', '900', FactorStrength::Possession)],
     );
 
     expect($verdict->satisfied)->toBeFalse()
@@ -257,8 +257,8 @@ it('allows two credentials on one authenticator when independence is not require
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         new AllOf([new FactorRequirement('passkey'), new FactorRequirement('passkey')]),
         [
-            factor('passkey', 'cred-1', authenticatorId: 'device-1'),
-            factor('passkey', 'cred-2', authenticatorId: 'device-1'),
+            factor('passkey', '900', authenticatorId: 'device-1'),
+            factor('passkey', '901', authenticatorId: 'device-1'),
         ],
     );
 
@@ -273,8 +273,8 @@ it('ignores authenticator independence for factors with no authenticator', funct
             requireIndependentAuthenticators: true,
         ),
         [
-            factor('password', 'cred-1', FactorStrength::Knowledge),
-            factor('totp', 'cred-2', FactorStrength::Possession),
+            factor('password', '900', FactorStrength::Knowledge),
+            factor('totp', '901', FactorStrength::Possession),
         ],
     );
 
@@ -283,8 +283,8 @@ it('ignores authenticator independence for factors with no authenticator', funct
 
 it('refuses a nested waiver that would double-count a credential for the outer policy', function (): void {
     // The inner node waives distinctness for its own checking. That must not buy the
-    // outer node a second factor out of one credential: cred-1 would otherwise be
-    // counted twice and the outer policy would pass on cred-1, cred-1, cred-2.
+    // outer node a second factor out of one credential: 900 would otherwise be
+    // counted twice and the outer policy would pass on 900, 900, 901.
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         new AllOf([
             new AllOf(
@@ -293,7 +293,7 @@ it('refuses a nested waiver that would double-count a credential for the outer p
             ),
             new FactorRequirement('totp'),
         ]),
-        [factor('passkey', 'cred-1'), factor('totp', 'cred-2')],
+        [factor('passkey', '900'), factor('totp', '901')],
     );
 
     expect($verdict->satisfied)->toBeFalse();
@@ -312,9 +312,9 @@ it('refuses two credentials from one authenticator arriving through a nested nod
             requireIndependentAuthenticators: true,
         ),
         [
-            factor('passkey', 'cred-1', authenticatorId: 'dev-1'),
-            factor('passkey', 'cred-2', authenticatorId: 'dev-1'),
-            factor('totp', 'cred-3', authenticatorId: 'dev-9'),
+            factor('passkey', '900', authenticatorId: 'dev-1'),
+            factor('passkey', '901', authenticatorId: 'dev-1'),
+            factor('totp', '902', authenticatorId: 'dev-9'),
         ],
     );
 
@@ -331,9 +331,9 @@ it('accepts the nested shape once the authenticators really are independent', fu
             requireIndependentAuthenticators: true,
         ),
         [
-            factor('passkey', 'cred-1', authenticatorId: 'dev-1'),
-            factor('passkey', 'cred-2', authenticatorId: 'dev-2'),
-            factor('totp', 'cred-3', authenticatorId: 'dev-9'),
+            factor('passkey', '900', authenticatorId: 'dev-1'),
+            factor('passkey', '901', authenticatorId: 'dev-2'),
+            factor('totp', '902', authenticatorId: 'dev-9'),
         ],
     );
 
@@ -355,8 +355,8 @@ it('applies an inner independence requirement even when the outer waives it', fu
             requireIndependentAuthenticators: false,
         ),
         [
-            factor('passkey', 'cred-1', authenticatorId: 'dev-1'),
-            factor('passkey', 'cred-2', authenticatorId: 'dev-1'),
+            factor('passkey', '900', authenticatorId: 'dev-1'),
+            factor('passkey', '901', authenticatorId: 'dev-1'),
         ],
     );
 
@@ -375,7 +375,7 @@ it('confines a nested requirement to the factors chosen inside it', function ():
             ],
             requireDistinctCredentials: false,
         ),
-        [factor('passkey', 'cred-1'), factor('passkey', 'cred-2')],
+        [factor('passkey', '900'), factor('passkey', '901')],
     );
 
     expect($verdict->satisfied)->toBeTrue()
@@ -395,8 +395,8 @@ it('backtracks out of an any_of branch that strands a later requirement', functi
             new FactorRequirement('totp', minimumStrength: FactorStrength::PossessionStrong),
         ]),
         [
-            factor('totp', 'cred-strong', FactorStrength::PossessionStrong),
-            factor('sms', 'cred-sms', FactorStrength::PossessionWeak),
+            factor('totp', '907', FactorStrength::PossessionStrong),
+            factor('sms', '906', FactorStrength::PossessionWeak),
         ],
     );
 
@@ -444,7 +444,7 @@ it('runs that evaluation under a limit it could actually exhaust', function (): 
 
 it('consumes requirements left to right and records the factors in that order', function (): void {
     // Requirement order is not cosmetic. Taking the requirements in reverse would
-    // pick 'cred-strong' for the loose requirement and leave the strict one to fall
+    // pick '907' for the loose requirement and leave the strict one to fall
     // back, producing a different used-factor set for the same policy and pool.
     $verdict = (new SatisfiabilityEvaluator())->evaluate(
         new AllOf([
@@ -452,12 +452,12 @@ it('consumes requirements left to right and records the factors in that order', 
             new FactorRequirement('totp', minimumStrength: FactorStrength::PossessionStrong),
         ]),
         [
-            factor('totp', 'cred-strong', FactorStrength::PossessionStrong),
-            factor('totp', 'cred-weak', FactorStrength::Possession),
+            factor('totp', '907', FactorStrength::PossessionStrong),
+            factor('totp', '908', FactorStrength::Possession),
         ],
     );
 
     $used = array_map(static fn (SatisfiedFactor $f): string => $f->credentialId, $verdict->usedFactors);
 
-    expect($used)->toBe(['cred-weak', 'cred-strong']);
+    expect($used)->toBe(['908', '907']);
 });

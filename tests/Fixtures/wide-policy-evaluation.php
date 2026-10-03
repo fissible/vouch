@@ -38,7 +38,8 @@ $pool = [];
 for ($i = 1; $i <= 12; $i++) {
     $pool[] = new SatisfiedFactor(
         factorId: 'passkey',
-        credentialId: 'cred-' . $i,
+        // Canonical decimal, because a credential identity is a positive bigint.
+        credentialId: (string) $i,
         kind: FactorKind::Possession,
         strength: FactorStrength::Possession,
         isMultiFactor: false,

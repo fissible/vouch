@@ -200,25 +200,27 @@ final class VouchAssuranceMapCommand extends Command
         $timestamp = new DateTimeImmutable('@0');
         $facts = [AssuranceFacts::fromFactors([])];
 
+        // Probes construct real SatisfiedFactor values, so even their synthetic
+        // credential ids must satisfy the canonical positive-decimal domain.
         foreach ([1, 2] as $count) {
             $facts[] = AssuranceFacts::fromFactors(array_map(
-                fn (int $index): SatisfiedFactor => $this->probeFactor("credential-{$index}", FactorStrength::Knowledge, true, true, $timestamp),
+                fn (int $index): SatisfiedFactor => $this->probeFactor((string) $index, FactorStrength::Knowledge, true, true, $timestamp),
                 range(1, $count),
             ));
         }
         foreach ([false, true] as $resistant) {
             $facts[] = AssuranceFacts::fromFactors([
-                $this->probeFactor('credential-1', FactorStrength::Knowledge, $resistant, true, $timestamp),
+                $this->probeFactor('1', FactorStrength::Knowledge, $resistant, true, $timestamp),
             ]);
         }
         foreach ([false, true] as $multiFactor) {
             $facts[] = AssuranceFacts::fromFactors([
-                $this->probeFactor('credential-1', FactorStrength::Knowledge, true, $multiFactor, $timestamp),
+                $this->probeFactor('1', FactorStrength::Knowledge, true, $multiFactor, $timestamp),
             ]);
         }
         foreach ([FactorStrength::Knowledge, FactorStrength::PossessionWeak, FactorStrength::Possession, FactorStrength::PossessionStrong] as $strongest) {
             $facts[] = AssuranceFacts::fromFactors([
-                $this->probeFactor('credential-1', $strongest, true, true, $timestamp),
+                $this->probeFactor('1', $strongest, true, true, $timestamp),
             ]);
         }
 

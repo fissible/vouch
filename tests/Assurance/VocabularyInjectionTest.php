@@ -67,7 +67,7 @@ final class VocabularyInjectionTest extends TestCase
     #[Test]
     public function it_exposes_derived_facts_rather_than_a_level_name(): void
     {
-        $evidence = $this->evidence([$this->factor('password', 'cred-1')]);
+        $evidence = $this->evidence([$this->factor('password', '900')]);
 
         $facts = $evidence->facts();
 
@@ -85,8 +85,8 @@ final class VocabularyInjectionTest extends TestCase
          * bound; facts are derived from the factors alone and cannot.
          */
         $evidence = $this->evidence([
-            $this->factor('password', 'cred-1'),
-            $this->factor('totp', 'cred-2'),
+            $this->factor('password', '900'),
+            $this->factor('totp', '901'),
         ]);
 
         app()->instance(\Fissible\Vouch\Kernel\Assurance\AssuranceVocabulary::class, new NistAssuranceVocabulary());
@@ -129,8 +129,8 @@ final class VocabularyInjectionTest extends TestCase
          * vocabulary it holds.
          */
         $evidence = $this->evidence([
-            $this->factor('password', 'cred-1'),
-            $this->factor('totp', 'cred-2'),
+            $this->factor('password', '900'),
+            $this->factor('totp', '901'),
         ]);
         $requirement = AssuranceRequirement::from('aal2');
 
@@ -155,7 +155,7 @@ final class VocabularyInjectionTest extends TestCase
          * broken into always refusing would pass the test above. One credential
          * is aal1 under Nist and aal2 under the inverted fixture.
          */
-        $evidence = $this->evidence([$this->factor('password', 'cred-1')]);
+        $evidence = $this->evidence([$this->factor('password', '900')]);
         $requirement = AssuranceRequirement::from('aal2');
 
         self::assertSame(
@@ -180,7 +180,7 @@ final class VocabularyInjectionTest extends TestCase
          */
         $stale = new SatisfiedFactor(
             factorId: 'password',
-            credentialId: 'cred-1',
+            credentialId: '900',
             kind: FactorKind::Knowledge,
             strength: FactorStrength::Knowledge,
             isMultiFactor: false,

@@ -98,11 +98,11 @@ final class TokenCredentialMappingTest extends TestCase
          * helped authorize.
          */
         $this->store([
-            $this->factor('password', 'cred-pw', FactorStrength::Knowledge),
-            $this->factor('totp', 'cred-totp', FactorStrength::Possession),
+            $this->factor('password', '11', FactorStrength::Knowledge),
+            $this->factor('totp', '22', FactorStrength::Possession),
         ]);
 
-        self::assertSame(['cred-pw', 'cred-totp'], $this->mapped());
+        self::assertSame(['11', '22'], $this->mapped());
     }
 
     #[Test]
@@ -114,11 +114,11 @@ final class TokenCredentialMappingTest extends TestCase
          * were ever relaxed, make a revocation sweep double-count.
          */
         $this->store([
-            $this->factor('passkey', 'cred-1', FactorStrength::Possession),
-            $this->factor('passkey_uv', 'cred-1', FactorStrength::PossessionStrong),
+            $this->factor('passkey', '33', FactorStrength::Possession),
+            $this->factor('passkey_uv', '33', FactorStrength::PossessionStrong),
         ]);
 
-        self::assertSame(['cred-1'], $this->mapped());
+        self::assertSame(['33'], $this->mapped());
     }
 
     /*
@@ -139,12 +139,12 @@ final class TokenCredentialMappingTest extends TestCase
          * part of its proof, which reads to the holder as a random logout.
          */
         $this->store([
-            $this->factor('password', 'cred-pw', FactorStrength::Knowledge),
-            $this->factor('totp', 'cred-totp', FactorStrength::Possession),
+            $this->factor('password', '11', FactorStrength::Knowledge),
+            $this->factor('totp', '22', FactorStrength::Possession),
         ]);
-        $this->store([$this->factor('password', 'cred-pw', FactorStrength::Knowledge)]);
+        $this->store([$this->factor('password', '11', FactorStrength::Knowledge)]);
 
-        self::assertSame(['cred-pw'], $this->mapped());
+        self::assertSame(['11'], $this->mapped());
     }
 
     #[Test]
@@ -166,7 +166,7 @@ final class TokenCredentialMappingTest extends TestCase
          * does this credential authorize?" with tokens that no longer exist —
          * so a sweep reports work it did not do.
          */
-        $this->store([$this->factor('password', 'cred-pw', FactorStrength::Knowledge)]);
+        $this->store([$this->factor('password', '11', FactorStrength::Knowledge)]);
 
         app(TokenAssuranceRecord::class)->forget('sanctum', '42');
 
@@ -179,9 +179,9 @@ final class TokenCredentialMappingTest extends TestCase
     {
         // Composite scoping on the delete path, where a missed predicate is
         // silent: the sweep succeeds and takes an unrelated token with it.
-        $this->store([$this->factor('password', 'cred-pw', FactorStrength::Knowledge)]);
+        $this->store([$this->factor('password', '11', FactorStrength::Knowledge)]);
         app(TokenAssuranceRecord::class)
-            ->store('passport', '42', $this->subject(), null, ActorKind::Human, [$this->factor('password', 'cred-pw', FactorStrength::Knowledge)]);
+            ->store('passport', '42', $this->subject(), null, ActorKind::Human, [$this->factor('password', '11', FactorStrength::Knowledge)]);
 
         app(TokenAssuranceRecord::class)->forget('sanctum', '42');
 
@@ -211,8 +211,8 @@ final class TokenCredentialMappingTest extends TestCase
         try {
             DB::transaction(function (): void {
                 $this->store([
-                    $this->factor('password', 'cred-pw', FactorStrength::Knowledge),
-                    $this->factor('totp', 'cred-totp', FactorStrength::Possession),
+                    $this->factor('password', '11', FactorStrength::Knowledge),
+                    $this->factor('totp', '22', FactorStrength::Possession),
                 ]);
 
                 throw new \RuntimeException('The caller failed after recording assurance.');
@@ -236,13 +236,13 @@ final class TokenCredentialMappingTest extends TestCase
          * authorizing under default-deny with nothing to point at.
          */
         $this->store([
-            $this->factor('password', 'cred-pw', FactorStrength::Knowledge),
-            $this->factor('totp', 'cred-totp', FactorStrength::Possession),
+            $this->factor('password', '11', FactorStrength::Knowledge),
+            $this->factor('totp', '22', FactorStrength::Possession),
         ]);
 
         try {
             DB::transaction(function (): void {
-                $this->store([$this->factor('password', 'cred-pw', FactorStrength::Knowledge)]);
+                $this->store([$this->factor('password', '11', FactorStrength::Knowledge)]);
 
                 throw new \RuntimeException('The replacement failed after deleting the old record.');
             });
@@ -250,7 +250,7 @@ final class TokenCredentialMappingTest extends TestCase
             // Expected.
         }
 
-        self::assertSame(['cred-pw', 'cred-totp'], $this->mapped());
+        self::assertSame(['11', '22'], $this->mapped());
         self::assertSame(1, DB::table('auth_token_assurances')->count());
     }
 }

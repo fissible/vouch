@@ -58,7 +58,7 @@ function bindInvertedVocabulary(): void
 }
 
 /** @return list<\Fissible\Vouch\Kernel\Factor\SatisfiedFactor> */
-function twoCredentialFactors(string $first = 'cred-1', string $second = 'cred-2'): array
+function twoCredentialFactors(string $first = '900', string $second = '901'): array
 {
     return [
         evidenceFactor('password', '2026-09-01T10:00:00+00:00', FactorStrength::Knowledge, $first),
@@ -118,7 +118,7 @@ it('names the factors it persisted, not the acr it was handed', function (): voi
     bindInvertedVocabulary();
 
     $factors = twoCredentialFactors();
-    $unrelated = [evidenceFactor('password', '2026-09-01T10:00:00+00:00', FactorStrength::Knowledge, 'cred-9')];
+    $unrelated = [evidenceFactor('password', '2026-09-01T10:00:00+00:00', FactorStrength::Knowledge, '902')];
 
     app(SessionLifecycle::class)->establish(new AuthSuccess(
         userId: 1,

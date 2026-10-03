@@ -91,7 +91,7 @@ final class TokenGateModeTest extends TestCase
 
         app(TokenAssuranceRecord::class)->store(
             'sanctum', stringValue($new->accessToken->getKey()), $this->subject(), null, ActorKind::Human,
-            [new SatisfiedFactor('password', 'cred-1', FactorKind::Knowledge, FactorStrength::Knowledge,
+            [new SatisfiedFactor('password', '900', FactorKind::Knowledge, FactorStrength::Knowledge,
                 false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00'))],
         );
 
@@ -196,9 +196,9 @@ final class TokenGateModeTest extends TestCase
         app(TokenAssuranceRecord::class)->store(
             'sanctum', stringValue($new->accessToken->getKey()), $this->subject(), null, ActorKind::Human,
             [
-                new SatisfiedFactor('password', 'cred-1', FactorKind::Knowledge, FactorStrength::Knowledge,
+                new SatisfiedFactor('password', '900', FactorKind::Knowledge, FactorStrength::Knowledge,
                     false, false, false, null, new DateTimeImmutable('2026-08-13T10:00:00+00:00')),
-                new SatisfiedFactor('totp', 'cred-2', FactorKind::Possession, FactorStrength::Possession,
+                new SatisfiedFactor('totp', '901', FactorKind::Possession, FactorStrength::Possession,
                     false, false, false, null, new DateTimeImmutable('2026-08-13T10:05:00+00:00')),
             ],
         );

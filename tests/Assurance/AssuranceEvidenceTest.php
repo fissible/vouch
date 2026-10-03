@@ -70,7 +70,7 @@ it('derives its level from the factors, matching the kernel', function (): void 
     $single = evidenceFor([evidenceFactor()]);
     $multi = evidenceFor([
         evidenceFactor('password'),
-        evidenceFactor('totp', '2026-08-29T10:05:00+00:00', FactorStrength::Possession, 'cred-2'),
+        evidenceFactor('totp', '2026-08-29T10:05:00+00:00', FactorStrength::Possession, '901'),
     ]);
 
     expect(nameOf($single))->toBe('aal1')
@@ -87,7 +87,7 @@ it('anchors recency to the OLDEST factor, never the newest', function (): void {
      */
     $evidence = evidenceFor([
         evidenceFactor('password', '2026-07-01T10:00:00+00:00'),
-        evidenceFactor('totp', '2026-08-29T10:00:00+00:00', FactorStrength::Possession, 'cred-2'),
+        evidenceFactor('totp', '2026-08-29T10:00:00+00:00', FactorStrength::Possession, '901'),
     ]);
 
     expect($evidence->weakestSatisfiedAt()->format(DATE_ATOM))->toBe('2026-07-01T10:00:00+00:00');
@@ -96,10 +96,10 @@ it('anchors recency to the OLDEST factor, never the newest', function (): void {
 it('does not depend on the order the proof was assembled in', function (): void {
     $ordered = evidenceFor([
         evidenceFactor('password', '2026-07-01T10:00:00+00:00'),
-        evidenceFactor('totp', '2026-08-29T10:00:00+00:00', FactorStrength::Possession, 'cred-2'),
+        evidenceFactor('totp', '2026-08-29T10:00:00+00:00', FactorStrength::Possession, '901'),
     ]);
     $reversed = evidenceFor([
-        evidenceFactor('totp', '2026-08-29T10:00:00+00:00', FactorStrength::Possession, 'cred-2'),
+        evidenceFactor('totp', '2026-08-29T10:00:00+00:00', FactorStrength::Possession, '901'),
         evidenceFactor('password', '2026-07-01T10:00:00+00:00'),
     ]);
 
@@ -123,7 +123,7 @@ it('refuses to exist with an empty proof', function (): void {
 it('round-trips a well-formed proof through its persisted form', function (): void {
     $evidence = evidenceFor([
         evidenceFactor('password', '2026-07-01T10:00:00+00:00'),
-        evidenceFactor('totp', '2026-08-29T10:00:00+00:00', FactorStrength::Possession, 'cred-2'),
+        evidenceFactor('totp', '2026-08-29T10:00:00+00:00', FactorStrength::Possession, '901'),
     ], 'acme');
 
     $restored = AssuranceEvidence::fromArray($evidence->toArray());
@@ -142,7 +142,7 @@ it('survives the round trip losslessly, field by field', function (): void {
     // is invisible today and load-bearing the moment a policy reads it.
     $factor = new SatisfiedFactor(
         factorId: 'passkey',
-        credentialId: 'cred-9',
+        credentialId: '902',
         kind: FactorKind::Possession,
         strength: FactorStrength::Possession,
         isMultiFactor: true,
@@ -169,7 +169,7 @@ it('REFUSES a malformed proof rather than skipping the bad row', function (array
 })->with(static function (): array {
     $wellFormed = [
         'factor_id' => 'password',
-        'credential_id' => 'cred-1',
+        'credential_id' => '900',
         'kind' => 'knowledge',
         'strength' => 'knowledge',
         'is_multi_factor' => false,
@@ -262,7 +262,7 @@ it('REFUSES when the damaged factor is the one carrying the level', function ():
      * which is a silent downgrade the user never sees and the audit log records
      * as an ordinary request.
      */
-    $good = evidenceFor([evidenceFactor(), evidenceFactor('totp', '2026-08-29T10:05:00+00:00', FactorStrength::Possession, 'cred-2')]);
+    $good = evidenceFor([evidenceFactor(), evidenceFactor('totp', '2026-08-29T10:05:00+00:00', FactorStrength::Possession, '901')]);
     $payload = $good->toArray();
     expect($payload['factors'][1]['strength'])->toBe('possession');
 

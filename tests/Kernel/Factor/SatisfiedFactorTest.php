@@ -11,7 +11,7 @@ it('records everything satisfiability needs', function (): void {
 
     $factor = new SatisfiedFactor(
         factorId: 'passkey',
-        credentialId: 'cred-1',
+        credentialId: '900',
         kind: FactorKind::Possession,
         strength: FactorStrength::PossessionStrong,
         isMultiFactor: true,
@@ -22,7 +22,7 @@ it('records everything satisfiability needs', function (): void {
     );
 
     expect($factor->factorId)->toBe('passkey')
-        ->and($factor->credentialId)->toBe('cred-1')
+        ->and($factor->credentialId)->toBe('900')
         ->and($factor->kind)->toBe(FactorKind::Possession)
         ->and($factor->strength)->toBe(FactorStrength::PossessionStrong)
         ->and($factor->isMultiFactor)->toBeTrue()
@@ -35,7 +35,7 @@ it('records everything satisfiability needs', function (): void {
 it('allows a null authenticator for factors with no device', function (): void {
     $factor = new SatisfiedFactor(
         factorId: 'password',
-        credentialId: 'cred-2',
+        credentialId: '901',
         kind: FactorKind::Knowledge,
         strength: FactorStrength::Knowledge,
         isMultiFactor: false,

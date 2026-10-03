@@ -72,9 +72,9 @@ final class OnePolicyTwoRenderingsTest extends TestCase
     private function proof(string $oldest = '2026-08-13T10:00:00+00:00'): array
     {
         return [
-            new SatisfiedFactor('password', 'cred-1', FactorKind::Knowledge, FactorStrength::Knowledge,
+            new SatisfiedFactor('password', '900', FactorKind::Knowledge, FactorStrength::Knowledge,
                 false, false, false, null, new DateTimeImmutable($oldest)),
-            new SatisfiedFactor('totp', 'cred-2', FactorKind::Possession, FactorStrength::Possession,
+            new SatisfiedFactor('totp', '901', FactorKind::Possession, FactorStrength::Possession,
                 false, false, false, null, new DateTimeImmutable('2026-08-13T10:05:00+00:00')),
         ];
     }
