@@ -154,6 +154,16 @@ function revertToTimestampColumns(): void
     }
 }
 
+beforeEach(function (): void {
+    /*
+     * The contract's precondition, established once rather than per test: the conversion only runs
+     * on a UTC connection. The refusal cases below move the session off UTC deliberately.
+     */
+    if (! skipUnlessMysql()) {
+        DB::statement("set session time_zone = '+00:00'");
+    }
+});
+
 /* ---- what the migration has to achieve -------------------------------- */
 
 it('leaves no Vouch date column on a type that ends in 2038', function (): void {
@@ -240,7 +250,6 @@ it('preserves every instant exactly, by epoch, when the connection is on UTC', f
     }
 
 
-    DB::statement("set session time_zone = '+00:00'");
     revertToTimestampColumns();
 
     $seed = [
@@ -290,7 +299,6 @@ it('refuses to convert on a connection that is not on UTC, and changes nothing',
     }
 
 
-    DB::statement("set session time_zone = '+00:00'");
     revertToTimestampColumns();
     $before = vouchDateColumns();
 
@@ -325,7 +333,6 @@ it('preserves exactly which columns accept null', function (): void {
         $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
     }
 
-    DB::statement("set session time_zone = '+00:00'");
     revertToTimestampColumns();
 
     $before = vouchDateColumns();
@@ -353,7 +360,6 @@ it('preserves every index, with its uniqueness and its column order', function (
         $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
     }
 
-    DB::statement("set session time_zone = '+00:00'");
     revertToTimestampColumns();
 
     $before = vouchDateIndexes();
@@ -375,8 +381,6 @@ it('leaves a host table alone even when its name looks like one of ours', functi
     if (skipUnlessMysql()) {
         $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
     }
-
-    DB::statement("set session time_zone = '+00:00'");
 
     DB::statement('create table authentication_events (id int primary key, occurred_at timestamp null)');
 
@@ -401,7 +405,6 @@ it('is safe to run twice', function (): void {
         $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
     }
 
-    DB::statement("set session time_zone = '+00:00'");
     revertToTimestampColumns();
     runTimestampRangeMigration();
 
@@ -427,8 +430,6 @@ it('builds a fresh installation with no date column that ends in 2038', function
     if (skipUnlessMysql()) {
         $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
     }
-
-    DB::statement("set session time_zone = '+00:00'");
 
     foreach (array_keys(vouchDateColumns()) as $key) {
         Schema::dropIfExists(explode('.', $key, 2)[0]);
