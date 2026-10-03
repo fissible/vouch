@@ -62,12 +62,6 @@ function revertToPaddingCollation(): void
     }
 }
 
-/** Only MySQL has a binary collation that pads; the others cannot hold the defect. */
-function skipUnlessMysql(): bool
-{
-    return DB::connection()->getDriverName() !== 'mysql';
-}
-
 it('reports the padding collation as padding', function (): void {
     if (skipUnlessMysql()) {
         $this->markTestSkipped('Only MySQL has a deterministic collation that pads.');

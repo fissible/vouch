@@ -7,7 +7,6 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use PHPUnit\Framework\SkippedWithMessageException;
 
 uses(DatabaseMigrations::class);
 
@@ -155,24 +154,13 @@ function revertToTimestampColumns(): void
     }
 }
 
-/**
- * Skip unless the engine is the one that has the defect.
- *
- * Throws PHPUnit's own skip exception rather than calling markTestSkipped(): that method lives on
- * the test case, and a free function has no $this -- `test()` resolves to a union PHPStan cannot
- * call it on at level 9, and an inline annotation is forbidden here.
- */
-function skipUnlessMysql(): void
-{
-    if (DB::connection()->getDriverName() !== 'mysql') {
-        throw new SkippedWithMessageException('Only MySQL holds dates in a type that ends in 2038.');
-    }
-}
-
 /* ---- what the migration has to achieve -------------------------------- */
 
 it('leaves no Vouch date column on a type that ends in 2038', function (): void {
-    skipUnlessMysql();
+    if (skipUnlessMysql()) {
+        $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
+    }
+
     revertToTimestampColumns();
 
     $types = array_map(static fn (string $d): string => explode('|', $d, 2)[0], vouchDateColumns());
@@ -188,7 +176,10 @@ it('leaves no Vouch date column on a type that ends in 2038', function (): void 
 });
 
 it('stores an instant past 2038 once converted', function (): void {
-    skipUnlessMysql();
+    if (skipUnlessMysql()) {
+        $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
+    }
+
     revertToTimestampColumns();
     runTimestampRangeMigration();
 
@@ -213,7 +204,10 @@ it('resolves and then persists a deadline that lands past 2038', function (): vo
      * along -- it was STORING the result that failed -- so the deadline is read back rather than
      * the row merely counted.
      */
-    skipUnlessMysql();
+    if (skipUnlessMysql()) {
+        $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
+    }
+
     revertToTimestampColumns();
     runTimestampRangeMigration();
 
@@ -241,7 +235,10 @@ it('preserves every instant exactly, by epoch, when the connection is on UTC', f
      * for a host that was not on UTC -- so what is asserted is that no instant moves, across every
      * converted column rather than one of them.
      */
-    skipUnlessMysql();
+    if (skipUnlessMysql()) {
+        $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
+    }
+
 
     DB::statement("set session time_zone = '+00:00'");
     revertToTimestampColumns();
@@ -288,7 +285,10 @@ it('refuses to convert on a connection that is not on UTC, and changes nothing',
      * So neither is done silently. The operator is told, and the schema is left exactly as it was:
      * a refusal that had already converted half the tables would be worse than no refusal.
      */
-    skipUnlessMysql();
+    if (skipUnlessMysql()) {
+        $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
+    }
+
 
     DB::statement("set session time_zone = '+00:00'");
     revertToTimestampColumns();
@@ -321,7 +321,10 @@ it('preserves exactly which columns accept null', function (): void {
      * DATETIME with no nullability clause produces a NULLABLE column, so the damage runs the other
      * way too, and either way it surfaces later on the first row that leaves one unset.
      */
-    skipUnlessMysql();
+    if (skipUnlessMysql()) {
+        $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
+    }
+
     DB::statement("set session time_zone = '+00:00'");
     revertToTimestampColumns();
 
@@ -346,7 +349,10 @@ it('preserves every index, with its uniqueness and its column order', function (
      * Uniqueness and position are part of the snapshot because without them a unique composite
      * index replaced by a non-unique one with reversed columns compares equal.
      */
-    skipUnlessMysql();
+    if (skipUnlessMysql()) {
+        $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
+    }
+
     DB::statement("set session time_zone = '+00:00'");
     revertToTimestampColumns();
 
@@ -366,7 +372,10 @@ it('leaves a host table alone even when its name looks like one of ours', functi
      * auth_company_events. A conversion driven by that pattern would rewrite tables the package
      * does not own, and this is what notices.
      */
-    skipUnlessMysql();
+    if (skipUnlessMysql()) {
+        $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
+    }
+
     DB::statement("set session time_zone = '+00:00'");
 
     DB::statement('create table authentication_events (id int primary key, occurred_at timestamp null)');
@@ -388,7 +397,10 @@ it('leaves a host table alone even when its name looks like one of ours', functi
 });
 
 it('is safe to run twice', function (): void {
-    skipUnlessMysql();
+    if (skipUnlessMysql()) {
+        $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
+    }
+
     DB::statement("set session time_zone = '+00:00'");
     revertToTimestampColumns();
     runTimestampRangeMigration();
@@ -412,7 +424,10 @@ it('builds a fresh installation with no date column that ends in 2038', function
      * part of migrate:fresh -- so asserting against that schema would let an upgrade-only change
      * pass while every original migration stayed defective.
      */
-    skipUnlessMysql();
+    if (skipUnlessMysql()) {
+        $this->markTestSkipped('Only MySQL holds dates in a type that ends in 2038.');
+    }
+
     DB::statement("set session time_zone = '+00:00'");
 
     foreach (array_keys(vouchDateColumns()) as $key) {
@@ -456,8 +471,8 @@ it('changes nothing on an engine whose dates already reach past 2038', function 
      * nothing to convert. Asserted as a genuine no-op -- schema and rows unchanged -- rather than
      * left to the unconditional skip, which reported zero assertions and so established nothing.
      */
-    if (DB::connection()->getDriverName() === 'mysql') {
-        throw new SkippedWithMessageException('MySQL is the engine that needs the conversion.');
+    if (! skipUnlessMysql()) {
+        $this->markTestSkipped('MySQL is the engine that needs the conversion.');
     }
 
     DB::table('auth_throttle_locks')->insert([
