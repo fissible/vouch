@@ -41,6 +41,24 @@ uses(RefreshDatabase::class);
  * going back, and it is about two thousand years -- far outside any legitimate authentication
  * window and comfortably inside a fat-fingered one.
  *
+ * THE BOUND BELOW IS WRONG, AND THE MEASUREMENT THAT SHOWS IT IS RECORDED HERE RATHER THAN
+ * SILENTLY CORRECTED, BECAUSE WHAT TO DO ABOUT IT IS A BIGGER DECISION THAN #81.
+ *
+ * The arithmetic is not the binding constraint. The DESTINATION COLUMN is. Measured: every one of
+ * the package's 83 date-or-time columns is `TIMESTAMP` on MySQL and not one is `DATETIME`, and
+ * MySQL's TIMESTAMP range ends at 2038-01-19 03:14:07 -- that instant stores, the next second is
+ * refused with error 1292. So a deadline is usable only if it lands before then, which today is
+ * 356,432,822 seconds away, about 11.3 years, and shrinking by one second per second. PostgreSQL
+ * and SQLite both store 2039 without complaint, so this is MySQL's alone.
+ *
+ * That makes the sweep's success branch below insufficient: `a century` returns an instant from
+ * DatabaseTime::deadline() and then cannot be stored. An accepted duration has to round-trip
+ * through the column, not merely parse.
+ *
+ * And it is a larger finding than a missing bound. A fifteen-year token TTL configured today
+ * already fails on MySQL, and by 2037 a one-year TTL will. #81 can only choose where to refuse;
+ * whether these columns should be TIMESTAMP at all is the question underneath it.
+ *
  * WHICH SETTINGS ARE ACTUALLY OPEN. The issue reasons that "every sibling TTL in the package
  * accepts any positive integer, so a cap on this one alone would be stricter than its siblings for
  * no stated reason". Measured, that premise does not hold: six of the nine refuse 999999999999
