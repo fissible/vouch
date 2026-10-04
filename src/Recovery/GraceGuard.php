@@ -9,6 +9,7 @@ use Fissible\Vouch\Sessions\BindingDomain;
 use Fissible\Vouch\Sessions\RevokedReason;
 use Fissible\Vouch\Sessions\SessionBinding;
 use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Support\DurationBounds;
 use Illuminate\Database\Connection;
 
 /**
@@ -83,6 +84,10 @@ final readonly class GraceGuard
              * parameter in each engine's database-clock interval expression.
              * The transaction keeps the capability and its evidence atomic.
              */
+            // This bound parameter bypasses deadline(), and direct construction
+            // or a worker surviving boot can bypass its configuration-time check.
+            DurationBounds::forward($this->ttlSeconds, 'vouch.recovery_grace.ttl_seconds', $this->time->current());
+
             $this->connection->update(
                 'update auth_sessions set recovery_grace_expires_at = '
                 . $this->time->deadlineSqlHere()

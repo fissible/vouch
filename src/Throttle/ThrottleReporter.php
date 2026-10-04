@@ -8,6 +8,7 @@ use DateInterval;
 use DateTimeImmutable;
 use Fissible\Vouch\Notifications\OtpOutboxStatus;
 use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Support\DurationBounds;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Builder;
 use RuntimeException;
@@ -38,6 +39,9 @@ final readonly class ThrottleReporter
     public function report(): array
     {
         $now = $this->time->current();
+        // A cached configuration was checked at boot, not at this database
+        // snapshot; the reporting cutoff bypasses DatabaseTime::deadline().
+        DurationBounds::backward($this->configuration->windowSeconds, 'vouch.throttle.window_seconds', $now);
         $windowCutoff = $now->sub(new DateInterval(sprintf(
             'PT%dS',
             $this->configuration->windowSeconds,

@@ -16,6 +16,7 @@ use Fissible\Vouch\Models\AuthSession;
 use Fissible\Vouch\Sessions\RevokedReason;
 use Fissible\Vouch\Sessions\SessionLifecycle;
 use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Support\DurationBounds;
 use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 use Fissible\Vouch\Throttle\IssuancePermission;
 use Fissible\Vouch\Throttle\ProofAttemptStore;
@@ -75,7 +76,10 @@ final readonly class CredentialRecovery
             $request,
             $identifier instanceof AuthIdentifier ? $identifier : null,
             $this->code(),
-            $this->config->integer('vouch.recovery.ttl_seconds'),
+            DurationBounds::forward(
+                $this->config->integer('vouch.recovery.ttl_seconds'),
+                'vouch.recovery.ttl_seconds',
+            ),
         );
     }
 

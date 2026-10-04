@@ -102,6 +102,10 @@ final readonly class DatabaseTime
             throw new InvalidArgumentException('A database deadline must be at least one second.');
         }
 
+        // Callers can supply durations without any configuration read, and a
+        // long-lived worker's boot check cannot validate today's database time.
+        DurationBounds::forward($seconds, 'database deadline seconds', $this->current());
+
         $sql = 'SELECT ' . $this->deadlineSqlHere() . ' AS deadline';
         $raw = $this->connection->selectOne($sql, [$seconds]);
         return $this->parse(

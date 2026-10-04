@@ -7,6 +7,7 @@ namespace Fissible\Vouch\Console;
 use DateInterval;
 use Fissible\Vouch\Notifications\OtpOutboxStatus;
 use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Support\DurationBounds;
 use Fissible\Vouch\Throttle\ThrottleConfiguration;
 use Fissible\Vouch\Tokens\TokenAssuranceSweep;
 use Fissible\Vouch\Tokens\TokenAssuranceSweepResult;
@@ -147,6 +148,12 @@ final class VouchPruneCommand extends Command
             $retentionDays,
         ): PruneResult {
             $now = $time->current();
+            // Prune reads mutable config and cached throttle state after boot;
+            // its cutoffs bypass deadline(). Check this database snapshot before
+            // DateInterval sees the value, retaining DAYS for session retention.
+            DurationBounds::backwardDays($retentionDays, 'vouch.sessions.revocation_retention_days', $now);
+            DurationBounds::backward($throttle->retentionSeconds, 'vouch.throttle.retention_seconds', $now);
+            DurationBounds::backward($throttle->windowSeconds, 'vouch.throttle.window_seconds', $now);
             $sessionCutoff = $now->sub(new DateInterval(sprintf('P%dD', $retentionDays)));
             $scalarCutoff = $now->sub(new DateInterval(sprintf(
                 'PT%dS',
