@@ -16,6 +16,13 @@ final readonly class PruneResult
         public int $tupleMarkers,
         public int $deliveredOutbox,
         public int $undeliveredOutbox,
+        public int $deliveredVerificationOutbox,
+        public int $undeliveredVerificationOutbox,
+        public int $deliveredRecoveryOutbox,
+        public int $undeliveredRecoveryOutbox,
+        public int $identifierVerifications,
+        public int $recoveryProofs,
+        public int $linkRequests,
         public int $deliveryReservations,
         public int $reclaimedTokenAssurances,
         public int $retainedTokenAssurances,
@@ -29,6 +36,8 @@ final readonly class PruneResult
 
     public function foundUndeliveredWork(): bool
     {
-        return $this->undeliveredOutbox > 0;
+        return $this->undeliveredOutbox > 0
+            || $this->undeliveredVerificationOutbox > 0
+            || $this->undeliveredRecoveryOutbox > 0;
     }
 }

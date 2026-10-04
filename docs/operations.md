@@ -49,6 +49,14 @@ holds an identifier value or type, in `auth_identifiers`,
 `auth_identifier_verifications` and `auth_recovery_proofs`, and rewrites existing
 rows into the canonical form `IdentifierCanonicalizer` produces.
 
+Pause scheduled and manual `vouch:prune` runs before deploying the new code,
+wait for any active sweep to finish, and keep pruning paused until this upgrade
+has completed successfully. A refused migration is not completion: keep pruning
+paused while reconciling collisions and retrying. Pruning now reclaims expired
+verification and recovery ceremonies, including consumed or burned proofs, so
+running it first can erase the collision evidence this migration must inspect.
+Migrate-then-prune is a deployment requirement; the scheduler cannot enforce it.
+
 The supported collations are part of the contract from here on:
 `utf8mb4_0900_bin` on MySQL, `C` on PostgreSQL, and SQLite's byte-comparing
 default. Identifier equality is then Vouch's decision rather than the engine's,
@@ -293,13 +301,23 @@ expired ciphertext and turns expired-undelivered rows into the package's aggrega
 dead-worker signal. With the default 120-second OTP TTL and a one-minute sweep, live
 ciphertext is retained for at most 180 seconds.
 
+Pruning also reclaims expired identifier-verification and recovery-proof outbox
+rows and the expired verification, recovery-proof, and link-request ceremonies.
+All five use `expires_at <= database_now`, regardless of terminal state. Outbox
+classification runs under row locks before parent deletion can cascade away its
+evidence. The summary reports delivered and expired-undelivered counts for each
+outbox; pending and undeliverable rows both contribute to delivery health.
+Verified identifiers, federated identity ownership, and session recovery-grace
+windows survive ceremony reclamation. Proof redemption already enforces expiry;
+pruning is housekeeping and does not enforce authorization.
+
 `vouch:prune` has a three-way exit contract:
 
 | Status | Meaning | Owner |
 |---:|---|---|
-| `0` | Sweep succeeded; no expired-undelivered OTP work was found | Maintenance healthy |
+| `0` | Sweep succeeded; no expired-undelivered OTP, verification, or recovery work was found | Maintenance healthy |
 | `1` | The sweep itself failed and its transaction rolled back | Prune/database owner |
-| `2` | Sweep and deletions succeeded; expired-undelivered OTP work was found | Queue/delivery-worker owner |
+| `2` | Sweep and deletions succeeded; expired-undelivered OTP, verification, or recovery work was found | Queue/delivery-worker owner |
 
 Do **not** use
 `Schedule::command('vouch:prune')->onFailure(...)`. Laravel treats every non-zero
@@ -323,7 +341,7 @@ Schedule::call(function (): void {
         $status,
         Artisan::output(),
         static function (string $aggregate): void {
-            Log::warning('Vouch found expired undelivered OTP work.', [
+            Log::warning('Vouch found expired undelivered delivery work.', [
                 'aggregate' => $aggregate,
             ]);
         },
