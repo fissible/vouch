@@ -337,6 +337,23 @@ it('leaves a ceremony row that has not expired', function (string $kind): void {
     expect(DB::table($table)->count())->toBe(1);
 })->with(['verification', 'proof', 'link']);
 
+it('reclaims an expired link request that was never proven, and keeps an unexpired one', function (): void {
+    /*
+     * Every other link fixture here is PROVEN, which leaves a reclaimer written as
+     * `whereNotNull('proven_at')->where('expires_at', '<=', $now)` satisfying all of them while
+     * retaining expired abandoned links forever -- the unbounded growth #15 exists to stop, since an
+     * abandoned link request is the commonest kind.
+     */
+    seedLinkRequest(ceremonyPast(), proven: false);
+    $live = seedLinkRequest(ceremonyFuture(), proven: false);
+
+    expect(DB::table('auth_link_requests')->count())->toBe(2);
+
+    prune();
+
+    expect(DB::table('auth_link_requests')->pluck('id')->all())->toBe([$live]);
+});
+
 it('keeps the durable fact when the ceremony that produced it is reclaimed', function (): void {
     /*
      * The heart of #15. The manifest's old reason was that these rows are "durable identity
