@@ -409,6 +409,9 @@ it('keeps a recovery grace window when the proof that opened it is reclaimed', f
     DB::table('auth_sessions')->insert([
         'session_binding' => str_repeat('s', 64),
         'user_id' => 7,
+        // NOT NULL, and JSON: the fixture omitted it, so this case failed on the insert before
+        // prune() ran at all -- red, but for a reason that had nothing to do with the reclaimer.
+        'amr' => json_encode(['password'], JSON_THROW_ON_ERROR),
         'acr' => 'aal1',
         'recovery_grace_expires_at' => $grace,
         'created_at' => $old,
