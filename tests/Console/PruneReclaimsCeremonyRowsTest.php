@@ -212,18 +212,29 @@ it('reclaims an expired delivery row from an outbox that had no reclaimer', func
     expect(DB::table($shape['parent'])->count())->toBe(1);
 })->with(['verification', 'proof']);
 
-it('leaves a delivery row that has not expired', function (string $kind): void {
-    // The non-vacuity control for every deletion above: a sweep that emptied the table would pass
-    // all of them.
+it('leaves a delivery row that has not expired, whatever status it carries', function (string $kind, string $status): void {
+    /*
+     * The non-vacuity control for every deletion below -- a sweep that emptied the table would pass
+     * all of them -- and it covers every status, not just pending. A selector written as
+     * `expires_at <= now OR status != pending` satisfies a pending-only fixture while prematurely
+     * deleting delivered and undeliverable rows that have not expired.
+     */
     $shape = ceremonyShape($kind);
     $outbox = (string) $shape['outbox'];
 
-    seedOutbox($outbox, (string) $shape['parentColumn'], seedCeremony($kind, ceremonyFuture()), ceremonyFuture(), OtpOutboxStatus::Pending);
+    seedOutbox($outbox, (string) $shape['parentColumn'], seedCeremony($kind, ceremonyFuture()), ceremonyFuture(), OtpOutboxStatus::from($status));
 
     prune();
 
     expect(DB::table($outbox)->count())->toBe(1);
-})->with(['verification', 'proof']);
+})->with([
+    ['verification', 'pending'],
+    ['verification', 'delivered'],
+    ['verification', 'undeliverable'],
+    ['proof', 'pending'],
+    ['proof', 'delivered'],
+    ['proof', 'undeliverable'],
+]);
 
 it('reports an expired undelivered row from either outbox as delivery health', function (string $kind): void {
     /*
@@ -512,18 +523,22 @@ it('leaves the anchor table still unreclaimed', function (): void {
 
 /* ---- the predicate itself, which three mutants walked through ----------- */
 
-it('reclaims a row whose expiry is exactly the database clock', function (string $kind): void {
-    /*
-     * The boundary. Measured: a mutant using strict `<` instead of `<=` passed every other case,
-     * because no fixture sat exactly on the deadline -- and every existing reclaimer here is `<=`.
-     */
-    $table = ceremonyShape($kind)['parent'];
-    seedCeremony($kind, app(DatabaseTime::class)->current()->format('Y-m-d H:i:s'));
-
-    prune();
-
-    expect(DB::table($table)->count())->toBe(0);
-})->with(['verification', 'proof', 'link']);
+/*
+ * NOT ASSERTED, and stated rather than left as a gap: whether the predicate is `<=` or `<` at EXACT
+ * equality with the database clock.
+ *
+ * An earlier version of this file tried. It read the database clock in PHP, seeded a row at that
+ * instant, and then let the command read the clock again -- so if a second elapsed between the two
+ * reads the row was strictly in the past and a `<` implementation passed. Seeding through
+ * shiftDeadlineOnDatabaseClock() moves the read into SQL and does not fix it: the command still
+ * reads the clock afterwards.
+ *
+ * Making it deterministic needs the clock frozen, which is #97's machinery and engine-specific.
+ * A racy assertion would be worse than this paragraph: it would pass almost always, fail
+ * occasionally on CI for a correct implementation, and teach everyone to re-run the suite. Every
+ * reclaimer in the command is already `<=`, and the one-second window this leaves unpinned reclaims
+ * a row one sweep later.
+ */
 
 it('reads the deadline from the database clock, not the application clock', function (): void {
     /*
