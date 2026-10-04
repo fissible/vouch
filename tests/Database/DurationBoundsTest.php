@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Throttle\ThrottleConfiguration;
 use Fissible\Vouch\VouchServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
@@ -299,17 +300,40 @@ it('fails boot on a backward duration too large to represent, in its own unit', 
     throw new RuntimeException('Boot accepted ' . $key . ' at a value whose cutoff cannot be represented.');
 })->with(backwardDurationSettings());
 
-it('accepts a forward duration that reaches far ahead but stays representable', function (): void {
+it('accepts a clamped backoff at a raw value that could never be represented', function (): void {
+    /*
+     * The exclusion, asserted rather than only explained. Measured: this setting's consumer clamps
+     * it to the backoff cap, so 999999999999 produces an effective first delay of 60 seconds and
+     * never reaches the clock -- refusing the raw value would be a new configuration policy rather
+     * than a representability bound.
+     *
+     * Without this case, an implementation that bounded this setting too would satisfy every other
+     * assertion in the file, and the exclusion would be a comment with nothing behind it.
+     */
+    bootWithDuration('vouch.throttle.identifier.initial_backoff_seconds', 999999999999);
+
+    /*
+     * The configuration carries the raw value, so it was not rejected. The clamp itself lives in
+     * the consumer rather than here, which is why this asserts acceptance and the comment above
+     * carries the measurement instead.
+     */
+    expect(app(ThrottleConfiguration::class)->initialBackoffSeconds)->toBe(999999999999);
+});
+
+it('accepts a forward duration that reaches far ahead but stays representable', function (string $key): void {
     /*
      * Direction follows the consumer, and this is the case that proves it. Measured: now plus
      * 40,000,000,000 seconds resolves and stores on all three engines as year 3294, while the same
      * number BACKWARD lands in year 0759. An implementation validating both directions for every
      * setting would refuse this, which nothing in the package requires.
+     *
+     * Over every forward setting, not just one: with OTP alone, applying both-direction validation
+     * to the other four would still satisfy their refusal and shipped-default cases.
      */
-    bootWithDuration('vouch.otp.ttl_seconds', 40000000000);
+    bootWithDuration($key, 40000000000);
 
     expect(true)->toBeTrue();
-});
+})->with(forwardDurationSettings());
 
 it('names the offending value as well as the setting', function (): void {
     try {
