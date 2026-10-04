@@ -197,6 +197,22 @@ function sessionProofFrom(int $userId, array $factors): array
  * getMorphClass() lives on Eloquent's Model, so an unrelated configured class
  * must fail loudly here rather than at an unrelated assertion later.
  */
+/**
+ * Whether the connection is NOT the one engine a MySQL-only test is about.
+ *
+ * Shared rather than declared per file. Two migration test files need it -- the no-pad collation
+ * conversion and the move off a date type that ends in 2038 -- and the second declaring it again
+ * made the whole suite abort with "Cannot redeclare function skipUnlessMysql()", which running
+ * either file alone could not show.
+ *
+ * Returns a bool rather than skipping, because markTestSkipped() lives on the test case: the caller
+ * is inside a closure where $this resolves, and a free function here is not.
+ */
+function skipUnlessMysql(): bool
+{
+    return \Illuminate\Support\Facades\DB::connection()->getDriverName() !== 'mysql';
+}
+
 function configuredUserProvider(): string
 {
     $model = configuredUserModel();

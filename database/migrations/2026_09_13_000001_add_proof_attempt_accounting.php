@@ -14,7 +14,7 @@ return new class extends Migration
             Schema::table($name, function (Blueprint $table): void {
                 $table->unsignedInteger('attempts')->default(0);
                 // Burning is evidence of exhausted guesses, never redemption.
-                $table->timestamp('burned_at')->nullable()->index();
+                $table->dateTime('burned_at')->nullable()->index();
             });
         }
     }

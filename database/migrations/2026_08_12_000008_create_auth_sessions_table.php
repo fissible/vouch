@@ -30,15 +30,15 @@ return new class extends Migration
             $table->json('assurance_facts')->nullable();
 
             // Oldest satisfied factor, for §5.3 recency checks.
-            $table->timestamp('last_factor_at')->nullable();
+            $table->dateTime('last_factor_at')->nullable();
 
             // Absolute, set at creation, never extended by activity.
-            $table->timestamp('recovery_grace_expires_at')->nullable();
+            $table->dateTime('recovery_grace_expires_at')->nullable();
 
-            $table->timestamp('revoked_at')->nullable()->index();
+            $table->dateTime('revoked_at')->nullable()->index();
             $table->string('revoked_reason', 32)->nullable();
 
-            $table->timestamps();
+            $table->datetimes();
         });
     }
 

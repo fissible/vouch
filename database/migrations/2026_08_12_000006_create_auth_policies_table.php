@@ -24,7 +24,7 @@ return new class extends Migration
             // permissive default cannot loosen a stricter global floor.
             $table->string('posture', 16)->default('friendly');
 
-            $table->timestamps();
+            $table->datetimes();
 
             $table->unique(['tenant_id', 'scope']);
         });

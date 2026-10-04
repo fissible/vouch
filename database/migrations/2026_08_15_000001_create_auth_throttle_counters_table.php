@@ -27,10 +27,10 @@ return new class extends Migration
             $table->id();
             $table->string('dimension', 32);
             $table->char('subject_digest', 64);
-            $table->timestamp('window_started_at');
+            $table->dateTime('window_started_at');
             $table->unsignedBigInteger('count');
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->dateTime('created_at');
+            $table->dateTime('updated_at');
 
             $table->unique(
                 ['dimension', 'subject_digest'],

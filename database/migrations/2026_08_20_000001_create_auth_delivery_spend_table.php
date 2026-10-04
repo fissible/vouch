@@ -14,10 +14,10 @@ return new class extends Migration
             $table->id();
             $table->string('scope', 16);
             $table->char('subject_digest', 64);
-            $table->timestamp('window_started_at');
+            $table->dateTime('window_started_at');
             $table->unsignedBigInteger('spent_minor');
-            $table->timestamp('created_at');
-            $table->timestamp('updated_at');
+            $table->dateTime('created_at');
+            $table->dateTime('updated_at');
 
             $table->unique(['scope', 'subject_digest'], 'auth_delivery_spend_subject_unique');
             $table->index('window_started_at', 'auth_delivery_spend_window_index');

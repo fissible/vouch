@@ -31,12 +31,12 @@ return new class extends Migration
                 ->cascadeOnDelete();
             $table->text('payload')->nullable();
             $table->string('status', 32);
-            $table->timestamp('expires_at')->index();
-            $table->timestamp('dispatched_at')->nullable()->index();
-            $table->timestamp('provider_attempted_at')->nullable();
-            $table->timestamp('delivered_at')->nullable();
-            $table->timestamp('undeliverable_at')->nullable();
-            $table->timestamps();
+            $table->dateTime('expires_at')->index();
+            $table->dateTime('dispatched_at')->nullable()->index();
+            $table->dateTime('provider_attempted_at')->nullable();
+            $table->dateTime('delivered_at')->nullable();
+            $table->dateTime('undeliverable_at')->nullable();
+            $table->datetimes();
 
             $table->index(
                 ['status', 'expires_at'],

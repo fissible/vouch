@@ -16,9 +16,9 @@ return new class extends Migration
             $table->string('identifier_value', 255);
             $table->string('code_hash');
             $table->boolean('is_decoy')->default(false);
-            $table->timestamp('expires_at')->index();
-            $table->timestamp('consumed_at')->nullable()->index();
-            $table->timestamps();
+            $table->dateTime('expires_at')->index();
+            $table->dateTime('consumed_at')->nullable()->index();
+            $table->datetimes();
             $table->index(['identifier_type', 'identifier_value', 'consumed_at'], 'auth_recovery_proofs_redemption_index');
         });
 
@@ -28,13 +28,13 @@ return new class extends Migration
             $table->foreignId('proof_id')->constrained('auth_recovery_proofs')->cascadeOnDelete();
             $table->text('payload')->nullable();
             $table->string('status', 32);
-            $table->timestamp('expires_at')->index();
-            $table->timestamp('dispatched_at')->nullable()->index();
-            $table->timestamp('provider_attempted_at')->nullable();
-            $table->timestamp('delivered_at')->nullable();
-            $table->timestamp('undeliverable_at')->nullable();
+            $table->dateTime('expires_at')->index();
+            $table->dateTime('dispatched_at')->nullable()->index();
+            $table->dateTime('provider_attempted_at')->nullable();
+            $table->dateTime('delivered_at')->nullable();
+            $table->dateTime('undeliverable_at')->nullable();
             $table->string('failure_reason', 64)->nullable();
-            $table->timestamps();
+            $table->datetimes();
             $table->index(['status', 'expires_at'], 'auth_recovery_proof_outbox_pending_expiry_index');
         });
     }

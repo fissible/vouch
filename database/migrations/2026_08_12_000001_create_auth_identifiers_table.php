@@ -15,9 +15,9 @@ return new class extends Migration
             $table->unsignedBigInteger('user_id')->index();
             $table->string('type', 32);
             $table->string('value', 255);
-            $table->timestamp('verified_at')->nullable();
+            $table->dateTime('verified_at')->nullable();
             $table->boolean('is_primary')->default(false);
-            $table->timestamps();
+            $table->datetimes();
 
             $table->unique(['type', 'value']);
         });

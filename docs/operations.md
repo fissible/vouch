@@ -185,6 +185,54 @@ other for the length of one issuance transaction. That is a latency cost and
 nothing else: no state crosses between them, and with ten simultaneous distinct
 issuances an arriving request contends roughly once in 455.
 
+## Moving MySQL dates past 2038
+
+Publish and run `2026_10_03_000001_date_columns_beyond_2038.php` with host traffic
+paused. It converts every remaining `TIMESTAMP` column in Vouch's `auth_` table
+namespace to `DATETIME`, preserving precision, nullability and indexes. The
+underscore is literal, so a host's `authentication_events` is outside that
+namespace. Fresh installations already create `DATETIME` columns; PostgreSQL
+and SQLite already store dates beyond 2038 and the upgrade changes neither.
+
+**The migration and runtime connections must use UTC.** Set
+`'timezone' => '+00:00'` on the relevant MySQL connection in
+`config/database.php`, rebuild the host's cached configuration, and restart
+workers and other long-lived processes so their connections pick it up. Check
+`SELECT @@session.time_zone, @@system_time_zone` on that connection: an explicit
+`+00:00`, `UTC` or `Etc/UTC` is accepted, as is `SYSTEM` when the system zone is
+UTC. Every other zone is refused before any schema change. A zero offset today
+does not establish UTC across daylight-saving transitions.
+
+If the host currently uses another zone, coordinate the connection change and
+the migration in the same maintenance window, with both requests and workers
+paused. Audit any host code that treats database literals as local time before
+resuming traffic. `TIMESTAMP` renders an instant in the connection's zone;
+`DATETIME` stores that rendering without conversion. Running the conversion in
+UTC preserves the epoch of every stored instant. Silently forcing UTC only for
+the migration would leave a +02:00 runtime reading existing windows two hours
+earlier. Keeping the ambient zone is unsafe too: measured in Europe/Berlin, two
+instants an hour apart both became 02:30 at the autumn transition. The upgrade
+refuses rather than choosing either failure for the operator.
+
+MySQL rebuilds each affected table with `ALGORITHM=COPY`. There is one `ALTER`
+per table, covering all its date columns, and writes are blocked for the
+duration. An open read transaction can hold a metadata lock and make the
+upgrade fail with error 1205; drain those transactions as well as writers and
+plan the maintenance window for the largest tables. Progress is per-table,
+**not atomic across tables**. If a later table fails, earlier conversions stay
+applied. Resolve the lock or other reported failure and rerun: columns already
+converted are left alone.
+
+The host's Sanctum `personal_access_tokens` table has the same `TIMESTAMP`
+ceiling and is the host's responsibility to convert under the same UTC
+contract. Vouch must not alter a table it does not own. Until that table is
+converted too, widening Vouch's token-assurance dates alone does not make token
+issuance work beyond 2038.
+
+Rollback is deliberately empty. Narrowing a column back to `TIMESTAMP` fails
+on any installation that has since stored a post-2038 value, and retaining
+`DATETIME` loses nothing.
+
 ## Refusing an identifier that cannot be stored (#64, #65)
 
 A submitted identifier is now refused at the boundary instead of being passed to a

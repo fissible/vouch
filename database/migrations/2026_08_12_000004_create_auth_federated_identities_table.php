@@ -35,7 +35,7 @@ return new class extends Migration
             $table->string('subject', 255);
             $table->json('claims')->nullable();
             $table->unsignedBigInteger('user_id')->nullable()->index();
-            $table->timestamps();
+            $table->datetimes();
 
             /*
              * The identity key is (connection, issuer, subject) — never email,
