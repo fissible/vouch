@@ -3,9 +3,12 @@
 declare(strict_types=1);
 
 use Fissible\Vouch\Console\CommandExit;
+use Fissible\Vouch\Identifiers\IdentifierCollisionsFound;
+use Fissible\Vouch\Identifiers\IdentifierEqualityUpgrade;
 use Fissible\Vouch\Console\RetentionManifest;
 use Fissible\Vouch\Notifications\OtpOutboxStatus;
 use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Throttle\IdentifierCanonicalizer;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Carbon;
@@ -105,8 +108,9 @@ function seedOutbox(string $table, string $parentColumn, int $parentId, string $
         'payload' => null,
         'status' => $status->value,
         'expires_at' => $expiresAt,
-        'created_at' => $expiresAt,
-        'updated_at' => $expiresAt,
+        // Creation independent of expiry, so a reclaimer using created_at is distinguishable.
+        'created_at' => ceremonyPast(86400 * 30),
+        'updated_at' => ceremonyPast(86400 * 30),
     ]);
 }
 
@@ -367,28 +371,47 @@ it('keeps a recovery grace window when the proof that opened it is reclaimed', f
 
 it('no longer gives the identifier collision upgrade a consumed proof to refuse over', function (): void {
     /*
-     * The consequence of #15, pinned rather than discovered later.
+     * The consequence of #15, EXERCISED rather than described.
      *
-     * IdentifierEqualityUpgrade treats these tables as `transient`: a collision whose rows are NOT
-     * terminal it deletes, and one holding a CONSUMED or BURNED proof it refuses over, asking an
-     * operator to resolve it. Reclaiming an expired consumed row removes that evidence, so the
-     * upgrade sees fewer collisions and proceeds where it would have refused.
+     * IdentifierEqualityUpgrade treats these tables as `transient`: a collision whose rows are not
+     * terminal it deletes, and one holding a CONSUMED or BURNED proof it refuses over, raising
+     * IdentifierCollisionsFound so an operator resolves it. Reclaiming an expired consumed row
+     * removes that evidence, so the upgrade sees no collision and proceeds.
      *
-     * That is accepted, not accidental: the upgrade is a one-time schema migration that runs at
-     * deploy, while reclamation is a scheduled job, so the ordering a host actually gets is
-     * migrate-then-prune. This test exists so the interaction is recorded where someone reading
-     * either side will find it -- and so that a future change making the upgrade re-readable after
-     * pruning has to come past it deliberately.
+     * Asserted both ways round -- refusal before, success after -- because describing it proves
+     * nothing: an earlier form of this test only counted the deleted rows and would have passed
+     * whatever the upgrade did.
+     *
+     * The consequence is accepted, and the ordering that makes it safe is a DEPLOYMENT requirement
+     * rather than a property of the scheduler: a scheduler running newly deployed code can prune
+     * before the migration, or between a refused migration and its retry. docs/operations.md has to
+     * say that pruning stays paused until the upgrade has completed successfully.
      */
+    $upgrade = static fn (): IdentifierEqualityUpgrade => new IdentifierEqualityUpgrade(
+        DB::connection(),
+        new IdentifierCanonicalizer(),
+    );
+
+    // Two spellings of one address, both consumed and both expired: the shape it refuses over.
     seedVerification(ceremonyPast(), ['consumed_at' => ceremonyPast(120)], 'ADA@example.test');
     seedVerification(ceremonyPast(), ['consumed_at' => ceremonyPast(120)], 'ada@example.test');
 
-    expect(DB::table('auth_identifier_verifications')->count())->toBe(2);
+    try {
+        $upgrade()->apply();
+
+        $this->markTestSkipped('This engine does not make the two spellings collide; the refusal cannot be staged here.');
+    } catch (IdentifierCollisionsFound) {
+        // The refusal this issue removes the evidence for.
+    }
 
     prune();
 
-    // The evidence a collision refusal would have rested on is gone.
     expect(DB::table('auth_identifier_verifications')->count())->toBe(0);
+
+    // And now it proceeds, because the evidence is gone.
+    $upgrade()->apply();
+
+    expect(true)->toBeTrue();
 });
 
 /* ---- the ordering hazard ------------------------------------------------ */
@@ -455,3 +478,62 @@ it('leaves the anchor table still unreclaimed', function (): void {
      */
     expect(RetentionManifest::unreclaimed())->toHaveKey('auth_throttle_ip_windows');
 });
+
+/* ---- the predicate itself, which three mutants walked through ----------- */
+
+it('reclaims a row whose expiry is exactly the database clock', function (string $kind): void {
+    /*
+     * The boundary. Measured: a mutant using strict `<` instead of `<=` passed every other case,
+     * because no fixture sat exactly on the deadline -- and every existing reclaimer here is `<=`.
+     */
+    $table = ceremonyShape($kind)['parent'];
+    seedCeremony($kind, app(DatabaseTime::class)->current()->format('Y-m-d H:i:s'));
+
+    prune();
+
+    expect(DB::table($table)->count())->toBe(0);
+})->with(['verification', 'proof', 'link']);
+
+it('reads the deadline from the database clock, not the application clock', function (): void {
+    /*
+     * Measured: a mutant comparing against the APPLICATION clock passed every case, because the two
+     * agree in a test. Carbon is pushed two hours behind, so a row the database considers expired is
+     * still in the future to PHP and must be reclaimed anyway. #44 put these deadlines on the
+     * database clock exactly so a skewed app server cannot extend a security window.
+     */
+    seedVerification(ceremonyPast(60));
+
+    Carbon::setTestNow(Carbon::instance(app(DatabaseTime::class)->current())->subHours(2));
+
+    try {
+        prune();
+    } finally {
+        Carbon::setTestNow();
+    }
+
+    expect(DB::table('auth_identifier_verifications')->count())->toBe(0);
+});
+
+it('reclaims an expired row whatever terminal state it reached, and leaves a live one', function (string $kind, string $column): void {
+    /*
+     * The predicate is expiry, not a terminal state: a consumed row is still the replay defence for
+     * its own code until it expires, and auth_attempts sets that precedent. Measured, a mutant
+     * deleting on the terminal state instead passed everything, because no fixture populated one.
+     */
+    seedCeremony($kind, ceremonyPast(), [$column => ceremonyPast(120)]);
+    $live = seedCeremony($kind, ceremonyFuture(), [$column => ceremonyPast(120)]);
+    $table = ceremonyShape($kind)['parent'];
+
+    expect(DB::table($table)->count())->toBe(2);
+
+    prune();
+
+    // The terminal-but-live row survives: reaching a terminal state is not what reclaims a row.
+    expect(DB::table($table)->pluck('id')->all())->toBe([$live]);
+})->with([
+    'consumed verification' => ['verification', 'consumed_at'],
+    'burned verification' => ['verification', 'burned_at'],
+    'superseded verification' => ['verification', 'superseded_at'],
+    'consumed proof' => ['proof', 'consumed_at'],
+    'burned proof' => ['proof', 'burned_at'],
+]);
