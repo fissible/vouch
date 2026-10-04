@@ -257,6 +257,13 @@ it('reports an expired undelivered row from either outbox as delivery health', f
      *
      * What is asserted is the signal, the work, and that the output NAMES this table: an operator
      * who cannot see which outbox was swept learns nothing from the warning.
+     *
+     * The cost is accepted and stated rather than hidden: with no figure asserted, a reclaimer whose
+     * counter is simply wrong -- an increment replaced by an assignment, say -- still satisfies
+     * everything here. Closing that needs a figure bound to its own outbox and category, which means
+     * either pinning the summary's wording or giving vouch:prune structured output. The second is
+     * the right answer and is a separate change; until then the deletions are what this file
+     * guarantees, and the figures are not.
      */
     expect($output)->toContain('undelivered');
     expect($output)->toContain($kind === 'verification' ? 'verification' : 'recovery');
@@ -264,6 +271,22 @@ it('reports an expired undelivered row from either outbox as delivery health', f
     // Only the unexpired one survives, so neither a leftover nor an over-eager sweep passes.
     expect(DB::table($outbox)->count())->toBe(1);
     expect(DB::table($outbox)->where('expires_at', '>', ceremonyPast())->count())->toBe(1);
+})->with(['verification', 'proof']);
+
+it('reports delivery health for an outbox holding only undeliverable rows', function (string $kind): void {
+    /*
+     * Undeliverable on its own, with no pending row anywhere. A classification that counted only
+     * pending rows as undelivered would exit clean here while an operator's delivery worker was
+     * failing every send -- and the mixed case cannot catch it, because its pending row carries the
+     * signal by itself.
+     */
+    $shape = ceremonyShape($kind);
+    $outbox = (string) $shape['outbox'];
+
+    seedOutbox($outbox, (string) $shape['parentColumn'], seedCeremony($kind, ceremonyFuture()), ceremonyPast(), OtpOutboxStatus::Undeliverable);
+
+    expect(prune())->toBe(CommandExit::DeliveryHealth->value);
+    expect(DB::table($outbox)->count())->toBe(0);
 })->with(['verification', 'proof']);
 
 it('exits cleanly when every expired delivery row was delivered', function (string $kind): void {
