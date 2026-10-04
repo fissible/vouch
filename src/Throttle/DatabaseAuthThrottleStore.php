@@ -9,6 +9,7 @@ use DateTimeInterface;
 use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\DatabaseTime;
+use Fissible\Vouch\Support\DurationBounds;
 use Fissible\Vouch\Support\LockContention;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Builder;
@@ -483,7 +484,7 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
         return $this->ipParentQuery($ip)
             ->whereRaw(
                 $this->time->windowStartedAtAtOrBeforeDeadlineSql(),
-                [-$this->configuration->windowSeconds],
+                [$this->backwardWindowSeconds()],
             )
             ->exists();
     }
@@ -516,6 +517,7 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
             return SharedThrottle::permitted();
         }
 
+        DurationBounds::backward($backoff, 'vouch.throttle.ip.backoff_seconds', $this->time->current());
         $latest = $this->tupleQuery($parent)
             ->whereRaw($this->time->createdAtAfterDeadlineSql(), [-$backoff])
             ->max('created_at');
@@ -524,7 +526,10 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
             return SharedThrottle::permitted();
         }
 
-        $retryAfter = $this->date($latest)->modify('+' . $backoff . ' seconds');
+        $latestAt = $this->date($latest);
+        DurationBounds::forward($backoff, 'vouch.throttle.ip.backoff_seconds', $latestAt);
+        DurationBounds::forward($this->configuration->windowSeconds, 'vouch.throttle.window_seconds', $parent['windowStartedAt']);
+        $retryAfter = $latestAt->modify('+' . $backoff . ' seconds');
         $windowDeadline = $parent['windowStartedAt']
             ->modify('+' . $this->configuration->windowSeconds . ' seconds');
 
@@ -676,7 +681,12 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
 
     private function deadline(DateTimeImmutable $windowStartedAt, int $offset): DateTimeImmutable
     {
-        return $windowStartedAt->modify('+' . min($offset, $this->configuration->windowSeconds) . ' seconds');
+        // The retry date is relative to a stored start, not boot's clock. Check
+        // the effective offset only: the raw initial backoff is clamped upstream.
+        $seconds = min($offset, $this->configuration->windowSeconds);
+        DurationBounds::forward($seconds, 'vouch.throttle.window_seconds', $windowStartedAt);
+
+        return $windowStartedAt->modify('+' . $seconds . ' seconds');
     }
 
     private function ensureCounter(ThrottleSubject $subject, bool $existedBeforeTransaction): void
@@ -728,6 +738,7 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
         $updated = $grammar->wrap('updated_at');
         $dimension = $grammar->wrap('dimension');
         $digest = $grammar->wrap('subject_digest');
+        $windowSeconds = $this->backwardWindowSeconds();
         $deadline = $this->time->deadlineSqlHere();
         $expired = "{$window} <= {$deadline}";
 
@@ -739,9 +750,9 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
             . "WHERE {$dimension} = ? AND {$digest} = ?",
             [
                 $forceRollover ? 1 : 0,
-                -$this->configuration->windowSeconds,
+                $windowSeconds,
                 $forceRollover ? 1 : 0,
-                -$this->configuration->windowSeconds,
+                $windowSeconds,
                 $subject->dimension->value,
                 $subject->digest,
             ],
@@ -800,13 +811,26 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
         return $this->counterQuery($subject)
             ->whereRaw(
                 $this->time->windowStartedAtAtOrBeforeDeadlineSql(),
-                [-$this->configuration->windowSeconds],
+                [$this->backwardWindowSeconds()],
             )
             ->exists();
     }
 
+    private function backwardWindowSeconds(): int
+    {
+        // These SQL comparisons bypass deadline(), and this configuration may
+        // have survived boot in a worker. Validate against the executing database
+        // clock before negating; every scheduled offset is capped to this window.
+        return -DurationBounds::backward(
+            $this->configuration->windowSeconds,
+            'vouch.throttle.window_seconds',
+            $this->time->current(),
+        );
+    }
+
     private function deadlinePending(ThrottleSubject $subject, int $offset): bool
     {
+        $this->backwardWindowSeconds();
         return $this->counterQuery($subject)
             ->whereRaw($this->time->windowStartedAtAfterDeadlineSql(), [-$offset])
             ->exists();
@@ -814,6 +838,13 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
 
     private function writeLock(ThrottleSubject $identifier): DateTimeImmutable
     {
+        // The direct SQL write also bypasses deadline(); the semantic 3600-second
+        // cap does not establish representability on a later database clock.
+        DurationBounds::forward(
+            $this->configuration->lockDurationSeconds,
+            'vouch.throttle.identifier.lock_duration_seconds',
+            $this->time->current(),
+        );
         $now = $this->time->now();
 
         $this->connection->table('auth_throttle_locks')->insertOrIgnore([[

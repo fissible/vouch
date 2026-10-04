@@ -49,6 +49,7 @@ use Fissible\Vouch\Delivery\UnconfiguredCaptchaVerifier;
 use Fissible\Vouch\Delivery\UnconfiguredDeliveryEconomics;
 use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\AttemptWindow;
+use Fissible\Vouch\Support\DurationBounds;
 use Fissible\Vouch\Support\IssuanceLockBucket;
 use Fissible\Vouch\Support\LockContention;
 use Fissible\Vouch\Support\SystemClock;
@@ -230,7 +231,7 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(IdentifierVerificationOutbox::class),
                 $app['db']->connection(),
                 $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
-                config()->integer('vouch.verification.ttl_seconds'),
+                DurationBounds::forward(config()->integer('vouch.verification.ttl_seconds'), 'vouch.verification.ttl_seconds'),
                 $app->make(RandomSource::class),
                 $app->make(\Fissible\Vouch\Throttle\ProofAttemptStore::class),
                 $app->make(IdentifierCanonicalizer::class),
@@ -355,7 +356,7 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(ThrottleConfiguration::class),
                 $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
                 $app->make(IdentifierCanonicalizer::class),
-                config()->integer('vouch.attempts.ttl_seconds'),
+                AttemptWindow::seconds(),
             ),
         );
 
@@ -386,7 +387,7 @@ final class VouchServiceProvider extends ServiceProvider
             fn ($app): \Fissible\Vouch\Recovery\GraceGuard => new \Fissible\Vouch\Recovery\GraceGuard(
                 $app['db']->connection(),
                 $app->make(\Fissible\Vouch\Support\DatabaseTime::class),
-                config()->integer('vouch.recovery_grace.ttl_seconds'),
+                DurationBounds::forward(config()->integer('vouch.recovery_grace.ttl_seconds'), 'vouch.recovery_grace.ttl_seconds'),
             ),
         );
 
@@ -478,7 +479,7 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(OtpChallengeOutbox::class),
                 $app->make(AuthThrottleStore::class),
                 config()->integer('vouch.otp.length'),
-                config()->integer('vouch.otp.ttl_seconds'),
+                DurationBounds::forward(config()->integer('vouch.otp.ttl_seconds'), 'vouch.otp.ttl_seconds'),
                 $app->make(RandomSource::class),
             ),
         );
@@ -491,7 +492,7 @@ final class VouchServiceProvider extends ServiceProvider
                 $app->make(OtpChallengeOutbox::class),
                 $app->make(AuthThrottleStore::class),
                 config()->integer('vouch.otp.length'),
-                config()->integer('vouch.otp.ttl_seconds'),
+                DurationBounds::forward(config()->integer('vouch.otp.ttl_seconds'), 'vouch.otp.ttl_seconds'),
                 $app->make(RandomSource::class),
             ),
         );
@@ -538,6 +539,21 @@ final class VouchServiceProvider extends ServiceProvider
         if (! $this->isDoctorCommand()) {
             AttemptWindow::seconds();
         }
+
+        // These readers are otherwise lazy. Validate before accepting traffic,
+        // using the same range predicate as their eventual configuration reads.
+        foreach ([
+            'vouch.recovery_grace.ttl_seconds',
+            'vouch.recovery.ttl_seconds',
+            'vouch.otp.ttl_seconds',
+            'vouch.verification.ttl_seconds',
+        ] as $key) {
+            DurationBounds::forward(config()->integer($key), $key);
+        }
+        DurationBounds::backwardDays(
+            config()->integer('vouch.sessions.revocation_retention_days'),
+            'vouch.sessions.revocation_retention_days',
+        );
 
         /*
          * #46. The issuance mutex's keying secret, at boot rather than at the first

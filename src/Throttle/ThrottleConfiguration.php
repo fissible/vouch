@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Fissible\Vouch\Throttle;
 
 use Fissible\Vouch\Support\ConfigurationError;
+use Fissible\Vouch\Support\DurationBounds;
 use InvalidArgumentException;
 
 /**
@@ -123,6 +124,13 @@ final readonly class ThrottleConfiguration
             'Configuration "vouch.throttle.captcha.enabled" requires at least one shared '
             . 'throttle dimension in "enforce" mode.',
         );
+
+        // Keep the semantic owners above: a count is not a duration, and the
+        // raw initial backoff never reaches the clock. Measured, 999999999999
+        // is clamped by the consumer to the shipped 60-second cap.
+        DurationBounds::backward($retentionSeconds, self::PREFIX . 'retention_seconds');
+        DurationBounds::backward($windowSeconds, self::PREFIX . 'window_seconds');
+        DurationBounds::forward($windowSeconds, self::PREFIX . 'window_seconds');
 
         return new self(
             $windowSeconds,

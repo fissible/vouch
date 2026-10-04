@@ -54,6 +54,6 @@ final class AttemptWindow
             throw ConfigurationError::positiveInteger($configured, self::KEY);
         }
 
-        return $configured;
+        return DurationBounds::forward($configured, self::KEY);
     }
 }
