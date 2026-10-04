@@ -250,9 +250,16 @@ it('reports an expired undelivered row from either outbox as delivery health', f
 
     $output = Artisan::output();
 
-    // Two undelivered (pending and undeliverable both count as not delivered) and one delivered.
-    expect($output)->toMatch('/\b2\b/');
+    /*
+     * The figures themselves are prose: vouch:prune has no structured output, so asserting them
+     * means asserting wording the implementation should be free to choose -- and a bare-number
+     * regex accepts a wrong figure anyway, since any other count in the summary satisfies it.
+     *
+     * What is asserted is the signal, the work, and that the output NAMES this table: an operator
+     * who cannot see which outbox was swept learns nothing from the warning.
+     */
     expect($output)->toContain('undelivered');
+    expect($output)->toContain($kind === 'verification' ? 'verification' : 'recovery');
 
     // Only the unexpired one survives, so neither a leftover nor an over-eager sweep passes.
     expect(DB::table($outbox)->count())->toBe(1);
@@ -396,13 +403,13 @@ it('no longer gives the identifier collision upgrade a consumed proof to refuse 
     seedVerification(ceremonyPast(), ['consumed_at' => ceremonyPast(120)], 'ADA@example.test');
     seedVerification(ceremonyPast(), ['consumed_at' => ceremonyPast(120)], 'ada@example.test');
 
-    try {
-        $upgrade()->apply();
-
-        $this->markTestSkipped('This engine does not make the two spellings collide; the refusal cannot be staged here.');
-    } catch (IdentifierCollisionsFound) {
-        // The refusal this issue removes the evidence for.
-    }
+    /*
+     * Required, not skipped. An earlier form skipped when the upgrade unexpectedly succeeded, so a
+     * regression that stopped refusing over consumed collisions would have skipped the whole
+     * interaction check rather than failing it. These two spellings canonicalize identically on
+     * every supported engine, so the refusal is stageable everywhere and its absence is a defect.
+     */
+    expect(fn () => $upgrade()->apply())->toThrow(IdentifierCollisionsFound::class);
 
     prune();
 
@@ -441,11 +448,12 @@ it('counts a cascading delivery row before the parent sweep destroys it', functi
     $output = Artisan::output();
 
     /*
-     * One of each, counted. A reclaimer that let the cascade run first reports zero of both, and a
-     * count capped at one reports the wrong figure for the pair.
+     * The signal must fire, which is what a cascade-first reclaimer cannot do: with the rows already
+     * gone there is nothing left to classify, so it reports nothing undelivered and exits clean. The
+     * figures are prose and are not asserted -- see the health case above.
      */
-    expect($output)->toMatch('/\b1 delivered\b|\b1\b/');
     expect($output)->toContain('undelivered');
+    expect($output)->toContain($kind === 'verification' ? 'verification' : 'recovery');
     expect(DB::table($outbox)->count())->toBe(0);
     expect(DB::table($shape['parent'])->count())->toBe(0);
 })->with(['verification', 'proof']);
