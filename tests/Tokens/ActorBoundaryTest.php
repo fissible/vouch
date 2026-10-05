@@ -177,9 +177,13 @@ it('does not rely on the token issuer to refuse a machine grant', function (): v
      * has no ActorKind in it. A behavioural version would have to mint a machine token to prove the
      * issuer allows it, which is the thing the package refuses to have a path for.
      */
-    $issuer = (string) file_get_contents(
-        (new ReflectionClass(\Fissible\Vouch\Tokens\Drivers\SanctumTokenIssuer::class))->getFileName(),
-    );
+    // Narrowed rather than cast: getFileName() returns false for an internal class, and level 9
+    // forbids a cast that only silences that.
+    $path = (new ReflectionClass(\Fissible\Vouch\Tokens\Drivers\SanctumTokenIssuer::class))->getFileName();
+
+    expect($path)->toBeString();
+
+    $issuer = is_string($path) ? (string) file_get_contents($path) : '';
 
     expect($issuer)->not->toContain('ActorKind');
 
