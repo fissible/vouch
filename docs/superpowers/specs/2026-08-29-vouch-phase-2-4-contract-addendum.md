@@ -940,3 +940,101 @@ silently, at every new call site.
   `var_export()`, `json_encode()` and `serialize()` on the result itself.
 - Callers must handle them explicitly. That is the whole reason the value is returned rather
   than pushed into a sink the caller can forget.
+
+## 3l. The machine-token issuance boundary (settled 2026-10-05, issue #9)
+
+`Vouch::issueToken()` refuses a machine grant. The concrete issuer does not: `SanctumTokenIssuer`
+never inspects `ActorKind` and will mint whatever grant it is handed. So the gap was never the
+driver — it is that no public path authorizes a machine token, and the refusal's LOCATION is what
+holds the line.
+
+The design doc named `issueMachineToken(ServiceIdentity, TokenGrant)`, and `ServiceIdentity` does
+not exist anywhere in `src/`. Writing that signature first would have settled the shape before the
+question it depends on: human issuance draws its authority from a resolved session, and a machine
+has none.
+
+**Decided, and deferred.** When a machine path exists it will be a separate method, denied by
+default, whose authority comes from an explicit host-supplied authorizer — never from
+`issueToken()`, and never derived from a human session. It runs inside the caller's transaction,
+authorizes the exact service subject, tenant and grant within it, and atomically writes the token
+together with a `Machine` assurance record carrying no human factors.
+
+Issuance does not create the machine identity. `ServiceIdentity` names a persisted record, and
+creating one is an administrative act — a host provisioning step or a console command — so Task 4's
+invariant holds: it enforces existing machine records and does not become the first consumer that
+also creates them.
+
+Two alternatives were considered and refused. Deriving machine authority from a resolved human
+session makes every human token a machine-token mint. Letting the issuer decide moves the gate to
+the one component that demonstrably has no opinion about actor kind, and the move would be
+invisible — every existing test would stay green.
+
+Nothing ships until a host asks. A host wanting self-service machine credentials needs §3m settled
+first, because that is the same two-principal problem.
+
+### The rules, stated so they can be tested
+
+- `issueToken()` refuses every actor kind that is not `Human`, over `ActorKind::cases()` rather than
+  by naming `Machine`. A kind added later is refused by default rather than issuable because nobody
+  considered it.
+- The refusal names the boundary in its message, so a log line teaches an operator the rule.
+- A refused grant writes nothing. A refusal that has already written half a record is how Task 4's
+  invariant dies.
+- The issuer is not a second line of defence, and no test may imply that it is.
+
+## 3m. Delegation is an attribute, not a third actor kind (settled 2026-10-05, issue #24)
+
+`ActorKind` has two cases. `TokenAssuranceRecord::read()` refuses a `Machine` record with
+`AssuranceReason::MachineActor` before evaluating anything else, and §10.4 ratifies that a machine
+token never satisfies a human AAL requirement. Both are right for an autonomous service.
+
+Neither describes an actor operating on behalf of a human who satisfied an assurance requirement
+moments earlier. Today that case must be modelled as `Human`, inheriting the principal's full
+assurance with no record that a delegate held the token, or as `Machine`, which can satisfy nothing.
+Both are wrong, in opposite directions.
+
+**Decided, and deferred.** Delegation is an **attribute of a human assurance record**, carrying the
+delegate, the principal, and the authority connecting them. Not a third `ActorKind`.
+
+One correction to the issue's own reasoning: `actor_kind` is `varchar(16)`, so a third case would
+not itself force a column migration. The argument against it is not storage — it is that a single
+enum case cannot carry three identities, and that every `match` over `ActorKind` would acquire a
+branch meaning "sometimes satisfies a human requirement", which is precisely the ambiguity the
+Machine refusal exists to remove.
+
+The five questions, answered:
+
+1. **An attribute**, as above. Both existing cases are documented as not representing delegated
+   human assurance.
+2. **Recency is not inherited and cannot be refreshed.** Evaluate the principal evidence's original
+   `weakest_satisfied_at` against the same `max_age`, so a delegate outliving the principal's window
+   fails closed. A later principal authentication must not silently refresh an existing delegated
+   proof.
+3. **A non-interactive caller gets a terminal refusal** when step-up is required, not an RFC 9470
+   challenge it will drop. §5's wire contract assumes an interactive client.
+4. **Principal credential revocation must invalidate dependent delegated assurance — and this is
+   work, not inheritance.** `TokenAssuranceRecord`'s sweep matches `assurance.subject_key` against
+   the principal and `actor_kind = Human`, joining `auth_token_credentials.credential_id`; a
+   delegated record is not matched unless it is deliberately reachable from the principal's subject.
+   External issuer revocation can also fail, which the result has to surface.
+5. **The audit trail names both**: the delegate as the acting party, the principal as the authority.
+
+### Compatibility, decided now because it is cheap now
+
+Existing `actor_kind` rows mean exactly what they say. A future delegation attribute defaults to
+absent, which means "not delegated" — no row acquires a retrospective answer.
+
+And a deployment reading a value it has no case for must treat the record as unreadable rather than
+as human. That already holds: the read path uses `ActorKind::from()` and lets the `ValueError`
+become `AssuranceReason::ProofMalformed`, and the sweep counts such a row `unreadable`. It is one
+refactor away from being false — `tryFrom()` with a `Human` fallback would read a delegated record
+as a full human principal, which is the worst available answer — so it is asserted rather than
+assumed.
+
+### The rules, stated so they can be tested
+
+- `ActorKind` has exactly `Human` and `Machine`. Adding a case has to come past this decision.
+- A persisted `actor_kind` the code does not recognise yields no assurance and a malformed-proof
+  reason, never a human principal.
+- Deferring the capability is fine. Deferring the shape while `actor_kind` ships is not, which is
+  why this section exists before any delegation code does.
