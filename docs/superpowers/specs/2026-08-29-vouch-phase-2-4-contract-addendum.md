@@ -955,7 +955,13 @@ has none.
 
 **Decided, and deferred.** When a machine path exists it will be a separate method, denied by
 default, whose authority comes from an explicit host-supplied authorizer — never from
-`issueToken()`, and never derived from a human session. It runs inside the caller's transaction,
+`issueToken()`, and never derived from successful authentication alone.
+
+That last clause is narrower than "never from a human session", which was too broad. An authorizer
+may perfectly well authenticate an administrator through a session and then apply an explicit host
+permission; package code may verify a capability under host-configured trust and policy. What cannot
+be derived is permission to mint credentials for a particular service, tenant and grant **merely
+because somebody authenticated**. Assurance establishes who is present, not what they may provision. It runs inside the caller's transaction,
 authorizes the exact service subject, tenant and grant within it, and atomically writes the token
 together with a `Machine` assurance record carrying no human factors.
 
@@ -964,13 +970,15 @@ creating one is an administrative act — a host provisioning step or a console 
 invariant holds: it enforces existing machine records and does not become the first consumer that
 also creates them.
 
-Two alternatives were considered and refused. Deriving machine authority from a resolved human
-session makes every human token a machine-token mint. Letting the issuer decide moves the gate to
-the one component that demonstrably has no opinion about actor kind, and the move would be
-invisible — every existing test would stay green.
+Two alternatives were considered and refused. Treating a resolved human session as sufficient
+authority would make the authentication surface the provisioning surface, which is a much larger
+claim than any assurance level supports. Letting the issuer decide moves the gate to the one
+component that demonstrably has no opinion about actor kind — and that move is easy to make by
+mistake, because the driver mints whatever it is handed and nothing in it says otherwise.
 
-Nothing ships until a host asks. A host wanting self-service machine credentials needs §3m settled
-first, because that is the same two-principal problem.
+Nothing ships until a host asks. §3m is related but not a prerequisite: an authorized administrator
+provisioning a credential for an autonomous service is not delegating their own assurance to it.
+What would need §3m first is a machine acting *on behalf of* a human — the two-principal case.
 
 ### The rules, stated so they can be tested
 
@@ -985,8 +993,9 @@ first, because that is the same two-principal problem.
 ## 3m. Delegation is an attribute, not a third actor kind (settled 2026-10-05, issue #24)
 
 `ActorKind` has two cases. `TokenAssuranceRecord::read()` refuses a `Machine` record with
-`AssuranceReason::MachineActor` before evaluating anything else, and §10.4 ratifies that a machine
-token never satisfies a human AAL requirement. Both are right for an autonomous service.
+`AssuranceReason::MachineActor` — after checking usability, finding the row, and decoding the actor,
+but before any assurance is evaluated — and §10.4 ratifies that a machine token never satisfies a
+human AAL requirement. Both are right for an autonomous service.
 
 Neither describes an actor operating on behalf of a human who satisfied an assurance requirement
 moments earlier. Today that case must be modelled as `Human`, inheriting the principal's full
@@ -996,20 +1005,27 @@ Both are wrong, in opposite directions.
 **Decided, and deferred.** Delegation is an **attribute of a human assurance record**, carrying the
 delegate, the principal, and the authority connecting them. Not a third `ActorKind`.
 
-One correction to the issue's own reasoning: `actor_kind` is `varchar(16)`, so a third case would
-not itself force a column migration. The argument against it is not storage — it is that a single
-enum case cannot carry three identities, and that every `match` over `ActorKind` would acquire a
-branch meaning "sometimes satisfies a human requirement", which is precisely the ambiguity the
-Machine refusal exists to remove.
+One correction to the issue's own reasoning: `actor_kind` is `varchar(16)` with no enum-value
+constraint, so a third value would not itself force a column migration.
+
+Nor is "an enum case cannot carry three identities" the argument — a third case could be accompanied
+by extra fields exactly as `Human` would be. The argument is that these are **separate dimensions**.
+`human` and `machine` describe what KIND of actor holds the token; delegation describes a
+RELATIONSHIP between two principals. A delegate still has a kind. Collapsing a relationship into the
+kind enum means every `match` over `ActorKind` acquires a branch meaning "sometimes satisfies a human
+requirement", which is precisely the ambiguity the Machine refusal exists to remove. RFC 8693 keeps
+the same two things apart.
 
 The five questions, answered:
 
 1. **An attribute**, as above. Both existing cases are documented as not representing delegated
    human assurance.
-2. **Recency is not inherited and cannot be refreshed.** Evaluate the principal evidence's original
-   `weakest_satisfied_at` against the same `max_age`, so a delegate outliving the principal's window
-   fails closed. A later principal authentication must not silently refresh an existing delegated
-   proof.
+2. **Recency is the principal's, and cannot be refreshed.** A delegated record carries the
+   principal evidence's ORIGINAL `weakest_satisfied_at` and is evaluated against the same `max_age`,
+   so a delegate outliving the principal's window fails closed. "Inherited" was the wrong word: the
+   timestamp is not copied forward and re-earned, it stays the moment the principal actually
+   satisfied the requirement. A later principal authentication must not silently refresh an existing
+   delegated proof.
 3. **A non-interactive caller gets a terminal refusal** when step-up is required, not an RFC 9470
    challenge it will drop. §5's wire contract assumes an interactive client.
 4. **Principal credential revocation must invalidate dependent delegated assurance — and this is
@@ -1019,13 +1035,30 @@ The five questions, answered:
    External issuer revocation can also fail, which the result has to surface.
 5. **The audit trail names both**: the delegate as the acting party, the principal as the authority.
 
+And one thing the record must not be read as saying: a delegated record's human evidence belongs to
+the PRINCIPAL. It establishes what the principal satisfied and when. It is not evidence that the
+delegate authenticated as that human, and no path may treat it as such.
+
 ### Compatibility, decided now because it is cheap now
 
 Existing `actor_kind` rows mean exactly what they say. A future delegation attribute defaults to
 absent, which means "not delegated" — no row acquires a retrospective answer.
 
-And a deployment reading a value it has no case for must treat the record as unreadable rather than
-as human. That already holds: the read path uses `ActorKind::from()` and lets the `ValueError`
+Two directions need protecting and the first draft of this section only covered one.
+
+**A new reader meeting an old row** is covered by the default: absent means not delegated, so no
+existing row acquires a retrospective answer.
+
+**An OLD reader meeting a new delegated row** is the one that was missing, and it is the dangerous
+direction. Such a row is `actor_kind = 'human'` — a value the old reader knows perfectly well — and
+if its delegation attribute is simply ignored, a delegated token is read as a full human principal.
+So: **unsupported delegation semantics must make the whole record unreadable.** Whatever carries the
+attribute has to be something an older reader refuses rather than skips. The strict proof envelope
+already behaves that way, which is an argument for putting it there; a separate nullable column would
+need its own mechanism, and the requirement holds either way.
+
+**A reader meeting an unrecognised `actor_kind`** must treat the record as unreadable rather than as
+human. That already holds: the read path uses `ActorKind::from()` and lets the `ValueError`
 become `AssuranceReason::ProofMalformed`, and the sweep counts such a row `unreadable`. It is one
 refactor away from being false — `tryFrom()` with a `Human` fallback would read a delegated record
 as a full human principal, which is the worst available answer — so it is asserted rather than
@@ -1036,5 +1069,8 @@ assumed.
 - `ActorKind` has exactly `Human` and `Machine`. Adding a case has to come past this decision.
 - A persisted `actor_kind` the code does not recognise yields no assurance and a malformed-proof
   reason, never a human principal.
+- The proof envelope refuses an unrecognised top-level key rather than discarding it. That is the
+  mechanism by which an old reader refuses a delegated record instead of silently reading it as
+  human, so it is asserted rather than assumed.
 - Deferring the capability is fine. Deferring the shape while `actor_kind` ships is not, which is
   why this section exists before any delegation code does.

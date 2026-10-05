@@ -91,33 +91,40 @@ it('writes nothing when it refuses a machine grant', function (): void {
      * Task 4 enforces existing machine records, and the way that invariant dies is a refusal that
      * has already written half a record.
      *
-     * The refusal is identified by its own message, not merely by its type: measured, removing the
-     * guard in Vouch::issueToken() does NOT redden a bare "nothing was written" assertion, because
-     * issuance then fails further on for an unrelated reason and still writes nothing. So what this
-     * pins is that the MACHINE refusal is what happened and that it left no row -- which is weaker
-     * than "the write is unreachable" and is stated that way rather than overclaimed.
+     * Counted INSIDE the refusal handler, before the rollback. Measured: counting afterwards made
+     * this useless -- a mutant that stored a Machine assurance record immediately before the
+     * refusal stayed green on all three engines, because the test's own rollback erased the
+     * evidence it was looking for.
+     *
+     * The issuer's own table is included too: a refusal that had already minted a token leaves a
+     * row the assurance tables know nothing about.
      */
     $counts = static fn (): array => [
         'assurances' => DB::table('auth_token_assurances')->count(),
         'credentials' => DB::table('auth_token_credentials')->count(),
+        'tokens' => DB::table('personal_access_tokens')->count(),
     ];
 
     $before = $counts();
+    $during = null;
 
     DB::beginTransaction();
 
     try {
         Vouch::issueToken(new TokenGrant(SubjectKey::forConfiguredUser(7), 'api', ['orders:read'], actor: ActorKind::Machine));
+
         throw new RuntimeException('Issuance accepted a machine grant.');
     } catch (\Fissible\Vouch\Tokens\IssuanceRefused $e) {
         // Narrowed, and the message checked: a TypeError or a later unrelated failure would
         // otherwise prove nothing was written because nothing was attempted.
         expect(strtolower($e->getMessage()))->toContain('machine');
+
+        $during = $counts();
     } finally {
         DB::rollBack();
     }
 
-    expect($counts())->toBe($before);
+    expect($during)->toBe($before);
 });
 
 it('leaves a persisted actor kind it does not recognise with no assurance at all', function (): void {
@@ -167,26 +174,54 @@ it('leaves a persisted actor kind it does not recognise with no assurance at all
 
 it('does not rely on the token issuer to refuse a machine grant', function (): void {
     /*
-     * #9 names this hazard and it is worth pinning rather than describing: the concrete issuer does
-     * NOT inspect ActorKind and will mint whatever grant it is handed. So the refusal's LOCATION is
-     * load-bearing. Someone who assumes the issuer checks could move or drop the guard in
-     * Vouch::issueToken() and find every test still green -- except this one, which says in place
-     * that the issuer is not a second line of defence.
+     * #9 names this hazard, and it is worth proving rather than describing: the concrete issuer does
+     * NOT inspect actor kind and will mint whatever grant it is handed. So the refusal's LOCATION in
+     * Vouch::issueToken() is load-bearing, and someone who assumes the issuer checks could move or
+     * drop it.
      *
-     * Asserted as source rather than behaviour because that is what the claim is about: the driver
-     * has no ActorKind in it. A behavioural version would have to mint a machine token to prove the
-     * issuer allows it, which is the thing the package refuses to have a path for.
+     * Demonstrated by handing the issuer a machine grant directly, inside a transaction that is
+     * rolled back. That ships no machine-issuance capability -- the only public path still refuses,
+     * which the cases above assert -- and it states the thing an earlier version of this test only
+     * gestured at by grepping the file for the string "ActorKind". That grep was both too strict and
+     * too weak: a comment mentioning the type failed it, and actor-sensitive behaviour written as
+     * `$grant->actor->value` escaped it entirely.
      */
-    // Narrowed rather than cast: getFileName() returns false for an internal class, and level 9
-    // forbids a cast that only silences that.
-    $path = (new ReflectionClass(\Fissible\Vouch\Tokens\Drivers\SanctumTokenIssuer::class))->getFileName();
+    DB::beginTransaction();
 
-    expect($path)->toBeString();
+    try {
+        $issued = app(\Fissible\Vouch\Tokens\Drivers\SanctumTokenIssuer::class)->issue(
+            DB::connection(),
+            new TokenGrant(SubjectKey::forConfiguredUser(7), 'api', ['orders:read'], actor: ActorKind::Machine),
+        );
 
-    $issuer = is_string($path) ? (string) file_get_contents($path) : '';
+        // It minted one. The driver is not a second line of defence, and no test may imply it is.
+        expect($issued->plainText)->not->toBe('');
+    } finally {
+        DB::rollBack();
+    }
+});
 
-    expect($issuer)->not->toContain('ActorKind');
+it('refuses a proof envelope carrying a key it does not know', function (): void {
+    /*
+     * The sixth invariant, which #24's compatibility rule rests on and which nothing pinned.
+     *
+     * The decoder refuses an envelope with an unrecognised top-level key. That is what makes it safe
+     * to put a delegation attribute INSIDE the proof later: an old reader meeting one refuses the
+     * record instead of silently discarding the attribute and reading a delegated token as a full
+     * human principal.
+     *
+     * Measured: removing only that check left all five other guards green, all 49 AssuranceEvidence
+     * cases green, and the full SQLite suite green -- 2810 passed -- while otherwise valid human
+     * evidence carrying a top-level delegation key decoded as plain human evidence.
+     */
+    $envelope = evidenceFor([evidenceFactor(credentialId: '7')], userId: 7)->toArray();
+    $envelope['delegation'] = ['principal' => 'user:1', 'authority' => 'support-session'];
 
-    // The positive control: the file was read and is the one meant.
-    expect($issuer)->toContain('class SanctumTokenIssuer');
+    expect(fn () => \Fissible\Vouch\Assurance\AssuranceEvidence::fromArray($envelope))
+        ->toThrow(\Fissible\Vouch\Assurance\MalformedEvidence::class);
+
+    // The positive control: the same envelope without the extra key decodes.
+    unset($envelope['delegation']);
+
+    expect(\Fissible\Vouch\Assurance\AssuranceEvidence::fromArray($envelope)->factors)->toHaveCount(1);
 });
