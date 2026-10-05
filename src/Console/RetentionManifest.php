@@ -15,6 +15,11 @@ final class RetentionManifest
             'auth_challenges' => 'Expired attempts cascade their associated challenges during pruning.',
             'auth_challenge_outbox' => 'VouchPruneCommand removes expired OTP delivery outbox rows.',
             'auth_delivery_spend_reservations' => 'VouchPruneCommand reclaims closed historical delivery reservations.',
+            'auth_identifier_verification_outbox' => 'VouchPruneCommand classifies and deletes expired identifier-verification deliveries before parent pruning.',
+            'auth_recovery_proof_outbox' => 'VouchPruneCommand classifies and deletes expired recovery-proof deliveries before parent pruning.',
+            'auth_identifier_verifications' => 'VouchPruneCommand deletes expired verification ceremonies; verified bindings remain on identifiers.',
+            'auth_recovery_proofs' => 'VouchPruneCommand deletes expired recovery proofs; recovery grace remains on sessions.',
+            'auth_link_requests' => 'VouchPruneCommand deletes expired link requests; completed ownership remains on federated identities.',
             'auth_sessions' => 'VouchPruneCommand removes revoked sessions after configured retention.',
             'auth_throttle_counters' => 'VouchPruneCommand removes counters beyond throttle retention.',
             'auth_throttle_locks' => 'VouchPruneCommand removes expired throttle lock state.',
@@ -44,11 +49,6 @@ final class RetentionManifest
     public static function unreclaimed(): array
     {
         return [
-            'auth_identifier_verification_outbox' => '#14: identifier-verification delivery rows have no reclaimer.',
-            'auth_recovery_proof_outbox' => '#14: recovery-proof delivery rows have no reclaimer.',
-            'auth_identifier_verifications' => '#15: verified identifier history has no reclaimer.',
-            'auth_recovery_proofs' => '#15: recovery proofs have no reclaimer.',
-            'auth_link_requests' => '#15: link-request records have no reclaimer.',
             'auth_throttle_ip_windows' => '#16: permanent committed-row mutex anchors need a capacity decision for growth with distinct client IPs, not a prune.',
         ];
     }
