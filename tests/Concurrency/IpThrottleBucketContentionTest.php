@@ -74,7 +74,11 @@ function ipBucketSubject(): ThrottleSubject
     return new ThrottleSubject(ThrottleDimension::IpV4, ipBucketDigest(7));
 }
 
-/** The bucket a subject's lock takes under the configured secrets, and one it does not. */
+/**
+ * The bucket a subject's lock takes under the configured secrets, and one it does not.
+ *
+ * @return array{own: int, other: int}
+ */
 function ipBucketPair(string $digest): array
 {
     $own = IpThrottleLockBucket::buckets('ipv4', $digest);
@@ -226,7 +230,7 @@ function ipBucketSomeoneWaits(): bool
         default => throw new RuntimeException('Unsupported IP bucket driver.'),
     };
 
-    return (int) $waiting > 0;
+    return is_numeric($waiting) && (int) $waiting > 0;
 }
 
 it('keeps a window that was renewed while prune waited for its bucket', function (): void {

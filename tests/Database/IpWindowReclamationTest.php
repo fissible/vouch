@@ -90,7 +90,7 @@ function ipReclaimEnforcingStore(): DatabaseAuthThrottleStore
 
 it('seeds every IP lock bucket', function (): void {
     $buckets = DB::table(IpThrottleLockBucket::TABLE)->orderBy('bucket')->pluck('bucket')
-        ->map(static fn (mixed $bucket): int => (int) $bucket)
+        ->map(static fn (mixed $bucket): int => is_numeric($bucket) ? (int) $bucket : -1)
         ->all();
 
     expect($buckets)->toBe(range(0, LockBucket::COUNT - 1));
@@ -172,7 +172,7 @@ it('keeps two IPs that share a bucket in separate windows', function (): void {
     }
 
     // Premise: the noisy IP really did reach its threshold.
-    expect($last?->decision)->toBe(ThrottleDecision::BackedOff);
+    expect($last->decision)->toBe(ThrottleDecision::BackedOff);
 
     $quietResult = $store->recordIpFailure(
         new ThrottleSubject(ThrottleDimension::IpV4, $quiet),
