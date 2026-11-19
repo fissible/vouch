@@ -51,7 +51,7 @@ Grouped into pull requests, because all of 1–4 touch `IdentifierEqualityUpgrad
 
 **Recommendations are recorded on all nine open questions.** #14/#15 are one decision (expired ceremony rows are reclaimed; the durable fact already lives in an already-retained table) and #16/#17 are another (mutex anchors become fixed-size bucket spaces on the #46 pattern, with #16 additionally splitting the mutex from reclaimable per-IP state). #19 is closed by PR #110. #81, #84, #9 and #24 have a recommendation each on the issue.
 
-**Still waiting on a decision rather than on code:** #14, #15, #16, #17 (#16 and #84 are the expensive ones, and #16 is the only one with an attacker-driven growth vector), #81, #84, #11 (rebaseline the mutation chunks 2.4 affected), and the design set #9, #24. The retention cluster wants one conversation rather than four separate answers.
+**Still waiting on a decision rather than on code:** #16, #17 (one decision: fixed-size bucket spaces on the #46 pattern; #16 is the only attacker-driven growth vector), #84, and #11 (rebaseline the mutation chunks 2.4 affected, pinned last). #16 and #84 are the expensive ones.
 
 ### Current handoff — 2026-08-31
 
