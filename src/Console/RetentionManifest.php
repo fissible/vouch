@@ -43,7 +43,7 @@ final class RetentionManifest
             'auth_policies' => 'Authentication policy rows are durable host configuration.',
             'auth_proof_issuance_locks' => '#46: a fixed set of permanent bucket mutex anchors preserves issuance serialization after proofs are deleted; the migration seeds every row, so capacity never grows with requests and no identifiers are retained -- there is nothing to reclaim.',
             'auth_throttle_ip_locks' => '#16: a fixed set of keyed bucket mutex anchors serializes IP throttle windows; the migration seeds every row, so capacity never grows with client IPs and no IP is retained.',
-            'auth_subject_locks' => '#17: permanent host-controlled subject mutex anchors preserve serialization after sessions are deleted; capacity grows with distinct token-issuing subjects.',
+            'auth_subject_locks' => '#17: a fixed set of keyed bucket mutex anchors serializes token issuance with credential changes; the migration seeds every row, so capacity is fixed and no subject is retained.',
         ];
     }
 

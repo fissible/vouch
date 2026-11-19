@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Fissible\Vouch\Tests\Tokens;
 
+use Fissible\Vouch\Console\RetentionManifest;
+use Fissible\Vouch\Support\LockBucket;
+use Fissible\Vouch\Support\LockBucketSecret;
+use Fissible\Vouch\Support\SubjectLockBucket;
 use Fissible\Vouch\Tests\TestCase;
 use Fissible\Vouch\Tokens\CredentialLockManager;
 use Fissible\Vouch\Tokens\SubjectKey;
@@ -14,27 +18,15 @@ use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
- * 2.4 Task 5a — the subject lock's ANCHOR, which is what makes it durable.
+ * #17. The subject mutex as a fixed set of keyed buckets.
  *
- * The shipped lock takes `auth_sessions where user_id = ?` and calls `->first()`.
- * Two defects follow from that, and both are invisible while the only caller is
- * issuance, where a session row is guaranteed to exist:
+ * 2.4 Task 5a gave each subject a permanent anchor row so a subject with no
+ * session still serializes. That kept one row per subject ever issued a token,
+ * naming the subject, surviving the host deleting the user. A bucket keeps the
+ * serialization and discards the identity, as #46 did for identifiers.
  *
- *   - `SubjectKey::$provider` is ignored, so the lock is keyed on half an
- *     identity;
- *   - `->first()` over an empty result acquires NO LOCK AT ALL, silently. The
- *     caller believes it is serialized and is not.
- *
- * A subject-wide sweep is precisely the caller for whom "the subject may have no
- * session" is the normal case, so 5a gives the subject an anchor that always
- * exists before it is locked — following `auth_enrollment_locks`, whose
- * migration already documents why a mutex anchor carries no id, no timestamps
- * and no foreign key.
- *
- * These tests assert the anchor's OBSERVABLE properties. Whether two
- * transactions genuinely exclude each other is a claim about a database, not
- * about PHP, and is proven against real engines in
- * tests/Concurrency/SubjectLockContentionTest.php instead.
+ * These assert observable properties. Whether two transactions exclude each
+ * other is proven against real engines in SubjectLockContentionTest.
  */
 final class SubjectLockTest extends TestCase
 {
@@ -51,17 +43,29 @@ final class SubjectLockTest extends TestCase
         return app(CredentialLockManager::class);
     }
 
+    /** @return list<int> */
+    private function bucketRows(): array
+    {
+        return array_map(
+            static fn (mixed $bucket): int => is_numeric($bucket) ? (int) $bucket : -1,
+            DB::table(SubjectLockBucket::TABLE)->orderBy('bucket')->pluck('bucket')->all(),
+        );
+    }
+
     #[Test]
-    public function it_serializes_a_subject_that_has_no_session_row(): void
+    public function the_table_is_a_seeded_bucket_space(): void
+    {
+        self::assertSame(['bucket'], DB::connection()->getSchemaBuilder()->getColumnListing(SubjectLockBucket::TABLE));
+        self::assertSame(range(0, LockBucket::COUNT - 1), $this->bucketRows());
+    }
+
+    #[Test]
+    public function locking_a_subject_writes_no_row_and_retains_no_identity(): void
     {
         /*
-         * The defect that motivates the whole task. Under the shipped lock this
-         * subject has nothing to lock, `->first()` returns null, and acquire()
-         * returns successfully having serialized nothing — the failure mode is
-         * silence, not an error.
-         *
-         * Asserted as the anchor existing afterwards, because "a lock was held"
-         * is not observable from inside the transaction that holds it.
+         * The point of #17: the old anchor inserted "provider:id" on first use
+         * and kept it forever. A subject with no session must still serialize,
+         * and now does so on a row that existed before it asked.
          */
         self::assertSame(0, DB::table('auth_sessions')->count());
 
@@ -69,78 +73,69 @@ final class SubjectLockTest extends TestCase
             $this->locks()->acquire(DB::connection(), SubjectKey::of('App\\Models\\User', '7'), []);
         });
 
-        self::assertSame(1, DB::table('auth_subject_locks')->count());
-        self::assertSame(
-            'App\\Models\\User:7',
-            DB::table('auth_subject_locks')->value('subject_key'),
-        );
+        self::assertSame(range(0, LockBucket::COUNT - 1), $this->bucketRows());
     }
 
     #[Test]
-    public function it_keys_the_anchor_by_provider_and_id_together(): void
+    public function it_keys_the_bucket_by_provider_and_id_together(): void
     {
         /*
-         * Same id, two providers. A lock keyed on `user_id` alone gives these
-         * one anchor, which is wrong in both directions at once: it makes two
-         * unrelated subjects contend, and it lets a lock taken for one provider
-         * be mistaken for exclusion of the other.
-         *
-         * The separator is the FINAL colon, and ids may not contain one, so a
-         * namespaced provider stays unambiguous.
+         * Same id under two providers, and ids that differ only as strings. A
+         * bucket keyed on half the identity would merge these every time, not
+         * one time in 4096.
          */
-        DB::transaction(function (): void {
-            $this->locks()->acquire(DB::connection(), SubjectKey::of('App\\Models\\User', '7'), []);
-            $this->locks()->acquire(DB::connection(), SubjectKey::of('App\\Models\\Admin', '7'), []);
-        });
+        $keys = [
+            SubjectKey::of('App\\Models\\User', '7'),
+            SubjectKey::of('App\\Models\\Admin', '7'),
+            SubjectKey::of('App\\Models\\User', '07'),
+        ];
 
-        $keys = DB::table('auth_subject_locks')->orderBy('subject_key')->pluck('subject_key')->all();
+        foreach ($keys as $key) {
+            self::assertSame(
+                [LockBucket::under(LockBucketSecret::current(), SubjectLockBucket::DOMAIN, $key->provider, $key->id)],
+                SubjectLockBucket::buckets($key),
+            );
+        }
 
-        self::assertSame(['App\\Models\\Admin:7', 'App\\Models\\User:7'], $keys);
+        // Positive control: across many ids, the mapping really depends on both halves.
+        $differsByProvider = false;
+        $differsAsString = false;
+
+        for ($i = 1; $i <= 20; $i++) {
+            $user = SubjectLockBucket::buckets(SubjectKey::of('App\\Models\\User', (string) $i));
+            $differsByProvider = $differsByProvider
+                || $user !== SubjectLockBucket::buckets(SubjectKey::of('App\\Models\\Admin', (string) $i));
+            $differsAsString = $differsAsString
+                || $user !== SubjectLockBucket::buckets(SubjectKey::of('App\\Models\\User', '0' . $i));
+        }
+
+        self::assertTrue($differsByProvider);
+        self::assertTrue($differsAsString);
     }
 
     #[Test]
-    public function it_does_not_confuse_subject_ids_that_differ_only_as_strings(): void
+    public function it_takes_both_buckets_during_a_rotation_overlap(): void
     {
-        /*
-         * `SubjectKey` keeps ids as strings for exactly this reason: numeric
-         * coercion would let '07' answer for '7', attaching one subject's
-         * assurance to another. The anchor must preserve that distinction, so
-         * the column cannot be an integer and the comparison cannot be numeric.
-         */
-        DB::transaction(function (): void {
-            $this->locks()->acquire(DB::connection(), SubjectKey::of('App\\Models\\User', '7'), []);
-            $this->locks()->acquire(DB::connection(), SubjectKey::of('App\\Models\\User', '07'), []);
-        });
-
-        self::assertSame(2, DB::table('auth_subject_locks')->count());
-    }
-
-    #[Test]
-    public function it_claims_the_anchor_once_and_reuses_it(): void
-    {
-        /*
-         * The anchor is a mutex, not a record: claimed with insertOrIgnore,
-         * never deleted, carrying no state beyond its existence. A second
-         * acquisition must find the same row rather than accumulate rows or
-         * fail on the unique index.
-         */
         $subject = SubjectKey::of('App\\Models\\User', '7');
+        config([LockBucketSecret::KEY => str_repeat('n', 40), LockBucketSecret::LEGACY_KEY => null]);
+        $new = SubjectLockBucket::buckets($subject);
+        config([LockBucketSecret::KEY => str_repeat('o', 40)]);
+        $old = SubjectLockBucket::buckets($subject);
 
-        DB::transaction(fn () => $this->locks()->acquire(DB::connection(), $subject, []));
-        DB::transaction(fn () => $this->locks()->acquire(DB::connection(), $subject, []));
-        DB::transaction(fn () => $this->locks()->acquire(DB::connection(), $subject, []));
+        config([LockBucketSecret::KEY => str_repeat('n', 40), LockBucketSecret::PREVIOUS_KEY => str_repeat('o', 40)]);
+        $both = array_values(array_unique([...$new, ...$old]));
+        sort($both);
 
-        self::assertSame(1, DB::table('auth_subject_locks')->count());
+        self::assertSame($both, SubjectLockBucket::buckets($subject));
     }
 
     #[Test]
     public function it_locks_the_subject_before_any_credential(): void
     {
         /*
-         * Lock ORDER is the deadlock protocol, not an implementation detail:
-         * subject first, then credentials in canonical order. Two callers that
-         * disagree about the order deadlock, and a deadlock under a subject-wide
-         * sweep is a stuck maintenance job holding a subject hostage.
+         * Lock ORDER is the deadlock protocol: subject first, then credentials
+         * in canonical string order. Ids chosen so string and numeric order
+         * disagree.
          */
         /** @var list<string> $order */
         $order = [];
@@ -159,11 +154,6 @@ final class SubjectLockTest extends TestCase
             }
         };
 
-        /*
-         * Ids chosen so STRING order and numeric order disagree: '10' and '100' both precede '9'.
-         * This used to make the same point with '09' against '9', which the schema cannot tell
-         * apart -- a credential id is a positive bigint, so '09' is not one.
-         */
         $manager->acquire(
             DB::connection(),
             SubjectKey::of('App\\Models\\User', '7'),
@@ -177,65 +167,49 @@ final class SubjectLockTest extends TestCase
     }
 
     #[Test]
-    public function the_anchor_is_a_mutex_not_a_record(): void
+    public function it_refuses_when_the_bucket_space_is_not_seeded(): void
     {
         /*
-         * `auth_enrollment_locks` documents the shape and the reasons: no id,
-         * no timestamps, and deliberately NO foreign key, because a mutex
-         * anchor must not cascade-delete with the user and must not couple the
-         * hottest statement in the protocol to a lookup on the host's users
-         * table. The same reasoning applies here and the shape must match, or
-         * the anchor acquires a lifecycle it is not allowed to have.
+         * A missing bucket must fail loudly. Silently locking nothing is the
+         * defect 5a existed to remove.
          */
-        $schema = DB::connection()->getSchemaBuilder();
-        $columns = $schema->getColumnListing('auth_subject_locks');
-        sort($columns);
+        DB::table(SubjectLockBucket::TABLE)->delete();
 
-        self::assertSame(['subject_key'], $columns);
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('not seeded');
 
-        /*
-         * And no foreign key. auth_enrollment_locks is explicit about why: a
-         * mutex anchor must not cascade-delete with the user, and constraining
-         * it would couple the most contended statement in the protocol to a
-         * lookup on the host's users table for a row that references nothing
-         * and outlives nothing.
-         */
-        self::assertSame([], $schema->getForeignKeys('auth_subject_locks'));
+        DB::transaction(function (): void {
+            $this->locks()->acquire(DB::connection(), SubjectKey::of('App\\Models\\User', '7'), []);
+        });
     }
 
     #[Test]
-    public function the_anchor_is_never_reclaimed_by_maintenance(): void
+    public function maintenance_leaves_the_bucket_space_intact(): void
     {
-        /*
-         * The anchor is claimed and never deleted. A retention policy that
-         * reaped it would delete the serialization row out from under a
-         * concurrent holder, and — because ensure-then-lock re-creates it — the
-         * damage would show up as two callers both proceeding, not as an error.
-         *
-         * Task 5a adds a retention manifest; this pins which side of it the
-         * anchor belongs on, behaviourally rather than by declaration.
-         */
-        $subject = SubjectKey::of('App\Models\User', '7');
-        DB::transaction(fn () => $this->locks()->acquire(DB::connection(), $subject, []));
+        DB::transaction(fn () => $this->locks()->acquire(DB::connection(), SubjectKey::of('App\\Models\\User', '7'), []));
 
         Artisan::call('vouch:prune');
 
-        self::assertSame(1, DB::table('auth_subject_locks')->count());
+        self::assertSame(range(0, LockBucket::COUNT - 1), $this->bucketRows());
     }
 
     #[Test]
-    public function the_anchor_survives_the_subject_losing_every_session(): void
+    public function the_manifest_says_no_subject_is_retained(): void
+    {
+        $reason = RetentionManifest::retained()[SubjectLockBucket::TABLE] ?? '';
+
+        self::assertStringContainsString('#17', $reason);
+        self::assertStringContainsString('no subject is retained', $reason);
+        self::assertStringNotContainsString('grows', $reason);
+    }
+
+    #[Test]
+    public function the_table_has_no_foreign_key(): void
     {
         /*
-         * The anchor must not be coupled to session lifetime, or the sweep loses
-         * its serialization exactly when a subject is fully logged out — which
-         * is the state a subject-wide revocation is most likely to run against.
+         * A mutex must not cascade-delete with the user, nor couple the most
+         * contended statement in the protocol to a lookup on the host's users.
          */
-        $subject = SubjectKey::of('App\\Models\\User', '7');
-        DB::transaction(fn () => $this->locks()->acquire(DB::connection(), $subject, []));
-
-        DB::table('auth_sessions')->delete();
-
-        self::assertSame(1, DB::table('auth_subject_locks')->count());
+        self::assertSame([], DB::connection()->getSchemaBuilder()->getForeignKeys(SubjectLockBucket::TABLE));
     }
 }
