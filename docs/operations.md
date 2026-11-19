@@ -234,6 +234,21 @@ counts never mix. A bucket wait counts against the shared throttle's one-second
 lock bound, and a wait past it records the failure as `skipped`, as same-IP
 contention already did.
 
+## Upgrading to a bucketed subject mutex (#17)
+
+Publish and run `2026_11_20_000001_bucketed_subject_locks.php` with token
+issuance and credential changes paused. Code from the previous release writes
+the column this migration removes.
+
+`auth_subject_locks` used to hold one row per subject ever issued a token,
+naming the subject and outliving the host's user. It now holds a fixed 4,096
+buckets in the `token.subject` domain, keyed by provider and id on the
+lock-bucket secret. Existing rows are discarded, and rollback is deliberately
+empty. Rotation follows "Lock-bucket secret and rotation" above.
+
+Two unrelated subjects in one bucket serialize for one token issuance or
+credential change. Their tokens and assurances never mix.
+
 ## Moving MySQL dates past 2038
 
 Publish and run `2026_10_03_000001_date_columns_beyond_2038.php` with host traffic
