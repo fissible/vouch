@@ -232,6 +232,7 @@ function expectedTableNames(): array
         // declared by any migration here.
         'personal_access_tokens',
         \Fissible\Vouch\Support\IssuanceLockBucket::TABLE,
+        \Fissible\Vouch\Support\IpThrottleLockBucket::TABLE,
     ];
 
     if (DB::connection()->getDriverName() === 'sqlite') {

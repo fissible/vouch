@@ -51,6 +51,11 @@ beforeEach(function (): void {
 });
 
 afterEach(function (): void {
+    // beforeEach skips SQLite before configuring the holder, so there is none.
+    if ((getenv('VOUCH_TEST_DB') ?: 'sqlite') === 'sqlite') {
+        return;
+    }
+
     $holder = DB::connection('rotation_holder');
 
     if ($holder->transactionLevel() > 0) {

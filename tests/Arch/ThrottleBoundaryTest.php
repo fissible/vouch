@@ -275,7 +275,8 @@ it('stores no raw throttle subject column', function (): void {
         }
     }
 
-    expect($migrations)->toHaveCount(4)
+    // Five since #16 added auth_throttle_ip_locks, whose only column is a bucket number.
+    expect($migrations)->toHaveCount(5)
         ->and($offenders)->toBeEmpty(implode("\n", $offenders));
 });
 

@@ -44,6 +44,7 @@ it('describes every prerequisite the doctor can report', function (): void {
     Config::set('vouch.throttle.global.enforce_at', 5);
     Config::set('vouch.throttle.global.backoff_seconds', 1);
     Config::set('vouch.assurance_strict', true);
+    Config::set('vouch.lock_buckets.previous_secret', str_repeat('p', 40));
     app()->forgetInstance(\Fissible\Vouch\Throttle\ThrottleConfiguration::class);
 
     $reported = array_keys(doctorRows());
@@ -52,6 +53,7 @@ it('describes every prerequisite the doctor can report', function (): void {
     // than the default subset.
     expect($reported)->toContain('CaptchaVerifier');
     expect($reported)->toContain('vouch.declared_abilities');
+    expect($reported)->toContain('vouch.lock_buckets.previous_secret');
 
     $operations = file_get_contents(dirname(__DIR__, 2) . '/docs/operations.md');
 
