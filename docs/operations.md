@@ -183,15 +183,56 @@ report what is unconfigured is not the command a missing secret stops.
 
 It is dedicated rather than derived from `APP_KEY` on purpose. Rotating `APP_KEY`
 invalidates sessions and attempts and is expected to be survivable, and it must
-not also remap every mutex. **Rotating this secret needs a coordinated
-deployment**: it moves every bucket at once, so mid-rotation old and new processes
-derive different mutexes for one identifier and stop serializing it for as long
-as the rollout takes.
+not also remap every mutex. Since #16 this secret is `VOUCH_LOCK_BUCKETS_SECRET`,
+shared by every bucketed lock, and rotating it needs no coordinated deploy. See
+"Lock-bucket secret and rotation" below.
 
 Two unrelated identifiers may now land in one bucket and serialize against each
 other for the length of one issuance transaction. That is a latency cost and
 nothing else: no state crosses between them, and with ten simultaneous distinct
 issuances an arriving request contends roughly once in 455.
+
+## Lock-bucket secret and rotation (#16)
+
+Every bucketed mutex is keyed on one secret, `VOUCH_LOCK_BUCKETS_SECRET`. That
+covers proof issuance (#46) and IP throttle windows. An install that set
+`VOUCH_ISSUANCE_LOCKS_SECRET` keeps working unchanged: that value is read when
+the new variable is unset, and the bucket mapping does not move on upgrade. When
+both are set, `VOUCH_LOCK_BUCKETS_SECRET` wins.
+
+**To rotate, deploy twice. Neither deploy pauses traffic.**
+
+1. Set the new value as `VOUCH_LOCK_BUCKETS_SECRET` and the old value as
+   `VOUCH_LOCK_BUCKETS_PREVIOUS_SECRET`, and deploy. Every lock now takes the
+   bucket under both secrets, so processes still running the old config share a
+   bucket with updated ones throughout the rollout.
+2. Once every process runs the step 1 config, remove
+   `VOUCH_LOCK_BUCKETS_PREVIOUS_SECRET` and deploy again.
+
+Don't skip step 1. Changing the secret in one deploy moves every bucket at once,
+and old and new processes stop serializing until the rollout finishes.
+`vouch:doctor` reports `vouch.lock_buckets.previous_secret` as `rotating` while
+step 2 is outstanding. That row doesn't fail the command. During the overlap each
+lock takes two buckets, so false sharing roughly doubles until step 2.
+
+## Reclaiming IP throttle windows (#16)
+
+Publish and run `2026_11_19_000001_create_auth_throttle_ip_locks_table.php`
+before deploying. It creates and seeds `auth_throttle_ip_locks`, a fixed 4,096
+rows. Code from this release refuses to record an IP failure until those rows
+exist.
+
+`auth_throttle_ip_windows` used to be its own mutex, so it kept one row per
+client IP ever seen, forever. A failed login now takes the IP's bucket first,
+and `vouch:prune` deletes expired windows under that bucket, with their tuples.
+Each window is deleted in its own short transaction after the main sweep, and
+the output reports `Pruned N expired IP window(s).` The first prune after
+upgrading may reclaim a large backlog.
+
+Two unrelated IPs in one bucket serialize for one throttle transaction. Their
+counts never mix. A bucket wait counts against the shared throttle's one-second
+lock bound, and a wait past it records the failure as `skipped`, as same-IP
+contention already did.
 
 ## Moving MySQL dates past 2038
 
@@ -284,7 +325,8 @@ aggregate readiness only and never accepts an identifier argument.
 | `DeliveryEconomics` | Bind a real `DeliveryEconomics` implementation. |
 | `CaptchaVerifier` | Only when `vouch.throttle.captcha.enabled` is true, bind a real `CaptchaVerifier` implementation. |
 | `vouch.attempts.ttl_seconds` | Set `VOUCH_ATTEMPT_TTL` to a positive whole number of seconds, or leave it unset for the shipped 600. A blank value casts to zero, and an edited config that drops the `(int)` cast yields the string `"600"`; both are rejected, and both otherwise fail every login at request time. |
-| `vouch.issuance_locks.secret` | Set `VOUCH_ISSUANCE_LOCKS_SECRET` to at least 32 bytes of dedicated random material — not `APP_KEY`, whose rotation must stay survivable. The package ships no default, because a shared one would give every installation the same derivable bucket mapping. |
+| `vouch.lock_buckets.secret` | Set `VOUCH_LOCK_BUCKETS_SECRET` to at least 32 bytes of dedicated random material — not `APP_KEY`, whose rotation must stay survivable. `VOUCH_ISSUANCE_LOCKS_SECRET` is still read when it is unset. The package ships no default, because a shared one would give every installation the same derivable bucket mapping. |
+| `vouch.lock_buckets.previous_secret` | Reported only while set. `rotating` means a rotation's second deploy, which removes it, is still to do. `missing` means it is shorter than 32 bytes. |
 | `vouch.declared_abilities` | Only when `vouch.assurance_strict` is true, list every ability named as a key in `vouch.assurance_requirements`. An undeclared mapped ability is usually a typo, which leaves the intended policy unreachable. |
 
 ## OTP worker and one-minute maintenance
