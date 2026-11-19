@@ -209,6 +209,13 @@ final class RetentionManifestTest extends TestCase
          * about it is just a quieter version of the original problem, so each
          * one must name the issue tracking it.
          */
+        /*
+         * #16 closed the last declared gap, so this can be empty. Asserted rather
+         * than left as a loop over nothing, which PHPUnit flags as risky and which
+         * would read as passing either way.
+         */
+        self::assertContainsOnlyString(RetentionManifest::unreclaimed());
+
         foreach (RetentionManifest::unreclaimed() as $table => $reason) {
             self::assertMatchesRegularExpression(
                 '/#\d+/',
