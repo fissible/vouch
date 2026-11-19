@@ -801,12 +801,12 @@ it('refuses to derive a bucket without its keying secret', function (): void {
      * naming the key is recoverable; a silent default is not detectable.
      */
     expect(fn (): int => IssuanceLockBucket::for('recovery', 'email', 'ada@acme.example'))
-        ->toThrow(RuntimeException::class, 'vouch.issuance_locks.secret');
+        ->toThrow(RuntimeException::class, 'vouch.lock_buckets.secret');
 
     Config::set('vouch.issuance_locks.secret', '');
 
     expect(fn (): int => IssuanceLockBucket::for('recovery', 'email', 'ada@acme.example'))
-        ->toThrow(RuntimeException::class, 'vouch.issuance_locks.secret');
+        ->toThrow(RuntimeException::class, 'vouch.lock_buckets.secret');
 });
 
 it('fails at boot rather than at a ceremony when the secret is missing', function (): void {
@@ -825,7 +825,7 @@ it('fails at boot rather than at a ceremony when the secret is missing', functio
     expect(static function (): void {
         (new VouchServiceProvider(app()))->boot();
     })
-        ->toThrow(RuntimeException::class, 'vouch.issuance_locks.secret');
+        ->toThrow(RuntimeException::class, 'vouch.lock_buckets.secret');
 
     Config::set('vouch.issuance_locks.secret', '');
 
@@ -838,7 +838,7 @@ it('fails at boot rather than at a ceremony when the secret is missing', functio
     expect(static function (): void {
         (new VouchServiceProvider(app()))->boot();
     })
-        ->toThrow(RuntimeException::class, 'vouch.issuance_locks.secret');
+        ->toThrow(RuntimeException::class, 'vouch.lock_buckets.secret');
 });
 
 it('boots when the secret is present', function (): void {
@@ -876,17 +876,28 @@ it('ships no default secret to fall back on', function (): void {
      * developer with a real .env, or a CI job that sets it. That dance is in
      * tests/Pest.php rather than here, because a second file needs it now.
      */
-    $secret = withEnvironmentVariable('VOUCH_ISSUANCE_LOCKS_SECRET', null, static function (): mixed {
-        $locks = publishedVouchConfig()['issuance_locks'] ?? null;
+    /*
+     * #16: the secret lives under lock_buckets, with #46's variable as its
+     * fallback, so every variable either key could read is cleared.
+     */
+    $locks = withEnvironmentVariable('VOUCH_ISSUANCE_LOCKS_SECRET', null, static fn (): mixed => withEnvironmentVariable(
+        'VOUCH_LOCK_BUCKETS_SECRET',
+        null,
+        static fn (): mixed => withEnvironmentVariable(
+            'VOUCH_LOCK_BUCKETS_PREVIOUS_SECRET',
+            null,
+            static fn (): mixed => publishedVouchConfig()['lock_buckets'] ?? null,
+        ),
+    ));
 
-        expect($locks)->toBeArray();
+    expect($locks)->toBeArray()
+        ->toHaveKeys(['secret', 'previous_secret']);
 
-        return is_array($locks) ? ($locks['secret'] ?? null) : null;
-    });
-
-    expect($secret === null || $secret === '')->toBeTrue(
-        'config/vouch.php must ship no issuance-lock secret: a default is a shared key',
-    );
+    foreach (is_array($locks) ? $locks : [] as $key => $secret) {
+        expect($secret === null || $secret === '')->toBeTrue(
+            "config/vouch.php must ship no lock_buckets.{$key}: a default is a shared key",
+        );
+    }
 });
 
 it('refuses a secret too short to be one', function (): void {

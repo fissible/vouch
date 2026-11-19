@@ -530,15 +530,14 @@ it('declares all five tables pruned rather than unreclaimed', function (string $
     'auth_link_requests',
 ]);
 
-it('leaves the anchor table still unreclaimed', function (): void {
+it('declares the former anchor table pruned since #16', function (): void {
     /*
-     * The control that the implementation moved five declarations rather than emptying the list.
-     * `auth_throttle_ip_windows` is #16 -- a mutex anchor needing a capacity decision, not a prune.
-     *
-     * Asserted as "still present" rather than as the exact remaining set, which would couple these
-     * two issues to every future retention decision.
+     * This was the control that #14/#15 moved five declarations rather than emptying the list,
+     * with `auth_throttle_ip_windows` the one gap left. #16 closed it: the IP window is no longer
+     * its own mutex, so vouch:prune reclaims it under its lock bucket.
      */
-    expect(RetentionManifest::unreclaimed())->toHaveKey('auth_throttle_ip_windows');
+    expect(RetentionManifest::pruned())->toHaveKey('auth_throttle_ip_windows')
+        ->and(RetentionManifest::unreclaimed())->not->toHaveKey('auth_throttle_ip_windows');
 });
 
 /* ---- the predicate itself, which three mutants walked through ----------- */

@@ -8,8 +8,10 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use Fissible\Vouch\Contracts\AuthThrottleStore;
 use Fissible\Vouch\Support\BoundedLockWait;
+use Fissible\Vouch\Support\DatabaseRowLock;
 use Fissible\Vouch\Support\DatabaseTime;
 use Fissible\Vouch\Support\DurationBounds;
+use Fissible\Vouch\Support\IpThrottleLockBucket;
 use Fissible\Vouch\Support\LockContention;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Builder;
@@ -177,7 +179,7 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
             return $this->boundedLockWait->shared(
                 fn (): SharedThrottle => $this->connection->transaction(
                     function () use ($ip, $ipIdentifier, $parentExists): SharedThrottle {
-                        $this->ensureIpParent($ip, $parentExists);
+                        $this->serializeIp($ip, $parentExists);
                         $parent = $this->ipParent($ip, lock: true);
 
                         if ($parent === null) {
@@ -414,6 +416,36 @@ final readonly class DatabaseAuthThrottleStore implements AuthThrottleStore
 
             return $this->sharedState($subject, $this->incrementCounter($subject));
         });
+    }
+
+    /**
+     * #16. Take the IP's bucket, then make sure its window exists.
+     *
+     * The bucket is the mutex now, so a window row can be reclaimed by pruning
+     * under the same bucket. The parent row is still locked afterwards, which
+     * keeps a process on the previous release serializing with this one during
+     * a rolling deploy.
+     *
+     * On MySQL and PostgreSQL the bucket is the FIRST statement. It is a locking
+     * read, so it opens no InnoDB snapshot and the tuple count still sees every
+     * committed marker. On SQLite the database write lock is the mutex and row
+     * locks are no-ops, so the leading write stays first: a leading read there
+     * turns concurrent writers into immediate SQLITE_BUSY on lock upgrade.
+     */
+    private function serializeIp(ThrottleSubject $ip, bool $parentExists): void
+    {
+        $buckets = IpThrottleLockBucket::buckets($ip->dimension->value, $ip->digest);
+        $lock = new DatabaseRowLock($this->connection);
+
+        if ($this->connection->getDriverName() === 'sqlite') {
+            $this->ensureIpParent($ip, $parentExists);
+            $lock->lockBuckets(IpThrottleLockBucket::TABLE, $buckets);
+
+            return;
+        }
+
+        $lock->lockBuckets(IpThrottleLockBucket::TABLE, $buckets);
+        $this->ensureIpParent($ip, $parentExists);
     }
 
     private function ensureIpParent(ThrottleSubject $ip, bool $existedBeforeTransaction): void

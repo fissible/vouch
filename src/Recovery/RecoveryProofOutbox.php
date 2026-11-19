@@ -30,9 +30,9 @@ final readonly class RecoveryProofOutbox
             // the submitted string: the anchor serializes issuance without keeping
             // a record of who asked. Two identifiers may share one and contend,
             // which costs latency and nothing else.
-            (new DatabaseRowLock($this->connection))->lockBucket(
+            (new DatabaseRowLock($this->connection))->lockBuckets(
                 IssuanceLockBucket::TABLE,
-                IssuanceLockBucket::for('recovery', $request->type, $request->submittedIdentifier),
+                IssuanceLockBucket::buckets('recovery', $request->type, $request->submittedIdentifier),
             );
 
             // Preserve the recorded terminal cause: replacement must not relabel

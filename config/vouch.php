@@ -254,20 +254,23 @@ return [
     ],
 
     /*
-     * The secret keying the issuance mutex's bucket derivation (#46).
+     * The secret keying every bucketed mutex: issuance (#46) and IP throttle
+     * windows (#16).
      *
      * NO DEFAULT, deliberately. A shipped fallback would give every installation
-     * the same publicly derivable mapping from identifier to mutex row, and an
-     * attacker who worked it out once could aim submissions at any victim's mutex
-     * on any host. The package refuses to boot without this instead.
+     * the same publicly derivable mapping, and an attacker could aim traffic at
+     * any victim's mutex on any host. The package refuses to boot without it.
      *
-     * Dedicated rather than derived from APP_KEY: rotating APP_KEY invalidates
-     * sessions and attempts and is meant to be survivable, and must not also
-     * remap every bucket -- mid-rollout, old and new processes would then derive
-     * different mutexes for one identifier and stop serializing it. Rotating THIS
-     * secret carries that cost, so it needs a coordinated deployment.
+     * Dedicated rather than APP_KEY, so rotating APP_KEY never remaps a mutex.
+     * VOUCH_ISSUANCE_LOCKS_SECRET is #46's name for this value and still works.
+     *
+     * To rotate without pausing traffic, deploy the new value as the secret and
+     * the old one as previous_secret. Every lock then takes the bucket under
+     * both. Once every process runs that config, deploy again without
+     * previous_secret. See docs/operations.md.
      */
-    'issuance_locks' => [
-        'secret' => env('VOUCH_ISSUANCE_LOCKS_SECRET'),
+    'lock_buckets' => [
+        'secret' => env('VOUCH_LOCK_BUCKETS_SECRET', env('VOUCH_ISSUANCE_LOCKS_SECRET')),
+        'previous_secret' => env('VOUCH_LOCK_BUCKETS_PREVIOUS_SECRET'),
     ],
 ];

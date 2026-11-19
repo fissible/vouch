@@ -32,6 +32,7 @@ final readonly class PruneResult
         public array $tokenAssuranceSweepErrors,
         /** @var list<string> */
         public array $unsupportedTokenAssuranceIssuers,
+        public int $ipWindows = 0,
     ) {}
 
     public function foundUndeliveredWork(): bool

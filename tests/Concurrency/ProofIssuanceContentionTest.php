@@ -426,7 +426,9 @@ it('leaves exactly one live proof when a second writer starts mid-issuance', fun
         } catch (Throwable $exception) {
             file_put_contents(
                 $report,
-                (isContentionFailure($connection, $exception) ? 'contention:' : 'error:') . $exception::class,
+                // The same delimiter expectCleanLoss() reads. A colon here made a
+                // clean SQLite loss fail the test as an unclean one.
+                (isContentionFailure($connection, $exception) ? 'contention|' : 'error|') . $exception::class,
             );
             exit(1);
         }

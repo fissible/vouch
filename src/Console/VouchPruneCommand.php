@@ -9,6 +9,7 @@ use DateTimeImmutable;
 use Fissible\Vouch\Notifications\OtpOutboxStatus;
 use Fissible\Vouch\Support\DatabaseTime;
 use Fissible\Vouch\Support\DurationBounds;
+use Fissible\Vouch\Throttle\IpWindowReclaimer;
 use Fissible\Vouch\Throttle\ThrottleConfiguration;
 use Fissible\Vouch\Tokens\TokenAssuranceSweep;
 use Fissible\Vouch\Tokens\TokenAssuranceSweepResult;
@@ -51,6 +52,22 @@ final class VouchPruneCommand extends Command
             return CommandExit::Failure->value;
         }
 
+        /*
+         * #16. After the main transaction, in short transactions of its own: each
+         * window is deleted under its lock bucket, and holding thousands of
+         * buckets for the length of the sweep would block logins.
+         */
+        try {
+            $ipWindows = (new IpWindowReclaimer(DB::connection(), $time, $throttle))->reclaim();
+        } catch (Throwable $exception) {
+            $this->components->error(sprintf(
+                'Vouch prune committed its main sweep but failed reclaiming expired IP windows: %s',
+                $exception->getMessage(),
+            ));
+
+            return CommandExit::Failure->value;
+        }
+
         try {
             $tokenResult = $tokenAssurances->sweep();
         } catch (Throwable $exception) {
@@ -86,6 +103,7 @@ final class VouchPruneCommand extends Command
             erroredTokenAssurances: $tokenResult->errored,
             tokenAssuranceSweepErrors: $tokenResult->errors,
             unsupportedTokenAssuranceIssuers: $tokenResult->unsupportedIssuers,
+            ipWindows: $ipWindows,
         );
 
         $this->components->info(sprintf(
@@ -116,6 +134,8 @@ final class VouchPruneCommand extends Command
             $result->recoveryProofs,
             $result->linkRequests,
         ));
+
+        $this->components->info(sprintf('Pruned %d expired IP window(s).', $result->ipWindows));
 
         $this->components->info(sprintf(
             'Token assurance sweep records: reclaimed %d, retained %d, unsupported %d, errored %d.',

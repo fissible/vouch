@@ -44,9 +44,9 @@ final readonly class IdentifierVerificationOutbox
             // the submitted string: the anchor serializes issuance without keeping
             // a record of who asked. Verification and recovery for one address
             // derive different buckets, so they do not block each other.
-            (new DatabaseRowLock($this->connection))->lockBucket(
+            (new DatabaseRowLock($this->connection))->lockBuckets(
                 IssuanceLockBucket::TABLE,
-                IssuanceLockBucket::for('verification', $request->type, $request->submittedIdentifier),
+                IssuanceLockBucket::buckets('verification', $request->type, $request->submittedIdentifier),
             );
 
             // Preserve the recorded terminal cause: replacement must not relabel

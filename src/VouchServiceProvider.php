@@ -50,7 +50,7 @@ use Fissible\Vouch\Delivery\UnconfiguredDeliveryEconomics;
 use Fissible\Vouch\Support\BoundedLockWait;
 use Fissible\Vouch\Support\AttemptWindow;
 use Fissible\Vouch\Support\DurationBounds;
-use Fissible\Vouch\Support\IssuanceLockBucket;
+use Fissible\Vouch\Support\LockBucketSecret;
 use Fissible\Vouch\Support\LockContention;
 use Fissible\Vouch\Support\SystemClock;
 use Fissible\Vouch\Tenancy\NullTenantResolver;
@@ -556,17 +556,17 @@ final class VouchServiceProvider extends ServiceProvider
         );
 
         /*
-         * #46. The issuance mutex's keying secret, at boot rather than at the first
-         * recovery request: every issuance derives a bucket from it, so there is no
-         * configuration in which the package works and this is absent, and the
-         * alternative is discovering it when somebody tries to recover an account.
+         * #46/#16. The lock-bucket secret, at boot rather than at the first
+         * issuance or failed login: every bucketed mutex derives from it, so there
+         * is no configuration in which the package works and this is absent. A
+         * previous secret, when set, is validated here too.
          *
          * Exempt for vouch:doctor, as the CAPTCHA and strict-assurance checks are.
          * Otherwise the one command whose job is to TELL an operator what is
          * unconfigured is the command a missing secret stops from running.
          */
         if (! $this->isDoctorCommand()) {
-            IssuanceLockBucket::secret();
+            LockBucketSecret::assertConfigured();
         }
 
         if (! $this->isDoctorCommand()

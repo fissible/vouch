@@ -133,14 +133,15 @@ it('keeps HMAC and APP_KEY access inside SessionBinding', function (): void {
             }
 
             /*
-             * IssuanceLockBucket keys an HMAC of its own, on a DEDICATED secret,
-             * which is the entire point: the issuance mutex must survive an app.key
+             * LockBucket keys an HMAC of its own, on a DEDICATED secret, which is
+             * the entire point: every bucketed mutex must survive an app.key
              * rotation. So it is exempt from the hash_hmac rule and deliberately
              * NOT exempt from the app.key rule above -- routing it through
              * SessionBinding would key it on app.key and reintroduce exactly what
-             * the dedicated secret exists to avoid.
+             * the dedicated secret exists to avoid. #16 moved the derivation here
+             * from IssuanceLockBucket, which no longer hashes anything itself.
              */
-            if ($relative === 'src/Support/IssuanceLockBucket.php') {
+            if ($relative === 'src/Support/LockBucket.php') {
                 continue;
             }
 
