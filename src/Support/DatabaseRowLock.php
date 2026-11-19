@@ -30,6 +30,25 @@ final readonly class DatabaseRowLock
      * supersession write are all indistinguishable on SQLite, which locks the
      * whole database for any write, and all three fail on PostgreSQL.
      */
+    /**
+     * #16. Lock every bucket in ascending order, one statement each.
+     *
+     * Separate statements rather than one IN (...) FOR UPDATE: the order an
+     * engine locks a multi-row result in is a plan detail, and two processes
+     * acquiring a pair in different orders is a deadlock.
+     *
+     * @param list<int> $buckets
+     */
+    public function lockBuckets(string $table, array $buckets): void
+    {
+        $ordered = array_values(array_unique($buckets));
+        sort($ordered);
+
+        foreach ($ordered as $bucket) {
+            $this->lockBucket($table, $bucket);
+        }
+    }
+
     public function lockBucket(string $table, int $bucket): void
     {
         $row = $this->connection->table($table)

@@ -16,7 +16,7 @@ use InvalidArgumentException;
  * only holds if the report asks the same question boot does.
  *
  * The other three doctor-exempt checks already share their predicate with boot:
- * IssuanceLockBucket::secret(), AssuranceRequirements::assertDeclared(), and a
+ * LockBucketSecret::assertConfigured(), AssuranceRequirements::assertDeclared(), and a
  * one-line instanceof. This one was a compound condition written inline in boot
  * (`! is_int($ttl) || $ttl < 1`), so a report re-implementing it could drift.
  * Measured: adding `|| $ttl > 86400` to boot's copy left the whole suite green

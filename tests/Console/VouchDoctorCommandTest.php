@@ -172,7 +172,7 @@ it('renders the human-readable prerequisite table', function (): void {
          * output they actually get with nothing about the setting that is broken.
          */
         ->toContain('vouch.attempts.ttl_seconds')
-        ->toContain('vouch.issuance_locks.secret')
+        ->toContain('vouch.lock_buckets.secret')
         ->not()->toContain('{"missing"');
 });
 

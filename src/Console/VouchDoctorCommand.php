@@ -14,7 +14,7 @@ use Fissible\Vouch\Notifications\OtpQueueDispatcher;
 use Fissible\Vouch\Notifications\UnconfiguredOtpDelivery;
 use Fissible\Vouch\Sessions\SessionAssuranceRecord;
 use Fissible\Vouch\Support\AttemptWindow;
-use Fissible\Vouch\Support\IssuanceLockBucket;
+use Fissible\Vouch\Support\LockBucketSecret;
 use Fissible\Vouch\Throttle\ThrottleConfiguration;
 use Fissible\Vouch\Tokens\TokenAssuranceRecord;
 use Fissible\Vouch\Delivery\UnconfiguredDeliveryEconomics;
@@ -64,7 +64,7 @@ final class VouchDoctorCommand extends Command
              * vouch:doctor through anyway, on the reasoning that the one command whose
              * job is to report a misconfiguration must not be stopped by one. Three of
              * the four had no row, so a host with a blank VOUCH_ATTEMPT_TTL, no
-             * issuance-mutex secret, or a strict assurance map naming an undeclared
+             * lock-bucket secret, or a strict assurance map naming an undeclared
              * ability got a report that exited successfully and listed nothing wrong
              * while every login 500'd or every issuance refused. An exemption whose
              * premise is "they can still diagnose it" has to be matched by something
@@ -87,9 +87,21 @@ final class VouchDoctorCommand extends Command
                 'status' => $this->attemptWindowStatus(),
             ];
             $rows[] = [
-                'prerequisite' => IssuanceLockBucket::SECRET_KEY,
-                'status' => $this->issuanceSecretStatus(),
+                'prerequisite' => LockBucketSecret::KEY,
+                'status' => $this->lockSecretStatus(),
             ];
+
+            /*
+             * #16. Only while an overlap is configured. "rotating" is not a
+             * failure: it reminds the operator that the second deploy, which
+             * removes the previous secret, is still to do.
+             */
+            if (LockBucketSecret::overlapConfigured()) {
+                $rows[] = [
+                    'prerequisite' => LockBucketSecret::PREVIOUS_KEY,
+                    'status' => $this->previousLockSecretStatus(),
+                ];
+            }
 
             /*
              * Only when the feature is on, as the CAPTCHA row is. The strict check is
@@ -195,12 +207,23 @@ final class VouchDoctorCommand extends Command
         }
     }
 
-    private function issuanceSecretStatus(): string
+    private function lockSecretStatus(): string
     {
         try {
-            IssuanceLockBucket::secret();
+            LockBucketSecret::current();
 
             return 'pass';
+        } catch (Throwable) {
+            return 'missing';
+        }
+    }
+
+    private function previousLockSecretStatus(): string
+    {
+        try {
+            LockBucketSecret::previous();
+
+            return 'rotating';
         } catch (Throwable) {
             return 'missing';
         }
