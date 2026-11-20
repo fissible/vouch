@@ -17,6 +17,7 @@ use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Hash;
 
 /*
  * #84. What addFactor()'s ADDITIVE branch says when it fails after committing.
@@ -33,6 +34,11 @@ use Illuminate\Support\Facades\Exceptions;
  *   - Refused keeps meaning no credential write committed;
  *   - CredentialChangeFailed stays off this path, since it implies a
  *     revocation the additive branch never performs.
+ *
+ * Two choices the issue left open, pinned here: a Committed failure hands
+ * over the enrollment's secrets, because the credential exists; and a FAILED
+ * Indeterminate withholds them, because it may not. A nested SUCCESS is also
+ * Indeterminate, since the caller's commit decides, and keeps its secrets.
  *
  * DatabaseMigrations because the claims are about COMMITS. A RefreshDatabase
  * wrapper would make every write nested in the test's own transaction.
@@ -82,31 +88,84 @@ function dispositionActiveTotps(int $userId = 1): int
         ->count();
 }
 
-/**
- * A host listener: when a credential is created, register afterCommit work
- * that throws. Returns a probe recording whether it really fired.
- */
-function dispositionFailingListener(): stdClass
+final class DispositionProbe
 {
-    $probe = new stdClass();
-    $probe->registered = false;
-    $probe->threw = false;
+    public bool $registered = false;
 
-    AuthCredential::created(static function (AuthCredential $credential) use ($probe): void {
-        if ($credential->type !== 'totp') {
+    public bool $ran = false;
+}
+
+/**
+ * A host listener: when a credential of $type is created, register afterCommit
+ * work. By default the work throws, as a queued job dispatched afterCommit can.
+ * Registered once per test even when several credentials are created.
+ *
+ * @param (Closure(): void)|null $work what the deferred callback does before throwing
+ */
+function dispositionListener(string $type = 'totp', bool $throws = true, ?Closure $work = null): DispositionProbe
+{
+    $probe = new DispositionProbe();
+
+    AuthCredential::created(static function (AuthCredential $credential) use ($probe, $type, $throws, $work): void {
+        if ($credential->type !== $type || $probe->registered) {
             return;
         }
 
         $probe->registered = true;
 
-        DB::connection()->afterCommit(static function () use ($probe): void {
-            $probe->threw = true;
+        DB::connection()->afterCommit(static function () use ($probe, $throws, $work): void {
+            $probe->ran = true;
 
-            throw new RuntimeException(DISPOSITION_SENTINEL);
+            if ($work !== null) {
+                $work();
+            }
+
+            if ($throws) {
+                throw new RuntimeException(DISPOSITION_SENTINEL);
+            }
         });
     });
 
     return $probe;
+}
+
+function dispositionFailingListener(): DispositionProbe
+{
+    return dispositionListener();
+}
+
+/** Close whatever a failed commit or a stray callback left open. */
+function dispositionCloseTransactions(): void
+{
+    while (DB::transactionLevel() > 0) {
+        DB::rollBack();
+    }
+
+    $pdo = DB::connection()->getPdo();
+
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+}
+
+function dispositionSibling(): AuthSession
+{
+    $sibling = dispositionSession(1, 'disposition-sibling');
+
+    // Premise for every sibling assertion: it exists and is live.
+    expect($sibling->fresh())->not->toBeNull()
+        ->and($sibling->fresh()?->revoked_at)->toBeNull();
+
+    return $sibling;
+}
+
+/** The sibling still exists, and was not revoked. Deleting it is not "unrevoked". */
+function expectDispositionSiblingLive(AuthSession $sibling): void
+{
+    $fresh = $sibling->fresh();
+
+    expect($fresh)->not->toBeNull()
+        ->and($fresh?->revoked_at)->toBeNull();
 }
 
 /* ---- the case #84 is about ---------------------------------------------- */
@@ -120,7 +179,7 @@ it('reports a post-commit listener failure as state that may have changed, and c
 
     // Premises: the listener really ran after a commit, and the write is durable.
     expect($probe->registered)->toBeTrue()
-        ->and($probe->threw)->toBeTrue()
+        ->and($probe->ran)->toBeTrue()
         ->and(dispositionActiveTotps())->toBe(1);
 
     expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged)
@@ -128,11 +187,12 @@ it('reports a post-commit listener failure as state that may have changed, and c
         ->and($result->cleanupFailures)->toBe([CredentialCleanupStep::PostCommitWork]);
 });
 
-it('hands over the secret of a credential that did commit', function (): void {
+it('hands over a usable secret for the TOTP credential that did commit', function (): void {
     /*
      * The credential exists. Withholding its secret leaves the user an active
      * TOTP nobody can use, and TOTP's capacity of one then refuses the retry:
-     * the residue #79 removed for the pre-commit case.
+     * the residue #79 removed for the pre-commit case. Usable means unrevealed
+     * and matching what was stored, not merely present.
      */
     dispositionUser();
     Exceptions::fake();
@@ -142,6 +202,47 @@ it('hands over the secret of a credential that did commit', function (): void {
 
     expect($result->writeDisposition)->toBe(WriteDisposition::Committed)
         ->and($result->secrets)->toHaveCount(1);
+
+    $stored = AuthCredential::query()->where('user_id', 1)->where('type', 'totp')->whereNull('disabled_at')->firstOrFail()->secret;
+    $revealed = $result->secrets[0]->reveal();
+
+    expect($stored)->toBeString();
+    expect($stored)->not->toBe('');
+    expect($revealed)->toContain('secret=' . (is_string($stored) ? $stored : ''));
+});
+
+it('hands over every usable recovery code that did commit', function (): void {
+    dispositionUser();
+    Exceptions::fake();
+    $probe = dispositionListener('recovery_code');
+
+    $result = app(CredentialSelfService::class)->addFactor(dispositionSession(), 'recovery_code', []);
+
+    $hashes = AuthCredential::query()->where('user_id', 1)->where('type', 'recovery_code')->whereNull('disabled_at')
+        ->pluck('secret')->all();
+
+    // Premises: the post-commit failure ran over a committed set of codes.
+    expect($probe->ran)->toBeTrue()
+        ->and($hashes)->not->toBeEmpty();
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged)
+        ->and($result->writeDisposition)->toBe(WriteDisposition::Committed)
+        ->and($result->secrets)->toHaveCount(count($hashes));
+
+    $matched = [];
+
+    foreach ($result->secrets as $secret) {
+        $code = $secret->reveal();
+
+        foreach ($hashes as $index => $hash) {
+            if (is_string($hash) && Hash::check($code, $hash)) {
+                $matched[$index] = true;
+            }
+        }
+    }
+
+    // Every stored code is matched by a revealed one, so none was spent or swapped.
+    expect(count($matched))->toBe(count($hashes));
 });
 
 it('reports the listener failure to the host and keeps it out of the result', function (): void {
@@ -156,11 +257,16 @@ it('reports the listener failure to the host and keeps it out of the result', fu
 
     Exceptions::assertReported(static fn (RuntimeException $exception): bool => $exception->getMessage() === DISPOSITION_SENTINEL);
 
-    $rendered = print_r($result, true);
-
-    // Control: the rendering is the real result, so an absence below means something.
-    expect($rendered)->toContain('StateMayHaveChanged')
-        ->and($rendered)->not->toContain('disposition-sentinel-8f3a');
+    foreach ([
+        'print_r' => print_r($result, true),
+        'var_export' => var_export($result, true),
+        'json_encode' => (string) json_encode($result),
+        'serialize' => serialize($result),
+    ] as $surface => $rendered) {
+        // Control: each rendering is of the real result object.
+        expect($rendered)->toContain('writeDisposition');
+        expect(str_contains($rendered, 'disposition-sentinel-8f3a'))->toBeFalse("{$surface} carries the diagnostic");
+    }
 });
 
 it('revokes no other session on the post-commit failure path', function (): void {
@@ -172,13 +278,12 @@ it('revokes no other session on the post-commit failure path', function (): void
     dispositionUser();
     Exceptions::fake();
     dispositionFailingListener();
-    $sibling = dispositionSession(1, 'disposition-sibling');
+    $sibling = dispositionSibling();
 
     $result = dispositionAddTotp(dispositionSession());
 
-    expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged)
-        ->and($result->outcome)->not->toBe(SelfServiceOutcome::CredentialChangeFailed)
-        ->and($sibling->fresh()?->revoked_at)->toBeNull();
+    expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged);
+    expectDispositionSiblingLive($sibling);
 });
 
 /* ---- a commit whose result is unknown ----------------------------------- */
@@ -186,9 +291,9 @@ it('revokes no other session on the post-commit failure path', function (): void
 it('reports a failed commit as indeterminate and withholds the secret', function (): void {
     /*
      * The closure finished, then the COMMIT threw. Vouch cannot tell whether
-     * the write landed: a connection lost mid-commit may have committed. A
-     * TransactionCommitting listener stands in for that failure, because no
-     * engine lets a test force a commit to fail on demand.
+     * the write landed: a connection lost mid-commit may have committed. Here
+     * a TransactionCommitting listener throws, before PDO is asked at all; the
+     * case below makes the engine itself refuse the commit.
      *
      * Armed only once the TOTP row exists, so only the commit of the
      * transaction holding that write throws.
@@ -220,11 +325,7 @@ it('reports a failed commit as indeterminate and withholds the secret', function
         $result = dispositionAddTotp(dispositionSession());
     } finally {
         // The failed commit leaves the PDO transaction open; close it.
-        $pdo = DB::connection()->getPdo();
-
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
+        dispositionCloseTransactions();
     }
 
     // Premise: the commit of the enrollment's own transaction is what failed,
@@ -240,6 +341,78 @@ it('reports a failed commit as indeterminate and withholds the secret', function
         ->and($result->cleanupFailures)->toBe([CredentialCleanupStep::PostCommitWork]);
 });
 
+it('reports a commit the engine refused as indeterminate', function (): void {
+    /*
+     * A deferred foreign key is checked at COMMIT, so the engine itself fails
+     * the commit of the transaction holding the enrollment. On PostgreSQL that
+     * ends the transaction, so "PDO is no longer in a transaction" is not
+     * evidence of a commit: here nothing committed. MySQL has no deferred
+     * constraints.
+     */
+    if (DB::connection()->getDriverName() === 'mysql') {
+        $this->markTestSkipped('MySQL cannot defer a constraint to commit.');
+    }
+
+    dispositionUser();
+    Exceptions::fake();
+    DB::statement('CREATE TABLE disposition_deferred_probe (credential_id INTEGER REFERENCES auth_credentials(id) DEFERRABLE INITIALLY DEFERRED)');
+
+    $inserted = new DispositionProbe();
+    AuthCredential::created(static function (AuthCredential $credential) use ($inserted): void {
+        if ($credential->type === 'totp' && ! $inserted->registered) {
+            $inserted->registered = true;
+            DB::table('disposition_deferred_probe')->insert(['credential_id' => 999_999_999]);
+        }
+    });
+
+    $result = null;
+
+    try {
+        $result = dispositionAddTotp(dispositionSession());
+    } finally {
+        dispositionCloseTransactions();
+    }
+
+    // Premises: the violating row was written inside the enrollment, the
+    // service returned, and the enrollment really did not commit.
+    expect($inserted->registered)->toBeTrue()
+        ->and($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and(dispositionActiveTotps())->toBe(0);
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged)
+        ->and($result->writeDisposition)->toBe(WriteDisposition::Indeterminate)
+        ->and($result->secrets)->toBe([]);
+});
+
+it('stays committed when the failing callback had opened a transaction', function (): void {
+    /*
+     * The mirror of the case above: the enrollment committed, then a host
+     * callback began a transaction and threw. PDO now reports a transaction in
+     * progress, which says nothing about the enrollment's.
+     */
+    dispositionUser();
+    Exceptions::fake();
+    $probe = dispositionListener(work: static function (): void {
+        DB::beginTransaction();
+    });
+
+    $result = null;
+
+    try {
+        $result = dispositionAddTotp(dispositionSession());
+    } finally {
+        dispositionCloseTransactions();
+    }
+
+    expect($probe->ran)->toBeTrue()
+        ->and($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and(dispositionActiveTotps())->toBe(1);
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged)
+        ->and($result->writeDisposition)->toBe(WriteDisposition::Committed)
+        ->and($result->secrets)->toHaveCount(1);
+});
+
 /* ---- the existing meanings, kept ---------------------------------------- */
 
 it('keeps Refused, not committed, for a driver that fails before commit', function (): void {
@@ -253,7 +426,7 @@ it('keeps Refused, not committed, for a driver that fails before commit', functi
     ));
     app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn () => $registry);
     app()->forgetInstance(CredentialSelfService::class);
-    $sibling = dispositionSession(1, 'disposition-sibling');
+    $sibling = dispositionSibling();
 
     $result = dispositionAddTotp(dispositionSession());
 
@@ -262,8 +435,8 @@ it('keeps Refused, not committed, for a driver that fails before commit', functi
         ->and($result->secrets)->toBe([])
         ->and($result->cleanupFailures)->toBe([])
         // The rollback #79 added: no residue survives the refusal.
-        ->and(dispositionActiveTotps())->toBe(0)
-        ->and($sibling->fresh()?->revoked_at)->toBeNull();
+        ->and(dispositionActiveTotps())->toBe(0);
+    expectDispositionSiblingLive($sibling);
 });
 
 it('reports a clean additive enrollment as completed and committed', function (): void {
@@ -334,6 +507,61 @@ it('calls a nested success indeterminate, because the caller commits it', functi
         ->and($committed->writeDisposition)->toBe(WriteDisposition::Indeterminate)
         ->and($committed->secrets)->toHaveCount(1)
         ->and(dispositionActiveTotps())->toBe(1);
+});
+
+it('leaves a host callback deferred to the caller\'s commit', function (): void {
+    dispositionUser();
+    $session = dispositionSession();
+    $probe = dispositionListener(throws: false);
+
+    DB::beginTransaction();
+    $result = dispositionAddTotp($session);
+    $ranBeforeCallerCommit = $probe->ran;
+    DB::commit();
+
+    expect($probe->registered)->toBeTrue()
+        ->and($ranBeforeCallerCommit)->toBeFalse()
+        ->and($probe->ran)->toBeTrue()
+        ->and($result->outcome)->toBe(SelfServiceOutcome::Completed)
+        ->and($result->writeDisposition)->toBe(WriteDisposition::Indeterminate);
+});
+
+it('lets the caller\'s rollback discard a host callback', function (): void {
+    dispositionUser();
+    $session = dispositionSession();
+    $probe = dispositionListener(throws: false);
+
+    DB::beginTransaction();
+    dispositionAddTotp($session);
+    DB::rollBack();
+
+    expect($probe->registered)->toBeTrue()
+        ->and($probe->ran)->toBeFalse()
+        ->and(dispositionActiveTotps())->toBe(0);
+});
+
+it('surfaces a host callback failure at the caller\'s commit, not inside addFactor', function (): void {
+    dispositionUser();
+    $session = dispositionSession();
+    $probe = dispositionFailingListener();
+    $result = null;
+
+    expect(static function () use ($session, &$result): void {
+        DB::transaction(static function () use ($session, &$result): void {
+            $result = dispositionAddTotp($session);
+        });
+    })->toThrow(RuntimeException::class, DISPOSITION_SENTINEL);
+
+    expect($probe->ran)->toBeTrue()
+        ->and($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and(dispositionActiveTotps())->toBe(1);
+
+    if (! $result instanceof SelfServiceResult) {
+        throw new RuntimeException('addFactor() did not return before the caller committed.');
+    }
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::Completed)
+        ->and($result->writeDisposition)->toBe(WriteDisposition::Indeterminate);
 });
 
 /* ---- paths this change does not report on ------------------------------- */
