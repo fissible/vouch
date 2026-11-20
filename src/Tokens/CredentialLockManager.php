@@ -7,6 +7,7 @@ namespace Fissible\Vouch\Tokens;
 use Fissible\Vouch\Kernel\Factor\CredentialId;
 use Illuminate\Database\ConnectionInterface;
 use Fissible\Vouch\Support\DatabaseRowLock;
+use Fissible\Vouch\Support\SubjectLockBucket;
 
 /**
  * Serializes human-token issuance with credential mutation.
@@ -63,13 +64,30 @@ class CredentialLockManager
         return $credentialIds;
     }
 
+    /**
+     * #17. Lock the subject's buckets, ascending, before any credential.
+     *
+     * A subject with no session still serializes, because every bucket is
+     * seeded before anyone asks. Unrelated subjects sharing a bucket serialize
+     * too, which is latency and never shared state. No path locks two subjects
+     * in one transaction, so bucket sharing adds no deadlock cycle.
+     *
+     * On SQLite row locks are no-ops and the database write lock is the mutex.
+     * The 5a anchor took it with a leading insert, so the buckets are claimed
+     * with a no-op UPDATE there: a read alone would let a second writer in.
+     */
     protected function lockSubject(SubjectKey $subject): void
     {
-        (new DatabaseRowLock($this->connection()))->ensureAndLock(
-            'auth_subject_locks',
-            ['subject_key' => $subject->toString()],
-            ['subject_key' => $subject->toString()],
-        );
+        $connection = $this->connection();
+        $buckets = SubjectLockBucket::buckets($subject);
+
+        if ($connection instanceof \Illuminate\Database\Connection && $connection->getDriverName() === 'sqlite') {
+            $connection->table(SubjectLockBucket::TABLE)
+                ->whereIn('bucket', $buckets)
+                ->update(['bucket' => new \Illuminate\Database\Query\Expression('bucket')]);
+        }
+
+        (new DatabaseRowLock($connection))->lockBuckets(SubjectLockBucket::TABLE, $buckets);
     }
 
     protected function lockCredential(string $credentialId): void

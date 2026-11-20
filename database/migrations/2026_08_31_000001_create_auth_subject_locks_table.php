@@ -2,44 +2,37 @@
 
 declare(strict_types=1);
 
+use Fissible\Vouch\Support\LockBucket;
+use Fissible\Vouch\Support\SubjectLockBucket;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Durable serialization anchor for provider-qualified subject operations.
+ * Durable serialization for provider-qualified subject operations.
  *
  * Subject-wide token work can run after every session has gone away, so a
- * session row cannot be its mutex. This permanent anchor is claimed before it
- * is locked, making the empty-subject case serialize just like an established
- * subject. Its key is SubjectKey's canonical provider:id form, preserving both
- * identity halves and string-distinct identifiers.
+ * session row cannot be its mutex. Since #17 the table is a fixed set of keyed
+ * buckets, seeded here, so a fresh install never holds the per-subject shape.
+ * An install that already ran this gets the conversion from
+ * 2026_11_20_000001_bucketed_subject_locks.
  *
- * This table intentionally has no id or timestamps: it represents only the
- * continued availability of a mutex row. Acquirers use insertOrIgnore and do
- * not delete it, so neither a lifecycle identity nor audit timestamps describe
- * meaningful state.
- *
- * There is deliberately no foreign key. The anchor must remain independent of
- * host user/session deletion, and enforcing a host lookup on the contention
- * path would turn a standalone lock acquisition into coupled domain work.
- *
- * A unique index supplies the conflict behaviour required by insertOrIgnore;
- * a primary key is unnecessary because the value is a serialization anchor,
- * not an entity identity exposed to application code.
+ * There is deliberately no foreign key: a mutex must not cascade-delete with a
+ * host user, nor couple the most contended statement to a host lookup.
  */
 return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('auth_subject_locks', function (Blueprint $table): void {
-            $table->string('subject_key');
-            $table->unique('subject_key', 'auth_subject_locks_subject_key_unique');
+        Schema::create(SubjectLockBucket::TABLE, function (Blueprint $table): void {
+            $table->unsignedInteger('bucket')->primary();
         });
+
+        LockBucket::seed(Schema::getConnection(), SubjectLockBucket::TABLE);
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('auth_subject_locks');
+        Schema::dropIfExists(SubjectLockBucket::TABLE);
     }
 };

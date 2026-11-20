@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use Fissible\Vouch\Support\LockBucketSecret;
 use Fissible\Vouch\Support\LockContention;
+use Fissible\Vouch\Support\SubjectLockBucket;
 use Fissible\Vouch\Tokens\CredentialLockManager;
 use Fissible\Vouch\Tokens\SubjectKey;
 use Illuminate\Database\Connection;
@@ -44,7 +46,7 @@ beforeEach(function (): void {
      * the wrong reason. Assert the anchor exists before any contention claim
      * rests on a failure to reach it.
      */
-    expect(DB::connection()->getSchemaBuilder()->hasTable('auth_subject_locks'))->toBeTrue();
+    expect(DB::table(SubjectLockBucket::TABLE)->count())->toBe(\Fissible\Vouch\Support\LockBucket::COUNT);
 });
 
 /**
@@ -171,41 +173,57 @@ it('does not make two different subjects contend', function (): void {
         );
     }
 
+    $user = SubjectKey::of('App\\Models\\User', '7');
+    $admin = SubjectKey::of('App\\Models\\Admin', '7');
+
+    // Premise: since #17 two subjects contend when they share a bucket, so
+    // this case needs two that do not.
+    expect(SubjectLockBucket::buckets($user))->not->toBe(SubjectLockBucket::buckets($admin));
+
     $a->beginTransaction();
-    app(CredentialLockManager::class)->acquire($a, SubjectKey::of('App\\Models\\User', '7'), []);
+    app(CredentialLockManager::class)->acquire($a, $user, []);
 
     try {
-        expect(attemptSubjectLock($b, SubjectKey::of('App\\Models\\Admin', '7')))->toBeFalse();
+        expect(attemptSubjectLock($b, $admin))->toBeFalse();
     } finally {
         $a->rollBack();
     }
 });
 
-it('serializes the anchor claim itself, not only an existing anchor', function (): void {
+it('excludes on the bucket a process on the previous secret holds', function (): void {
     /*
-     * The first-acquisition race, which is the one row locks alone cannot fix:
-     * SELECT ... FOR UPDATE locks the rows that exist, and here there are none.
-     * Both connections claim the anchor for a subject that has never been
-     * locked before; exactly one row must result and the second must be
-     * excluded rather than inserting a duplicate.
-     *
-     * DatabaseRowLock's ensure-then-lock is documented to require exactly this
-     * matrix test: engines differ on which statement serializes.
+     * #16's rotation overlap, on the subject domain. A holds the subject under
+     * the OLD secret alone, as a process not yet redeployed would. B runs with
+     * the new secret and the old one as previous, and must be blocked. Without
+     * the overlap B proceeds: the uncoordinated rotation the overlap prevents.
      */
-    $subject = SubjectKey::of('App\\Models\\User', '99');
     $a = DB::connection('subject_a');
     $b = DB::connection('subject_b');
 
-    expect(DB::table('auth_subject_locks')->where('subject_key', $subject->toString())->count())->toBe(0);
-
-    $a->beginTransaction();
-    app(CredentialLockManager::class)->acquire($a, $subject, []);
-
-    try {
-        expect(attemptSubjectLock($b, $subject))->toBeTrue();
-    } finally {
-        $a->commit();
+    if ($a->getDriverName() === 'sqlite') {
+        $this->markTestSkipped('SQLite serializes writers database-wide, so which bucket is held is unobservable.');
     }
 
-    expect(DB::table('auth_subject_locks')->where('subject_key', $subject->toString())->count())->toBe(1);
+    $subject = SubjectKey::of('App\\Models\\User', '7');
+    $old = str_repeat('o', 40);
+    $new = str_repeat('n', 40);
+    config([LockBucketSecret::KEY => $old, LockBucketSecret::LEGACY_KEY => null, LockBucketSecret::PREVIOUS_KEY => null]);
+    $oldBuckets = SubjectLockBucket::buckets($subject);
+    config([LockBucketSecret::KEY => $new]);
+
+    // Premise: the secrets put this subject in different buckets.
+    expect(SubjectLockBucket::buckets($subject))->not->toBe($oldBuckets);
+
+    $a->beginTransaction();
+    $a->table(SubjectLockBucket::TABLE)->where('bucket', $oldBuckets[0])->lockForUpdate()->first();
+
+    try {
+        expect(attemptSubjectLock($b, $subject))->toBeFalse();
+
+        config([LockBucketSecret::PREVIOUS_KEY => $old]);
+
+        expect(attemptSubjectLock($b, $subject))->toBeTrue();
+    } finally {
+        $a->rollBack();
+    }
 });

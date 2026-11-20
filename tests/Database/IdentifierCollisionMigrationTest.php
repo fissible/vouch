@@ -233,6 +233,7 @@ function expectedTableNames(): array
         'personal_access_tokens',
         \Fissible\Vouch\Support\IssuanceLockBucket::TABLE,
         \Fissible\Vouch\Support\IpThrottleLockBucket::TABLE,
+        \Fissible\Vouch\Support\SubjectLockBucket::TABLE,
     ];
 
     if (DB::connection()->getDriverName() === 'sqlite') {

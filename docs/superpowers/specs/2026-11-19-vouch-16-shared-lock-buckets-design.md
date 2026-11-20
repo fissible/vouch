@@ -70,4 +70,4 @@ read for the same upgrade reason.
 
 ## Out of scope
 
-#17 (`auth_subject_locks`) moves onto the same derivation in its own change.
+#17 (`auth_subject_locks`) moved onto the same derivation in its own change, as the `token.subject` domain.
