@@ -416,6 +416,7 @@ it('does not read another connection\'s commit as the enrollment\'s', function (
      * taken; those attempts fail fast and are not needed, since nothing else
      * can commit then. SQLite also keeps a transaction open after a refused
      * COMMIT, so the rollback callback ends it first, as PostgreSQL does.
+     * That callback then throws, so no rollback signal is seen either.
      */
     $driver = DB::connection()->getDriverName();
 
@@ -470,6 +471,9 @@ it('does not read another connection\'s commit as the enrollment\'s', function (
                 }
 
                 $other->commit('rollback');
+
+                // And hides any rollback signal registered after it.
+                throw new RuntimeException(DISPOSITION_SENTINEL);
             });
         }
     });
