@@ -258,14 +258,28 @@ it('reports the listener failure to the host and keeps it out of the result', fu
 
     Exceptions::assertReported(static fn (RuntimeException $exception): bool => $exception->getMessage() === DISPOSITION_SENTINEL);
 
+    $json = json_encode($result);
+
+    // Control: JSON rendering succeeded, so its absence check below is real.
+    expect($json)->toBeString();
+    expect(json_decode((string) $json))->not->toBeNull();
+
     foreach ([
         'print_r' => print_r($result, true),
         'var_export' => var_export($result, true),
-        'json_encode' => (string) json_encode($result),
         'serialize' => serialize($result),
     ] as $surface => $rendered) {
-        // Control: each rendering is of the real result object.
-        expect($rendered)->toContain('writeDisposition');
+        // Control: PHP names the class on these surfaces whatever the result
+        // chooses to show, so each rendering is of the real object.
+        expect(str_contains($rendered, 'SelfServiceResult'))->toBeTrue("{$surface} did not render the result");
+    }
+
+    foreach ([
+        'print_r' => print_r($result, true),
+        'var_export' => var_export($result, true),
+        'json_encode' => (string) $json,
+        'serialize' => serialize($result),
+    ] as $surface => $rendered) {
         expect(str_contains($rendered, 'disposition-sentinel-8f3a'))->toBeFalse("{$surface} carries the diagnostic");
     }
 });
@@ -385,7 +399,8 @@ it('reports a commit the engine refused as indeterminate', function (): void {
 
     expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged)
         ->and($result->writeDisposition)->toBe(WriteDisposition::Indeterminate)
-        ->and($result->secrets)->toBe([]);
+        ->and($result->secrets)->toBe([])
+        ->and($result->cleanupFailures)->toBe([CredentialCleanupStep::PostCommitWork]);
 });
 
 it('stays committed when the failing callback had opened a transaction', function (): void {
@@ -426,8 +441,15 @@ it('stays committed when a host callback registered at BEGIN throws first', func
      * The credential is durable, so the answer must still be Committed, with
      * its secret.
      *
-     * Registered on every top-level begin, and throwing only once the TOTP row
-     * exists, so earlier transactions in the flow are untouched.
+     * Registered on EVERY begin, nested ones included: Laravel runs callbacks
+     * by transaction record rather than in one global order, so a marker
+     * hidden in a nested transaction must not be able to run ahead of this.
+     * Throwing only once the TOTP row exists, and only once, so earlier
+     * transactions in the flow are untouched.
+     *
+     * This demands evidence of the commit that no afterCommit marker or
+     * TransactionCommitted listener can supply: the signal has to come from
+     * the commit itself, after the engine accepted it and before callbacks run.
      */
     dispositionUser();
     Exceptions::fake();
@@ -440,10 +462,6 @@ it('stays committed when a host callback registered at BEGIN throws first', func
         }
     });
     Event::listen(TransactionBeginning::class, static function () use ($created, $threw): void {
-        if (DB::transactionLevel() !== 1) {
-            return;
-        }
-
         DB::connection()->afterCommit(static function () use ($created, $threw): void {
             if ($created->registered && ! $threw->ran) {
                 $threw->ran = true;
