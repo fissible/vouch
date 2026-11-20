@@ -12,8 +12,10 @@ use Fissible\Vouch\SelfService\SelfServiceOutcome;
 use Fissible\Vouch\SelfService\SelfServiceResult;
 use Fissible\Vouch\SelfService\WriteDisposition;
 use Fissible\Vouch\Tests\Support\InterceptingFactor;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\Events\TransactionBeginning;
 use Illuminate\Database\Events\TransactionCommitting;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -406,8 +408,12 @@ it('reports a commit the engine refused as indeterminate', function (): void {
 it('does not read another connection\'s commit as the enrollment\'s', function (): void {
     /*
      * Database-wide progress (data_version, txid, WAL position) moves when ANY
-     * transaction commits. Here an unrelated connection commits during the
-     * enrollment, and the enrollment's own commit is then refused.
+     * transaction commits. An unrelated connection commits at every point it
+     * can -- at BEGIN, after each enrollment statement, at COMMIT, and in the
+     * rollback callbacks -- and the enrollment's own commit is then refused, so
+     * no sampling window sees only the enrollment's progress. On SQLite the
+     * enrollment's write lock blocks the unrelated writer once taken; those
+     * attempts fail fast and are not needed, since nothing else can commit then.
      */
     $driver = DB::connection()->getDriverName();
 
@@ -420,16 +426,51 @@ it('does not read another connection\'s commit as the enrollment\'s', function (
     }
 
     dispositionUser();
+    $session = dispositionSession();
     Exceptions::fake();
     DB::statement('CREATE TABLE disposition_progress_other (id INTEGER)');
     DB::statement('CREATE TABLE disposition_deferred_probe (credential_id INTEGER REFERENCES auth_credentials(id) DEFERRABLE INITIALLY DEFERRED)');
-    config(['database.connections.disposition_other' => config('database.connections.' . DB::getDefaultConnection())]);
+    config(['database.connections.disposition_other' => [
+        ...config()->array('database.connections.' . DB::getDefaultConnection()),
+        'busy_timeout' => 0,
+    ]]);
 
-    $other = new DispositionProbe();
-    Event::listen(TransactionBeginning::class, static function (TransactionBeginning $event) use ($other): void {
-        if ($event->connectionName !== 'disposition_other' && ! $other->registered) {
-            $other->registered = true;
-            DB::connection('disposition_other')->table('disposition_progress_other')->insert(['id' => 1]);
+    $other = new class {
+        public bool $active = true;
+
+        /** @var list<string> */
+        public array $landed = [];
+
+        public function commit(string $point): void
+        {
+            if (! $this->active) {
+                return;
+            }
+
+            try {
+                DB::connection('disposition_other')->table('disposition_progress_other')->insert(['id' => 1]);
+                $this->landed[] = $point;
+            } catch (QueryException) {
+                // SQLite: the enrollment holds the write lock.
+            }
+        }
+    };
+
+    $enrolling = static fn (string $connection): bool => $other->active && $connection !== 'disposition_other';
+    Event::listen(TransactionBeginning::class, static function (TransactionBeginning $event) use ($other, $enrolling): void {
+        if ($enrolling($event->connectionName)) {
+            $other->commit('begin');
+            DB::connection()->afterRollBack(static fn () => $other->commit('rollback'));
+        }
+    });
+    Event::listen(QueryExecuted::class, static function (QueryExecuted $event) use ($other, $enrolling): void {
+        if ($enrolling($event->connectionName)) {
+            $other->commit('statement');
+        }
+    });
+    Event::listen(TransactionCommitting::class, static function (TransactionCommitting $event) use ($other, $enrolling): void {
+        if ($enrolling($event->connectionName)) {
+            $other->commit('commit');
         }
     });
 
@@ -444,21 +485,25 @@ it('does not read another connection\'s commit as the enrollment\'s', function (
     $result = null;
 
     try {
-        $result = dispositionAddTotp(dispositionSession());
+        $result = dispositionAddTotp($session);
     } finally {
+        $other->active = false;
         dispositionCloseTransactions();
         DB::purge('disposition_other');
-        $otherRows = DB::table('disposition_progress_other')->count();
         DB::statement('DROP TABLE IF EXISTS disposition_deferred_probe');
         DB::statement('DROP TABLE IF EXISTS disposition_progress_other');
     }
 
-    // Premises: the unrelated commit landed, and the enrollment's did not.
-    expect($other->registered)->toBeTrue()
-        ->and($otherRows)->toBe(1)
+    // Premises: unrelated commits landed around the enrollment, and the
+    // enrollment's own commit did not.
+    expect($other->landed)->toContain('begin')
         ->and($inserted->registered)->toBeTrue()
         ->and($result)->toBeInstanceOf(SelfServiceResult::class)
         ->and(dispositionActiveTotps())->toBe(0);
+
+    if ($driver === 'pgsql') {
+        expect($other->landed)->toContain('statement', 'commit', 'rollback');
+    }
 
     expect($result->writeDisposition)->toBe(WriteDisposition::Indeterminate)
         ->and($result->secrets)->toBe([]);
