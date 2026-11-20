@@ -409,11 +409,13 @@ it('does not read another connection\'s commit as the enrollment\'s', function (
     /*
      * Database-wide progress (data_version, txid, WAL position) moves when ANY
      * transaction commits. An unrelated connection commits at every point it
-     * can -- at BEGIN, after each enrollment statement, at COMMIT, and in the
-     * rollback callbacks -- and the enrollment's own commit is then refused, so
-     * no sampling window sees only the enrollment's progress. On SQLite the
-     * enrollment's write lock blocks the unrelated writer once taken; those
-     * attempts fail fast and are not needed, since nothing else can commit then.
+     * can -- at BEGIN, before and after each enrollment statement, at COMMIT,
+     * and in the rollback callbacks -- and the enrollment's own commit is then
+     * refused, so no sampling window sees only the enrollment's progress. On
+     * SQLite the enrollment's write lock blocks the unrelated writer once
+     * taken; those attempts fail fast and are not needed, since nothing else
+     * can commit then. SQLite also keeps a transaction open after a refused
+     * COMMIT, so the rollback callback ends it first, as PostgreSQL does.
      */
     $driver = DB::connection()->getDriverName();
 
@@ -460,8 +462,19 @@ it('does not read another connection\'s commit as the enrollment\'s', function (
     Event::listen(TransactionBeginning::class, static function (TransactionBeginning $event) use ($other, $enrolling): void {
         if ($enrolling($event->connectionName)) {
             $other->commit('begin');
-            DB::connection()->afterRollBack(static fn () => $other->commit('rollback'));
+            DB::connection()->afterRollBack(static function () use ($other): void {
+                $pdo = DB::connection()->getPdo();
+
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+
+                $other->commit('rollback');
+            });
         }
+    });
+    DB::connection()->beforeExecuting(static function () use ($other): void {
+        $other->commit('before statement');
     });
     Event::listen(QueryExecuted::class, static function (QueryExecuted $event) use ($other, $enrolling): void {
         if ($enrolling($event->connectionName)) {
@@ -496,7 +509,7 @@ it('does not read another connection\'s commit as the enrollment\'s', function (
 
     // Premises: unrelated commits landed around the enrollment, and the
     // enrollment's own commit did not.
-    expect($other->landed)->toContain('begin')
+    expect($other->landed)->toContain('begin', 'before statement', 'rollback')
         ->and($inserted->registered)->toBeTrue()
         ->and($result)->toBeInstanceOf(SelfServiceResult::class)
         ->and(dispositionActiveTotps())->toBe(0);
