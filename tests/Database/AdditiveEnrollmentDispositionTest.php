@@ -403,6 +403,67 @@ it('reports a commit the engine refused as indeterminate', function (): void {
         ->and($result->cleanupFailures)->toBe([CredentialCleanupStep::PostCommitWork]);
 });
 
+it('does not read another connection\'s commit as the enrollment\'s', function (): void {
+    /*
+     * Database-wide progress (data_version, txid, WAL position) moves when ANY
+     * transaction commits. Here an unrelated connection commits during the
+     * enrollment, and the enrollment's own commit is then refused.
+     */
+    $driver = DB::connection()->getDriverName();
+
+    if ($driver === 'mysql') {
+        $this->markTestSkipped('MySQL cannot defer a constraint to commit.');
+    }
+
+    if ($driver === 'sqlite' && DB::connection()->getDatabaseName() === ':memory:') {
+        $this->markTestSkipped('A second connection to :memory: is a different database.');
+    }
+
+    dispositionUser();
+    Exceptions::fake();
+    DB::statement('CREATE TABLE disposition_progress_other (id INTEGER)');
+    DB::statement('CREATE TABLE disposition_deferred_probe (credential_id INTEGER REFERENCES auth_credentials(id) DEFERRABLE INITIALLY DEFERRED)');
+    config(['database.connections.disposition_other' => config('database.connections.' . DB::getDefaultConnection())]);
+
+    $other = new DispositionProbe();
+    Event::listen(TransactionBeginning::class, static function (TransactionBeginning $event) use ($other): void {
+        if ($event->connectionName !== 'disposition_other' && ! $other->registered) {
+            $other->registered = true;
+            DB::connection('disposition_other')->table('disposition_progress_other')->insert(['id' => 1]);
+        }
+    });
+
+    $inserted = new DispositionProbe();
+    AuthCredential::created(static function (AuthCredential $credential) use ($inserted): void {
+        if ($credential->type === 'totp' && ! $inserted->registered) {
+            $inserted->registered = true;
+            DB::table('disposition_deferred_probe')->insert(['credential_id' => 999_999_999]);
+        }
+    });
+
+    $result = null;
+
+    try {
+        $result = dispositionAddTotp(dispositionSession());
+    } finally {
+        dispositionCloseTransactions();
+        DB::purge('disposition_other');
+        $otherRows = DB::table('disposition_progress_other')->count();
+        DB::statement('DROP TABLE IF EXISTS disposition_deferred_probe');
+        DB::statement('DROP TABLE IF EXISTS disposition_progress_other');
+    }
+
+    // Premises: the unrelated commit landed, and the enrollment's did not.
+    expect($other->registered)->toBeTrue()
+        ->and($otherRows)->toBe(1)
+        ->and($inserted->registered)->toBeTrue()
+        ->and($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and(dispositionActiveTotps())->toBe(0);
+
+    expect($result->writeDisposition)->toBe(WriteDisposition::Indeterminate)
+        ->and($result->secrets)->toBe([]);
+});
+
 it('stays committed when the failing callback had opened a transaction', function (): void {
     /*
      * The mirror of the case above: the enrollment committed, then a host
