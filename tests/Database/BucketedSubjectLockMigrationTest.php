@@ -52,10 +52,10 @@ function restoreSubjectKeyedLocks(): void
 /** @return list<int> */
 function subjectLockBuckets(): array
 {
-    return array_map(
+    return array_values(array_map(
         static fn (mixed $bucket): int => is_numeric($bucket) ? (int) $bucket : -1,
         DB::table(SubjectLockBucket::TABLE)->orderBy('bucket')->pluck('bucket')->all(),
-    );
+    ));
 }
 
 it('builds the shape it is meant to convert', function (): void {

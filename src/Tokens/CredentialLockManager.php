@@ -81,7 +81,7 @@ class CredentialLockManager
         $connection = $this->connection();
         $buckets = SubjectLockBucket::buckets($subject);
 
-        if ($connection->getDriverName() === 'sqlite') {
+        if ($connection instanceof \Illuminate\Database\Connection && $connection->getDriverName() === 'sqlite') {
             $connection->table(SubjectLockBucket::TABLE)
                 ->whereIn('bucket', $buckets)
                 ->update(['bucket' => new \Illuminate\Database\Query\Expression('bucket')]);

@@ -46,10 +46,10 @@ final class SubjectLockTest extends TestCase
     /** @return list<int> */
     private function bucketRows(): array
     {
-        return array_map(
+        return array_values(array_map(
             static fn (mixed $bucket): int => is_numeric($bucket) ? (int) $bucket : -1,
             DB::table(SubjectLockBucket::TABLE)->orderBy('bucket')->pluck('bucket')->all(),
-        );
+        ));
     }
 
     #[Test]
