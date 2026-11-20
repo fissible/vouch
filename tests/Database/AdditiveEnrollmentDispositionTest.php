@@ -416,7 +416,8 @@ it('does not read another connection\'s commit as the enrollment\'s', function (
      * taken; those attempts fail fast and are not needed, since nothing else
      * can commit then. SQLite also keeps a transaction open after a refused
      * COMMIT, so the rollback callback ends it first, as PostgreSQL does.
-     * That callback then throws, so no rollback signal is seen either.
+     * That callback then throws a prebuilt exception, so no rollback signal is
+     * seen either, and the trace points nowhere.
      */
     $driver = DB::connection()->getDriverName();
 
@@ -460,10 +461,11 @@ it('does not read another connection\'s commit as the enrollment\'s', function (
     };
 
     $enrolling = static fn (string $connection): bool => $other->active && $connection !== 'disposition_other';
-    Event::listen(TransactionBeginning::class, static function (TransactionBeginning $event) use ($other, $enrolling): void {
+    $prebuilt = new RuntimeException(DISPOSITION_SENTINEL);
+    Event::listen(TransactionBeginning::class, static function (TransactionBeginning $event) use ($other, $enrolling, $prebuilt): void {
         if ($enrolling($event->connectionName)) {
             $other->commit('begin');
-            DB::connection()->afterRollBack(static function () use ($other): void {
+            DB::connection()->afterRollBack(static function () use ($other, $prebuilt): void {
                 $pdo = DB::connection()->getPdo();
 
                 if ($pdo->inTransaction()) {
@@ -472,8 +474,9 @@ it('does not read another connection\'s commit as the enrollment\'s', function (
 
                 $other->commit('rollback');
 
-                // And hides any rollback signal registered after it.
-                throw new RuntimeException(DISPOSITION_SENTINEL);
+                // And hides any rollback signal registered after it, with an
+                // exception whose trace says nothing about where it was thrown.
+                throw $prebuilt;
             });
         }
     });
@@ -607,6 +610,66 @@ it('stays committed when a host callback registered at BEGIN throws first', func
     $stored = AuthCredential::query()->where('user_id', 1)->where('type', 'totp')->whereNull('disabled_at')->firstOrFail()->secret;
 
     expect($result->secrets[0]->reveal())->toContain('secret=' . (is_string($stored) ? $stored : ''));
+});
+
+it('stays committed when every other signal says it did not', function (): void {
+    /*
+     * The cases above each defeat one kind of evidence; a combination of them
+     * must not survive either. Here a callback registered at BEGIN runs first
+     * and makes every non-lifecycle signal point the wrong way at once: the
+     * row is gone, a rollback was seen, a transaction is open, and the
+     * exception was built before the enrollment began.
+     */
+    dispositionUser();
+    Exceptions::fake();
+    $prebuilt = new RuntimeException(DISPOSITION_SENTINEL);
+    $created = new DispositionProbe();
+    $threw = new class {
+        public bool $ran = false;
+
+        public int $rowsAtCallback = 0;
+    };
+
+    AuthCredential::created(static function (AuthCredential $credential) use ($created): void {
+        if ($credential->type === 'totp') {
+            $created->registered = true;
+        }
+    });
+    Event::listen(TransactionBeginning::class, static function () use ($created, $threw, $prebuilt): void {
+        DB::connection()->afterCommit(static function () use ($created, $threw, $prebuilt): void {
+            if (! $created->registered || $threw->ran) {
+                return;
+            }
+
+            $threw->ran = true;
+            $threw->rowsAtCallback = dispositionActiveTotps();
+            DB::table('auth_credentials')->where('user_id', 1)->where('type', 'totp')->delete();
+            DB::beginTransaction();
+            DB::rollBack();
+            DB::beginTransaction();
+
+            throw $prebuilt;
+        });
+    });
+
+    $result = null;
+
+    try {
+        $result = dispositionAddTotp(dispositionSession());
+    } finally {
+        dispositionCloseTransactions();
+    }
+
+    // Premise: the credential had committed when the callback ran.
+    expect($threw->ran)->toBeTrue()
+        ->and($threw->rowsAtCallback)->toBe(1)
+        ->and($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and(dispositionActiveTotps())->toBe(0);
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged)
+        ->and($result->writeDisposition)->toBe(WriteDisposition::Committed)
+        ->and($result->cleanupFailures)->toBe([CredentialCleanupStep::PostCommitWork])
+        ->and($result->secrets)->toHaveCount(1);
 });
 
 /*
