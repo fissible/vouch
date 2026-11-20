@@ -12,6 +12,7 @@ use Fissible\Vouch\SelfService\SelfServiceOutcome;
 use Fissible\Vouch\SelfService\SelfServiceResult;
 use Fissible\Vouch\SelfService\WriteDisposition;
 use Fissible\Vouch\Tests\Support\InterceptingFactor;
+use Illuminate\Database\Events\TransactionBeginning;
 use Illuminate\Database\Events\TransactionCommitting;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
@@ -371,6 +372,9 @@ it('reports a commit the engine refused as indeterminate', function (): void {
         $result = dispositionAddTotp(dispositionSession());
     } finally {
         dispositionCloseTransactions();
+        // Before DatabaseMigrations tears the schema down: PostgreSQL refuses
+        // to drop auth_credentials while this table's foreign key names it.
+        DB::statement('DROP TABLE IF EXISTS disposition_deferred_probe');
     }
 
     // Premises: the violating row was written inside the enrollment, the
@@ -411,6 +415,57 @@ it('stays committed when the failing callback had opened a transaction', functio
     expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged)
         ->and($result->writeDisposition)->toBe(WriteDisposition::Committed)
         ->and($result->secrets)->toHaveCount(1);
+});
+
+it('stays committed when a host callback registered at BEGIN throws first', function (): void {
+    /*
+     * afterCommit callbacks run in registration order, and a host can register
+     * one as the enrollment's transaction begins -- before anything the service
+     * adds inside it. If that callback throws first, any evidence of the
+     * commit the service planned to gather in a later callback never arrives.
+     * The credential is durable, so the answer must still be Committed, with
+     * its secret.
+     *
+     * Registered on every top-level begin, and throwing only once the TOTP row
+     * exists, so earlier transactions in the flow are untouched.
+     */
+    dispositionUser();
+    Exceptions::fake();
+    $created = new DispositionProbe();
+    $threw = new DispositionProbe();
+
+    AuthCredential::created(static function (AuthCredential $credential) use ($created): void {
+        if ($credential->type === 'totp') {
+            $created->registered = true;
+        }
+    });
+    Event::listen(TransactionBeginning::class, static function () use ($created, $threw): void {
+        if (DB::transactionLevel() !== 1) {
+            return;
+        }
+
+        DB::connection()->afterCommit(static function () use ($created, $threw): void {
+            if ($created->registered && ! $threw->ran) {
+                $threw->ran = true;
+
+                throw new RuntimeException(DISPOSITION_SENTINEL);
+            }
+        });
+    });
+
+    $result = dispositionAddTotp(dispositionSession());
+
+    expect($threw->ran)->toBeTrue()
+        ->and(dispositionActiveTotps())->toBe(1);
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged)
+        ->and($result->writeDisposition)->toBe(WriteDisposition::Committed)
+        ->and($result->cleanupFailures)->toBe([CredentialCleanupStep::PostCommitWork])
+        ->and($result->secrets)->toHaveCount(1);
+
+    $stored = AuthCredential::query()->where('user_id', 1)->where('type', 'totp')->whereNull('disabled_at')->firstOrFail()->secret;
+
+    expect($result->secrets[0]->reveal())->toContain('secret=' . (is_string($stored) ? $stored : ''));
 });
 
 /* ---- the existing meanings, kept ---------------------------------------- */
@@ -562,6 +617,45 @@ it('surfaces a host callback failure at the caller\'s commit, not inside addFact
 
     expect($result->outcome)->toBe(SelfServiceOutcome::Completed)
         ->and($result->writeDisposition)->toBe(WriteDisposition::Indeterminate);
+});
+
+it('rolls back only its own write when it fails inside a caller\'s transaction', function (): void {
+    /*
+     * The enrollment needs a rollback boundary of its own. Joining the
+     * caller's transaction instead would leave the enrollment's write in it,
+     * to be committed by the caller after the service said NotCommitted.
+     */
+    dispositionUser();
+    $session = dispositionSession();
+
+    $registry = new FactorRegistry();
+    $registry->register(app(\Fissible\Vouch\Factors\Drivers\PasswordFactor::class));
+    $registry->register(new InterceptingFactor(
+        app(\Fissible\Vouch\Factors\Drivers\TotpFactor::class),
+        throwAfterEnroll: true,
+    ));
+    app()->when(CredentialSelfService::class)->needs(FactorRegistry::class)->give(fn () => $registry);
+    app()->forgetInstance(CredentialSelfService::class);
+
+    $result = DB::transaction(static function () use ($session): SelfServiceResult {
+        AuthIdentifier::create([
+            'user_id' => 2,
+            'type' => 'email',
+            'value' => 'caller-work@acme.example',
+            'verified_at' => now(),
+        ]);
+
+        return dispositionAddTotp($session);
+    });
+
+    // Premise: the caller's own work committed, so the absence below is the
+    // enrollment's rollback and not the caller's.
+    expect(AuthIdentifier::query()->where('value', 'caller-work@acme.example')->exists())->toBeTrue();
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::Refused)
+        ->and($result->writeDisposition)->toBe(WriteDisposition::NotCommitted)
+        ->and($result->secrets)->toBe([])
+        ->and(dispositionActiveTotps())->toBe(0);
 });
 
 /* ---- paths this change does not report on ------------------------------- */
