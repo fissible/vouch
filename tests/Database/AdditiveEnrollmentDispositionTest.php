@@ -486,6 +486,98 @@ it('stays committed when a host callback registered at BEGIN throws first', func
     expect($result->secrets[0]->reveal())->toContain('secret=' . (is_string($stored) ? $stored : ''));
 });
 
+/*
+ * The exception itself is not evidence. Its class, message and trace all say
+ * where it was CONSTRUCTED or what kind it is, never whether the engine had
+ * accepted the commit when it was thrown. These two cases pair with the
+ * commit-failure cases above, which throw the same sentinel or a database
+ * error from the other side of the commit.
+ */
+
+it('stays committed when the post-commit exception was built before the enrollment', function (): void {
+    dispositionUser();
+    Exceptions::fake();
+    $prebuilt = new RuntimeException(DISPOSITION_SENTINEL);
+    $probe = dispositionListener(throws: false, work: static function () use ($prebuilt): void {
+        throw $prebuilt;
+    });
+
+    $result = dispositionAddTotp(dispositionSession());
+
+    expect($probe->ran)->toBeTrue()
+        ->and(dispositionActiveTotps())->toBe(1);
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged)
+        ->and($result->writeDisposition)->toBe(WriteDisposition::Committed)
+        ->and($result->secrets)->toHaveCount(1);
+});
+
+it('stays committed when the post-commit callback failed with a database error', function (): void {
+    dispositionUser();
+    Exceptions::fake();
+    $probe = dispositionListener(throws: false, work: static function (): void {
+        DB::select('SELECT * FROM disposition_no_such_table');
+    });
+
+    $result = dispositionAddTotp(dispositionSession());
+
+    expect($probe->ran)->toBeTrue()
+        ->and(dispositionActiveTotps())->toBe(1);
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged)
+        ->and($result->writeDisposition)->toBe(WriteDisposition::Committed)
+        ->and($result->secrets)->toHaveCount(1);
+});
+
+it('does not read a missing rollback signal as a commit', function (): void {
+    /*
+     * The commit fails, and a host rollback callback registered at every BEGIN
+     * throws ahead of anything the service adds. Any "no rollback was seen, so
+     * it committed" inference then claims a commit that did not happen.
+     */
+    dispositionUser();
+    Exceptions::fake();
+    $armed = new class {
+        public bool $value = false;
+
+        public bool $fired = false;
+    };
+
+    AuthCredential::created(static function (AuthCredential $credential) use ($armed): void {
+        if ($credential->type === 'totp') {
+            $armed->value = true;
+        }
+    });
+    Event::listen(TransactionBeginning::class, static function (): void {
+        DB::connection()->afterRollBack(static function (): void {
+            throw new RuntimeException(DISPOSITION_SENTINEL);
+        });
+    });
+    Event::listen(TransactionCommitting::class, static function () use ($armed): void {
+        if ($armed->value && ! $armed->fired) {
+            $armed->fired = true;
+
+            throw new RuntimeException(DISPOSITION_SENTINEL);
+        }
+    });
+
+    $result = null;
+
+    try {
+        $result = dispositionAddTotp(dispositionSession());
+    } finally {
+        dispositionCloseTransactions();
+    }
+
+    expect($armed->fired)->toBeTrue()
+        ->and($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and(dispositionActiveTotps())->toBe(0);
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged)
+        ->and($result->writeDisposition)->toBe(WriteDisposition::Indeterminate)
+        ->and($result->secrets)->toBe([]);
+});
+
 /* ---- the existing meanings, kept ---------------------------------------- */
 
 it('keeps Refused, not committed, for a driver that fails before commit', function (): void {
