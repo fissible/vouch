@@ -578,6 +578,64 @@ it('does not read a missing rollback signal as a commit', function (): void {
         ->and($result->secrets)->toBe([]);
 });
 
+/*
+ * Reading the rows back afterwards is not evidence either. A callback can
+ * change them after the enrollment committed, and what the table says now is
+ * not what the commit did. Both cases require Committed with the enrollment's
+ * secrets, and every surviving credential still matched by one of them.
+ */
+
+it('stays committed when a post-commit callback deleted one of the new codes', function (): void {
+    dispositionUser();
+    Exceptions::fake();
+    $probe = dispositionListener('recovery_code', work: static function (): void {
+        $first = AuthCredential::query()->where('user_id', 1)->where('type', 'recovery_code')->orderBy('id')->value('id');
+        AuthCredential::query()->whereKey($first)->delete();
+    });
+
+    $result = app(CredentialSelfService::class)->addFactor(dispositionSession(), 'recovery_code', []);
+
+    $surviving = AuthCredential::query()->where('user_id', 1)->where('type', 'recovery_code')->pluck('secret')->all();
+
+    expect($probe->ran)->toBeTrue()
+        ->and($surviving)->not->toBeEmpty();
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged)
+        ->and($result->writeDisposition)->toBe(WriteDisposition::Committed)
+        ->and(count($result->secrets))->toBe(count($surviving) + 1);
+
+    $matched = [];
+
+    foreach ($result->secrets as $secret) {
+        $code = $secret->reveal();
+
+        foreach ($surviving as $index => $hash) {
+            if (is_string($hash) && Hash::check($code, $hash)) {
+                $matched[$index] = true;
+            }
+        }
+    }
+
+    expect(count($matched))->toBe(count($surviving));
+});
+
+it('stays committed when a post-commit callback deleted the new credential', function (): void {
+    dispositionUser();
+    Exceptions::fake();
+    $probe = dispositionListener(work: static function (): void {
+        AuthCredential::query()->where('user_id', 1)->where('type', 'totp')->delete();
+    });
+
+    $result = dispositionAddTotp(dispositionSession());
+
+    expect($probe->ran)->toBeTrue()
+        ->and(dispositionActiveTotps())->toBe(0);
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged)
+        ->and($result->writeDisposition)->toBe(WriteDisposition::Committed)
+        ->and($result->secrets)->toHaveCount(1);
+});
+
 /* ---- the existing meanings, kept ---------------------------------------- */
 
 it('keeps Refused, not committed, for a driver that fails before commit', function (): void {
