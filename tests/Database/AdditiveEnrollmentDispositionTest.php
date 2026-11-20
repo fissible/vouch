@@ -171,6 +171,86 @@ function expectDispositionSiblingLive(AuthSession $sibling): void
         ->and($fresh?->revoked_at)->toBeNull();
 }
 
+/** Commits unrelated rows through a second connection while it is active. */
+final class DispositionUnrelatedWriter
+{
+    public bool $active = true;
+
+    /** @var list<string> */
+    public array $landed = [];
+
+    public function commit(string $point): void
+    {
+        if (! $this->active) {
+            return;
+        }
+
+        try {
+            DB::connection('disposition_other')->table('disposition_progress_other')->insert(['id' => 1]);
+            $this->landed[] = $point;
+        } catch (QueryException) {
+            // SQLite: the enrollment holds the write lock.
+        }
+    }
+}
+
+/**
+ * Database-wide progress (data_version, txid, WAL position) moves when ANY
+ * transaction commits. This commits an unrelated row at every point it can --
+ * at each BEGIN, before and after each statement, and at COMMIT -- so no
+ * sampling window sees only the enrollment's progress. On SQLite the
+ * enrollment's write lock blocks the writer once taken; those attempts fail
+ * fast, and nothing else can commit then anyway.
+ *
+ * @param Closure(DispositionUnrelatedWriter): void $atBegin registers the
+ *        test's own callback on each transaction the enrollment connection begins
+ */
+function dispositionUnrelatedCommits(Closure $atBegin): DispositionUnrelatedWriter
+{
+    if (DB::connection()->getDriverName() === 'sqlite' && DB::connection()->getDatabaseName() === ':memory:') {
+        PHPUnit\Framework\Assert::markTestSkipped('A second connection to :memory: is a different database.');
+    }
+
+    DB::statement('CREATE TABLE disposition_progress_other (id INTEGER)');
+    config(['database.connections.disposition_other' => [
+        ...config()->array('database.connections.' . DB::getDefaultConnection()),
+        'busy_timeout' => 0,
+    ]]);
+
+    $writer = new DispositionUnrelatedWriter();
+    $enrolling = static fn (string $connection): bool => $writer->active && $connection !== 'disposition_other';
+
+    Event::listen(TransactionBeginning::class, static function (TransactionBeginning $event) use ($writer, $enrolling, $atBegin): void {
+        if ($enrolling($event->connectionName)) {
+            $writer->commit('begin');
+            $atBegin($writer);
+        }
+    });
+    DB::connection()->beforeExecuting(static function () use ($writer): void {
+        $writer->commit('before statement');
+    });
+    Event::listen(QueryExecuted::class, static function (QueryExecuted $event) use ($writer, $enrolling): void {
+        if ($enrolling($event->connectionName)) {
+            $writer->commit('statement');
+        }
+    });
+    Event::listen(TransactionCommitting::class, static function (TransactionCommitting $event) use ($writer, $enrolling): void {
+        if ($enrolling($event->connectionName)) {
+            $writer->commit('commit');
+        }
+    });
+
+    return $writer;
+}
+
+function dispositionUnrelatedTeardown(DispositionUnrelatedWriter $writer): void
+{
+    $writer->active = false;
+    dispositionCloseTransactions();
+    DB::purge('disposition_other');
+    DB::statement('DROP TABLE IF EXISTS disposition_progress_other');
+}
+
 /* ---- the case #84 is about ---------------------------------------------- */
 
 it('reports a post-commit listener failure as state that may have changed, and committed', function (): void {
@@ -405,93 +485,40 @@ it('reports a commit the engine refused as indeterminate', function (): void {
         ->and($result->cleanupFailures)->toBe([CredentialCleanupStep::PostCommitWork]);
 });
 
+/*
+ * A matched pair. Both end the same way to everything outside the commit
+ * itself: a host callback registered at BEGIN runs first, the new row is
+ * absent, an unrelated commit has just landed (as one has in every earlier
+ * window), PDO is out of any transaction at level zero, and the same prebuilt
+ * exception arrives with no rollback or commit signal. Only whether the engine
+ * accepted the enrollment's commit differs, so only that can tell them apart.
+ */
+
 it('does not read another connection\'s commit as the enrollment\'s', function (): void {
-    /*
-     * Database-wide progress (data_version, txid, WAL position) moves when ANY
-     * transaction commits. An unrelated connection commits at every point it
-     * can -- at BEGIN, before and after each enrollment statement, at COMMIT,
-     * and in the rollback callbacks -- and the enrollment's own commit is then
-     * refused, so no sampling window sees only the enrollment's progress. On
-     * SQLite the enrollment's write lock blocks the unrelated writer once
-     * taken; those attempts fail fast and are not needed, since nothing else
-     * can commit then. SQLite also keeps a transaction open after a refused
-     * COMMIT, so the rollback callback ends it first, as PostgreSQL does.
-     * That callback then throws a prebuilt exception, so no rollback signal is
-     * seen either, and the trace points nowhere.
-     */
-    $driver = DB::connection()->getDriverName();
-
-    if ($driver === 'mysql') {
+    if (DB::connection()->getDriverName() === 'mysql') {
         $this->markTestSkipped('MySQL cannot defer a constraint to commit.');
-    }
-
-    if ($driver === 'sqlite' && DB::connection()->getDatabaseName() === ':memory:') {
-        $this->markTestSkipped('A second connection to :memory: is a different database.');
     }
 
     dispositionUser();
     $session = dispositionSession();
     Exceptions::fake();
-    DB::statement('CREATE TABLE disposition_progress_other (id INTEGER)');
     DB::statement('CREATE TABLE disposition_deferred_probe (credential_id INTEGER REFERENCES auth_credentials(id) DEFERRABLE INITIALLY DEFERRED)');
-    config(['database.connections.disposition_other' => [
-        ...config()->array('database.connections.' . DB::getDefaultConnection()),
-        'busy_timeout' => 0,
-    ]]);
 
-    $other = new class {
-        public bool $active = true;
-
-        /** @var list<string> */
-        public array $landed = [];
-
-        public function commit(string $point): void
-        {
-            if (! $this->active) {
-                return;
-            }
-
-            try {
-                DB::connection('disposition_other')->table('disposition_progress_other')->insert(['id' => 1]);
-                $this->landed[] = $point;
-            } catch (QueryException) {
-                // SQLite: the enrollment holds the write lock.
-            }
-        }
-    };
-
-    $enrolling = static fn (string $connection): bool => $other->active && $connection !== 'disposition_other';
     $prebuilt = new RuntimeException(DISPOSITION_SENTINEL);
-    Event::listen(TransactionBeginning::class, static function (TransactionBeginning $event) use ($other, $enrolling, $prebuilt): void {
-        if ($enrolling($event->connectionName)) {
-            $other->commit('begin');
-            DB::connection()->afterRollBack(static function () use ($other, $prebuilt): void {
-                $pdo = DB::connection()->getPdo();
+    $writer = dispositionUnrelatedCommits(static function (DispositionUnrelatedWriter $writer) use ($prebuilt): void {
+        DB::connection()->afterRollBack(static function () use ($writer, $prebuilt): void {
+            // SQLite keeps a transaction open after a refused COMMIT; end it,
+            // as PostgreSQL already has, so the lock is released.
+            $pdo = DB::connection()->getPdo();
 
-                if ($pdo->inTransaction()) {
-                    $pdo->rollBack();
-                }
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
 
-                $other->commit('rollback');
+            $writer->commit('rollback');
 
-                // And hides any rollback signal registered after it, with an
-                // exception whose trace says nothing about where it was thrown.
-                throw $prebuilt;
-            });
-        }
-    });
-    DB::connection()->beforeExecuting(static function () use ($other): void {
-        $other->commit('before statement');
-    });
-    Event::listen(QueryExecuted::class, static function (QueryExecuted $event) use ($other, $enrolling): void {
-        if ($enrolling($event->connectionName)) {
-            $other->commit('statement');
-        }
-    });
-    Event::listen(TransactionCommitting::class, static function (TransactionCommitting $event) use ($other, $enrolling): void {
-        if ($enrolling($event->connectionName)) {
-            $other->commit('commit');
-        }
+            throw $prebuilt;
+        });
     });
 
     $inserted = new DispositionProbe();
@@ -507,26 +534,78 @@ it('does not read another connection\'s commit as the enrollment\'s', function (
     try {
         $result = dispositionAddTotp($session);
     } finally {
-        $other->active = false;
-        dispositionCloseTransactions();
-        DB::purge('disposition_other');
+        dispositionUnrelatedTeardown($writer);
         DB::statement('DROP TABLE IF EXISTS disposition_deferred_probe');
-        DB::statement('DROP TABLE IF EXISTS disposition_progress_other');
     }
 
     // Premises: unrelated commits landed around the enrollment, and the
     // enrollment's own commit did not.
-    expect($other->landed)->toContain('begin', 'before statement', 'rollback')
+    expect($writer->landed)->toContain('begin', 'before statement', 'rollback')
         ->and($inserted->registered)->toBeTrue()
         ->and($result)->toBeInstanceOf(SelfServiceResult::class)
         ->and(dispositionActiveTotps())->toBe(0);
 
-    if ($driver === 'pgsql') {
-        expect($other->landed)->toContain('statement', 'commit', 'rollback');
+    if (DB::connection()->getDriverName() === 'pgsql') {
+        expect($writer->landed)->toContain('statement', 'commit');
     }
 
     expect($result->writeDisposition)->toBe(WriteDisposition::Indeterminate)
         ->and($result->secrets)->toBe([]);
+});
+
+it('stays committed when it looks like its refused twin', function (): void {
+    dispositionUser();
+    $session = dispositionSession();
+    Exceptions::fake();
+
+    $created = new DispositionProbe();
+    AuthCredential::created(static function (AuthCredential $credential) use ($created): void {
+        if ($credential->type === 'totp') {
+            $created->registered = true;
+        }
+    });
+
+    $prebuilt = new RuntimeException(DISPOSITION_SENTINEL);
+    $seen = new class {
+        public bool $ran = false;
+
+        public int $rowsAtCallback = 0;
+    };
+    $writer = dispositionUnrelatedCommits(static function (DispositionUnrelatedWriter $writer) use ($created, $seen, $prebuilt): void {
+        DB::connection()->afterCommit(static function () use ($writer, $created, $seen, $prebuilt): void {
+            if (! $created->registered || $seen->ran) {
+                return;
+            }
+
+            $seen->ran = true;
+            $seen->rowsAtCallback = dispositionActiveTotps();
+            DB::table('auth_credentials')->where('user_id', 1)->where('type', 'totp')->delete();
+            $writer->commit('callback');
+
+            throw $prebuilt;
+        });
+    });
+
+    $result = null;
+
+    try {
+        $result = dispositionAddTotp($session);
+    } finally {
+        dispositionUnrelatedTeardown($writer);
+    }
+
+    // Premises: the credential had committed when the callback ran, and the
+    // unrelated commits landed as they do in the twin.
+    expect($seen->ran)->toBeTrue()
+        ->and($seen->rowsAtCallback)->toBe(1)
+        ->and($writer->landed)->toContain('begin', 'before statement', 'callback')
+        ->and($result)->toBeInstanceOf(SelfServiceResult::class)
+        ->and(dispositionActiveTotps())->toBe(0);
+
+    expect($result->outcome)->toBe(SelfServiceOutcome::StateMayHaveChanged)
+        ->and($result->writeDisposition)->toBe(WriteDisposition::Committed)
+        ->and($result->cleanupFailures)->toBe([CredentialCleanupStep::PostCommitWork])
+        ->and($result->secrets)->toHaveCount(1);
 });
 
 it('stays committed when the failing callback had opened a transaction', function (): void {
